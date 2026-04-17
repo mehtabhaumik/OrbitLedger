@@ -1,6 +1,7 @@
 {
   "name": "orbit-ledger",
   "version": "1.0.0",
+  "license": "UNLICENSED",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",

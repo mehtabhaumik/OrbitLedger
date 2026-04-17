@@ -8,8 +8,8 @@ production provider.
 
 Production defaults:
 
-- Tax pack manifest: `https://updates.orbitledger.rudraix.com/v1/tax-packs/manifest.json`
-- Country package manifest: `https://updates.orbitledger.rudraix.com/v1/country-packages/manifest.json`
+- Tax pack manifest: `https://updates.orbitledger.bhaumikmehta.com/v1/tax-packs/manifest.json`
+- Country package manifest: `https://updates.orbitledger.bhaumikmehta.com/v1/country-packages/manifest.json`
 
 Override for staging:
 

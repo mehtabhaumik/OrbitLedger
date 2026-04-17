@@ -135,7 +135,7 @@ export function mapBusinessToComplianceMetadata(
   const complianceContext = input.complianceContext ?? defaultComplianceRuleContext;
 
   return {
-    appName: 'Orbit Ledger by Rudraix',
+    appName: 'Orbit Ledger by Bhaumik Mehta',
     reportType: input.reportType,
     countryCode: normalizeCode(input.businessSettings.countryCode),
     regionCode: normalizeCode(input.businessSettings.stateCode),

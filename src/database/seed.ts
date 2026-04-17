@@ -27,10 +27,10 @@ export async function seedDevelopmentData(): Promise<void> {
     const settings = await getBusinessSettings();
     if (!settings) {
       await saveBusinessSettings({
-        businessName: 'Rudraix Demo Traders',
+        businessName: 'Bhaumik Mehta Demo Traders',
         ownerName: 'Bhaumik Mehta',
         phone: '+91 98765 43210',
-        email: 'hello@rudraix.local',
+        email: 'hello@bhaumikmehta.local',
         address: 'Demo Market Road, Ahmedabad',
         currency: 'INR',
         countryCode: 'IN',

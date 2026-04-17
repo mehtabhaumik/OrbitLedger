@@ -1,7 +1,7 @@
 export const brand = {
   appName: 'Orbit Ledger',
-  publisher: 'Rudraix',
-  fullName: 'Orbit Ledger by Rudraix',
+  publisher: 'Bhaumik Mehta',
+  fullName: 'Orbit Ledger by Bhaumik Mehta',
   mark: {
     shape: 'rounded ledger page with a quiet orbit ring and balance lines',
     tone: 'trustworthy, practical, offline business records',

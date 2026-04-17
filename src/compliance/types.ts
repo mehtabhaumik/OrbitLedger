@@ -52,7 +52,7 @@ export type ComplianceRuleContext = {
 };
 
 export type ComplianceReportMetadata = {
-  appName: 'Orbit Ledger by Rudraix';
+  appName: 'Orbit Ledger by Bhaumik Mehta';
   reportType: ComplianceReportType;
   countryCode: string;
   regionCode: string;

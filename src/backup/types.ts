@@ -17,7 +17,7 @@ import type {
 import type { GeneratedDocumentHistoryEntry } from '../documents';
 import { CURRENT_BACKUP_FORMAT_VERSION } from './version';
 
-export const ORBIT_LEDGER_BACKUP_APP_NAME = 'Orbit Ledger by Rudraix';
+export const ORBIT_LEDGER_BACKUP_APP_NAME = 'Orbit Ledger by Bhaumik Mehta';
 export const ORBIT_LEDGER_BACKUP_FORMAT_VERSION = CURRENT_BACKUP_FORMAT_VERSION;
 
 export type OrbitLedgerBackupMetadata = {

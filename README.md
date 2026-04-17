@@ -1,4 +1,4 @@
-# Orbit Ledger by Rudraix
+# Orbit Ledger by Bhaumik Mehta
 
 <p align="center">
   <img src="./assets/icon.png" width="120" alt="Orbit Ledger app icon" />
@@ -13,10 +13,18 @@
 </p>
 
 <p align="center">
-  <img alt="Expo" src="https://img.shields.io/badge/Expo-54-000020?style=for-the-badge&logo=expo" />
-  <img alt="React Native" src="https://img.shields.io/badge/React%20Native-0.81-61DAFB?style=for-the-badge&logo=react" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
-  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-Local%20Only-003B57?style=for-the-badge&logo=sqlite" />
+  <img alt="Expo" src="https://img.shields.io/badge/Expo-54-000020?style=for-the-badge&amp;logo=expo" />
+  <img alt="React Native" src="https://img.shields.io/badge/React%20Native-0.81-61DAFB?style=for-the-badge&amp;logo=react" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&amp;logo=typescript&amp;logoColor=white" />
+  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-Local%20Only-003B57?style=for-the-badge&amp;logo=sqlite" />
+  <img alt="License" src="https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge" />
+</p>
+
+<p align="center">
+  <strong>Copyright (c) 2026 Bhaumik Mehta. All rights reserved.</strong><br />
+  This project is proprietary. Use, copying, redistribution, modification, or
+  commercialization is not permitted without prior written permission from
+  Bhaumik Mehta.
 </p>
 
 ---
@@ -399,10 +407,10 @@ Current product matrix:
 
 | Product | Product ID | Type |
 | --- | --- | --- |
-| Pro Monthly | `com.rudraix.orbitledger.pro.monthly` | Subscription |
-| Pro Yearly | `com.rudraix.orbitledger.pro.yearly` | Subscription |
-| United States Country Pack | `com.rudraix.orbitledger.countrypack.us` | One-time product |
-| United Kingdom Country Pack | `com.rudraix.orbitledger.countrypack.uk` | One-time product |
+| Pro Monthly | `com.bhaumikmehta.orbitledger.pro.monthly` | Subscription |
+| Pro Yearly | `com.bhaumikmehta.orbitledger.pro.yearly` | Subscription |
+| United States Country Pack | `com.bhaumikmehta.orbitledger.countrypack.us` | One-time product |
+| United Kingdom Country Pack | `com.bhaumikmehta.orbitledger.countrypack.uk` | One-time product |
 
 India is included by default in this phase and should not be configured as a paid country pack product.
 
@@ -417,8 +425,8 @@ The remote update contract is documented here:
 Production defaults:
 
 ```text
-https://updates.orbitledger.rudraix.com/v1/tax-packs/manifest.json
-https://updates.orbitledger.rudraix.com/v1/country-packages/manifest.json
+https://updates.orbitledger.bhaumikmehta.com/v1/tax-packs/manifest.json
+https://updates.orbitledger.bhaumikmehta.com/v1/country-packages/manifest.json
 ```
 
 Staging overrides:
@@ -544,6 +552,18 @@ This repository contains the app implementation and launch preparation structure
 - Remote tax/package update manifests must be hosted at reachable HTTPS URLs.
 - iOS TestFlight and App Store setup require Apple Developer configuration.
 - Store listing, privacy policy, content rating, screenshots, and Data Safety forms are outside the repo.
+
+---
+
+## Copyright And License
+
+Copyright (c) 2026 Bhaumik Mehta. All rights reserved.
+
+Orbit Ledger by Bhaumik Mehta is proprietary software. The source code, documentation, UI design, assets, product names, business logic, and related materials may not be copied, modified, published, distributed, sublicensed, sold, hosted, reverse engineered, reused, or used to create derivative works without prior written permission from Bhaumik Mehta.
+
+Access to this repository does not grant any ownership rights or usage rights. Third-party dependencies remain governed by their respective licenses.
+
+See [LICENSE.md](./LICENSE.md) for the full proprietary license notice.
 
 ---
 

@@ -628,7 +628,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextField
                   label="Business name"
-                  placeholder="Rudraix Trading Co."
+                  placeholder="Bhaumik Mehta Trading Co."
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}

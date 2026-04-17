@@ -25,8 +25,8 @@ const REPEATED_USAGE_THRESHOLD = 8;
 const PROMPT_SNOOZE_DAYS = 21;
 const DISMISS_SNOOZE_DAYS = 30;
 const ACTION_SNOOZE_DAYS = 60;
-const PLAY_STORE_PACKAGE_NAME = 'com.rudraix.orbitledger';
-const FEEDBACK_EMAIL = 'support@rudraix.com';
+const PLAY_STORE_PACKAGE_NAME = 'com.bhaumikmehta.orbitledger';
+const FEEDBACK_EMAIL = 'support@bhaumikmehta.com';
 
 export async function recordRatingPositiveMoment(
   moment: RatingPositiveMoment

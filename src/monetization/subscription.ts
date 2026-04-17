@@ -91,7 +91,7 @@ const storedSubscriptionSchema = z.object({
   validUntil: z.string().nullable().default(null),
   planId: z.enum(['pro_monthly', 'pro_yearly']).nullable().optional().default(null),
   productId: z
-    .enum(['com.rudraix.orbitledger.pro.monthly', 'com.rudraix.orbitledger.pro.yearly'])
+    .enum(['com.bhaumikmehta.orbitledger.pro.monthly', 'com.bhaumikmehta.orbitledger.pro.yearly'])
     .nullable()
     .optional()
     .default(null),
