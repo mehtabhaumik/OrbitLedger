@@ -1,0 +1,633 @@
+export type TaxMode = 'not_configured' | 'manual' | 'exempt';
+
+export type TaxProfileSource = 'none' | 'local' | 'remote';
+
+export type StoredTaxProfileSource = 'manual' | 'remote' | 'seed';
+
+export type TaxPackSource = 'remote' | 'manual';
+
+export type CountryPackageSource = 'remote' | 'manual';
+
+export type DocumentTemplateType = 'invoice' | 'statement';
+
+export type ComplianceReportType = 'tax_summary' | 'sales_summary' | 'dues_summary';
+
+export type TransactionType = 'credit' | 'payment';
+
+export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'overdue' | 'cancelled';
+
+export type SyncStatus = 'pending' | 'synced' | 'conflict';
+
+export type SyncMetadata = {
+  syncId: string;
+  lastModified: string;
+  syncStatus: SyncStatus;
+};
+
+export type AppFeatureToggles = {
+  invoices: boolean;
+  inventory: boolean;
+  tax: boolean;
+};
+
+export type BusinessSettings = SyncMetadata & {
+  id: string;
+  businessName: string;
+  ownerName: string;
+  phone: string;
+  email: string;
+  address: string;
+  currency: string;
+  countryCode: string;
+  stateCode: string;
+  logoUri: string | null;
+  authorizedPersonName: string;
+  authorizedPersonTitle: string;
+  signatureUri: string | null;
+  taxMode: TaxMode;
+  taxProfileVersion: string | null;
+  taxProfileSource: TaxProfileSource;
+  taxLastSyncedAt: string | null;
+  taxSetupRequired: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SaveBusinessSettingsInput = {
+  businessName: string;
+  ownerName: string;
+  phone: string;
+  email: string;
+  address: string;
+  currency: string;
+  countryCode: string;
+  stateCode: string;
+  logoUri?: string | null;
+  authorizedPersonName: string;
+  authorizedPersonTitle: string;
+  signatureUri?: string | null;
+  taxMode?: TaxMode;
+  taxProfileVersion?: string | null;
+  taxProfileSource?: TaxProfileSource;
+  taxLastSyncedAt?: string | null;
+  taxSetupRequired?: boolean;
+};
+
+export type Customer = SyncMetadata & {
+  id: string;
+  name: string;
+  phone: string | null;
+  address: string | null;
+  notes: string | null;
+  openingBalance: number;
+  isArchived: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CustomerSummary = Customer & {
+  balance: number;
+  latestActivityAt: string;
+};
+
+export type CustomerSummaryFilter = 'all' | 'outstanding' | 'recent_activity' | 'archived';
+
+export type SearchCustomerSummariesOptions = {
+  query?: string;
+  limit?: number;
+  filter?: CustomerSummaryFilter;
+  recentSince?: string;
+};
+
+export type AddCustomerInput = {
+  name: string;
+  phone?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  openingBalance?: number;
+};
+
+export type UpdateCustomerInput = Partial<AddCustomerInput>;
+
+export type LedgerTransaction = SyncMetadata & {
+  id: string;
+  customerId: string;
+  type: TransactionType;
+  amount: number;
+  note: string | null;
+  effectiveDate: string;
+  createdAt: string;
+};
+
+export type AddTransactionInput = {
+  customerId: string;
+  type: TransactionType;
+  amount: number;
+  note?: string | null;
+  effectiveDate?: string;
+};
+
+export type UpdateTransactionInput = {
+  type?: TransactionType;
+  amount?: number;
+  note?: string | null;
+  effectiveDate?: string;
+};
+
+export type CustomerLedger = {
+  customer: Customer;
+  openingBalance: number;
+  transactions: LedgerTransaction[];
+  balance: number;
+};
+
+export type DashboardSummary = {
+  totalReceivable: number;
+  customersWithOutstandingBalance: number;
+  todayEntries: number;
+  recentPaymentsReceived: number;
+  followUpCustomerCount: number;
+  recentActivityCount: number;
+  previousActivityCount: number;
+};
+
+export type TopDueCustomer = Pick<CustomerSummary, 'id' | 'name' | 'balance' | 'latestActivityAt'>;
+
+export type RecentTransaction = LedgerTransaction & {
+  customerName: string;
+};
+
+export type ReportTrend = {
+  current: number;
+  previous: number;
+  change: number;
+};
+
+export type TopReportCustomer = {
+  id: string;
+  name: string;
+  totalSales: number;
+  totalCredit: number;
+  balance: number;
+  latestActivityAt: string;
+};
+
+export type ReportsSummary = {
+  totalSales: number;
+  totalCredit: number;
+  invoiceCount: number;
+  creditEntryCount: number;
+  salesTrend: ReportTrend;
+  creditTrend: ReportTrend;
+  topCustomers: TopReportCustomer[];
+};
+
+export type Invoice = SyncMetadata & {
+  id: string;
+  customerId: string | null;
+  invoiceNumber: string;
+  issueDate: string;
+  dueDate: string | null;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  status: InvoiceStatus;
+  notes: string | null;
+  createdAt: string;
+};
+
+export type InvoiceItem = SyncMetadata & {
+  id: string;
+  invoiceId: string;
+  productId: string | null;
+  name: string;
+  description: string | null;
+  quantity: number;
+  price: number;
+  taxRate: number;
+  total: number;
+};
+
+export type InvoiceWithItems = Invoice & {
+  items: InvoiceItem[];
+};
+
+export type AddInvoiceItemInput = {
+  productId?: string | null;
+  name: string;
+  description?: string | null;
+  quantity: number;
+  price: number;
+  taxRate?: number;
+};
+
+export type AddInvoiceInput = {
+  customerId?: string | null;
+  invoiceNumber: string;
+  issueDate?: string;
+  dueDate?: string | null;
+  status?: InvoiceStatus;
+  notes?: string | null;
+  items: AddInvoiceItemInput[];
+};
+
+export type UpdateInvoiceInput = {
+  customerId?: string | null;
+  invoiceNumber?: string;
+  issueDate?: string;
+  dueDate?: string | null;
+  status?: InvoiceStatus;
+  notes?: string | null;
+  items: AddInvoiceItemInput[];
+};
+
+export type InvoiceListOptions = {
+  customerId?: string | null;
+  status?: InvoiceStatus;
+  limit?: number;
+};
+
+export type TaxProfile = SyncMetadata & {
+  id: string;
+  countryCode: string;
+  stateCode: string;
+  taxType: string;
+  taxRulesJson: string;
+  version: string;
+  lastUpdated: string;
+  source: StoredTaxProfileSource;
+};
+
+export type SaveTaxProfileInput = {
+  countryCode: string;
+  stateCode?: string | null;
+  taxType: string;
+  taxRulesJson: string | Record<string, unknown>;
+  version: string;
+  lastUpdated?: string;
+  source?: StoredTaxProfileSource;
+};
+
+export type TaxProfileLookup = {
+  countryCode: string;
+  stateCode?: string | null;
+  taxType: string;
+};
+
+export type TaxPack = {
+  id: string;
+  countryCode: string;
+  regionCode: string;
+  taxType: string;
+  rulesJson: string;
+  version: string;
+  lastUpdated: string;
+  source: TaxPackSource;
+  isActive: boolean;
+};
+
+export type SaveTaxPackInput = {
+  countryCode: string;
+  regionCode?: string | null;
+  taxType: string;
+  rulesJson: string | Record<string, unknown>;
+  version: string;
+  lastUpdated?: string;
+  source?: TaxPackSource;
+  isActive?: boolean;
+};
+
+export type TaxPackLookup = {
+  countryCode: string;
+  regionCode?: string | null;
+  taxType: string;
+};
+
+export type DocumentTemplate = {
+  id: string;
+  countryCode: string;
+  templateType: DocumentTemplateType;
+  templateConfigJson: string;
+  version: string;
+};
+
+export type SaveDocumentTemplateInput = {
+  countryCode: string;
+  templateType: DocumentTemplateType;
+  templateConfigJson: string | Record<string, unknown>;
+  version: string;
+};
+
+export type DocumentTemplateLookup = {
+  countryCode: string;
+  regionCode?: string | null;
+  templateType: DocumentTemplateType;
+  version?: string;
+};
+
+export type ComplianceConfig = {
+  id: string;
+  countryCode: string;
+  regionCode: string;
+  configJson: string;
+  version: string;
+  lastUpdated: string;
+  source: CountryPackageSource;
+  isActive: boolean;
+};
+
+export type SaveComplianceConfigInput = {
+  countryCode: string;
+  regionCode?: string | null;
+  configJson: string | Record<string, unknown>;
+  version: string;
+  lastUpdated?: string;
+  source?: CountryPackageSource;
+  isActive?: boolean;
+};
+
+export type ComplianceConfigLookup = {
+  countryCode: string;
+  regionCode?: string | null;
+  version?: string;
+};
+
+export type CountryPackage = {
+  id: string;
+  countryCode: string;
+  regionCode: string;
+  packageName: string;
+  version: string;
+  taxPackId: string;
+  complianceConfigId: string;
+  installedAt: string;
+  source: CountryPackageSource;
+  isActive: boolean;
+};
+
+export type CountryPackageTemplate = {
+  countryPackageId: string;
+  documentTemplateId: string;
+  templateType: DocumentTemplateType;
+};
+
+export type CountryPackageWithComponents = CountryPackage & {
+  taxPack: TaxPack;
+  templates: DocumentTemplate[];
+  complianceConfig: ComplianceConfig;
+};
+
+export type CountryPackageLookup = {
+  countryCode: string;
+  regionCode?: string | null;
+  version?: string;
+};
+
+export type InstallCountryPackageInput = {
+  countryCode: string;
+  regionCode?: string | null;
+  packageName: string;
+  version: string;
+  source?: CountryPackageSource;
+  taxPack: SaveTaxPackInput;
+  templates: SaveDocumentTemplateInput[];
+  complianceConfig: SaveComplianceConfigInput;
+};
+
+export type ComplianceReport = {
+  id: string;
+  countryCode: string;
+  reportType: ComplianceReportType;
+  generatedAt: string;
+  reportDataJson: string;
+};
+
+export type SaveComplianceReportInput = {
+  countryCode: string;
+  reportType: ComplianceReportType;
+  generatedAt?: string;
+  reportDataJson: string | Record<string, unknown>;
+};
+
+export type ListComplianceReportsOptions = {
+  countryCode?: string;
+  reportType?: ComplianceReportType;
+  limit?: number;
+};
+
+export type Product = SyncMetadata & {
+  id: string;
+  name: string;
+  price: number;
+  stockQuantity: number;
+  unit: string;
+  createdAt: string;
+};
+
+export type AddProductInput = {
+  name: string;
+  price: number;
+  stockQuantity?: number;
+  unit: string;
+};
+
+export type UpdateProductInput = Partial<AddProductInput>;
+
+export type ProductListOptions = {
+  query?: string;
+  limit?: number;
+};
+
+export type AppSecurity = {
+  id: string;
+  pinEnabled: boolean;
+  pinHash: string | null;
+  updatedAt: string;
+};
+
+export type AppSecurityRow = {
+  id: string;
+  pin_enabled: number;
+  pin_hash: string | null;
+  updated_at: string;
+};
+
+export type AppPreferenceRow = {
+  key: string;
+  value: string;
+  updated_at: string;
+};
+
+export type TaxProfileRow = {
+  id: string;
+  country_code: string;
+  state_code: string;
+  tax_type: string;
+  tax_rules_json: string;
+  version: string;
+  last_updated: string;
+  source: StoredTaxProfileSource;
+  sync_id: string;
+  last_modified: string;
+  sync_status: SyncStatus;
+};
+
+export type TaxPackRow = {
+  id: string;
+  country_code: string;
+  region_code: string;
+  tax_type: string;
+  rules_json: string;
+  version: string;
+  last_updated: string;
+  source: TaxPackSource;
+  is_active: number;
+};
+
+export type DocumentTemplateRow = {
+  id: string;
+  country_code: string;
+  template_type: DocumentTemplateType;
+  template_config_json: string;
+  version: string;
+};
+
+export type ComplianceConfigRow = {
+  id: string;
+  country_code: string;
+  region_code: string;
+  config_json: string;
+  version: string;
+  last_updated: string;
+  source: CountryPackageSource;
+  is_active: number;
+};
+
+export type CountryPackageRow = {
+  id: string;
+  country_code: string;
+  region_code: string;
+  package_name: string;
+  version: string;
+  tax_pack_id: string;
+  compliance_config_id: string;
+  installed_at: string;
+  source: CountryPackageSource;
+  is_active: number;
+};
+
+export type CountryPackageTemplateRow = {
+  country_package_id: string;
+  document_template_id: string;
+  template_type: DocumentTemplateType;
+};
+
+export type ComplianceReportRow = {
+  id: string;
+  country_code: string;
+  report_type: ComplianceReportType;
+  generated_at: string;
+  report_data_json: string;
+};
+
+export type ProductRow = {
+  id: string;
+  name: string;
+  price: number;
+  stock_quantity: number;
+  unit: string;
+  created_at: string;
+  sync_id: string;
+  last_modified: string;
+  sync_status: SyncStatus;
+};
+
+export type BusinessSettingsRow = {
+  id: string;
+  business_name: string;
+  owner_name: string;
+  phone: string;
+  email: string;
+  address: string;
+  currency: string;
+  country_code: string;
+  state_code: string;
+  logo_uri: string | null;
+  authorized_person_name: string;
+  authorized_person_title: string;
+  signature_uri: string | null;
+  tax_mode: TaxMode;
+  tax_profile_version: string | null;
+  tax_profile_source: TaxProfileSource;
+  tax_last_synced_at: string | null;
+  tax_setup_required: number;
+  created_at: string;
+  updated_at: string;
+  sync_id: string;
+  last_modified: string;
+  sync_status: SyncStatus;
+};
+
+export type CustomerRow = {
+  id: string;
+  name: string;
+  phone: string | null;
+  address: string | null;
+  notes: string | null;
+  opening_balance: number;
+  is_archived: number;
+  created_at: string;
+  updated_at: string;
+  sync_id: string;
+  last_modified: string;
+  sync_status: SyncStatus;
+};
+
+export type LedgerTransactionRow = {
+  id: string;
+  customer_id: string;
+  type: TransactionType;
+  amount: number;
+  note: string | null;
+  effective_date: string;
+  created_at: string;
+  sync_id: string;
+  last_modified: string;
+  sync_status: SyncStatus;
+};
+
+export type RecentTransactionRow = LedgerTransactionRow & {
+  customer_name: string;
+};
+
+export type InvoiceRow = {
+  id: string;
+  customer_id: string | null;
+  invoice_number: string;
+  issue_date: string;
+  due_date: string | null;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  status: InvoiceStatus;
+  notes: string | null;
+  created_at: string;
+  sync_id: string;
+  last_modified: string;
+  sync_status: SyncStatus;
+};
+
+export type InvoiceItemRow = {
+  id: string;
+  invoice_id: string;
+  product_id: string | null;
+  name: string;
+  description: string | null;
+  quantity: number;
+  price: number;
+  tax_rate: number;
+  total: number;
+  sync_id: string;
+  last_modified: string;
+  sync_status: SyncStatus;
+};
