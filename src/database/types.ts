@@ -14,6 +14,10 @@ export type ComplianceReportType = 'tax_summary' | 'sales_summary' | 'dues_summa
 
 export type TransactionType = 'credit' | 'payment';
 
+export type PaymentReminderTone = 'polite' | 'firm' | 'final';
+
+export type PaymentPromiseStatus = 'open' | 'fulfilled' | 'missed' | 'cancelled';
+
 export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'overdue' | 'cancelled';
 
 export type SyncStatus = 'pending' | 'synced' | 'conflict';
@@ -85,9 +89,39 @@ export type Customer = SyncMetadata & {
   updatedAt: string;
 };
 
+export type DueAgingBucket = 'none' | 'less_than_7' | 'seven_to_thirty' | 'thirty_plus';
+
+export type CustomerBehaviorKind =
+  | 'new_customer'
+  | 'settled'
+  | 'pays_on_time'
+  | 'delayed_payments'
+  | 'no_recent_payment'
+  | 'high_outstanding_balance'
+  | 'advance_balance';
+
+export type CustomerInsightTone = 'success' | 'warning' | 'danger' | 'primary' | 'neutral' | 'tax';
+
+export type CustomerPaymentInsight = {
+  dueAgingBucket: DueAgingBucket;
+  dueAgingLabel: string;
+  dueAgingHelper: string;
+  oldestDueAt: string | null;
+  daysOutstanding: number | null;
+  behaviorKind: CustomerBehaviorKind;
+  behaviorLabel: string;
+  behaviorHelper: string;
+  behaviorTone: CustomerInsightTone;
+  lastPaymentAt: string | null;
+  paymentCount: number;
+  totalCredit: number;
+  totalPayment: number;
+};
+
 export type CustomerSummary = Customer & {
   balance: number;
   latestActivityAt: string;
+  insight: CustomerPaymentInsight;
 };
 
 export type CustomerSummaryFilter = 'all' | 'outstanding' | 'recent_activity' | 'archived';
@@ -141,6 +175,56 @@ export type CustomerLedger = {
   balance: number;
 };
 
+export type PaymentReminder = SyncMetadata & {
+  id: string;
+  customerId: string;
+  tone: PaymentReminderTone;
+  message: string;
+  balanceAtSend: number;
+  sharedVia: string;
+  createdAt: string;
+};
+
+export type AddPaymentReminderInput = {
+  customerId: string;
+  tone: PaymentReminderTone;
+  message: string;
+  balanceAtSend: number;
+  sharedVia?: string;
+};
+
+export type PaymentPromise = SyncMetadata & {
+  id: string;
+  customerId: string;
+  promisedAmount: number;
+  promisedDate: string;
+  note: string | null;
+  status: PaymentPromiseStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AddPaymentPromiseInput = {
+  customerId: string;
+  promisedAmount: number;
+  promisedDate: string;
+  note?: string | null;
+};
+
+export type UpdatePaymentPromiseInput = Partial<AddPaymentPromiseInput> & {
+  status?: PaymentPromiseStatus;
+};
+
+export type PaymentPromiseWithCustomer = PaymentPromise & {
+  customerName: string;
+  customerPhone: string | null;
+  currentBalance: number;
+};
+
+export type CollectionCustomer = TopDueCustomer & {
+  oldestCreditAt: string | null;
+};
+
 export type DashboardSummary = {
   totalReceivable: number;
   customersWithOutstandingBalance: number;
@@ -151,7 +235,11 @@ export type DashboardSummary = {
   previousActivityCount: number;
 };
 
-export type TopDueCustomer = Pick<CustomerSummary, 'id' | 'name' | 'balance' | 'latestActivityAt'>;
+export type TopDueCustomer = Pick<CustomerSummary, 'id' | 'name' | 'balance' | 'latestActivityAt'> & {
+  lastPaymentAt: string | null;
+  lastReminderAt: string | null;
+  insight: CustomerPaymentInsight;
+};
 
 export type RecentTransaction = LedgerTransaction & {
   customerName: string;
@@ -598,6 +686,39 @@ export type LedgerTransactionRow = {
 
 export type RecentTransactionRow = LedgerTransactionRow & {
   customer_name: string;
+};
+
+export type PaymentReminderRow = {
+  id: string;
+  customer_id: string;
+  tone: PaymentReminderTone;
+  message: string;
+  balance_at_send: number;
+  shared_via: string;
+  created_at: string;
+  sync_id: string;
+  last_modified: string;
+  sync_status: SyncStatus;
+};
+
+export type PaymentPromiseRow = {
+  id: string;
+  customer_id: string;
+  promised_amount: number;
+  promised_date: string;
+  note: string | null;
+  status: PaymentPromiseStatus;
+  created_at: string;
+  updated_at: string;
+  sync_id: string;
+  last_modified: string;
+  sync_status: SyncStatus;
+};
+
+export type PaymentPromiseWithCustomerRow = PaymentPromiseRow & {
+  customer_name: string;
+  customer_phone: string | null;
+  current_balance: number;
 };
 
 export type InvoiceRow = {

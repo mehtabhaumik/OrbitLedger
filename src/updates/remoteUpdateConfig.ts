@@ -3,10 +3,10 @@ import * as Crypto from 'expo-crypto';
 export const REMOTE_UPDATE_CONTRACT_VERSION = 1;
 
 export const DEFAULT_TAX_PACK_MANIFEST_URL =
-  'https://updates.orbitledger.bhaumikmehta.com/v1/tax-packs/manifest.json';
+  'https://updates.orbitledger.rudraix.com/v1/tax-packs/manifest.json';
 
 export const DEFAULT_COUNTRY_PACKAGE_MANIFEST_URL =
-  'https://updates.orbitledger.bhaumikmehta.com/v1/country-packages/manifest.json';
+  'https://updates.orbitledger.rudraix.com/v1/country-packages/manifest.json';
 
 export const REMOTE_UPDATE_TIMEOUT_MS = 12000;
 

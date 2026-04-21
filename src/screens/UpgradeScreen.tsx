@@ -4,6 +4,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '../components/Card';
+import { FounderFooterLink } from '../components/FounderFooterLink';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Section } from '../components/Section';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -266,6 +267,8 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
             records, basic statement exports, backups, restore, or app lock features.
           </Text>
         </Card>
+
+        <FounderFooterLink />
       </ScrollView>
     </SafeAreaView>
   );

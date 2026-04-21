@@ -1,0 +1,32 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#EEF3F6"/>
+  <rect x="390" y="40" width="420" height="720" rx="34" fill="#0F172A"/>
+  <rect x="407" y="62" width="386" height="676" rx="26" fill="#F7FAFC"/>
+  <text x="435" y="112" fill="#0F172A" font-family="Arial" font-size="26" font-weight="800">Backup &amp; Restore</text>
+  <text x="435" y="143" fill="#64748B" font-family="Arial" font-size="15">Protect your local ledger data</text>
+  <rect x="435" y="172" width="325" height="116" rx="14" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <rect x="435" y="172" width="6" height="116" rx="3" fill="#10B981"/>
+  <text x="458" y="210" fill="#0F172A" font-family="Arial" font-size="18" font-weight="800">Last backup: Today</text>
+  <text x="458" y="239" fill="#64748B" font-family="Arial" font-size="15">18 records added since last backup</text>
+  <rect x="458" y="254" width="104" height="24" rx="12" fill="#E6F7EF"/>
+  <text x="475" y="271" fill="#07865F" font-family="Arial" font-size="12" font-weight="800">Healthy</text>
+  <text x="435" y="336" fill="#0F172A" font-family="Arial" font-size="19" font-weight="800">Backup includes</text>
+  <rect x="435" y="358" width="325" height="142" rx="14" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="458" y="390" fill="#334155" font-family="Arial" font-size="15">Business profile</text>
+  <text x="700" y="390" fill="#64748B" font-family="Arial" font-size="15">1</text>
+  <text x="458" y="421" fill="#334155" font-family="Arial" font-size="15">Customers</text>
+  <text x="700" y="421" fill="#64748B" font-family="Arial" font-size="15">42</text>
+  <text x="458" y="452" fill="#334155" font-family="Arial" font-size="15">Transactions</text>
+  <text x="700" y="452" fill="#64748B" font-family="Arial" font-size="15">318</text>
+  <text x="458" y="483" fill="#334155" font-family="Arial" font-size="15">Invoices, products, packs</text>
+  <text x="700" y="483" fill="#64748B" font-family="Arial" font-size="15">86</text>
+  <rect x="435" y="526" width="325" height="58" rx="12" fill="#145CFF"/>
+  <text x="542" y="562" fill="#FFFFFF" font-family="Arial" font-size="16" font-weight="800">Export Backup</text>
+  <rect x="435" y="608" width="325" height="92" rx="14" fill="#FFF7F7" stroke="#F1C4C4"/>
+  <text x="458" y="640" fill="#991B1B" font-family="Arial" font-size="17" font-weight="800">Restore carefully</text>
+  <text x="458" y="668" fill="#64748B" font-family="Arial" font-size="14">Review backup contents before replacing</text>
+  <text x="458" y="690" fill="#64748B" font-family="Arial" font-size="14">current local data.</text>
+  <text x="60" y="96" fill="#145CFF" font-family="Arial" font-size="18" font-weight="800">Interface preview</text>
+  <text x="60" y="130" fill="#0F172A" font-family="Arial" font-size="42" font-weight="800">Backup trust flow</text>
+  <text x="60" y="168" fill="#475569" font-family="Arial" font-size="20">Clear data scope, preview-first restore, and calm safety messaging.</text>
+</svg>

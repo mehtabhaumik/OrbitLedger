@@ -6,12 +6,12 @@ export type SubscriptionTier = 'free' | 'pro';
 export type SubscriptionPlanId = 'pro_monthly' | 'pro_yearly';
 
 export type SubscriptionProductId =
-  | 'com.bhaumikmehta.orbitledger.pro.monthly'
-  | 'com.bhaumikmehta.orbitledger.pro.yearly';
+  | 'com.rudraix.orbitledger.pro.monthly'
+  | 'com.rudraix.orbitledger.pro.yearly';
 
 export type CountryPackProductId =
-  | 'com.bhaumikmehta.orbitledger.countrypack.us'
-  | 'com.bhaumikmehta.orbitledger.countrypack.uk';
+  | 'com.rudraix.orbitledger.countrypack.us'
+  | 'com.rudraix.orbitledger.countrypack.uk';
 
 export type BillingProductId = SubscriptionProductId | CountryPackProductId;
 

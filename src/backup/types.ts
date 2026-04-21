@@ -10,6 +10,8 @@ import type {
   Invoice,
   InvoiceItem,
   LedgerTransaction,
+  PaymentReminder,
+  PaymentPromise,
   Product,
   TaxPack,
   TaxProfile,
@@ -17,7 +19,7 @@ import type {
 import type { GeneratedDocumentHistoryEntry } from '../documents';
 import { CURRENT_BACKUP_FORMAT_VERSION } from './version';
 
-export const ORBIT_LEDGER_BACKUP_APP_NAME = 'Orbit Ledger by Bhaumik Mehta';
+export const ORBIT_LEDGER_BACKUP_APP_NAME = 'Orbit Ledger by Rudraix';
 export const ORBIT_LEDGER_BACKUP_FORMAT_VERSION = CURRENT_BACKUP_FORMAT_VERSION;
 
 export type OrbitLedgerBackupMetadata = {
@@ -33,6 +35,8 @@ export type OrbitLedgerBackupMetadata = {
 export type BackupRecordCounts = {
   customers: number;
   transactions: number;
+  paymentReminders: number;
+  paymentPromises: number;
   taxProfiles: number;
   taxPacks: number;
   documentTemplates: number;
@@ -57,6 +61,8 @@ export type OrbitLedgerBackupData = {
   businessSettings: BusinessSettings | null;
   customers: Customer[];
   transactions: LedgerTransaction[];
+  paymentReminders: PaymentReminder[];
+  paymentPromises: PaymentPromise[];
   taxProfiles: TaxProfile[];
   taxPacks: TaxPack[];
   documentTemplates: DocumentTemplate[];
@@ -122,6 +128,8 @@ export type BackupRestorePreview = {
   businessName: string | null;
   customers: number;
   transactions: number;
+  paymentReminders: number;
+  paymentPromises: number;
   taxProfiles: number;
   taxPacks: number;
   documentTemplates: number;

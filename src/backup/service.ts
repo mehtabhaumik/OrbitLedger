@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '../database';
+import { measurePerformance } from '../performance';
 import {
   mapAppSecurity,
   mapBusinessSettings,
@@ -11,6 +12,8 @@ import {
   mapDocumentTemplate,
   mapInvoice,
   mapInvoiceItem,
+  mapPaymentReminder,
+  mapPaymentPromise,
   mapProduct,
   mapTaxPack,
   mapTaxProfile,
@@ -41,6 +44,10 @@ import type {
   InvoiceRow,
   LedgerTransaction,
   LedgerTransactionRow,
+  PaymentReminder,
+  PaymentReminderRow,
+  PaymentPromise,
+  PaymentPromiseRow,
   Product,
   ProductRow,
   TaxPack,
@@ -72,6 +79,8 @@ type RestoreSnapshot = {
   businessSettingsSignature: string;
   customersSignature: string;
   transactionsSignature: string;
+  paymentRemindersSignature: string;
+  paymentPromisesSignature: string;
   taxProfilesSignature: string;
   taxPacksSignature: string;
   documentTemplatesSignature: string;
@@ -107,6 +116,8 @@ export async function extractOrbitLedgerBackup(): Promise<OrbitLedgerBackup> {
     businessSettings,
     customers,
     transactions,
+    paymentReminders,
+    paymentPromises,
     taxProfiles,
     taxPacks,
     documentTemplates,
@@ -123,6 +134,8 @@ export async function extractOrbitLedgerBackup(): Promise<OrbitLedgerBackup> {
     readBusinessSettings(db),
     readCustomers(db),
     readTransactions(db),
+    readPaymentReminders(db),
+    readPaymentPromises(db),
     readTaxProfiles(db),
     readTaxPacks(db),
     readDocumentTemplates(db),
@@ -140,6 +153,8 @@ export async function extractOrbitLedgerBackup(): Promise<OrbitLedgerBackup> {
   const recordCounts = buildRecordCounts({
     customers,
     transactions,
+    paymentReminders,
+    paymentPromises,
     taxProfiles,
     taxPacks,
     documentTemplates,
@@ -160,6 +175,8 @@ export async function extractOrbitLedgerBackup(): Promise<OrbitLedgerBackup> {
       businessSettings,
       customers,
       transactions,
+      paymentReminders,
+      paymentPromises,
       taxProfiles,
       taxPacks,
       documentTemplates,
@@ -181,93 +198,95 @@ export async function extractOrbitLedgerBackup(): Promise<OrbitLedgerBackup> {
 export async function restoreOrbitLedgerBackup(
   source: string | OrbitLedgerBackup
 ): Promise<RestoreBackupSummary> {
-  const plan = prepareAuditedRestorePlan(source);
-  const db = await getDatabase();
-  let beforeRestore: RestoreSnapshot | null = null;
-  let previousDocumentHistory: ReturnType<typeof getGeneratedDocumentHistory> | null = null;
-  let documentHistoryWasReplaced = false;
-  let documentHistoryPreserved = true;
+  return measurePerformance('restore_apply', 'Restore apply', async () => {
+    const plan = prepareAuditedRestorePlan(source);
+    const db = await getDatabase();
+    let beforeRestore: RestoreSnapshot | null = null;
+    let previousDocumentHistory: ReturnType<typeof getGeneratedDocumentHistory> | null = null;
+    let documentHistoryWasReplaced = false;
+    let documentHistoryPreserved = true;
 
-  try {
-    beforeRestore = await readRestoreSnapshot(db);
-    previousDocumentHistory = getGeneratedDocumentHistory();
+    try {
+      beforeRestore = await readRestoreSnapshot(db);
+      previousDocumentHistory = getGeneratedDocumentHistory();
 
-    replaceGeneratedDocumentHistory(plan.backup.data.documentHistory);
-    documentHistoryWasReplaced = true;
-    logRestoreAudit('document_history_restore_complete', plan);
+      replaceGeneratedDocumentHistory(plan.backup.data.documentHistory);
+      documentHistoryWasReplaced = true;
+      logRestoreAudit('document_history_restore_complete', plan);
 
-    logRestoreAudit('transaction_start', plan);
-    await db.withExclusiveTransactionAsync(async (txn) => {
-      const writer = txn as DatabaseWriter;
+      logRestoreAudit('transaction_start', plan);
+      await db.withExclusiveTransactionAsync(async (txn) => {
+        const writer = txn as DatabaseWriter;
 
-      await executeFullReplaceRestore(writer, plan);
-    });
-    logRestoreAudit('transaction_commit', plan);
+        await executeFullReplaceRestore(writer, plan);
+      });
+      logRestoreAudit('transaction_commit', plan);
 
-    if (!plan.backup.data.appSecurity?.pinEnabled) {
-      try {
-        await clearPinLockSecureState();
-        logRestoreAudit('secure_pin_reset_complete', plan);
-      } catch (error) {
-        console.warn('[backup-restore] PIN secure state could not be reset after restore', error);
-        logRestoreAudit('secure_pin_reset_failed', plan, {
-          technicalDetails: error instanceof Error ? error.message : String(error),
-        });
+      if (!plan.backup.data.appSecurity?.pinEnabled) {
+        try {
+          await clearPinLockSecureState();
+          logRestoreAudit('secure_pin_reset_complete', plan);
+        } catch (error) {
+          console.warn('[backup-restore] PIN secure state could not be reset after restore', error);
+          logRestoreAudit('secure_pin_reset_failed', plan, {
+            technicalDetails: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
-    }
 
-    return {
-      mode: plan.mode,
-      restoredAt: new Date().toISOString(),
-      businessSettingsRestored: plan.backup.data.businessSettings !== null,
-      recordCounts: plan.recordCounts,
-      customersRestored: plan.recordCounts.customers,
-      transactionsRestored: plan.recordCounts.transactions,
-      invoicesRestored: plan.recordCounts.invoices,
-      productsRestored: plan.recordCounts.products,
-      taxPacksRestored: plan.recordCounts.taxPacks,
-      countryPackagesRestored: plan.recordCounts.countryPackages,
-      appPreferencesRestored: plan.recordCounts.appPreferences,
-      appSecurityRestored: plan.appSecurityToRestore,
-    };
-  } catch (error) {
-    if (previousDocumentHistory && documentHistoryWasReplaced) {
-      try {
-        replaceGeneratedDocumentHistory(previousDocumentHistory);
-        logRestoreAudit('document_history_rollback_complete', plan);
-      } catch (historyRollbackError) {
-        documentHistoryPreserved = false;
-        console.warn(
-          '[backup-restore] Document history could not be rolled back after restore failure',
-          historyRollbackError
-        );
-        logRestoreAudit('document_history_rollback_failed', plan, {
-          technicalDetails:
-            historyRollbackError instanceof Error
-              ? historyRollbackError.message
-              : String(historyRollbackError),
-        });
+      return {
+        mode: plan.mode,
+        restoredAt: new Date().toISOString(),
+        businessSettingsRestored: plan.backup.data.businessSettings !== null,
+        recordCounts: plan.recordCounts,
+        customersRestored: plan.recordCounts.customers,
+        transactionsRestored: plan.recordCounts.transactions,
+        invoicesRestored: plan.recordCounts.invoices,
+        productsRestored: plan.recordCounts.products,
+        taxPacksRestored: plan.recordCounts.taxPacks,
+        countryPackagesRestored: plan.recordCounts.countryPackages,
+        appPreferencesRestored: plan.recordCounts.appPreferences,
+        appSecurityRestored: plan.appSecurityToRestore,
+      };
+    } catch (error) {
+      if (previousDocumentHistory && documentHistoryWasReplaced) {
+        try {
+          replaceGeneratedDocumentHistory(previousDocumentHistory);
+          logRestoreAudit('document_history_rollback_complete', plan);
+        } catch (historyRollbackError) {
+          documentHistoryPreserved = false;
+          console.warn(
+            '[backup-restore] Document history could not be rolled back after restore failure',
+            historyRollbackError
+          );
+          logRestoreAudit('document_history_rollback_failed', plan, {
+            technicalDetails:
+              historyRollbackError instanceof Error
+                ? historyRollbackError.message
+                : String(historyRollbackError),
+          });
+        }
       }
+      const afterRestore = beforeRestore ? await readRestoreSnapshotSafely(db) : null;
+      const currentDataPreserved =
+        documentHistoryPreserved &&
+        didRestorePreserveCurrentData(error, beforeRestore, afterRestore);
+      const technicalDetails = error instanceof Error ? error.message : String(error);
+
+      logRestoreAudit('transaction_failed', plan, {
+        currentDataPreserved,
+        technicalDetails,
+      });
+
+      throw new BackupRestoreError(
+        currentDataPreserved
+          ? 'Restore could not be completed. Your current Orbit Ledger data was kept safe.'
+          : 'Restore could not be completed. Please review your Orbit Ledger data before trying again.',
+        technicalDetails,
+        currentDataPreserved
+      );
     }
-    const afterRestore = beforeRestore ? await readRestoreSnapshotSafely(db) : null;
-    const currentDataPreserved =
-      documentHistoryPreserved &&
-      didRestorePreserveCurrentData(error, beforeRestore, afterRestore);
-    const technicalDetails = error instanceof Error ? error.message : String(error);
-
-    logRestoreAudit('transaction_failed', plan, {
-      currentDataPreserved,
-      technicalDetails,
-    });
-
-    throw new BackupRestoreError(
-      currentDataPreserved
-        ? 'Restore could not be completed. Your current Orbit Ledger data was kept safe.'
-        : 'Restore could not be completed. Please review your Orbit Ledger data before trying again.',
-      technicalDetails,
-      currentDataPreserved
-    );
-  }
+  });
 }
 
 function prepareAuditedRestorePlan(source: string | OrbitLedgerBackup): RestoreBackupPlan {
@@ -319,6 +338,18 @@ async function executeFullReplaceRestore(
     await upsertTransaction(db, transaction);
   }
   logRestoreAudit('transactions_restore_complete', plan);
+
+  logRestoreAudit('payment_reminders_restore_start', plan);
+  for (const reminder of backup.data.paymentReminders) {
+    await upsertPaymentReminder(db, reminder);
+  }
+  logRestoreAudit('payment_reminders_restore_complete', plan);
+
+  logRestoreAudit('payment_promises_restore_start', plan);
+  for (const promise of backup.data.paymentPromises) {
+    await upsertPaymentPromise(db, promise);
+  }
+  logRestoreAudit('payment_promises_restore_complete', plan);
 
   logRestoreAudit('tax_profiles_restore_start', plan);
   for (const taxProfile of backup.data.taxProfiles) {
@@ -416,6 +447,24 @@ async function readTransactions(db: SQLiteDatabase): Promise<LedgerTransaction[]
   );
 
   return rows.map(mapTransaction);
+}
+
+async function readPaymentReminders(db: SQLiteDatabase): Promise<PaymentReminder[]> {
+  const rows = await db.getAllAsync<PaymentReminderRow>(
+    `SELECT * FROM payment_reminders
+     ORDER BY created_at ASC, id ASC`
+  );
+
+  return rows.map(mapPaymentReminder);
+}
+
+async function readPaymentPromises(db: SQLiteDatabase): Promise<PaymentPromise[]> {
+  const rows = await db.getAllAsync<PaymentPromiseRow>(
+    `SELECT * FROM payment_promises
+     ORDER BY promised_date ASC, created_at ASC, id ASC`
+  );
+
+  return rows.map(mapPaymentPromise);
 }
 
 async function readTaxProfiles(db: SQLiteDatabase): Promise<TaxProfile[]> {
@@ -542,6 +591,8 @@ async function clearRestoredTables(db: DatabaseWriter): Promise<void> {
   await db.execAsync('DELETE FROM invoice_items;');
   await db.execAsync('DELETE FROM invoices;');
   await db.execAsync('DELETE FROM transactions;');
+  await db.execAsync('DELETE FROM payment_reminders;');
+  await db.execAsync('DELETE FROM payment_promises;');
   await db.execAsync('DELETE FROM customers;');
   await db.execAsync('DELETE FROM products;');
   await db.execAsync('DELETE FROM compliance_reports;');
@@ -690,6 +741,69 @@ async function upsertTransaction(db: DatabaseWriter, transaction: LedgerTransact
     transaction.syncId,
     transaction.lastModified,
     transaction.syncStatus
+  );
+}
+
+async function upsertPaymentReminder(
+  db: DatabaseWriter,
+  reminder: PaymentReminder
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO payment_reminders (
+      id, customer_id, tone, message, balance_at_send, shared_via, created_at,
+      sync_id, last_modified, sync_status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      customer_id = excluded.customer_id,
+      tone = excluded.tone,
+      message = excluded.message,
+      balance_at_send = excluded.balance_at_send,
+      shared_via = excluded.shared_via,
+      created_at = excluded.created_at,
+      sync_id = excluded.sync_id,
+      last_modified = excluded.last_modified,
+      sync_status = excluded.sync_status`,
+    reminder.id,
+    reminder.customerId,
+    reminder.tone,
+    reminder.message,
+    reminder.balanceAtSend,
+    reminder.sharedVia,
+    reminder.createdAt,
+    reminder.syncId,
+    reminder.lastModified,
+    reminder.syncStatus
+  );
+}
+
+async function upsertPaymentPromise(db: DatabaseWriter, promise: PaymentPromise): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO payment_promises (
+      id, customer_id, promised_amount, promised_date, note, status, created_at, updated_at,
+      sync_id, last_modified, sync_status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      customer_id = excluded.customer_id,
+      promised_amount = excluded.promised_amount,
+      promised_date = excluded.promised_date,
+      note = excluded.note,
+      status = excluded.status,
+      created_at = excluded.created_at,
+      updated_at = excluded.updated_at,
+      sync_id = excluded.sync_id,
+      last_modified = excluded.last_modified,
+      sync_status = excluded.sync_status`,
+    promise.id,
+    promise.customerId,
+    promise.promisedAmount,
+    promise.promisedDate,
+    promise.note,
+    promise.status,
+    promise.createdAt,
+    promise.updatedAt,
+    promise.syncId,
+    promise.lastModified,
+    promise.syncStatus
   );
 }
 
@@ -918,6 +1032,8 @@ function defaultAppSecurity(): AppSecurity {
 function buildRecordCounts(input: {
   customers: Customer[];
   transactions: LedgerTransaction[];
+  paymentReminders: PaymentReminder[];
+  paymentPromises: PaymentPromise[];
   taxProfiles: TaxProfile[];
   taxPacks: TaxPack[];
   documentTemplates: DocumentTemplate[];
@@ -934,6 +1050,8 @@ function buildRecordCounts(input: {
   return {
     customers: input.customers.length,
     transactions: input.transactions.length,
+    paymentReminders: input.paymentReminders.length,
+    paymentPromises: input.paymentPromises.length,
     taxProfiles: input.taxProfiles.length,
     taxPacks: input.taxPacks.length,
     documentTemplates: input.documentTemplates.length,
@@ -954,6 +1072,8 @@ async function readRestoreSnapshot(db: SQLiteDatabase): Promise<RestoreSnapshot>
     businessSettingsSignature,
     customersSignature,
     transactionsSignature,
+    paymentRemindersSignature,
+    paymentPromisesSignature,
     taxProfilesSignature,
     taxPacksSignature,
     documentTemplatesSignature,
@@ -1000,6 +1120,30 @@ async function readRestoreSnapshot(db: SQLiteDatabase): Promise<RestoreSnapshot>
       FROM (
         SELECT id, customer_id, type, amount, effective_date, created_at
         FROM transactions
+        ORDER BY id
+      )`
+    ),
+    readTableSignature(
+      db,
+      `SELECT COALESCE(group_concat(
+        id || ':' || customer_id || ':' || tone || ':' || balance_at_send || ':' || created_at,
+        '|'
+      ), '') AS signature
+      FROM (
+        SELECT id, customer_id, tone, balance_at_send, created_at
+        FROM payment_reminders
+        ORDER BY id
+      )`
+    ),
+    readTableSignature(
+      db,
+      `SELECT COALESCE(group_concat(
+        id || ':' || customer_id || ':' || promised_amount || ':' || promised_date || ':' || status || ':' || updated_at,
+        '|'
+      ), '') AS signature
+      FROM (
+        SELECT id, customer_id, promised_amount, promised_date, status, updated_at
+        FROM payment_promises
         ORDER BY id
       )`
     ),
@@ -1153,6 +1297,8 @@ async function readRestoreSnapshot(db: SQLiteDatabase): Promise<RestoreSnapshot>
     businessSettingsSignature,
     customersSignature,
     transactionsSignature,
+    paymentRemindersSignature,
+    paymentPromisesSignature,
     taxProfilesSignature,
     taxPacksSignature,
     documentTemplatesSignature,
@@ -1187,6 +1333,8 @@ function restoreSnapshotsMatch(before: RestoreSnapshot, after: RestoreSnapshot):
     before.businessSettingsSignature === after.businessSettingsSignature &&
     before.customersSignature === after.customersSignature &&
     before.transactionsSignature === after.transactionsSignature &&
+    before.paymentRemindersSignature === after.paymentRemindersSignature &&
+    before.paymentPromisesSignature === after.paymentPromisesSignature &&
     before.taxProfilesSignature === after.taxProfilesSignature &&
     before.taxPacksSignature === after.taxPacksSignature &&
     before.documentTemplatesSignature === after.documentTemplatesSignature &&

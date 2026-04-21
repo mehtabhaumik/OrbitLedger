@@ -71,6 +71,40 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
         ON DELETE RESTRICT
     );
 
+    CREATE TABLE IF NOT EXISTS payment_reminders (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL,
+      tone TEXT NOT NULL CHECK (tone IN ('polite', 'firm', 'final')),
+      message TEXT NOT NULL,
+      balance_at_send REAL NOT NULL DEFAULT 0,
+      shared_via TEXT NOT NULL DEFAULT 'system_share_sheet',
+      created_at TEXT NOT NULL,
+      sync_id TEXT NOT NULL DEFAULT '',
+      last_modified TEXT NOT NULL DEFAULT '',
+      sync_status TEXT NOT NULL DEFAULT 'pending',
+      FOREIGN KEY (customer_id) REFERENCES customers(id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS payment_promises (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL,
+      promised_amount REAL NOT NULL CHECK (promised_amount > 0),
+      promised_date TEXT NOT NULL,
+      note TEXT,
+      status TEXT NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open', 'fulfilled', 'missed', 'cancelled')),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      sync_id TEXT NOT NULL DEFAULT '',
+      last_modified TEXT NOT NULL DEFAULT '',
+      sync_status TEXT NOT NULL DEFAULT 'pending',
+      FOREIGN KEY (customer_id) REFERENCES customers(id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+    );
+
 	    CREATE TABLE IF NOT EXISTS tax_profiles (
 	      id TEXT PRIMARY KEY,
 	      country_code TEXT NOT NULL,
@@ -245,18 +279,36 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
       ON customers(phone);
     CREATE INDEX IF NOT EXISTS idx_customers_notes
       ON customers(notes COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_customers_active_updated
+      ON customers(is_archived, updated_at DESC, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_transactions_customer_effective
       ON transactions(customer_id, effective_date DESC, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_transactions_customer_created
+      ON transactions(customer_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_transactions_customer_type_effective
+      ON transactions(customer_id, type, effective_date DESC);
     CREATE INDEX IF NOT EXISTS idx_transactions_created_at
       ON transactions(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_transactions_type
       ON transactions(type);
+    CREATE INDEX IF NOT EXISTS idx_transactions_type_created
+      ON transactions(type, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_payment_reminders_customer_created
+      ON payment_reminders(customer_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_payment_reminders_created
+      ON payment_reminders(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_payment_promises_customer_date
+      ON payment_promises(customer_id, promised_date ASC, status);
+    CREATE INDEX IF NOT EXISTS idx_payment_promises_status_date
+      ON payment_promises(status, promised_date ASC);
     CREATE INDEX IF NOT EXISTS idx_tax_profiles_region_type
       ON tax_profiles(country_code, state_code, tax_type);
 	    CREATE INDEX IF NOT EXISTS idx_tax_profiles_last_updated
 	      ON tax_profiles(last_updated DESC);
 	    CREATE INDEX IF NOT EXISTS idx_tax_packs_lookup_active
 	      ON tax_packs(country_code, region_code, tax_type, is_active, last_updated DESC);
+	    CREATE INDEX IF NOT EXISTS idx_tax_packs_active_version
+	      ON tax_packs(country_code, region_code, is_active, version DESC);
 	    CREATE INDEX IF NOT EXISTS idx_tax_packs_last_updated
 	      ON tax_packs(last_updated DESC);
 	    CREATE UNIQUE INDEX IF NOT EXISTS idx_tax_packs_active_unique
@@ -264,6 +316,8 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
 	      WHERE is_active = 1;
 	    CREATE INDEX IF NOT EXISTS idx_document_templates_lookup
 	      ON document_templates(country_code, template_type, version DESC);
+	    CREATE INDEX IF NOT EXISTS idx_document_templates_type_country
+	      ON document_templates(template_type, country_code, version DESC);
 	    CREATE INDEX IF NOT EXISTS idx_compliance_configs_lookup_active
 	      ON compliance_configs(country_code, region_code, is_active, last_updated DESC);
 	    CREATE UNIQUE INDEX IF NOT EXISTS idx_compliance_configs_active_unique
@@ -271,6 +325,8 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
 	      WHERE is_active = 1;
 	    CREATE INDEX IF NOT EXISTS idx_country_packages_lookup_active
 	      ON country_packages(country_code, region_code, is_active, installed_at DESC);
+	    CREATE INDEX IF NOT EXISTS idx_country_packages_active_version
+	      ON country_packages(country_code, region_code, is_active, version DESC);
 	    CREATE UNIQUE INDEX IF NOT EXISTS idx_country_packages_active_unique
 	      ON country_packages(country_code, region_code)
 	      WHERE is_active = 1;
@@ -286,6 +342,10 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
 	      ON compliance_reports(generated_at DESC);
 	    CREATE INDEX IF NOT EXISTS idx_products_name
       ON products(name COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_products_unit
+      ON products(unit COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_products_stock
+      ON products(stock_quantity ASC, name COLLATE NOCASE);
     CREATE INDEX IF NOT EXISTS idx_products_created_at
       ON products(created_at DESC);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_invoice_number
@@ -294,8 +354,16 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
       ON invoices(customer_id, issue_date DESC, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_invoices_status
       ON invoices(status);
+    CREATE INDEX IF NOT EXISTS idx_invoices_issue_created
+      ON invoices(issue_date DESC, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_invoices_status_issue
+      ON invoices(status, issue_date DESC, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_invoices_customer_status_issue
+      ON invoices(customer_id, status, issue_date DESC, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice
       ON invoice_items(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_product
+      ON invoice_items(invoice_id, product_id);
     CREATE INDEX IF NOT EXISTS idx_app_preferences_updated_at
       ON app_preferences(updated_at DESC);
   `);
@@ -312,6 +380,10 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
       ON customers(sync_status, last_modified);
     CREATE INDEX IF NOT EXISTS idx_transactions_sync_status
       ON transactions(sync_status, last_modified);
+    CREATE INDEX IF NOT EXISTS idx_payment_reminders_sync_status
+      ON payment_reminders(sync_status, last_modified);
+    CREATE INDEX IF NOT EXISTS idx_payment_promises_sync_status
+      ON payment_promises(sync_status, last_modified);
     CREATE INDEX IF NOT EXISTS idx_tax_profiles_sync_status
       ON tax_profiles(sync_status, last_modified);
     CREATE INDEX IF NOT EXISTS idx_products_sync_status
@@ -342,6 +414,8 @@ async function ensureSyncMetadataColumns(db: SQLiteDatabase): Promise<void> {
     { name: 'business_settings', modifiedAtExpression: 'updated_at' },
     { name: 'customers', modifiedAtExpression: 'updated_at' },
     { name: 'transactions', modifiedAtExpression: 'created_at' },
+    { name: 'payment_reminders', modifiedAtExpression: 'created_at' },
+    { name: 'payment_promises', modifiedAtExpression: 'updated_at' },
     { name: 'tax_profiles', modifiedAtExpression: 'last_updated' },
     { name: 'products', modifiedAtExpression: 'created_at' },
     { name: 'invoices', modifiedAtExpression: 'created_at' },

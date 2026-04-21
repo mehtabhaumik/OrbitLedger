@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import {
   ActivityIndicator,
@@ -55,6 +55,8 @@ import { colors, shadows, spacing, touch, typography } from '../theme/theme';
 
 type InvoiceFormScreenProps = NativeStackScreenProps<RootStackParamList, 'InvoiceForm'>;
 const LOW_STOCK_WARNING_THRESHOLD = 5;
+const INITIAL_VISIBLE_INVOICE_ITEMS = 8;
+const INVOICE_ITEM_BATCH_SIZE = 8;
 
 const invoiceItemSchema = z.object({
   productId: z.string().optional(),
@@ -117,6 +119,8 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
     source: 'none',
     label: 'No tax applied',
   });
+  const itemTaxRateCacheRef = useRef(new Map<string, ResolvedTaxRate>());
+  const [visibleItemCount, setVisibleItemCount] = useState(INITIAL_VISIBLE_INVOICE_ITEMS);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [isLoadingInvoice, setIsLoadingInvoice] = useState(Boolean(invoiceId));
   const {
@@ -135,7 +139,7 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
       notes: '',
       items: [createBlankInvoiceFormItem()],
     },
-    mode: 'onTouched',
+    mode: 'onChange',
     reValidateMode: 'onChange',
   });
   const { append, fields, remove } = useFieldArray({
@@ -146,14 +150,29 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
   const selectedCustomerId = useWatch({ control, name: 'customerId' }) ?? '';
   const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId);
   const watchedItems = useWatch({ control, name: 'items' }) ?? [];
-  const totals = calculateInvoiceTotals(watchedItems, resolvedTaxRate.rate);
+  const totals = useMemo(
+    () => calculateInvoiceTotals(watchedItems, resolvedTaxRate.rate),
+    [resolvedTaxRate.rate, watchedItems]
+  );
   const invoicesEnabled = featureToggles?.invoices ?? true;
   const inventoryEnabled = invoicesEnabled && (featureToggles?.inventory ?? true);
+  const productById = useMemo(
+    () => new Map(products.map((product) => [product.id, product])),
+    [products]
+  );
   const stockBaselines = useMemo(
     () => getOriginalStockBaselines(loadedInvoice),
     [loadedInvoice]
   );
-  const stockIssues = getStockIssues(watchedItems, inventoryEnabled ? products : [], stockBaselines);
+  const stockIssues = useMemo(
+    () => getStockIssues(watchedItems, inventoryEnabled ? products : [], stockBaselines),
+    [inventoryEnabled, products, stockBaselines, watchedItems]
+  );
+  const visibleFields = useMemo(
+    () => fields.slice(0, visibleItemCount),
+    [fields, visibleItemCount]
+  );
+  const hiddenItemCount = Math.max(fields.length - visibleFields.length, 0);
   const visibleCustomers = useMemo(() => {
     const cleaned = customerQuery.trim().toLowerCase();
     if (!cleaned) {
@@ -213,6 +232,7 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
           setProducts(allProducts);
           setFeatureToggles(savedFeatureToggles);
           setResolvedTaxRate(taxRate);
+          itemTaxRateCacheRef.current.clear();
 
           if (invoiceId) {
             if (!invoice) {
@@ -238,6 +258,7 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
                 taxRate: formatTaxRateInput(item.taxRate),
               })),
             });
+            setVisibleItemCount(INITIAL_VISIBLE_INVOICE_ITEMS);
           }
         }
       } catch {
@@ -276,6 +297,11 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
     setValue(`items.${index}.productId`, '', { shouldDirty: true, shouldValidate: true });
   }
 
+  function appendInvoiceItem() {
+    append(createBlankInvoiceFormItem());
+    setVisibleItemCount((current) => Math.max(current + 1, INITIAL_VISIBLE_INVOICE_ITEMS));
+  }
+
   async function applyAutomaticItemTaxRate(index: number, itemName: string) {
     const savedTaxRate = watchedItems[index]?.taxRate?.trim();
     if (!featureToggles?.tax || !businessSettings || savedTaxRate) {
@@ -283,10 +309,15 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
     }
 
     try {
-      const itemTaxRate = await resolveInvoiceItemTaxRate({
-        businessSettings,
-        itemName,
-      });
+      const cacheKey = buildInvoiceItemTaxCacheKey(businessSettings, itemName);
+      const cachedTaxRate = itemTaxRateCacheRef.current.get(cacheKey);
+      const itemTaxRate =
+        cachedTaxRate ??
+        (await resolveInvoiceItemTaxRate({
+          businessSettings,
+          itemName,
+        }));
+      itemTaxRateCacheRef.current.set(cacheKey, itemTaxRate);
       if (itemTaxRate.source === 'none') {
         return;
       }
@@ -533,16 +564,16 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
               <Pressable
                 accessibilityRole="button"
                 hitSlop={touch.hitSlop}
-                onPress={() => append(createBlankInvoiceFormItem())}
+                onPress={appendInvoiceItem}
                 pressRetentionOffset={touch.pressRetentionOffset}
                 style={styles.addItemButton}
               >
                 <Text style={styles.addItemText}>Add item</Text>
               </Pressable>
             </View>
-            {fields.map((field, index) => {
+            {visibleFields.map((field, index) => {
               const item = watchedItems[index];
-              const selectedProduct = products.find((product) => product.id === item?.productId);
+              const selectedProduct = item?.productId ? productById.get(item.productId) : undefined;
               const stockMessage = getItemStockMessage(item, selectedProduct, stockBaselines);
               const suggestedProducts = products
                 .filter((product) => product.id !== selectedProduct?.id)
@@ -715,6 +746,22 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
                 </View>
               );
             })}
+            {hiddenItemCount > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                hitSlop={touch.hitSlop}
+                onPress={() => setVisibleItemCount((current) => current + INVOICE_ITEM_BATCH_SIZE)}
+                pressRetentionOffset={touch.pressRetentionOffset}
+                style={styles.loadMoreItemsButton}
+              >
+                <Text style={styles.loadMoreItemsText}>
+                  Show {Math.min(hiddenItemCount, INVOICE_ITEM_BATCH_SIZE)} more items
+                </Text>
+                <Text style={styles.loadMoreItemsMeta}>
+                  {hiddenItemCount} item{hiddenItemCount === 1 ? '' : 's'} hidden for faster editing.
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
 
           <View style={styles.summaryCard}>
@@ -950,6 +997,16 @@ function parseTaxRateInput(value: string | undefined, fallbackRate: number): num
   return Number.isFinite(parsed) ? parsed : fallbackRate;
 }
 
+function buildInvoiceItemTaxCacheKey(settings: BusinessSettings, itemName: string): string {
+  return [
+    settings.countryCode,
+    settings.stateCode,
+    settings.taxProfileVersion ?? '',
+    settings.taxLastSyncedAt ?? '',
+    itemName.trim().toLowerCase(),
+  ].join('|');
+}
+
 function buildInvoiceNumber(): string {
   const now = new Date();
   const date = getTodayDateInput().replace(/-/g, '');
@@ -1119,6 +1176,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: spacing.md,
     padding: spacing.lg,
+  },
+  loadMoreItemsButton: {
+    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceRaised,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  loadMoreItemsText: {
+    color: colors.primary,
+    fontSize: typography.label,
+    fontWeight: '900',
+  },
+  loadMoreItemsMeta: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 17,
   },
   itemHeader: {
     alignItems: 'center',

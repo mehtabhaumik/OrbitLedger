@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from './client';
+import { buildCustomerPaymentInsight } from './customerInsights';
 import { throwDatabaseError } from './errors';
 import {
   mapAppSecurity,
@@ -12,6 +13,9 @@ import {
   mapDocumentTemplate,
   mapInvoice,
   mapInvoiceItem,
+  mapPaymentReminder,
+  mapPaymentPromise,
+  mapPaymentPromiseWithCustomer,
   mapProduct,
   mapRecentTransaction,
   mapTaxPack,
@@ -34,9 +38,12 @@ import {
 } from './utils';
 import { calculateItemTaxTotal, roundCurrency } from '../tax/calculator';
 import { mapInvoiceItemToTaxEngineInput } from '../mapping';
+import { measurePerformance } from '../performance';
 import type {
   AddCustomerInput,
   AddInvoiceInput,
+  AddPaymentReminderInput,
+  AddPaymentPromiseInput,
   AddProductInput,
   AddTransactionInput,
   AppFeatureToggles,
@@ -60,6 +67,7 @@ import type {
   CustomerRow,
   CustomerSummary,
   CustomerSummaryFilter,
+  CollectionCustomer,
   DocumentTemplate,
   DocumentTemplateLookup,
   DocumentTemplateRow,
@@ -75,6 +83,13 @@ import type {
   LedgerTransaction,
   LedgerTransactionRow,
   ListComplianceReportsOptions,
+  PaymentReminder,
+  PaymentReminderRow,
+  PaymentPromiseWithCustomer,
+  PaymentPromiseWithCustomerRow,
+  PaymentPromise,
+  PaymentPromiseRow,
+  PaymentPromiseStatus,
   Product,
   ProductListOptions,
   ProductRow,
@@ -100,6 +115,7 @@ import type {
   TopReportCustomer,
   UpdateCustomerInput,
   UpdateInvoiceInput,
+  UpdatePaymentPromiseInput,
   UpdateProductInput,
   UpdateTransactionInput,
 } from './types';
@@ -131,6 +147,20 @@ type DashboardSummaryRow = {
 type CustomerSummaryRow = CustomerRow & {
   balance: number;
   latest_activity_at: string;
+  oldest_credit_at: string | null;
+  last_payment_at: string | null;
+  total_credit: number | null;
+  total_payment: number | null;
+  payment_count: number | null;
+};
+
+type TopDueCustomerRow = CustomerSummaryRow & {
+  last_payment_at: string | null;
+  last_reminder_at: string | null;
+};
+
+type CollectionCustomerRow = TopDueCustomerRow & {
+  oldest_credit_at: string | null;
 };
 
 type ReportsSummaryRow = {
@@ -175,6 +205,7 @@ type PreparedInvoiceTotals = {
 
 const invoiceStatuses: InvoiceStatus[] = ['draft', 'issued', 'paid', 'overdue', 'cancelled'];
 const transactionTypes = ['credit', 'payment'] as const;
+const paymentPromiseStatuses: PaymentPromiseStatus[] = ['open', 'fulfilled', 'missed', 'cancelled'];
 const taxProfileSources: StoredTaxProfileSource[] = ['manual', 'remote', 'seed'];
 const taxPackSources: TaxPackSource[] = ['manual', 'remote'];
 const countryPackageSources: CountryPackageSource[] = ['manual', 'remote'];
@@ -1350,56 +1381,63 @@ export async function archiveCustomer(id: string): Promise<void> {
 }
 
 export async function addTransaction(input: AddTransactionInput): Promise<LedgerTransaction> {
-  try {
-    assertPositiveAmount(input.amount);
+  return measurePerformance(
+    'transaction_save',
+    'Add transaction',
+    async () => {
+      try {
+        assertPositiveAmount(input.amount);
 
-    const customer = await getCustomerById(input.customerId);
-    if (!customer || customer.isArchived) {
-      throw new Error(`Active customer not found: ${input.customerId}`);
-    }
+        const customer = await getCustomerById(input.customerId);
+        if (!customer || customer.isArchived) {
+          throw new Error(`Active customer not found: ${input.customerId}`);
+        }
 
-    const db = await getDatabase();
-    const id = createEntityId('txn');
-    const now = new Date().toISOString();
+        const db = await getDatabase();
+        const id = createEntityId('txn');
+        const now = new Date().toISOString();
 
-    await db.runAsync(
-      `INSERT INTO transactions (
-        id,
-        customer_id,
-        type,
-        amount,
-        note,
-        effective_date,
-        created_at,
-        sync_id,
-        last_modified,
-        sync_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id,
-      input.customerId,
-      input.type,
-      input.amount,
-      cleanText(input.note),
-      input.effectiveDate ?? toDateOnlyIso(),
-      now,
-      id,
-      now,
-      'pending'
-    );
+        await db.runAsync(
+          `INSERT INTO transactions (
+            id,
+            customer_id,
+            type,
+            amount,
+            note,
+            effective_date,
+            created_at,
+            sync_id,
+            last_modified,
+            sync_status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          id,
+          input.customerId,
+          input.type,
+          input.amount,
+          cleanText(input.note),
+          input.effectiveDate ?? toDateOnlyIso(),
+          now,
+          id,
+          now,
+          'pending'
+        );
 
-    const transaction = await db.getFirstAsync<LedgerTransactionRow>(
-      'SELECT * FROM transactions WHERE id = ? LIMIT 1',
-      id
-    );
+        const transaction = await db.getFirstAsync<LedgerTransactionRow>(
+          'SELECT * FROM transactions WHERE id = ? LIMIT 1',
+          id
+        );
 
-    if (!transaction) {
-      throw new Error('Transaction was not saved.');
-    }
+        if (!transaction) {
+          throw new Error('Transaction was not saved.');
+        }
 
-    return mapTransaction(transaction);
-  } catch (error) {
-    return throwDatabaseError('addTransaction', error);
-  }
+        return mapTransaction(transaction);
+      } catch (error) {
+        return throwDatabaseError('addTransaction', error);
+      }
+    },
+    { action: 'add', transactionType: input.type }
+  );
 }
 
 export async function getTransaction(id: string): Promise<LedgerTransaction | null> {
@@ -1420,157 +1458,424 @@ export async function updateTransaction(
   id: string,
   input: UpdateTransactionInput
 ): Promise<LedgerTransaction> {
+  return measurePerformance(
+    'transaction_save',
+    'Update transaction',
+    async () => {
+      try {
+        const existing = await getTransaction(id);
+        if (!existing) {
+          throw new Error(`Transaction not found: ${id}`);
+        }
+
+        const type = input.type ?? existing.type;
+        if (!transactionTypes.includes(type)) {
+          throw new Error(`Unsupported transaction type: ${type}`);
+        }
+
+        const amount = input.amount ?? existing.amount;
+        assertPositiveAmount(amount);
+
+        const customer = await getCustomerById(existing.customerId);
+        if (!customer) {
+          throw new Error(`Customer not found for transaction: ${existing.customerId}`);
+        }
+
+        const db = await getDatabase();
+        const now = new Date().toISOString();
+
+        await db.runAsync(
+          `UPDATE transactions SET
+            type = ?,
+            amount = ?,
+            note = ?,
+            effective_date = ?,
+            last_modified = ?,
+            sync_status = 'pending'
+           WHERE id = ?`,
+          type,
+          amount,
+          input.note === undefined ? existing.note : cleanText(input.note),
+          input.effectiveDate ?? existing.effectiveDate,
+          now,
+          id
+        );
+
+        const updated = await getTransaction(id);
+        if (!updated) {
+          throw new Error('Transaction disappeared after update.');
+        }
+
+        return updated;
+      } catch (error) {
+        return throwDatabaseError('updateTransaction', error);
+      }
+    },
+    { action: 'update', transactionId: id }
+  );
+}
+
+export async function addPaymentReminder(
+  input: AddPaymentReminderInput
+): Promise<PaymentReminder> {
   try {
-    const existing = await getTransaction(id);
+    const customer = await getCustomerById(input.customerId);
+    if (!customer || customer.isArchived) {
+      throw new Error(`Active customer not found: ${input.customerId}`);
+    }
+
+    const message = requiredText(input.message);
+    const db = await getDatabase();
+    const id = createEntityId('rem');
+    const now = new Date().toISOString();
+
+    await db.runAsync(
+      `INSERT INTO payment_reminders (
+        id,
+        customer_id,
+        tone,
+        message,
+        balance_at_send,
+        shared_via,
+        created_at,
+        sync_id,
+        last_modified,
+        sync_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id,
+      input.customerId,
+      input.tone,
+      message,
+      input.balanceAtSend,
+      cleanText(input.sharedVia) ?? 'system_share_sheet',
+      now,
+      id,
+      now,
+      'pending'
+    );
+
+    const row = await db.getFirstAsync<PaymentReminderRow>(
+      'SELECT * FROM payment_reminders WHERE id = ? LIMIT 1',
+      id
+    );
+
+    if (!row) {
+      throw new Error('Payment reminder was not saved.');
+    }
+
+    return mapPaymentReminder(row);
+  } catch (error) {
+    return throwDatabaseError('addPaymentReminder', error);
+  }
+}
+
+export async function listPaymentRemindersForCustomer(
+  customerId: string,
+  limit = 10
+): Promise<PaymentReminder[]> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<PaymentReminderRow>(
+      `SELECT *
+       FROM payment_reminders
+       WHERE customer_id = ?
+       ORDER BY created_at DESC
+       LIMIT ?`,
+      customerId,
+      limit
+    );
+
+    return rows.map(mapPaymentReminder);
+  } catch (error) {
+    return throwDatabaseError('listPaymentRemindersForCustomer', error);
+  }
+}
+
+export async function addPaymentPromise(input: AddPaymentPromiseInput): Promise<PaymentPromise> {
+  try {
+    assertPositiveAmount(input.promisedAmount);
+
+    const customer = await getCustomerById(input.customerId);
+    if (!customer || customer.isArchived) {
+      throw new Error(`Active customer not found: ${input.customerId}`);
+    }
+
+    const db = await getDatabase();
+    const id = createEntityId('prm');
+    const now = new Date().toISOString();
+
+    await db.runAsync(
+      `INSERT INTO payment_promises (
+        id,
+        customer_id,
+        promised_amount,
+        promised_date,
+        note,
+        status,
+        created_at,
+        updated_at,
+        sync_id,
+        last_modified,
+        sync_status
+      ) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)`,
+      id,
+      input.customerId,
+      input.promisedAmount,
+      requiredText(input.promisedDate),
+      cleanText(input.note),
+      now,
+      now,
+      id,
+      now,
+      'pending'
+    );
+
+    const promise = await getPaymentPromise(id);
+    if (!promise) {
+      throw new Error('Payment promise was not saved.');
+    }
+
+    return promise;
+  } catch (error) {
+    return throwDatabaseError('addPaymentPromise', error);
+  }
+}
+
+export async function getPaymentPromise(id: string): Promise<PaymentPromise | null> {
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<PaymentPromiseRow>(
+      'SELECT * FROM payment_promises WHERE id = ? LIMIT 1',
+      id
+    );
+
+    return row ? mapPaymentPromise(row) : null;
+  } catch (error) {
+    return throwDatabaseError('getPaymentPromise', error);
+  }
+}
+
+export async function updatePaymentPromise(
+  id: string,
+  input: UpdatePaymentPromiseInput
+): Promise<PaymentPromise> {
+  try {
+    const existing = await getPaymentPromise(id);
     if (!existing) {
-      throw new Error(`Transaction not found: ${id}`);
+      throw new Error(`Payment promise not found: ${id}`);
     }
 
-    const type = input.type ?? existing.type;
-    if (!transactionTypes.includes(type)) {
-      throw new Error(`Unsupported transaction type: ${type}`);
+    const status = input.status ?? existing.status;
+    if (!paymentPromiseStatuses.includes(status)) {
+      throw new Error(`Unsupported payment promise status: ${status}`);
     }
 
-    const amount = input.amount ?? existing.amount;
+    const amount = input.promisedAmount ?? existing.promisedAmount;
     assertPositiveAmount(amount);
-
-    const customer = await getCustomerById(existing.customerId);
-    if (!customer) {
-      throw new Error(`Customer not found for transaction: ${existing.customerId}`);
-    }
 
     const db = await getDatabase();
     const now = new Date().toISOString();
 
     await db.runAsync(
-      `UPDATE transactions SET
-        type = ?,
-        amount = ?,
+      `UPDATE payment_promises SET
+        customer_id = ?,
+        promised_amount = ?,
+        promised_date = ?,
         note = ?,
-        effective_date = ?,
+        status = ?,
+        updated_at = ?,
         last_modified = ?,
         sync_status = 'pending'
        WHERE id = ?`,
-      type,
+      input.customerId ?? existing.customerId,
       amount,
+      input.promisedDate ?? existing.promisedDate,
       input.note === undefined ? existing.note : cleanText(input.note),
-      input.effectiveDate ?? existing.effectiveDate,
+      status,
+      now,
       now,
       id
     );
 
-    const updated = await getTransaction(id);
+    const updated = await getPaymentPromise(id);
     if (!updated) {
-      throw new Error('Transaction disappeared after update.');
+      throw new Error('Payment promise disappeared after update.');
     }
 
     return updated;
   } catch (error) {
-    return throwDatabaseError('updateTransaction', error);
+    return throwDatabaseError('updatePaymentPromise', error);
+  }
+}
+
+export async function updatePaymentPromiseStatus(
+  id: string,
+  status: PaymentPromiseStatus
+): Promise<PaymentPromise> {
+  return updatePaymentPromise(id, { status });
+}
+
+export async function listPaymentPromisesForCustomer(
+  customerId: string,
+  limit = 20
+): Promise<PaymentPromise[]> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<PaymentPromiseRow>(
+      `SELECT *
+       FROM payment_promises
+       WHERE customer_id = ?
+       ORDER BY
+        CASE status
+          WHEN 'open' THEN 0
+          WHEN 'missed' THEN 1
+          WHEN 'fulfilled' THEN 2
+          ELSE 3
+        END ASC,
+        promised_date ASC,
+        created_at DESC
+       LIMIT ?`,
+      customerId,
+      limit
+    );
+
+    return rows.map(mapPaymentPromise);
+  } catch (error) {
+    return throwDatabaseError('listPaymentPromisesForCustomer', error);
+  }
+}
+
+export async function listOpenPaymentPromisesForCustomer(
+  customerId: string,
+  limit = 10
+): Promise<PaymentPromise[]> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<PaymentPromiseRow>(
+      `SELECT *
+       FROM payment_promises
+       WHERE customer_id = ?
+        AND status = 'open'
+       ORDER BY promised_date ASC, created_at ASC
+       LIMIT ?`,
+      customerId,
+      limit
+    );
+
+    return rows.map(mapPaymentPromise);
+  } catch (error) {
+    return throwDatabaseError('listOpenPaymentPromisesForCustomer', error);
   }
 }
 
 export async function addInvoice(input: AddInvoiceInput): Promise<InvoiceWithItems> {
-  try {
-    const db = await getDatabase();
-    const id = createEntityId('inv');
-    const now = new Date().toISOString();
-    const customerId = cleanText(input.customerId);
-    const invoiceNumber = requiredText(input.invoiceNumber);
-    const prepared = prepareInvoiceTotals(input, id);
+  return measurePerformance(
+    'invoice_save',
+    'Add invoice',
+    async () => {
+      try {
+        const db = await getDatabase();
+        const id = createEntityId('inv');
+        const now = new Date().toISOString();
+        const customerId = cleanText(input.customerId);
+        const invoiceNumber = requiredText(input.invoiceNumber);
+        const prepared = prepareInvoiceTotals(input, id);
 
-    if (!invoiceNumber) {
-      throw new Error('Invoice number is required.');
-    }
+        if (!invoiceNumber) {
+          throw new Error('Invoice number is required.');
+        }
 
-    if (input.status && !invoiceStatuses.includes(input.status)) {
-      throw new Error(`Unsupported invoice status: ${input.status}`);
-    }
+        if (input.status && !invoiceStatuses.includes(input.status)) {
+          throw new Error(`Unsupported invoice status: ${input.status}`);
+        }
 
-    if (customerId) {
-      const customer = await getCustomerById(customerId);
-      if (!customer) {
-        throw new Error(`Customer not found for invoice: ${customerId}`);
-      }
-    }
+        if (customerId) {
+          const customer = await getCustomerById(customerId);
+          if (!customer) {
+            throw new Error(`Customer not found for invoice: ${customerId}`);
+          }
+        }
 
-    await db.withTransactionAsync(async () => {
-      await applyProductStockReductions(db, prepared.items);
+        await db.withTransactionAsync(async () => {
+          await applyProductStockReductions(db, prepared.items);
 
-      await db.runAsync(
-        `INSERT INTO invoices (
-          id,
-          customer_id,
-          invoice_number,
-          issue_date,
-          due_date,
-          subtotal,
-          tax_amount,
-          total_amount,
-          status,
-          notes,
-          created_at,
-          sync_id,
-          last_modified,
-          sync_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        id,
-        customerId,
-        invoiceNumber,
-        input.issueDate ?? toDateOnlyIso(),
-        cleanText(input.dueDate),
-        prepared.subtotal,
-        prepared.taxAmount,
-        prepared.totalAmount,
-        input.status ?? 'draft',
-        cleanText(input.notes),
-        now,
-        id,
-        now,
-        'pending'
-      );
-
-      for (const item of prepared.items) {
-        await db.runAsync(
-          `INSERT INTO invoice_items (
+          await db.runAsync(
+            `INSERT INTO invoices (
+              id,
+              customer_id,
+              invoice_number,
+              issue_date,
+              due_date,
+              subtotal,
+              tax_amount,
+              total_amount,
+              status,
+              notes,
+              created_at,
+              sync_id,
+              last_modified,
+              sync_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
-            invoice_id,
-            product_id,
-            name,
-            description,
-            quantity,
-            price,
-            tax_rate,
-            total,
-            sync_id,
-            last_modified,
-            sync_status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          item.id,
-          id,
-          item.productId,
-          item.name,
-          item.description,
-          item.quantity,
-          item.price,
-          item.taxRate,
-          item.total,
-          item.id,
-          now,
-          'pending'
-        );
+            customerId,
+            invoiceNumber,
+            input.issueDate ?? toDateOnlyIso(),
+            cleanText(input.dueDate),
+            prepared.subtotal,
+            prepared.taxAmount,
+            prepared.totalAmount,
+            input.status ?? 'draft',
+            cleanText(input.notes),
+            now,
+            id,
+            now,
+            'pending'
+          );
+
+          for (const item of prepared.items) {
+            await db.runAsync(
+              `INSERT INTO invoice_items (
+                id,
+                invoice_id,
+                product_id,
+                name,
+                description,
+                quantity,
+                price,
+                tax_rate,
+                total,
+                sync_id,
+                last_modified,
+                sync_status
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              item.id,
+              id,
+              item.productId,
+              item.name,
+              item.description,
+              item.quantity,
+              item.price,
+              item.taxRate,
+              item.total,
+              item.id,
+              now,
+              'pending'
+            );
+          }
+        });
+
+        const invoice = await getInvoice(id);
+        if (!invoice) {
+          throw new Error('Invoice was not saved.');
+        }
+
+        return invoice;
+      } catch (error) {
+        return throwDatabaseError('addInvoice', error);
       }
-    });
-
-    const invoice = await getInvoice(id);
-    if (!invoice) {
-      throw new Error('Invoice was not saved.');
-    }
-
-    return invoice;
-  } catch (error) {
-    return throwDatabaseError('addInvoice', error);
-  }
+    },
+    { action: 'add', itemCount: input.items.length }
+  );
 }
 
 export async function getInvoice(id: string): Promise<InvoiceWithItems | null> {
@@ -1602,110 +1907,117 @@ export async function updateInvoice(
   id: string,
   input: UpdateInvoiceInput
 ): Promise<InvoiceWithItems> {
-  try {
-    const existing = await getInvoice(id);
-    if (!existing) {
-      throw new Error(`Invoice not found: ${id}`);
-    }
+  return measurePerformance(
+    'invoice_save',
+    'Update invoice',
+    async () => {
+      try {
+        const existing = await getInvoice(id);
+        if (!existing) {
+          throw new Error(`Invoice not found: ${id}`);
+        }
 
-    const customerId = input.customerId === undefined ? existing.customerId : cleanText(input.customerId);
-    const invoiceNumber =
-      input.invoiceNumber === undefined ? existing.invoiceNumber : requiredText(input.invoiceNumber);
-    const status = input.status ?? existing.status;
+        const customerId = input.customerId === undefined ? existing.customerId : cleanText(input.customerId);
+        const invoiceNumber =
+          input.invoiceNumber === undefined ? existing.invoiceNumber : requiredText(input.invoiceNumber);
+        const status = input.status ?? existing.status;
 
-    if (!invoiceNumber) {
-      throw new Error('Invoice number is required.');
-    }
+        if (!invoiceNumber) {
+          throw new Error('Invoice number is required.');
+        }
 
-    if (!invoiceStatuses.includes(status)) {
-      throw new Error(`Unsupported invoice status: ${status}`);
-    }
+        if (!invoiceStatuses.includes(status)) {
+          throw new Error(`Unsupported invoice status: ${status}`);
+        }
 
-    if (customerId) {
-      const customer = await getCustomerById(customerId);
-      if (!customer) {
-        throw new Error(`Customer not found for invoice: ${customerId}`);
+        if (customerId) {
+          const customer = await getCustomerById(customerId);
+          if (!customer) {
+            throw new Error(`Customer not found for invoice: ${customerId}`);
+          }
+        }
+
+        const prepared = prepareInvoiceTotals({ items: input.items }, id);
+        const db = await getDatabase();
+        const now = new Date().toISOString();
+
+        await db.withTransactionAsync(async () => {
+          await restoreProductStockReductions(db, existing.items);
+          await applyProductStockReductions(db, prepared.items);
+
+          await db.runAsync(
+            `UPDATE invoices
+             SET customer_id = ?,
+              invoice_number = ?,
+              issue_date = ?,
+              due_date = ?,
+              subtotal = ?,
+              tax_amount = ?,
+              total_amount = ?,
+              status = ?,
+              notes = ?,
+              last_modified = ?,
+              sync_status = 'pending'
+             WHERE id = ?`,
+            customerId,
+            invoiceNumber,
+            input.issueDate ?? existing.issueDate,
+            input.dueDate === undefined ? existing.dueDate : cleanText(input.dueDate),
+            prepared.subtotal,
+            prepared.taxAmount,
+            prepared.totalAmount,
+            status,
+            input.notes === undefined ? existing.notes : cleanText(input.notes),
+            now,
+            id
+          );
+
+          await db.runAsync('DELETE FROM invoice_items WHERE invoice_id = ?', id);
+
+          for (const item of prepared.items) {
+            await db.runAsync(
+              `INSERT INTO invoice_items (
+                id,
+                invoice_id,
+                product_id,
+                name,
+                description,
+                quantity,
+                price,
+                tax_rate,
+                total,
+                sync_id,
+                last_modified,
+                sync_status
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              item.id,
+              id,
+              item.productId,
+              item.name,
+              item.description,
+              item.quantity,
+              item.price,
+              item.taxRate,
+              item.total,
+              item.id,
+              now,
+              'pending'
+            );
+          }
+        });
+
+        const invoice = await getInvoice(id);
+        if (!invoice) {
+          throw new Error(`Invoice disappeared after update: ${id}`);
+        }
+
+        return invoice;
+      } catch (error) {
+        return throwDatabaseError('updateInvoice', error);
       }
-    }
-
-    const prepared = prepareInvoiceTotals({ items: input.items }, id);
-    const db = await getDatabase();
-    const now = new Date().toISOString();
-
-    await db.withTransactionAsync(async () => {
-      await restoreProductStockReductions(db, existing.items);
-      await applyProductStockReductions(db, prepared.items);
-
-      await db.runAsync(
-        `UPDATE invoices
-         SET customer_id = ?,
-          invoice_number = ?,
-          issue_date = ?,
-          due_date = ?,
-          subtotal = ?,
-          tax_amount = ?,
-          total_amount = ?,
-          status = ?,
-          notes = ?,
-          last_modified = ?,
-          sync_status = 'pending'
-         WHERE id = ?`,
-        customerId,
-        invoiceNumber,
-        input.issueDate ?? existing.issueDate,
-        input.dueDate === undefined ? existing.dueDate : cleanText(input.dueDate),
-        prepared.subtotal,
-        prepared.taxAmount,
-        prepared.totalAmount,
-        status,
-        input.notes === undefined ? existing.notes : cleanText(input.notes),
-        now,
-        id
-      );
-
-      await db.runAsync('DELETE FROM invoice_items WHERE invoice_id = ?', id);
-
-      for (const item of prepared.items) {
-        await db.runAsync(
-          `INSERT INTO invoice_items (
-            id,
-            invoice_id,
-            product_id,
-            name,
-            description,
-            quantity,
-            price,
-            tax_rate,
-            total,
-            sync_id,
-            last_modified,
-            sync_status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          item.id,
-          id,
-          item.productId,
-          item.name,
-          item.description,
-          item.quantity,
-          item.price,
-          item.taxRate,
-          item.total,
-          item.id,
-          now,
-          'pending'
-        );
-      }
-    });
-
-    const invoice = await getInvoice(id);
-    if (!invoice) {
-      throw new Error(`Invoice disappeared after update: ${id}`);
-    }
-
-    return invoice;
-  } catch (error) {
-    return throwDatabaseError('updateInvoice', error);
-  }
+    },
+    { action: 'update', invoiceId: id, itemCount: input.items.length }
+  );
 }
 
 export async function listInvoices(options: InvoiceListOptions = {}): Promise<Invoice[]> {
@@ -1778,32 +2090,39 @@ export async function updateInvoiceStatus(
 }
 
 export async function getCustomerLedger(customerId: string): Promise<CustomerLedger> {
-  try {
-    const customer = await getCustomerById(customerId);
-    if (!customer) {
-      throw new Error(`Customer not found: ${customerId}`);
-    }
+  return measurePerformance(
+    'customer_ledger_load',
+    'Customer ledger load',
+    async () => {
+      try {
+        const customer = await getCustomerById(customerId);
+        if (!customer) {
+          throw new Error(`Customer not found: ${customerId}`);
+        }
 
-    const db = await getDatabase();
-    const rows = await db.getAllAsync<LedgerTransactionRow>(
-      `SELECT * FROM transactions
-       WHERE customer_id = ?
-       ORDER BY effective_date DESC, created_at DESC`,
-      customerId
-    );
+        const db = await getDatabase();
+        const rows = await db.getAllAsync<LedgerTransactionRow>(
+          `SELECT * FROM transactions
+           WHERE customer_id = ?
+           ORDER BY effective_date DESC, created_at DESC`,
+          customerId
+        );
 
-    const transactions = rows.map(mapTransaction);
-    const balance = calculateBalance(customer.openingBalance, transactions);
+        const transactions = rows.map(mapTransaction);
+        const balance = calculateBalance(customer.openingBalance, transactions);
 
-    return {
-      customer,
-      openingBalance: customer.openingBalance,
-      transactions,
-      balance,
-    };
-  } catch (error) {
-    return throwDatabaseError('getCustomerLedger', error);
-  }
+        return {
+          customer,
+          openingBalance: customer.openingBalance,
+          transactions,
+          balance,
+        };
+      } catch (error) {
+        return throwDatabaseError('getCustomerLedger', error);
+      }
+    },
+    { customerId }
+  );
 }
 
 export async function getCustomerBalance(customerId: string): Promise<number> {
@@ -1837,95 +2156,102 @@ export async function getCustomerBalance(customerId: string): Promise<number> {
 }
 
 export async function getDashboardSummary(date = new Date()): Promise<DashboardSummary> {
-  try {
-    const db = await getDatabase();
-    const { startIso, endIso } = localDayBounds(date);
-    const recentStart = new Date(date);
-    recentStart.setDate(recentStart.getDate() - 7);
-    const previousStart = new Date(date);
-    previousStart.setDate(previousStart.getDate() - 14);
-    const followUpCutoff = new Date(date);
-    followUpCutoff.setDate(followUpCutoff.getDate() - 30);
-    const nowIso = date.toISOString();
-    const row = await db.getFirstAsync<DashboardSummaryRow>(
-      `WITH balances AS (
-        SELECT
-          c.id,
-          c.opening_balance
-            + COALESCE(SUM(
+  return measurePerformance(
+    'dashboard_summary_load',
+    'Dashboard summary load',
+    async () => {
+      try {
+        const db = await getDatabase();
+        const { startIso, endIso } = localDayBounds(date);
+        const recentStart = new Date(date);
+        recentStart.setDate(recentStart.getDate() - 7);
+        const previousStart = new Date(date);
+        previousStart.setDate(previousStart.getDate() - 14);
+        const followUpCutoff = new Date(date);
+        followUpCutoff.setDate(followUpCutoff.getDate() - 30);
+        const nowIso = date.toISOString();
+        const row = await db.getFirstAsync<DashboardSummaryRow>(
+          `WITH balances AS (
+            SELECT
+              c.id,
+              c.opening_balance
+                + COALESCE(SUM(
+                  CASE
+                    WHEN t.type = 'credit' THEN t.amount
+                    WHEN t.type = 'payment' THEN -t.amount
+                    ELSE 0
+                  END
+                ), 0) AS balance,
+              MAX(CASE WHEN t.type = 'payment' THEN t.created_at ELSE NULL END) AS latest_payment_at
+            FROM customers c
+            LEFT JOIN transactions t ON t.customer_id = c.id
+            WHERE c.is_archived = 0
+            GROUP BY c.id
+          )
+          SELECT
+            COALESCE(SUM(CASE WHEN balance > 0 THEN balance ELSE 0 END), 0) AS total_receivable,
+            COALESCE(SUM(CASE WHEN balance > 0 THEN 1 ELSE 0 END), 0) AS customers_with_outstanding_balance,
+            (
+              SELECT COUNT(*)
+              FROM transactions
+              WHERE created_at >= ? AND created_at < ?
+            ) AS today_entries,
+            (
+              SELECT COALESCE(SUM(amount), 0)
+              FROM transactions
+              WHERE type = 'payment' AND created_at >= ? AND created_at <= ?
+            ) AS recent_payments_received,
+            COALESCE(SUM(
               CASE
-                WHEN t.type = 'credit' THEN t.amount
-                WHEN t.type = 'payment' THEN -t.amount
+                WHEN balance > 0
+                  AND (latest_payment_at IS NULL OR latest_payment_at < ?)
+                THEN 1
                 ELSE 0
               END
-            ), 0) AS balance,
-          MAX(CASE WHEN t.type = 'payment' THEN t.created_at ELSE NULL END) AS latest_payment_at
-        FROM customers c
-        LEFT JOIN transactions t ON t.customer_id = c.id
-        WHERE c.is_archived = 0
-        GROUP BY c.id
-      )
-      SELECT
-        COALESCE(SUM(CASE WHEN balance > 0 THEN balance ELSE 0 END), 0) AS total_receivable,
-        COALESCE(SUM(CASE WHEN balance > 0 THEN 1 ELSE 0 END), 0) AS customers_with_outstanding_balance,
-        (
-          SELECT COUNT(*)
-          FROM transactions
-          WHERE created_at >= ? AND created_at < ?
-        ) AS today_entries,
-        (
-          SELECT COALESCE(SUM(amount), 0)
-          FROM transactions
-          WHERE type = 'payment' AND created_at >= ? AND created_at <= ?
-        ) AS recent_payments_received,
-        COALESCE(SUM(
-          CASE
-            WHEN balance > 0
-              AND (latest_payment_at IS NULL OR latest_payment_at < ?)
-            THEN 1
-            ELSE 0
-          END
-        ), 0) AS follow_up_customer_count,
-        (
-          SELECT COUNT(*)
-          FROM transactions
-          WHERE created_at >= ? AND created_at <= ?
-        ) AS recent_activity_count,
-        (
-          SELECT COUNT(*)
-          FROM transactions
-          WHERE created_at >= ? AND created_at < ?
-        ) AS previous_activity_count
-      FROM balances`,
-      startIso,
-      endIso,
-      recentStart.toISOString(),
-      nowIso,
-      followUpCutoff.toISOString(),
-      recentStart.toISOString(),
-      nowIso,
-      previousStart.toISOString(),
-      recentStart.toISOString()
-    );
+            ), 0) AS follow_up_customer_count,
+            (
+              SELECT COUNT(*)
+              FROM transactions
+              WHERE created_at >= ? AND created_at <= ?
+            ) AS recent_activity_count,
+            (
+              SELECT COUNT(*)
+              FROM transactions
+              WHERE created_at >= ? AND created_at < ?
+            ) AS previous_activity_count
+          FROM balances`,
+          startIso,
+          endIso,
+          recentStart.toISOString(),
+          nowIso,
+          followUpCutoff.toISOString(),
+          recentStart.toISOString(),
+          nowIso,
+          previousStart.toISOString(),
+          recentStart.toISOString()
+        );
 
-    return {
-      totalReceivable: row?.total_receivable ?? 0,
-      customersWithOutstandingBalance: row?.customers_with_outstanding_balance ?? 0,
-      todayEntries: row?.today_entries ?? 0,
-      recentPaymentsReceived: row?.recent_payments_received ?? 0,
-      followUpCustomerCount: row?.follow_up_customer_count ?? 0,
-      recentActivityCount: row?.recent_activity_count ?? 0,
-      previousActivityCount: row?.previous_activity_count ?? 0,
-    };
-  } catch (error) {
-    return throwDatabaseError('getDashboardSummary', error);
-  }
+        return {
+          totalReceivable: row?.total_receivable ?? 0,
+          customersWithOutstandingBalance: row?.customers_with_outstanding_balance ?? 0,
+          todayEntries: row?.today_entries ?? 0,
+          recentPaymentsReceived: row?.recent_payments_received ?? 0,
+          followUpCustomerCount: row?.follow_up_customer_count ?? 0,
+          recentActivityCount: row?.recent_activity_count ?? 0,
+          previousActivityCount: row?.previous_activity_count ?? 0,
+        };
+      } catch (error) {
+        return throwDatabaseError('getDashboardSummary', error);
+      }
+    },
+    { date: date.toISOString().slice(0, 10) }
+  );
 }
 
 export async function getTopDueCustomers(limit = 3): Promise<TopDueCustomer[]> {
   try {
     const db = await getDatabase();
-    const rows = await db.getAllAsync<CustomerSummaryRow>(
+    const rows = await db.getAllAsync<TopDueCustomerRow>(
       `WITH summaries AS (
         SELECT
           c.*,
@@ -1936,8 +2262,18 @@ export async function getTopDueCustomers(limit = 3): Promise<TopDueCustomer[]> {
                 WHEN t.type = 'payment' THEN -t.amount
                 ELSE 0
               END
-            ), 0) AS balance,
-          COALESCE(MAX(t.created_at), c.updated_at, c.created_at) AS latest_activity_at
+          ), 0) AS balance,
+          COALESCE(MAX(t.created_at), c.updated_at, c.created_at) AS latest_activity_at,
+          MIN(CASE WHEN t.type = 'credit' THEN t.effective_date ELSE NULL END) AS oldest_credit_at,
+          MAX(CASE WHEN t.type = 'payment' THEN t.effective_date ELSE NULL END) AS last_payment_at,
+          COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END), 0) AS total_credit,
+          COALESCE(SUM(CASE WHEN t.type = 'payment' THEN t.amount ELSE 0 END), 0) AS total_payment,
+          COALESCE(SUM(CASE WHEN t.type = 'payment' THEN 1 ELSE 0 END), 0) AS payment_count,
+          (
+            SELECT MAX(pr.created_at)
+            FROM payment_reminders pr
+            WHERE pr.customer_id = c.id
+          ) AS last_reminder_at
         FROM customers c
         LEFT JOIN transactions t ON t.customer_id = c.id
         WHERE c.is_archived = 0
@@ -1958,11 +2294,176 @@ export async function getTopDueCustomers(limit = 3): Promise<TopDueCustomer[]> {
         name: customer.name,
         balance: customer.balance,
         latestActivityAt: customer.latestActivityAt,
+        lastPaymentAt: row.last_payment_at,
+        lastReminderAt: row.last_reminder_at,
+        insight: customer.insight,
       };
     });
   } catch (error) {
     return throwDatabaseError('getTopDueCustomers', error);
   }
+}
+
+export async function getOldestDueCustomers(limit = 5): Promise<CollectionCustomer[]> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<CollectionCustomerRow>(
+      `WITH summaries AS (
+        SELECT
+          c.*,
+          c.opening_balance
+            + COALESCE(SUM(
+              CASE
+                WHEN t.type = 'credit' THEN t.amount
+                WHEN t.type = 'payment' THEN -t.amount
+                ELSE 0
+              END
+          ), 0) AS balance,
+          COALESCE(MAX(t.created_at), c.updated_at, c.created_at) AS latest_activity_at,
+          MIN(CASE WHEN t.type = 'credit' THEN t.effective_date ELSE NULL END) AS oldest_credit_at,
+          MAX(CASE WHEN t.type = 'payment' THEN t.effective_date ELSE NULL END) AS last_payment_at,
+          COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END), 0) AS total_credit,
+          COALESCE(SUM(CASE WHEN t.type = 'payment' THEN t.amount ELSE 0 END), 0) AS total_payment,
+          COALESCE(SUM(CASE WHEN t.type = 'payment' THEN 1 ELSE 0 END), 0) AS payment_count,
+          (
+            SELECT MAX(pr.created_at)
+            FROM payment_reminders pr
+            WHERE pr.customer_id = c.id
+          ) AS last_reminder_at
+        FROM customers c
+        LEFT JOIN transactions t ON t.customer_id = c.id
+        WHERE c.is_archived = 0
+        GROUP BY c.id
+      )
+      SELECT *
+      FROM summaries
+      WHERE balance > 0
+      ORDER BY COALESCE(oldest_credit_at, created_at) ASC, balance DESC, name COLLATE NOCASE ASC
+      LIMIT ?`,
+      limit
+    );
+
+    return rows.map(mapCollectionCustomerRow);
+  } catch (error) {
+    return throwDatabaseError('getOldestDueCustomers', error);
+  }
+}
+
+export async function getStaleDueCustomers(
+  limit = 5,
+  cutoffDate = new Date()
+): Promise<CollectionCustomer[]> {
+  try {
+    const db = await getDatabase();
+    const cutoff = new Date(cutoffDate);
+    cutoff.setDate(cutoff.getDate() - 30);
+    const rows = await db.getAllAsync<CollectionCustomerRow>(
+      `WITH summaries AS (
+        SELECT
+          c.*,
+          c.opening_balance
+            + COALESCE(SUM(
+              CASE
+                WHEN t.type = 'credit' THEN t.amount
+                WHEN t.type = 'payment' THEN -t.amount
+                ELSE 0
+              END
+          ), 0) AS balance,
+          COALESCE(MAX(t.created_at), c.updated_at, c.created_at) AS latest_activity_at,
+          MIN(CASE WHEN t.type = 'credit' THEN t.effective_date ELSE NULL END) AS oldest_credit_at,
+          MAX(CASE WHEN t.type = 'payment' THEN t.effective_date ELSE NULL END) AS last_payment_at,
+          COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END), 0) AS total_credit,
+          COALESCE(SUM(CASE WHEN t.type = 'payment' THEN t.amount ELSE 0 END), 0) AS total_payment,
+          COALESCE(SUM(CASE WHEN t.type = 'payment' THEN 1 ELSE 0 END), 0) AS payment_count,
+          (
+            SELECT MAX(pr.created_at)
+            FROM payment_reminders pr
+            WHERE pr.customer_id = c.id
+          ) AS last_reminder_at
+        FROM customers c
+        LEFT JOIN transactions t ON t.customer_id = c.id
+        WHERE c.is_archived = 0
+        GROUP BY c.id
+      )
+      SELECT *
+      FROM summaries
+      WHERE balance > 0
+        AND (last_payment_at IS NULL OR last_payment_at < ?)
+      ORDER BY
+        CASE WHEN last_payment_at IS NULL THEN 0 ELSE 1 END ASC,
+        COALESCE(last_payment_at, oldest_credit_at, created_at) ASC,
+        balance DESC
+      LIMIT ?`,
+      cutoff.toISOString().slice(0, 10),
+      limit
+    );
+
+    return rows.map(mapCollectionCustomerRow);
+  } catch (error) {
+    return throwDatabaseError('getStaleDueCustomers', error);
+  }
+}
+
+export async function listUpcomingPaymentPromises(
+  limit = 5,
+  fromDate = new Date()
+): Promise<PaymentPromiseWithCustomer[]> {
+  try {
+    const db = await getDatabase();
+    const today = toDateOnlyIso(fromDate);
+    const rows = await db.getAllAsync<PaymentPromiseWithCustomerRow>(
+      `WITH balances AS (
+        SELECT
+          c.id,
+          c.opening_balance
+            + COALESCE(SUM(
+              CASE
+                WHEN t.type = 'credit' THEN t.amount
+                WHEN t.type = 'payment' THEN -t.amount
+                ELSE 0
+              END
+            ), 0) AS current_balance
+        FROM customers c
+        LEFT JOIN transactions t ON t.customer_id = c.id
+        WHERE c.is_archived = 0
+        GROUP BY c.id
+      )
+      SELECT
+        pp.*,
+        c.name AS customer_name,
+        c.phone AS customer_phone,
+        COALESCE(b.current_balance, 0) AS current_balance
+      FROM payment_promises pp
+      INNER JOIN customers c ON c.id = pp.customer_id
+      LEFT JOIN balances b ON b.id = pp.customer_id
+      WHERE pp.status = 'open'
+      ORDER BY
+        CASE WHEN pp.promised_date <= ? THEN 0 ELSE 1 END ASC,
+        pp.promised_date ASC,
+        pp.created_at ASC
+      LIMIT ?`,
+      today,
+      limit
+    );
+
+    return rows.map(mapPaymentPromiseWithCustomer);
+  } catch (error) {
+    return throwDatabaseError('listUpcomingPaymentPromises', error);
+  }
+}
+
+function mapCollectionCustomerRow(row: CollectionCustomerRow): CollectionCustomer {
+  const customer = mapCustomerSummary(row);
+  return {
+    id: customer.id,
+    name: customer.name,
+    balance: customer.balance,
+    latestActivityAt: customer.latestActivityAt,
+    lastPaymentAt: row.last_payment_at,
+    lastReminderAt: row.last_reminder_at,
+    insight: customer.insight,
+    oldestCreditAt: row.oldest_credit_at,
+  };
 }
 
 export async function getReportsSummary(date = new Date()): Promise<ReportsSummary> {
@@ -2107,116 +2608,135 @@ export async function getReportsSummary(date = new Date()): Promise<ReportsSumma
 }
 
 export async function searchCustomers(query: string, limit = 50): Promise<Customer[]> {
-  try {
-    const db = await getDatabase();
-    const cleaned = query.trim();
+  return measurePerformance(
+    'customer_search',
+    'Customer search',
+    async () => {
+      try {
+        const db = await getDatabase();
+        const cleaned = query.trim();
 
-    if (!cleaned) {
-      const rows = await db.getAllAsync<CustomerRow>(
-        `SELECT * FROM customers
-         WHERE is_archived = 0
-         ORDER BY name COLLATE NOCASE ASC
-         LIMIT ?`,
-        limit
-      );
-      return rows.map(mapCustomer);
-    }
+        if (!cleaned) {
+          const rows = await db.getAllAsync<CustomerRow>(
+            `SELECT * FROM customers
+             WHERE is_archived = 0
+             ORDER BY name COLLATE NOCASE ASC
+             LIMIT ?`,
+            limit
+          );
+          return rows.map(mapCustomer);
+        }
 
-    const like = `%${escapeLikeQuery(cleaned)}%`;
-    const rows = await db.getAllAsync<CustomerRow>(
-      `SELECT * FROM customers
-       WHERE is_archived = 0
-         AND (
-          name LIKE ? ESCAPE '\\'
-          OR phone LIKE ? ESCAPE '\\'
-          OR address LIKE ? ESCAPE '\\'
-          OR notes LIKE ? ESCAPE '\\'
-         )
-       ORDER BY name COLLATE NOCASE ASC
-       LIMIT ?`,
-      like,
-      like,
-      like,
-      like,
-      limit
-    );
+        const like = `%${escapeLikeQuery(cleaned)}%`;
+        const rows = await db.getAllAsync<CustomerRow>(
+          `SELECT * FROM customers
+           WHERE is_archived = 0
+             AND (
+              name LIKE ? ESCAPE '\\'
+              OR phone LIKE ? ESCAPE '\\'
+              OR address LIKE ? ESCAPE '\\'
+              OR notes LIKE ? ESCAPE '\\'
+             )
+           ORDER BY name COLLATE NOCASE ASC
+           LIMIT ?`,
+          like,
+          like,
+          like,
+          like,
+          limit
+        );
 
-    return rows.map(mapCustomer);
-  } catch (error) {
-    return throwDatabaseError('searchCustomers', error);
-  }
+        return rows.map(mapCustomer);
+      } catch (error) {
+        return throwDatabaseError('searchCustomers', error);
+      }
+    },
+    { queryLength: query.trim().length, limit }
+  );
 }
 
 export async function searchCustomerSummaries(
   queryOrOptions: string | SearchCustomerSummariesOptions = '',
   legacyLimit = 50
 ): Promise<CustomerSummary[]> {
-  try {
-    const db = await getDatabase();
-    const options = normalizeCustomerSummarySearchOptions(queryOrOptions, legacyLimit);
-    const cleaned = options.query.trim();
-    const filter = options.filter;
-    const whereClauses = [filter === 'archived' ? 'c.is_archived = 1' : 'c.is_archived = 0'];
-    const queryParams: Array<string | number> = [];
-    const summaryClauses: string[] = [];
+  const options = normalizeCustomerSummarySearchOptions(queryOrOptions, legacyLimit);
+  return measurePerformance(
+    'customer_search',
+    'Customer summary search',
+    async () => {
+      try {
+        const db = await getDatabase();
+        const cleaned = options.query.trim();
+        const filter = options.filter;
+        const whereClauses = [filter === 'archived' ? 'c.is_archived = 1' : 'c.is_archived = 0'];
+        const queryParams: Array<string | number> = [];
+        const summaryClauses: string[] = [];
 
-    if (cleaned) {
-      const like = `%${escapeLikeQuery(cleaned)}%`;
-      whereClauses.push(`(
-        c.name LIKE ? ESCAPE '\\'
-        OR c.phone LIKE ? ESCAPE '\\'
-        OR c.address LIKE ? ESCAPE '\\'
-        OR c.notes LIKE ? ESCAPE '\\'
-      )`);
-      queryParams.push(like, like, like, like);
-    }
+        if (cleaned) {
+          const like = `%${escapeLikeQuery(cleaned)}%`;
+          whereClauses.push(`(
+            c.name LIKE ? ESCAPE '\\'
+            OR c.phone LIKE ? ESCAPE '\\'
+            OR c.address LIKE ? ESCAPE '\\'
+            OR c.notes LIKE ? ESCAPE '\\'
+          )`);
+          queryParams.push(like, like, like, like);
+        }
 
-    if (filter === 'outstanding') {
-      summaryClauses.push('balance > 0');
-    }
+        if (filter === 'outstanding') {
+          summaryClauses.push('balance > 0');
+        }
 
-    if (filter === 'recent_activity') {
-      summaryClauses.push('latest_activity_at >= ?');
-      queryParams.push(options.recentSince);
-    }
+        if (filter === 'recent_activity') {
+          summaryClauses.push('latest_activity_at >= ?');
+          queryParams.push(options.recentSince);
+        }
 
-    const summaryFilterClause = summaryClauses.length
-      ? `WHERE ${summaryClauses.join(' AND ')}`
-      : '';
+        const summaryFilterClause = summaryClauses.length
+          ? `WHERE ${summaryClauses.join(' AND ')}`
+          : '';
 
-    const rows = await db.getAllAsync<CustomerSummaryRow>(
-      `
-      WITH summaries AS (
-      SELECT
-        c.*,
-        c.opening_balance
-          + COALESCE(SUM(
-            CASE
-              WHEN t.type = 'credit' THEN t.amount
-              WHEN t.type = 'payment' THEN -t.amount
-              ELSE 0
-            END
-          ), 0) AS balance,
-        COALESCE(MAX(t.created_at), c.updated_at, c.created_at) AS latest_activity_at
-      FROM customers c
-      LEFT JOIN transactions t ON t.customer_id = c.id
-      WHERE ${whereClauses.join(' AND ')}
-      GROUP BY c.id
-      )
-      SELECT *
-      FROM summaries
-      ${summaryFilterClause}
-      ORDER BY latest_activity_at DESC, name COLLATE NOCASE ASC
-      LIMIT ?
-      `,
-      ...queryParams,
-      options.limit
-    );
+        const rows = await db.getAllAsync<CustomerSummaryRow>(
+          `
+          WITH summaries AS (
+          SELECT
+            c.*,
+            c.opening_balance
+              + COALESCE(SUM(
+                CASE
+                  WHEN t.type = 'credit' THEN t.amount
+                  WHEN t.type = 'payment' THEN -t.amount
+                  ELSE 0
+                END
+              ), 0) AS balance,
+            COALESCE(MAX(t.created_at), c.updated_at, c.created_at) AS latest_activity_at,
+            MIN(CASE WHEN t.type = 'credit' THEN t.effective_date ELSE NULL END) AS oldest_credit_at,
+            MAX(CASE WHEN t.type = 'payment' THEN t.effective_date ELSE NULL END) AS last_payment_at,
+            COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END), 0) AS total_credit,
+            COALESCE(SUM(CASE WHEN t.type = 'payment' THEN t.amount ELSE 0 END), 0) AS total_payment,
+            COALESCE(SUM(CASE WHEN t.type = 'payment' THEN 1 ELSE 0 END), 0) AS payment_count
+          FROM customers c
+          LEFT JOIN transactions t ON t.customer_id = c.id
+          WHERE ${whereClauses.join(' AND ')}
+          GROUP BY c.id
+          )
+          SELECT *
+          FROM summaries
+          ${summaryFilterClause}
+          ORDER BY latest_activity_at DESC, name COLLATE NOCASE ASC
+          LIMIT ?
+          `,
+          ...queryParams,
+          options.limit
+        );
 
-    return rows.map(mapCustomerSummary);
-  } catch (error) {
-    return throwDatabaseError('searchCustomerSummaries', error);
-  }
+        return rows.map(mapCustomerSummary);
+      } catch (error) {
+        return throwDatabaseError('searchCustomerSummaries', error);
+      }
+    },
+    { queryLength: options.query.trim().length, filter: options.filter, limit: options.limit }
+  );
 }
 
 function normalizeCustomerSummarySearchOptions(
@@ -2950,6 +3470,15 @@ function mapCustomerSummary(row: CustomerSummaryRow): CustomerSummary {
     ...mapCustomer(row),
     balance: row.balance,
     latestActivityAt: row.latest_activity_at,
+    insight: buildCustomerPaymentInsight({
+      balance: row.balance,
+      latestActivityAt: row.latest_activity_at,
+      lastPaymentAt: row.last_payment_at,
+      oldestDueAt: row.oldest_credit_at,
+      paymentCount: row.payment_count ?? 0,
+      totalCredit: row.total_credit ?? 0,
+      totalPayment: row.total_payment ?? 0,
+    }),
   };
 }
 

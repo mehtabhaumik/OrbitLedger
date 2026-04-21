@@ -4,6 +4,8 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
+  InteractionManager,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,16 +15,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-  dismissBackupTrustNudge,
-  getBackupTrustNudge,
-  type BackupTrustNudge,
-} from '../backup';
+import type { BackupTrustNudge } from '../backup';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
+import { FounderFooterLink } from '../components/FounderFooterLink';
 import { MoneyText } from '../components/MoneyText';
+import { OrbitHeaderMenu } from '../components/OrbitHeaderMenu';
 import { OrbitHelperStatus } from '../components/OrbitHelperStatus';
+import { PaymentReminderModal } from '../components/PaymentReminderModal';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ProductivityNudge } from '../components/ProductivityNudge';
 import { QuickActionGrid } from '../components/QuickActionGrid';
@@ -31,17 +32,21 @@ import { SkeletonCard } from '../components/SkeletonCard';
 import { StatusChip } from '../components/StatusChip';
 import { SummaryCard } from '../components/SummaryCard';
 import {
+  addPaymentReminder,
   getBusinessSettings,
   getDashboardSummary,
   getFeatureToggles,
   getRecentTransactions,
   getTopDueCustomers,
+  listUpcomingPaymentPromises,
   listProducts,
 } from '../database';
 import type {
   AppFeatureToggles,
   BusinessSettings,
   DashboardSummary,
+  PaymentPromiseWithCustomer,
+  PaymentReminderTone,
   Product,
   RecentTransaction,
   TopDueCustomer,
@@ -52,26 +57,12 @@ import {
   formatSignedCurrency,
   formatTransactionType,
 } from '../lib/format';
-import {
-  dismissRetentionNudge,
-  dismissRatingPrompt,
-  getDismissedRetentionNudgeIds,
-  getRatingPrompt,
-  markRatingCompleted,
-  markRatingPromptActioned,
-  markRatingPromptShown,
-  openPlayStoreRating,
-  type RatingPrompt,
-  type RetentionNudgeId,
-} from '../engagement';
-import {
-  dismissUpgradeNudge,
-  getUpgradeNudge,
-  recordUpgradeNudgeActioned,
-  type UpgradeNudge,
-} from '../monetization';
+import type { RatingPrompt, RetentionNudgeId } from '../engagement';
+import type { UpgradeNudge } from '../monetization';
 import type { RootStackParamList } from '../navigation/types';
-import { colors, spacing, touch, typography } from '../theme/theme';
+import { colors, shadows, spacing, touch, typography } from '../theme/theme';
+
+const headerIcon = require('../../assets/branding/header-icon-transparent.png');
 
 type DashboardScreenProps = NativeStackScreenProps<RootStackParamList, 'Dashboard'>;
 type DashboardNudge = {
@@ -89,25 +80,35 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
   const [topDueCustomers, setTopDueCustomers] = useState<TopDueCustomer[]>([]);
+  const [upcomingPromises, setUpcomingPromises] = useState<PaymentPromiseWithCustomer[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [featureToggles, setFeatureToggles] = useState<AppFeatureToggles | null>(null);
   const [backupNudge, setBackupNudge] = useState<BackupTrustNudge | null>(null);
   const [upgradeNudge, setUpgradeNudge] = useState<UpgradeNudge | null>(null);
   const [ratingPrompt, setRatingPrompt] = useState<RatingPrompt | null>(null);
+  const [reminderTarget, setReminderTarget] = useState<TopDueCustomer | null>(null);
+  const [isSendingReminder, setIsSendingReminder] = useState(false);
   const [dismissedRetentionNudges, setDismissedRetentionNudges] = useState<RetentionNudgeId[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingSecondary, setIsLoadingSecondary] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const currency = business?.currency ?? 'INR';
 
-  const loadDashboard = useCallback(async () => {
+  const loadCriticalDashboard = useCallback(async () => {
     const settings = await getBusinessSettings();
     if (!settings) {
       navigation.replace('Setup');
       return;
     }
 
+    const dashboardSummary = await getDashboardSummary();
+
+    setBusiness(settings);
+    setSummary(dashboardSummary);
+  }, [navigation]);
+
+  const loadSecondaryDashboard = useCallback(async () => {
     const [
-      dashboardSummary,
       recent,
       topDue,
       toggles,
@@ -116,22 +117,24 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
       appRatingPrompt,
       dismissedNudgeIds,
       productsForAttention,
+      promiseRows,
     ] = await Promise.all([
-      getDashboardSummary(),
       getRecentTransactions(8),
       getTopDueCustomers(3),
       getFeatureToggles(),
-      getBackupTrustNudge(),
-      getUpgradeNudge(),
-      getRatingPrompt(),
-      getDismissedRetentionNudgeIds(),
+      import('../backup').then(({ getBackupTrustNudge }) => getBackupTrustNudge()),
+      import('../monetization').then(({ getUpgradeNudge }) => getUpgradeNudge()),
+      import('../engagement').then(({ getRatingPrompt }) => getRatingPrompt()),
+      import('../engagement').then(({ getDismissedRetentionNudgeIds }) =>
+        getDismissedRetentionNudgeIds()
+      ),
       listProducts({ limit: 100 }).catch(() => []),
+      listUpcomingPaymentPromises(3).catch(() => []),
     ]);
 
-    setBusiness(settings);
-    setSummary(dashboardSummary);
     setRecentTransactions(recent);
     setTopDueCustomers(topDue);
+    setUpcomingPromises(promiseRows);
     setLowStockProducts(productsForAttention.filter((product) => product.stockQuantity > 0 && product.stockQuantity <= 5).slice(0, 2));
     setFeatureToggles(toggles);
     setBackupNudge(nudge);
@@ -139,18 +142,47 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
     setRatingPrompt(appRatingPrompt);
     setDismissedRetentionNudges(dismissedNudgeIds);
     if (appRatingPrompt) {
+      const { markRatingPromptShown } = await import('../engagement');
       await markRatingPromptShown();
     }
-  }, [navigation]);
+  }, []);
+
+  const loadDashboard = useCallback(async () => {
+    await loadCriticalDashboard();
+    setIsLoadingSecondary(true);
+    try {
+      await loadSecondaryDashboard();
+    } finally {
+      setIsLoadingSecondary(false);
+    }
+  }, [loadCriticalDashboard, loadSecondaryDashboard]);
 
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
+      let secondaryTask: { cancel?: () => void } | null = null;
 
       async function load() {
         try {
-          setIsLoading(true);
-          await loadDashboard();
+          await loadCriticalDashboard();
+          if (isActive) {
+            setIsLoading(false);
+            setIsLoadingSecondary(true);
+          }
+          secondaryTask = InteractionManager.runAfterInteractions(() => {
+            if (!isActive) {
+              return;
+            }
+            loadSecondaryDashboard()
+              .catch((secondaryError) => {
+                console.warn('[dashboard] Secondary insights could not load', secondaryError);
+              })
+              .finally(() => {
+                if (isActive) {
+                  setIsLoadingSecondary(false);
+                }
+              });
+          });
         } catch {
           if (isActive) {
             Alert.alert('Dashboard could not load', 'Please try again.');
@@ -166,8 +198,9 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
 
       return () => {
         isActive = false;
+        secondaryTask?.cancel?.();
       };
-    }, [loadDashboard])
+    }, [loadCriticalDashboard, loadSecondaryDashboard])
   );
 
   async function refresh() {
@@ -183,22 +216,26 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
 
   async function dismissBackupNudge() {
     setBackupNudge(null);
+    const { dismissBackupTrustNudge } = await import('../backup');
     await dismissBackupTrustNudge();
   }
 
   async function openUpgradeFromNudge() {
     setUpgradeNudge(null);
+    const { recordUpgradeNudgeActioned } = await import('../monetization');
     await recordUpgradeNudgeActioned();
     navigation.navigate('Upgrade');
   }
 
   async function dismissProNudge() {
     setUpgradeNudge(null);
+    const { dismissUpgradeNudge } = await import('../monetization');
     await dismissUpgradeNudge();
   }
 
   async function rateFromDashboard() {
     try {
+      const { markRatingCompleted, openPlayStoreRating } = await import('../engagement');
       await openPlayStoreRating();
       await markRatingCompleted();
       setRatingPrompt(null);
@@ -209,12 +246,14 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
 
   async function openFeedbackFromDashboard() {
     setRatingPrompt(null);
+    const { markRatingPromptActioned } = await import('../engagement');
     await markRatingPromptActioned();
     navigation.navigate('Feedback');
   }
 
   async function dismissRatingNudge() {
     setRatingPrompt(null);
+    const { dismissRatingPrompt } = await import('../engagement');
     await dismissRatingPrompt();
   }
 
@@ -222,7 +261,38 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
     setDismissedRetentionNudges((currentIds) =>
       currentIds.includes(id) ? currentIds : [...currentIds, id]
     );
+    const { dismissRetentionNudge } = await import('../engagement');
     await dismissRetentionNudge(id);
+  }
+
+  async function shareReminder(tone: PaymentReminderTone, message: string) {
+    if (!reminderTarget) {
+      return;
+    }
+
+    try {
+      setIsSendingReminder(true);
+      const { sharePaymentReminderMessage } = await import('../collections');
+      const result = await sharePaymentReminderMessage(message);
+      if (!result.shared) {
+        return;
+      }
+
+      await addPaymentReminder({
+        balanceAtSend: reminderTarget.balance,
+        customerId: reminderTarget.id,
+        message,
+        sharedVia: result.sharedVia ?? 'system_share_sheet',
+        tone,
+      });
+      setReminderTarget(null);
+      await loadDashboard();
+      Alert.alert('Reminder shared', 'The payment reminder was saved in customer history.');
+    } catch {
+      Alert.alert('Reminder could not be shared', 'Please try again from this device.');
+    } finally {
+      setIsSendingReminder(false);
+    }
   }
 
   const trend = getActivityTrend(summary);
@@ -232,14 +302,27 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
     currency,
     dismissedNudgeIds: dismissedRetentionNudges,
     onAddTransaction: () => navigation.navigate('TransactionForm'),
-    onOpenCustomer: (customerId) => navigation.navigate('CustomerDetail', { customerId }),
+    onReminder: (customer) => setReminderTarget(customer),
     onDismissNudge: dismissRetentionReminder,
   });
   const invoicesEnabled = featureToggles?.invoices ?? true;
   const productsEnabled = invoicesEnabled && (featureToggles?.inventory ?? true);
   const receivableTone = (summary?.totalReceivable ?? 0) > 0 ? 'warning' : 'success';
+  const todayInput = new Date().toISOString().slice(0, 10);
+  const duePromiseCount = upcomingPromises.filter((promise) => promise.promisedDate <= todayInput).length;
+  const secondaryHasData =
+    recentTransactions.length > 0 ||
+    topDueCustomers.length > 0 ||
+    upcomingPromises.length > 0 ||
+    lowStockProducts.length > 0 ||
+    backupNudge !== null ||
+    upgradeNudge !== null ||
+    ratingPrompt !== null;
   const attentionCount =
-    topDueCustomers.length + (summary?.followUpCustomerCount ?? 0) + (productsEnabled ? lowStockProducts.length : 0);
+    topDueCustomers.length +
+    (summary?.followUpCustomerCount ?? 0) +
+    duePromiseCount +
+    (productsEnabled ? lowStockProducts.length : 0);
   const attentionRows: Array<{
     helper: string;
     label: string;
@@ -251,6 +334,18 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
       value: `${summary?.followUpCustomerCount ?? 0}`,
       helper: 'Positive balances without payment in 30 days.',
       tone: (summary?.followUpCustomerCount ?? 0) > 0 ? 'warning' : 'success',
+    },
+    {
+      label: 'Promised today',
+      value: `${duePromiseCount}`,
+      helper:
+        duePromiseCount > 0
+          ? upcomingPromises
+              .filter((promise) => promise.promisedDate <= todayInput)
+              .map((promise) => promise.customerName)
+              .join(', ')
+          : 'No payment promises due today.',
+      tone: duePromiseCount > 0 ? 'warning' : 'success',
     },
     {
       label: 'Activity trend',
@@ -295,24 +390,28 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor={colors.primary} />
         }
-      >
-        <View style={styles.header}>
-          <View style={styles.headerTitleBlock}>
-            <Text style={styles.eyebrow}>Orbit Ledger</Text>
-            <Text
-              adjustsFontSizeToFit
-              minimumFontScale={0.82}
-              numberOfLines={2}
-              style={styles.businessName}
-            >
-              {business?.businessName ?? 'Business'}
-            </Text>
+        >
+          <View style={styles.header}>
+            <View style={styles.headerTitleBlock}>
+              <View style={styles.headerBrandRow}>
+                <Image source={headerIcon} style={styles.headerIcon} resizeMode="contain" />
+                <Text style={styles.eyebrow}>Orbit Ledger</Text>
+              </View>
+              <Text
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+                numberOfLines={2}
+                style={styles.businessName}
+              >
+                {business?.businessName ?? 'Business'}
+              </Text>
+            </View>
+            <View style={styles.headerMeta}>
+              <OrbitHeaderMenu />
+              <StatusChip label="On-device" tone="neutral" />
+              <Text style={styles.date}>{new Date().toLocaleDateString()}</Text>
+            </View>
           </View>
-          <View style={styles.headerMeta}>
-            <StatusChip label="On-device" tone="neutral" />
-            <Text style={styles.date}>{new Date().toLocaleDateString()}</Text>
-          </View>
-        </View>
 
         <Card accent={receivableTone} elevated glass style={styles.heroMoneyCard}>
           <View style={styles.heroMoneyTop}>
@@ -332,6 +431,15 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
               label={(summary?.totalReceivable ?? 0) > 0 ? 'Dues open' : 'Clear'}
               tone={receivableTone}
             />
+          </View>
+          <View style={styles.heroMoneyActions}>
+            <PrimaryButton
+              style={styles.heroMoneyButton}
+              variant={(summary?.totalReceivable ?? 0) > 0 ? 'primary' : 'secondary'}
+              onPress={() => navigation.navigate('GetPaid')}
+            >
+              Open Get Paid
+            </PrimaryButton>
           </View>
         </Card>
 
@@ -372,21 +480,31 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
 
         <Section
           title="Needs attention"
-          subtitle={attentionCount > 0 ? `${attentionCount} business signals to review.` : 'No urgent action right now.'}
+          subtitle={
+            isLoadingSecondary && !secondaryHasData
+              ? 'Checking business signals after opening the dashboard.'
+              : attentionCount > 0
+                ? `${attentionCount} business signals to review.`
+                : 'No urgent action right now.'
+          }
         >
-          <Card compact accent={attentionCount > 0 ? 'warning' : 'success'}>
-            <View style={styles.insightList}>
-              {attentionRows.map((row) => (
-                <View key={row.label} style={styles.attentionRow}>
-                  <View style={styles.attentionText}>
-                    <Text style={styles.attentionLabel}>{row.label}</Text>
-                    <Text style={styles.attentionHelper}>{row.helper}</Text>
+          {isLoadingSecondary && !secondaryHasData ? (
+            <SkeletonCard lines={3} />
+          ) : (
+            <Card compact accent={attentionCount > 0 ? 'warning' : 'success'}>
+              <View style={styles.insightList}>
+                {attentionRows.map((row) => (
+                  <View key={row.label} style={styles.attentionRow}>
+                    <View style={styles.attentionText}>
+                      <Text style={styles.attentionLabel}>{row.label}</Text>
+                      <Text style={styles.attentionHelper}>{row.helper}</Text>
+                    </View>
+                    <StatusChip label={row.value} tone={row.tone === 'neutral' ? 'neutral' : row.tone} />
                   </View>
-                  <StatusChip label={row.value} tone={row.tone === 'neutral' ? 'neutral' : row.tone} />
-                </View>
-              ))}
-            </View>
-          </Card>
+                ))}
+              </View>
+            </Card>
+          )}
         </Section>
 
         {nudges.length > 0 ? (
@@ -450,7 +568,9 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
         ) : null}
 
         <Section title="Highest dues" subtitle="Customers to follow up first.">
-          {topDueCustomers.length === 0 ? (
+          {isLoadingSecondary && topDueCustomers.length === 0 ? (
+            <SkeletonCard lines={3} />
+          ) : topDueCustomers.length === 0 ? (
             <EmptyState
               title="No dues to collect"
               message="Customers with the highest positive balances will appear here."
@@ -476,18 +596,41 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
                   </View>
                   <View style={styles.dueCustomerText}>
                     <Text style={styles.customerName}>{customer.name}</Text>
-                    <Text style={styles.transactionMeta}>
-                      Last activity {formatShortDate(customer.latestActivityAt)}
-                    </Text>
-                  </View>
-                  <Text
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.82}
-                    numberOfLines={2}
-                    style={styles.dueAmount}
-                  >
-                    {formatCurrency(customer.balance, currency)}
+                  <Text style={styles.transactionMeta}>
+                    Last activity {formatShortDate(customer.latestActivityAt)}
                   </Text>
+                  {customer.lastReminderAt ? (
+                    <Text style={styles.transactionMeta}>
+                      Last reminder {formatShortDate(customer.lastReminderAt)}
+                    </Text>
+                  ) : null}
+                </View>
+                  <View style={styles.dueActionBlock}>
+                    <Text
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.82}
+                      numberOfLines={2}
+                      style={styles.dueAmount}
+                    >
+                      {formatCurrency(customer.balance, currency)}
+                    </Text>
+                    <Pressable
+                      accessibilityLabel={`Send reminder to ${customer.name}`}
+                      accessibilityRole="button"
+                      hitSlop={touch.hitSlop}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        setReminderTarget(customer);
+                      }}
+                      pressRetentionOffset={touch.pressRetentionOffset}
+                      style={({ pressed }) => [
+                        styles.reminderMiniButton,
+                        pressed ? styles.reminderMiniButtonPressed : null,
+                      ]}
+                    >
+                      <Text style={styles.reminderMiniButtonText}>Remind</Text>
+                    </Pressable>
+                  </View>
                 </Pressable>
               ))}
             </View>
@@ -495,7 +638,9 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
         </Section>
 
         <Section title="Recent activity" subtitle="Latest ledger entries saved on this device.">
-          {recentTransactions.length === 0 ? (
+          {isLoadingSecondary && recentTransactions.length === 0 ? (
+            <SkeletonCard lines={3} />
+          ) : recentTransactions.length === 0 ? (
             <EmptyState
               title="No transactions yet"
               message="Add your first credit or payment entry to start tracking balances offline."
@@ -536,6 +681,12 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
 
         <Section title="Business tools" subtitle="Documents, reports, safety, and setup.">
           <View style={styles.moduleGrid}>
+            <ModuleLink
+              label="Get Paid"
+              description="Follow up dues and record payments faster."
+              tone="warning"
+              onPress={() => navigation.navigate('GetPaid')}
+            />
             {invoicesEnabled ? (
               <ModuleLink
                 label="Invoices"
@@ -552,11 +703,43 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
                 onPress={() => navigation.navigate('Products')}
               />
             ) : null}
+            {productsEnabled ? (
+              <ModuleLink
+                label="Reorder Assistant"
+                description="Spot low stock and prepare restock quantities."
+                tone="warning"
+                onPress={() => navigation.navigate('InventoryReorderAssistant')}
+              />
+            ) : null}
             <ModuleLink
               label="Reports"
               description="Sales, dues, and compliance summaries."
               tone="primary"
               onPress={() => navigation.navigate('Reports')}
+            />
+            <ModuleLink
+              label="Business Health"
+              description="Collections, customer risk, sales movement, and next actions."
+              tone="success"
+              onPress={() => navigation.navigate('BusinessHealthSnapshot')}
+            />
+            <ModuleLink
+              label="Monthly Review"
+              description="Month-end receivables, sales, tax, customers, and actions."
+              tone="primary"
+              onPress={() => navigation.navigate('MonthlyBusinessReview')}
+            />
+            <ModuleLink
+              label="Statement Batch"
+              description="Generate multiple customer statements for month-end follow-up."
+              tone="warning"
+              onPress={() => navigation.navigate('StatementBatch')}
+            />
+            <ModuleLink
+              label="Daily Closing"
+              description="End-of-day payments, dues, invoices, and follow-up snapshot."
+              tone="success"
+              onPress={() => navigation.navigate('DailyClosingReport')}
             />
             <ModuleLink
               label="Backup"
@@ -586,6 +769,7 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
             and installed packs keep working offline.
           </Text>
         </View>
+        <FounderFooterLink />
       </ScrollView>
       <BottomNavigation
         active="dashboard"
@@ -593,6 +777,20 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
         onDashboard={() => navigation.navigate('Dashboard')}
         onSettings={() => navigation.navigate('BusinessProfileSettings')}
       />
+      {reminderTarget && business ? (
+        <PaymentReminderModal
+          balance={reminderTarget.balance}
+          businessName={business.businessName}
+          currency={currency}
+          customerName={reminderTarget.name}
+          isSending={isSendingReminder}
+          lastPaymentDate={reminderTarget.lastPaymentAt}
+          lastReminderDate={reminderTarget.lastReminderAt}
+          visible={Boolean(reminderTarget)}
+          onClose={() => setReminderTarget(null)}
+          onSend={shareReminder}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -603,7 +801,7 @@ function getDashboardNudges({
   currency,
   dismissedNudgeIds,
   onAddTransaction,
-  onOpenCustomer,
+  onReminder,
   onDismissNudge,
 }: {
   summary: DashboardSummary | null;
@@ -611,7 +809,7 @@ function getDashboardNudges({
   currency: string;
   dismissedNudgeIds: RetentionNudgeId[];
   onAddTransaction: () => void;
-  onOpenCustomer: (customerId: string) => void;
+  onReminder: (customer: TopDueCustomer) => void;
   onDismissNudge: (id: RetentionNudgeId) => void;
 }): DashboardNudge[] {
   const nudges: DashboardNudge[] = [];
@@ -637,8 +835,8 @@ function getDashboardNudges({
       id: 'pending_dues',
       title: 'You have pending dues',
       message: `${highestDueCustomer.name} has ${formatCurrency(highestDueCustomer.balance, currency)} still receivable.`,
-      actionLabel: 'View Customer',
-      onAction: () => onOpenCustomer(highestDueCustomer.id),
+      actionLabel: 'Send Reminder',
+      onAction: () => onReminder(highestDueCustomer),
       dismissLabel: 'Not now',
       onDismiss: () => onDismissNudge('pending_dues'),
     });
@@ -737,6 +935,12 @@ const styles = StyleSheet.create({
     gap: spacing.xl,
   },
   header: {
+    ...shadows.card,
+    padding: spacing.lg,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(180, 194, 214, 0.72)',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
@@ -746,6 +950,15 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     gap: spacing.xs,
+  },
+  headerBrandRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  headerIcon: {
+    width: 22,
+    height: 22,
   },
   eyebrow: {
     color: colors.primary,
@@ -769,7 +982,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     flexShrink: 0,
     gap: spacing.xs,
-    maxWidth: 124,
+    maxWidth: 140,
   },
   heroMoneyCard: {
     minHeight: 184,
@@ -784,6 +997,12 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing.sm,
     minWidth: 0,
+  },
+  heroMoneyActions: {
+    flexDirection: 'row',
+  },
+  heroMoneyButton: {
+    flexGrow: 1,
   },
   heroTitle: {
     color: colors.text,
@@ -1025,7 +1244,13 @@ const styles = StyleSheet.create({
   },
   dueCustomerText: {
     flex: 1,
+    minWidth: 0,
     gap: spacing.xs,
+  },
+  dueActionBlock: {
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+    maxWidth: 144,
   },
   dueAmount: {
     maxWidth: 136,
@@ -1033,6 +1258,24 @@ const styles = StyleSheet.create({
     fontSize: typography.label,
     fontWeight: '900',
     textAlign: 'right',
+  },
+  reminderMiniButton: {
+    minHeight: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySurface,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  reminderMiniButtonPressed: {
+    opacity: 0.82,
+  },
+  reminderMiniButtonText: {
+    color: colors.primary,
+    fontSize: typography.caption,
+    fontWeight: '900',
   },
   transactionItem: {
     minHeight: 78,

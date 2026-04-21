@@ -23,7 +23,7 @@ export type AccountantComplianceSummary = {
 
 export type AccountantIntegrationPayload = {
   schemaVersion: 1;
-  appName: 'Orbit Ledger by Bhaumik Mehta';
+  appName: 'Orbit Ledger by Rudraix';
   exportedAt: string;
   business: BusinessSettings | null;
   data: {

@@ -135,7 +135,7 @@ function buildComplianceJsonExport(
 ) {
   return {
     schemaVersion: 1,
-    appName: 'Orbit Ledger by Bhaumik Mehta',
+    appName: 'Orbit Ledger by Rudraix',
     exportedAt,
     business: {
       businessName: business.businessName,

@@ -4,20 +4,27 @@ type CurrencyFormatOptions = {
   currencyDisplay?: 'symbol' | 'narrowSymbol' | 'code' | 'name';
 };
 
+const DEFAULT_CURRENCY_LOCALES: Record<string, string> = {
+  INR: 'en-IN',
+  USD: 'en-US',
+  GBP: 'en-GB',
+};
+
 export function formatCurrency(
   amount: number,
   currency: string,
   options: CurrencyFormatOptions = {}
 ): string {
   const normalizedCurrency = normalizeCurrencyCode(currency);
+  const locale = resolveCurrencyLocale(normalizedCurrency, options.locale);
   const safeAmount = Number.isFinite(amount) ? amount : 0;
   const sign = getCurrencySign(safeAmount, options.signDisplay ?? 'auto');
   const currencyDisplay = getCurrencyDisplay(
     normalizedCurrency,
-    options.locale,
+    locale,
     options.currencyDisplay ?? 'narrowSymbol'
   );
-  const value = formatMoneyNumber(Math.abs(safeAmount), options.locale);
+  const value = formatMoneyNumber(Math.abs(safeAmount), normalizedCurrency, locale);
 
   return `${sign}${currencyDisplay} ${value}`;
 }
@@ -40,6 +47,14 @@ function normalizeCurrencyCode(currency: string): string {
   const normalizedCurrency = currency.trim().toUpperCase();
 
   return /^[A-Z]{3}$/.test(normalizedCurrency) ? normalizedCurrency : 'INR';
+}
+
+function resolveCurrencyLocale(currency: string, locale?: string): string | undefined {
+  if (locale?.trim()) {
+    return locale;
+  }
+
+  return DEFAULT_CURRENCY_LOCALES[currency] ?? undefined;
 }
 
 function getCurrencySign(amount: number, signDisplay: CurrencyFormatOptions['signDisplay']): string {
@@ -76,7 +91,7 @@ function getCurrencyDisplay(
   }
 }
 
-function formatMoneyNumber(amount: number, locale?: string): string {
+function formatMoneyNumber(amount: number, currency: string, locale?: string): string {
   try {
     return new Intl.NumberFormat(locale, {
       style: 'decimal',
@@ -84,9 +99,27 @@ function formatMoneyNumber(amount: number, locale?: string): string {
       maximumFractionDigits: 2,
     }).format(amount);
   } catch {
+    if (currency === 'INR') {
+      return formatIndianMoneyFallback(amount);
+    }
+
     const [whole, decimals] = amount.toFixed(2).split('.');
     return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${decimals}`;
   }
+}
+
+function formatIndianMoneyFallback(amount: number): string {
+  const [whole, decimals] = amount.toFixed(2).split('.');
+  const sign = whole.startsWith('-') ? '-' : '';
+  const digits = sign ? whole.slice(1) : whole;
+
+  if (digits.length <= 3) {
+    return `${sign}${digits}.${decimals}`;
+  }
+
+  const lastThree = digits.slice(-3);
+  const leading = digits.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',');
+  return `${sign}${leading},${lastThree}.${decimals}`;
 }
 
 export function formatTransactionType(type: 'credit' | 'payment'): string {

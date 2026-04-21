@@ -1,6 +1,9 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, layout, spacing, touch, typography } from '../theme/theme';
+import { OrbitHeaderMenu } from './OrbitHeaderMenu';
+import { colors, layout, shadows, spacing, touch, typography } from '../theme/theme';
+
+const headerIcon = require('../../assets/branding/header-icon-transparent.png');
 
 type ScreenHeaderProps = {
   title: string;
@@ -11,28 +14,66 @@ type ScreenHeaderProps = {
 
 export function ScreenHeader({ title, subtitle, onBack, backLabel = 'Back' }: ScreenHeaderProps) {
   return (
-    <View style={styles.header}>
-      {onBack ? (
-        <Pressable
-          accessibilityLabel={backLabel}
-          accessibilityRole="button"
-          hitSlop={touch.hitSlop}
-          onPress={onBack}
-          pressRetentionOffset={touch.pressRetentionOffset}
-          style={({ pressed }) => [styles.backButton, pressed ? styles.backButtonPressed : null]}
-        >
-          <Text style={styles.backText}>{backLabel}</Text>
-        </Pressable>
-      ) : null}
-      <Text style={styles.title}>{title}</Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+    <View style={styles.shell}>
+      <View style={styles.topRow}>
+        {onBack ? (
+          <Pressable
+            accessibilityLabel={backLabel}
+            accessibilityRole="button"
+            hitSlop={touch.hitSlop}
+            onPress={onBack}
+            pressRetentionOffset={touch.pressRetentionOffset}
+            style={({ pressed }) => [styles.backButton, pressed ? styles.backButtonPressed : null]}
+          >
+            <Text style={styles.backText}>{backLabel}</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.backSpacer} />
+        )}
+        <OrbitHeaderMenu />
+      </View>
+      <View style={styles.header}>
+        <View style={styles.titleRow}>
+          <Image source={headerIcon} style={styles.icon} resizeMode="contain" />
+          <Text style={styles.title}>{title}</Text>
+        </View>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  shell: {
+    ...shadows.card,
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(180, 194, 214, 0.72)',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
   header: {
     gap: spacing.md,
+  },
+  backSpacer: {
+    minHeight: layout.minTapTarget,
+    minWidth: layout.minTapTarget,
+  },
+  titleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  icon: {
+    width: 28,
+    height: 28,
   },
   backButton: {
     minHeight: layout.minTapTarget,
@@ -53,6 +94,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   title: {
+    flex: 1,
     color: colors.text,
     fontSize: typography.title,
     fontWeight: '900',

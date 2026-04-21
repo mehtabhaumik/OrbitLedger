@@ -5,11 +5,17 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "start:dev-client": "expo start --dev-client",
+    "android": "expo run:android",
+    "android:local": "expo start --android --localhost",
+    "android:dev-client": "expo run:android",
+    "ios": "expo run:ios",
     "ios:local": "expo start --ios --localhost",
     "ios:local:clear": "expo start --ios --localhost --clear",
+    "ios:dev-client": "expo run:ios",
     "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "doctor": "npx expo-doctor",
     "brand:assets": "node scripts/generateBrandAssets.js"
   },
   "dependencies": {
@@ -19,6 +25,7 @@
     "@react-navigation/native-stack": "^7.14.10",
     "expo": "~54.0.33",
     "expo-crypto": "~15.0.8",
+    "expo-dev-client": "~6.0.20",
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.21",
     "expo-iap": "^4.0.2",
@@ -28,8 +35,10 @@
     "expo-screen-capture": "~8.0.9",
     "expo-secure-store": "~15.0.8",
     "expo-sharing": "~14.0.8",
+    "expo-splash-screen": "~31.0.13",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
+    "expo-system-ui": "~6.0.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.72.1",
@@ -43,6 +52,15 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "typescript": "~5.9.2"
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "expo-iap"
+        ]
+      }
+    }
   },
   "private": true
 }

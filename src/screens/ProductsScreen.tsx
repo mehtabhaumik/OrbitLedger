@@ -222,6 +222,12 @@ export function ProductsScreen({ navigation }: ProductsScreenProps) {
                 >
                   {isFormVisible ? 'Close Form' : 'Add Product'}
                 </PrimaryButton>
+                <PrimaryButton
+                  variant="secondary"
+                  onPress={() => navigation.navigate('InventoryReorderAssistant')}
+                >
+                  Reorder Assistant
+                </PrimaryButton>
               </Card>
 
               {isFormVisible ? (

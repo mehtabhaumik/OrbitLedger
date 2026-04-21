@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Orbit Ledger by Bhaumik Mehta",
+    "name": "Orbit Ledger by Rudraix",
     "slug": "orbit-ledger",
     "scheme": "orbitledger",
     "version": "1.0.0",
@@ -14,12 +14,12 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/branding/splash-brand-transparent.png",
       "resizeMode": "contain",
       "backgroundColor": "#F6F8F7"
     },
     "ios": {
-      "bundleIdentifier": "com.bhaumikmehta.orbitledger",
+      "bundleIdentifier": "com.rudraix.orbitledger",
       "buildNumber": "1",
       "supportsTablet": true,
       "requireFullScreen": false,
@@ -34,7 +34,8 @@
       }
     },
     "android": {
-      "package": "com.bhaumikmehta.orbitledger",
+      "package": "com.rudraix.orbitledger",
+      "googleServicesFile": "./android/app/google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#145C52"
@@ -46,6 +47,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
       "expo-sqlite",
       [
         "expo-image-picker",

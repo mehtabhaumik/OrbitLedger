@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { measurePerformance } from '../performance';
 import { throwDatabaseError } from './errors';
 import { APP_SECURITY_ID, DATABASE_NAME, initializeSchema } from './schema';
 
@@ -15,15 +16,17 @@ export async function getDatabase(): Promise<SQLiteDatabase> {
 }
 
 async function openAndInitializeDatabase(): Promise<SQLiteDatabase> {
-  try {
-    const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
-    await initializeSchema(db);
-    await ensureAppSecurityDefaults(db);
-    return db;
-  } catch (error) {
-    databasePromise = null;
-    return throwDatabaseError('openAndInitializeDatabase', error);
-  }
+  return measurePerformance('sqlite_initialization', 'SQLite initialization', async () => {
+    try {
+      const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
+      await initializeSchema(db);
+      await ensureAppSecurityDefaults(db);
+      return db;
+    } catch (error) {
+      databasePromise = null;
+      return throwDatabaseError('openAndInitializeDatabase', error);
+    }
+  });
 }
 
 async function ensureAppSecurityDefaults(db: SQLiteDatabase): Promise<void> {

@@ -1,0 +1,34 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#EEF3F6"/>
+  <rect x="390" y="40" width="420" height="720" rx="34" fill="#0F172A"/>
+  <rect x="407" y="62" width="386" height="676" rx="26" fill="#F7FAFC"/>
+  <text x="435" y="112" fill="#0F172A" font-family="Arial" font-size="25" font-weight="800">Country Packages</text>
+  <text x="435" y="143" fill="#64748B" font-family="Arial" font-size="15">Tax, templates, and reports</text>
+  <rect x="435" y="174" width="325" height="128" rx="14" fill="#FFFFFF" stroke="#D8CCFF"/>
+  <rect x="435" y="174" width="6" height="128" rx="3" fill="#7C3AED"/>
+  <text x="458" y="212" fill="#0F172A" font-family="Arial" font-size="20" font-weight="800">India GST Pack</text>
+  <rect x="638" y="194" width="86" height="26" rx="13" fill="#EDE9FE"/>
+  <text x="655" y="212" fill="#6D28D9" font-family="Arial" font-size="12" font-weight="800">Active</text>
+  <text x="458" y="245" fill="#64748B" font-family="Arial" font-size="14">Includes GST tax pack, invoice templates,</text>
+  <text x="458" y="267" fill="#64748B" font-family="Arial" font-size="14">and compliance summaries.</text>
+  <text x="458" y="288" fill="#07865F" font-family="Arial" font-size="13" font-weight="800">Works offline after install</text>
+  <rect x="435" y="326" width="325" height="96" rx="14" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="458" y="362" fill="#0F172A" font-family="Arial" font-size="18" font-weight="800">United States Sales Tax</text>
+  <rect x="628" y="391" width="110" height="28" rx="14" fill="#145CFF"/>
+  <text x="657" y="410" fill="#FFFFFF" font-family="Arial" font-size="13" font-weight="800">Unlock</text>
+  <text x="458" y="393" fill="#64748B" font-family="Arial" font-size="14">Tax + templates package</text>
+  <rect x="435" y="446" width="325" height="96" rx="14" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="458" y="482" fill="#0F172A" font-family="Arial" font-size="18" font-weight="800">United Kingdom VAT</text>
+  <rect x="628" y="511" width="110" height="28" rx="14" fill="#145CFF"/>
+  <text x="657" y="530" fill="#FFFFFF" font-family="Arial" font-size="13" font-weight="800">Unlock</text>
+  <text x="458" y="513" fill="#64748B" font-family="Arial" font-size="14">VAT + statement templates</text>
+  <text x="435" y="588" fill="#0F172A" font-family="Arial" font-size="19" font-weight="800">Update status</text>
+  <rect x="435" y="610" width="325" height="84" rx="14" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="458" y="642" fill="#334155" font-family="Arial" font-size="15">Last checked: Today</text>
+  <text x="458" y="666" fill="#64748B" font-family="Arial" font-size="14">Checksum-verified remote update flow</text>
+  <rect x="643" y="630" width="95" height="34" rx="17" fill="#EDE9FE"/>
+  <text x="661" y="652" fill="#6D28D9" font-family="Arial" font-size="13" font-weight="800">Current</text>
+  <text x="60" y="96" fill="#7C3AED" font-family="Arial" font-size="18" font-weight="800">Interface preview</text>
+  <text x="60" y="130" fill="#0F172A" font-family="Arial" font-size="42" font-weight="800">Tax and country packages</text>
+  <text x="60" y="168" fill="#475569" font-family="Arial" font-size="20">Country-aware tax, templates, and compliance kept simple for users.</text>
+</svg>

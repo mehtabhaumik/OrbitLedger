@@ -14,16 +14,36 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FloatingActionButton } from '../components/FloatingActionButton';
+import { PaymentPromiseModal } from '../components/PaymentPromiseModal';
+import { PaymentReminderModal } from '../components/PaymentReminderModal';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ProductivityNudge } from '../components/ProductivityNudge';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { getBusinessSettings, getCustomerLedger, getFeatureToggles } from '../database';
+import { StatusChip } from '../components/StatusChip';
+import { sharePaymentReminderMessage } from '../collections';
+import {
+  addPaymentPromise,
+  addPaymentReminder,
+  getBusinessSettings,
+  getCustomerLedger,
+  getFeatureToggles,
+  listPaymentPromisesForCustomer,
+  listPaymentRemindersForCustomer,
+  updatePaymentPromiseStatus,
+} from '../database';
 import type {
+  AddPaymentPromiseInput,
   AppFeatureToggles,
   CustomerLedger,
+  CustomerPaymentInsight,
   LedgerTransaction,
+  PaymentPromise,
+  PaymentReminder,
+  PaymentReminderTone,
+  PaymentPromiseStatus,
   TransactionType,
 } from '../database';
+import { buildCustomerPaymentInsight } from '../database/customerInsights';
 import {
   formatCurrency,
   formatShortDate,
@@ -49,6 +69,8 @@ type LedgerInsights = {
   totalPayment: number;
   netBalance: number;
   lastTransactionDate: string | null;
+  lastPaymentDate: string | null;
+  paymentInsight: CustomerPaymentInsight;
   balanceLabel: string;
   balanceHelper: string;
   balanceTone: 'due' | 'advance' | 'settled';
@@ -58,14 +80,24 @@ type LedgerView = {
   groups: LedgerDateGroup[];
   insights: LedgerInsights;
 };
+const INITIAL_LEDGER_GROUP_COUNT = 8;
+const LEDGER_GROUP_BATCH_SIZE = 8;
 
 export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreenProps) {
   const { customerId } = route.params;
   const [ledger, setLedger] = useState<CustomerLedger | null>(null);
+  const [businessName, setBusinessName] = useState('Orbit Ledger');
   const [currency, setCurrency] = useState('INR');
   const [featureToggles, setFeatureToggles] = useState<AppFeatureToggles | null>(null);
+  const [reminders, setReminders] = useState<PaymentReminder[]>([]);
+  const [promises, setPromises] = useState<PaymentPromise[]>([]);
+  const [isReminderModalVisible, setIsReminderModalVisible] = useState(false);
+  const [isPromiseModalVisible, setIsPromiseModalVisible] = useState(false);
+  const [isSendingReminder, setIsSendingReminder] = useState(false);
+  const [isSavingPromise, setIsSavingPromise] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [visibleLedgerGroupCount, setVisibleLedgerGroupCount] = useState(INITIAL_LEDGER_GROUP_COUNT);
   const ledgerView = useMemo<LedgerView>(() => {
     if (!ledger) {
       return {
@@ -80,15 +112,19 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
     let totalCredit = 0;
     let totalPayment = 0;
     let lastTransaction: LedgerTransaction | null = null;
+    let lastPayment: LedgerTransaction | null = null;
+    const chronologicalTransactions = [...ledger.transactions].reverse();
 
-    for (let index = ledger.transactions.length - 1; index >= 0; index -= 1) {
-      const transaction = ledger.transactions[index];
+    for (const transaction of chronologicalTransactions) {
       if (transaction.type === 'credit') {
         totalCredit += transaction.amount;
         runningBalance += transaction.amount;
       } else {
         totalPayment += transaction.amount;
         runningBalance -= transaction.amount;
+        if (!lastPayment || isTransactionNewer(transaction, lastPayment)) {
+          lastPayment = transaction;
+        }
       }
 
       if (!lastTransaction || isTransactionNewer(transaction, lastTransaction)) {
@@ -120,22 +156,39 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
     return {
       entries: newestFirstEntries,
       groups: groupLedgerEntries(newestFirstEntries),
-      insights: createLedgerInsights(ledger, totalCredit, totalPayment, lastTransaction),
+      insights: createLedgerInsights(
+        ledger,
+        totalCredit,
+        totalPayment,
+        lastTransaction,
+        lastPayment,
+        calculateOldestOpenDueDate(ledger.openingBalance, ledger.customer.createdAt, chronologicalTransactions)
+      ),
     };
   }, [ledger]);
   const ledgerEntries = ledgerView.entries;
   const ledgerGroups = ledgerView.groups;
+  const visibleLedgerGroups = ledgerGroups.slice(0, visibleLedgerGroupCount);
+  const hiddenLedgerEntryCount = ledgerGroups
+    .slice(visibleLedgerGroupCount)
+    .reduce((count, group) => count + group.entries.length, 0);
   const insights = ledgerView.insights;
 
   const loadLedger = useCallback(async () => {
-    const [settings, customerLedger, toggles] = await Promise.all([
+    const [settings, customerLedger, toggles, reminderHistory, promiseHistory] = await Promise.all([
       getBusinessSettings(),
       getCustomerLedger(customerId),
       getFeatureToggles(),
+      listPaymentRemindersForCustomer(customerId, 5),
+      listPaymentPromisesForCustomer(customerId, 8),
     ]);
+    setBusinessName(settings?.businessName ?? 'Orbit Ledger');
     setCurrency(settings?.currency ?? 'INR');
     setLedger(customerLedger);
     setFeatureToggles(toggles);
+    setReminders(reminderHistory);
+    setPromises(promiseHistory);
+    setVisibleLedgerGroupCount(INITIAL_LEDGER_GROUP_COUNT);
   }, [customerId]);
 
   useFocusEffect(
@@ -185,6 +238,64 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
       customerId: transaction.customerId,
       transactionId: transaction.id,
     });
+  }
+
+  async function shareReminder(tone: PaymentReminderTone, message: string) {
+    if (!ledger || ledger.balance <= 0) {
+      return;
+    }
+
+    try {
+      setIsSendingReminder(true);
+      const result = await sharePaymentReminderMessage(message);
+      if (!result.shared) {
+        return;
+      }
+
+      await addPaymentReminder({
+        balanceAtSend: ledger.balance,
+        customerId: ledger.customer.id,
+        message,
+        sharedVia: result.sharedVia ?? 'system_share_sheet',
+        tone,
+      });
+      await loadLedger();
+      setIsReminderModalVisible(false);
+      Alert.alert('Reminder shared', 'The reminder was saved in this customer history.');
+    } catch {
+      Alert.alert('Reminder could not be shared', 'Please try again from this device.');
+    } finally {
+      setIsSendingReminder(false);
+    }
+  }
+
+  async function savePaymentPromise(input: AddPaymentPromiseInput) {
+    try {
+      setIsSavingPromise(true);
+      await addPaymentPromise(input);
+      await loadLedger();
+      setIsPromiseModalVisible(false);
+      Alert.alert('Promise saved', 'This payment promise is now tracked for follow-up.');
+    } catch {
+      Alert.alert('Promise could not be saved', 'Please check the details and try again.');
+    } finally {
+      setIsSavingPromise(false);
+    }
+  }
+
+  async function changePromiseStatus(id: string, status: PaymentPromiseStatus) {
+    try {
+      await updatePaymentPromiseStatus(id, status);
+      await loadLedger();
+      Alert.alert(
+        status === 'fulfilled' ? 'Promise fulfilled' : 'Promise updated',
+        status === 'fulfilled'
+          ? 'This promise was marked fulfilled.'
+          : 'The promise status was updated.'
+      );
+    } catch {
+      Alert.alert('Promise could not be updated', 'Please try again.');
+    }
   }
 
   return (
@@ -288,6 +399,24 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
               >
                 Generate Statement
               </PrimaryButton>
+              {ledger.balance > 0 ? (
+                <PrimaryButton
+                  style={styles.quickActionButton}
+                  variant="secondary"
+                  onPress={() => setIsReminderModalVisible(true)}
+                >
+                  Send Reminder
+                </PrimaryButton>
+              ) : null}
+              {ledger.balance > 0 ? (
+                <PrimaryButton
+                  style={styles.quickActionButton}
+                  variant="secondary"
+                  onPress={() => setIsPromiseModalVisible(true)}
+                >
+                  Record Promise
+                </PrimaryButton>
+              ) : null}
               <PrimaryButton
                 style={styles.quickActionButton}
                 variant="ghost"
@@ -299,12 +428,12 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
 
             {insights.balanceTone === 'due' ? (
               <ProductivityNudge
-                actionLabel="Record Payment"
+                actionLabel="Send Reminder"
                 message={`${ledger.customer.name} still owes ${formatCurrency(
                   ledger.balance,
                   currency
-                )}. Record a payment when it is collected.`}
-                onAction={() => openAddTransaction('payment')}
+                )}. Share a professional follow-up message when needed.`}
+                onAction={() => setIsReminderModalVisible(true)}
                 title="This customer has outstanding dues."
               />
             ) : ledgerEntries.length === 0 ? (
@@ -366,6 +495,24 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
                 helper={insights.lastTransactionDate ?? 'Add a credit or payment.'}
                 tone="neutral"
               />
+              <InsightCard
+                label="Due aging"
+                value={insights.paymentInsight.dueAgingLabel}
+                helper={insights.paymentInsight.dueAgingHelper}
+                tone={
+                  insights.paymentInsight.dueAgingBucket === 'thirty_plus'
+                    ? 'danger'
+                    : insights.paymentInsight.dueAgingBucket === 'none'
+                      ? 'success'
+                      : 'warning'
+                }
+              />
+              <InsightCard
+                label="Payment pattern"
+                value={insights.paymentInsight.behaviorLabel}
+                helper={insights.paymentInsight.behaviorHelper}
+                tone={insights.paymentInsight.behaviorTone}
+              />
             </View>
 
             <View style={styles.infoCard}>
@@ -382,6 +529,89 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
                 <Text style={styles.infoLabel}>Notes</Text>
                 <Text style={styles.infoValue}>{ledger.customer.notes ?? 'No notes saved'}</Text>
               </View>
+            </View>
+
+            <View style={styles.infoCard}>
+              <Text style={styles.sectionTitle}>Payment Promises</Text>
+              {promises.length === 0 ? (
+                <Text style={styles.muted}>
+                  No payment promises recorded yet. Save a promised amount and date when the customer commits to pay.
+                </Text>
+              ) : (
+                <View style={styles.promiseList}>
+                  {promises.map((promise) => (
+                    <View key={promise.id} style={styles.promiseItem}>
+                      <View style={styles.promiseHeader}>
+                        <View style={styles.promiseText}>
+                          <Text style={styles.promiseTitle}>
+                            {formatCurrency(promise.promisedAmount, currency)} promised
+                          </Text>
+                          <Text style={styles.promiseMeta}>
+                            Due {formatShortDate(promise.promisedDate)}
+                          </Text>
+                          {promise.note ? (
+                            <Text style={styles.promiseNote}>{promise.note}</Text>
+                          ) : null}
+                        </View>
+                        <StatusChip
+                          label={formatPromiseStatus(promise.status, promise.promisedDate)}
+                          tone={getPromiseStatusTone(promise.status, promise.promisedDate)}
+                        />
+                      </View>
+                      {promise.status === 'open' ? (
+                        <View style={styles.promiseActions}>
+                          <PrimaryButton
+                            style={styles.promiseActionButton}
+                            variant="secondary"
+                            onPress={() =>
+                              navigation.navigate('TransactionForm', {
+                                customerId,
+                                type: 'payment',
+                                promiseId: promise.id,
+                              })
+                            }
+                          >
+                            Record Payment
+                          </PrimaryButton>
+                          <PrimaryButton
+                            style={styles.promiseActionButton}
+                            variant="ghost"
+                            onPress={() => void changePromiseStatus(promise.id, 'cancelled')}
+                          >
+                            Cancel Promise
+                          </PrimaryButton>
+                        </View>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.infoCard}>
+              <Text style={styles.sectionTitle}>Reminder History</Text>
+              {reminders.length === 0 ? (
+                <Text style={styles.muted}>
+                  No reminders shared yet. Shared reminders will appear here with tone and balance.
+                </Text>
+              ) : (
+                <View style={styles.reminderList}>
+                  {reminders.map((reminder) => (
+                    <View key={reminder.id} style={styles.reminderItem}>
+                      <View style={styles.reminderText}>
+                        <Text style={styles.reminderTitle}>
+                          {formatReminderTone(reminder.tone)} reminder
+                        </Text>
+                        <Text style={styles.reminderMeta}>
+                          {formatShortDate(reminder.createdAt)} ·{' '}
+                          {formatCurrency(reminder.balanceAtSend, currency)}
+                        </Text>
+                      </View>
+                      <Text style={styles.reminderChannel}>Shared</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
 
             <View style={styles.section}>
@@ -405,7 +635,7 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
                 </View>
               ) : (
                 <View style={styles.transactionList}>
-                  {ledgerGroups.map((group) => (
+                  {visibleLedgerGroups.map((group) => (
                     <View key={group.date} style={styles.transactionGroup}>
                       <View style={styles.groupHeader}>
                         <Text style={styles.groupDate}>{formatLedgerGroupDate(group.date)}</Text>
@@ -481,6 +711,24 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
                       })}
                     </View>
                   ))}
+                  {hiddenLedgerEntryCount > 0 ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      hitSlop={touch.hitSlop}
+                      onPress={() =>
+                        setVisibleLedgerGroupCount((current) => current + LEDGER_GROUP_BATCH_SIZE)
+                      }
+                      pressRetentionOffset={touch.pressRetentionOffset}
+                      style={styles.loadMoreLedgerButton}
+                    >
+                      <Text style={styles.loadMoreLedgerText}>
+                        Show {Math.min(hiddenLedgerEntryCount, LEDGER_GROUP_BATCH_SIZE * 4)} more entries
+                      </Text>
+                      <Text style={styles.loadMoreLedgerMeta}>
+                        {hiddenLedgerEntryCount} older entr{hiddenLedgerEntryCount === 1 ? 'y' : 'ies'} hidden for speed.
+                      </Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               )}
             </View>
@@ -493,6 +741,32 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
           onPress={() => openAddTransaction('credit')}
         />
       ) : null}
+      {ledger ? (
+        <PaymentPromiseModal
+          customerId={ledger.customer.id}
+          customerName={ledger.customer.name}
+          currency={currency}
+          currentBalance={ledger.balance}
+          isSaving={isSavingPromise}
+          visible={isPromiseModalVisible}
+          onClose={() => setIsPromiseModalVisible(false)}
+          onSave={savePaymentPromise}
+        />
+      ) : null}
+      {ledger ? (
+        <PaymentReminderModal
+          balance={ledger.balance}
+          businessName={businessName}
+          currency={currency}
+          customerName={ledger.customer.name}
+          isSending={isSendingReminder}
+          lastPaymentDate={insights.lastPaymentDate}
+          lastReminderDate={reminders[0]?.createdAt ?? null}
+          visible={isReminderModalVisible}
+          onClose={() => setIsReminderModalVisible(false)}
+          onSend={shareReminder}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -501,14 +775,28 @@ function createLedgerInsights(
   ledger: CustomerLedger | null,
   totalCredit: number,
   totalPayment: number,
-  lastTransaction: LedgerTransaction | null
+  lastTransaction: LedgerTransaction | null,
+  lastPayment: LedgerTransaction | null = null,
+  oldestOpenDueAt: string | null = null
 ): LedgerInsights {
+  const paymentInsight = buildCustomerPaymentInsight({
+    balance: ledger?.balance ?? 0,
+    latestActivityAt: lastTransaction?.createdAt ?? ledger?.customer.updatedAt ?? null,
+    lastPaymentAt: lastPayment?.effectiveDate ?? null,
+    oldestDueAt: oldestOpenDueAt,
+    paymentCount: countPayments(ledger?.transactions ?? []),
+    totalCredit,
+    totalPayment,
+  });
+
   if (!ledger) {
     return {
       totalCredit,
       totalPayment,
       netBalance: 0,
       lastTransactionDate: null,
+      lastPaymentDate: null,
+      paymentInsight,
       balanceLabel: 'Settled',
       balanceHelper: 'No dues are outstanding.',
       balanceTone: 'settled',
@@ -521,6 +809,8 @@ function createLedgerInsights(
       totalPayment,
       netBalance: ledger.balance,
       lastTransactionDate: lastTransaction?.effectiveDate ?? null,
+      lastPaymentDate: lastPayment?.effectiveDate ?? null,
+      paymentInsight,
       balanceLabel: 'Customer owes you',
       balanceHelper: `${ledger.customer.name} has outstanding dues.`,
       balanceTone: 'due',
@@ -533,6 +823,8 @@ function createLedgerInsights(
       totalPayment,
       netBalance: ledger.balance,
       lastTransactionDate: lastTransaction?.effectiveDate ?? null,
+      lastPaymentDate: lastPayment?.effectiveDate ?? null,
+      paymentInsight,
       balanceLabel: 'You owe customer',
       balanceHelper: `${ledger.customer.name} has an advance balance.`,
       balanceTone: 'advance',
@@ -544,10 +836,50 @@ function createLedgerInsights(
     totalPayment,
     netBalance: ledger.balance,
     lastTransactionDate: lastTransaction?.effectiveDate ?? null,
+    lastPaymentDate: lastPayment?.effectiveDate ?? null,
+    paymentInsight,
     balanceLabel: 'Settled',
     balanceHelper: 'No dues are outstanding.',
     balanceTone: 'settled',
   };
+}
+
+function countPayments(transactions: LedgerTransaction[]): number {
+  return transactions.reduce(
+    (count, transaction) => count + (transaction.type === 'payment' ? 1 : 0),
+    0
+  );
+}
+
+function calculateOldestOpenDueDate(
+  openingBalance: number,
+  customerCreatedAt: string,
+  chronologicalTransactions: LedgerTransaction[]
+): string | null {
+  const openCredits: Array<{ date: string; amount: number }> = [];
+  if (openingBalance > 0) {
+    openCredits.push({ amount: openingBalance, date: customerCreatedAt.slice(0, 10) });
+  }
+
+  for (const transaction of chronologicalTransactions) {
+    if (transaction.type === 'credit') {
+      openCredits.push({ amount: transaction.amount, date: transaction.effectiveDate });
+      continue;
+    }
+
+    let remainingPayment = transaction.amount;
+    while (remainingPayment > 0 && openCredits.length > 0) {
+      const oldestCredit = openCredits[0];
+      const appliedAmount = Math.min(oldestCredit.amount, remainingPayment);
+      oldestCredit.amount -= appliedAmount;
+      remainingPayment -= appliedAmount;
+      if (oldestCredit.amount <= 0.0001) {
+        openCredits.shift();
+      }
+    }
+  }
+
+  return openCredits[0]?.date ?? null;
 }
 
 function groupLedgerEntries(entries: LedgerEntry[]): LedgerDateGroup[] {
@@ -593,6 +925,65 @@ function formatLedgerGroupDate(value: string): string {
   });
 }
 
+function formatReminderTone(tone: PaymentReminderTone): string {
+  if (tone === 'final') {
+    return 'Final';
+  }
+
+  if (tone === 'firm') {
+    return 'Firm';
+  }
+
+  return 'Polite';
+}
+
+function formatPromiseStatus(status: PaymentPromiseStatus, promisedDate?: string): string {
+  if (status === 'fulfilled') {
+    return 'Fulfilled';
+  }
+
+  if (status === 'missed') {
+    return 'Missed';
+  }
+
+  if (status === 'cancelled') {
+    return 'Cancelled';
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  if (promisedDate && promisedDate < today) {
+    return 'Missed';
+  }
+
+  if (promisedDate && promisedDate === today) {
+    return 'Due today';
+  }
+
+  return 'Open';
+}
+
+function getPromiseStatusTone(
+  status: PaymentPromiseStatus,
+  promisedDate: string
+): 'primary' | 'success' | 'warning' | 'danger' | 'neutral' {
+  if (status === 'fulfilled') {
+    return 'success';
+  }
+
+  if (
+    status === 'missed' ||
+    (status === 'open' && promisedDate < new Date().toISOString().slice(0, 10))
+  ) {
+    return 'danger';
+  }
+
+  if (status === 'cancelled') {
+    return 'neutral';
+  }
+
+  return 'warning';
+}
+
 function InsightCard({
   label,
   value,
@@ -602,7 +993,7 @@ function InsightCard({
   label: string;
   value: string;
   helper: string;
-  tone: 'credit' | 'payment' | 'neutral';
+  tone: 'credit' | 'payment' | 'neutral' | 'warning' | 'danger' | 'success' | 'primary' | 'tax';
 }) {
   return (
     <View style={styles.insightCard}>
@@ -613,7 +1004,17 @@ function InsightCard({
         numberOfLines={2}
         style={[
           styles.insightValue,
-          tone === 'credit' ? styles.insightCredit : tone === 'payment' ? styles.insightPayment : null,
+          tone === 'credit' || tone === 'warning'
+            ? styles.insightCredit
+            : tone === 'payment' || tone === 'success'
+              ? styles.insightPayment
+              : tone === 'danger'
+                ? styles.insightDanger
+                : tone === 'primary'
+                  ? styles.insightPrimary
+                  : tone === 'tax'
+                    ? styles.insightTax
+                    : null,
         ]}
       >
         {value}
@@ -699,6 +1100,92 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: typography.label,
     lineHeight: 20,
+  },
+  reminderList: {
+    gap: spacing.sm,
+  },
+  reminderItem: {
+    minHeight: 58,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  reminderText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  reminderTitle: {
+    color: colors.text,
+    fontSize: typography.label,
+    fontWeight: '900',
+  },
+  reminderMeta: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 18,
+  },
+  reminderChannel: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: colors.successSurface,
+    color: colors.success,
+    fontSize: typography.caption,
+    fontWeight: '900',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  promiseList: {
+    gap: spacing.md,
+  },
+  promiseItem: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  promiseHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  promiseText: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xs,
+  },
+  promiseTitle: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '900',
+  },
+  promiseMeta: {
+    color: colors.warning,
+    fontSize: typography.caption,
+    fontWeight: '900',
+  },
+  promiseNote: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 18,
+  },
+  promiseActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  promiseActionButton: {
+    flexGrow: 1,
+    flexBasis: '47%',
   },
   balanceLabel: {
     color: colors.textMuted,
@@ -799,6 +1286,15 @@ const styles = StyleSheet.create({
   insightPayment: {
     color: colors.success,
   },
+  insightDanger: {
+    color: colors.danger,
+  },
+  insightPrimary: {
+    color: colors.primary,
+  },
+  insightTax: {
+    color: colors.tax,
+  },
   insightHelper: {
     color: colors.textMuted,
     fontSize: typography.caption,
@@ -893,6 +1389,25 @@ const styles = StyleSheet.create({
   transactionGroup: {
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  loadMoreLedgerButton: {
+    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surfaceRaised,
+  },
+  loadMoreLedgerText: {
+    color: colors.primary,
+    fontSize: typography.label,
+    fontWeight: '900',
+  },
+  loadMoreLedgerMeta: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 17,
   },
   groupHeader: {
     backgroundColor: colors.surfaceMuted,

@@ -19,6 +19,12 @@ import type {
   InvoiceRow,
   LedgerTransaction,
   LedgerTransactionRow,
+  PaymentReminder,
+  PaymentReminderRow,
+  PaymentPromise,
+  PaymentPromiseRow,
+  PaymentPromiseWithCustomer,
+  PaymentPromiseWithCustomerRow,
   Product,
   ProductRow,
   RecentTransaction,
@@ -96,6 +102,44 @@ export function mapRecentTransaction(row: RecentTransactionRow): RecentTransacti
   return {
     ...mapTransaction(row),
     customerName: row.customer_name,
+  };
+}
+
+export function mapPaymentReminder(row: PaymentReminderRow): PaymentReminder {
+  return {
+    ...mapSyncMetadata(row),
+    id: row.id,
+    customerId: row.customer_id,
+    tone: row.tone,
+    message: row.message,
+    balanceAtSend: row.balance_at_send,
+    sharedVia: row.shared_via,
+    createdAt: row.created_at,
+  };
+}
+
+export function mapPaymentPromise(row: PaymentPromiseRow): PaymentPromise {
+  return {
+    ...mapSyncMetadata(row),
+    id: row.id,
+    customerId: row.customer_id,
+    promisedAmount: row.promised_amount,
+    promisedDate: row.promised_date,
+    note: row.note,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function mapPaymentPromiseWithCustomer(
+  row: PaymentPromiseWithCustomerRow
+): PaymentPromiseWithCustomer {
+  return {
+    ...mapPaymentPromise(row),
+    customerName: row.customer_name,
+    customerPhone: row.customer_phone,
+    currentBalance: row.current_balance,
   };
 }
 

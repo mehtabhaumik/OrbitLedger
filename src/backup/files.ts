@@ -3,6 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 
 import { BackupFileReadError, BackupValidationError } from './errors';
+import { measurePerformance } from '../performance';
 import { prepareFullReplaceRestorePlan } from './restorePlan';
 import { createOrbitLedgerBackup } from './service';
 import type { CreateBackupResult, SelectedBackupForRestore } from './types';
@@ -20,28 +21,30 @@ const BACKUPS_DIRECTORY_NAME = 'backups';
 const BACKUP_MIME_TYPE = 'application/json';
 
 export async function createAndSaveOrbitLedgerBackup(): Promise<SavedBackupFile> {
-  const backupResult = await createOrbitLedgerBackup();
+  return measurePerformance('backup_export', 'Backup export', async () => {
+    const backupResult = await createOrbitLedgerBackup();
 
-  try {
-    const backupsDirectory = getBackupsDirectory();
-    const backupFile = new File(backupsDirectory, backupResult.fileName);
-    if (backupFile.exists) {
-      backupFile.delete();
+    try {
+      const backupsDirectory = getBackupsDirectory();
+      const backupFile = new File(backupsDirectory, backupResult.fileName);
+      if (backupFile.exists) {
+        backupFile.delete();
+      }
+
+      backupFile.write(backupResult.json);
+      const info = backupFile.info();
+
+      return {
+        ...backupResult,
+        uri: backupFile.uri,
+        directoryUri: backupsDirectory.uri,
+        size: info.size ?? null,
+        savedAt: new Date().toISOString(),
+      };
+    } catch {
+      throw new Error('Backup file could not be saved locally.');
     }
-
-    backupFile.write(backupResult.json);
-    const info = backupFile.info();
-
-    return {
-      ...backupResult,
-      uri: backupFile.uri,
-      directoryUri: backupsDirectory.uri,
-      size: info.size ?? null,
-      savedAt: new Date().toISOString(),
-    };
-  } catch {
-    throw new Error('Backup file could not be saved locally.');
-  }
+  });
 }
 
 export async function shareOrbitLedgerBackupFile(backupFile: SavedBackupFile): Promise<void> {
@@ -104,6 +107,8 @@ export async function pickAndValidateOrbitLedgerBackupFile(): Promise<SelectedBa
       businessName: plan.businessName,
       customers: plan.recordCounts.customers,
       transactions: plan.recordCounts.transactions,
+      paymentReminders: plan.recordCounts.paymentReminders,
+      paymentPromises: plan.recordCounts.paymentPromises,
       taxProfiles: plan.recordCounts.taxProfiles,
       taxPacks: plan.recordCounts.taxPacks,
       documentTemplates: plan.recordCounts.documentTemplates,

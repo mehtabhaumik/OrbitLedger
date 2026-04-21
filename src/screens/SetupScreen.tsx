@@ -207,7 +207,7 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextField
                   label="Business name"
-                  placeholder="Bhaumik Mehta Trading Co."
+                  placeholder="Rudraix Trading Co."
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}

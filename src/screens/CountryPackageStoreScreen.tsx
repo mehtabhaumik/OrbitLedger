@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 're
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '../components/Card';
+import { FounderFooterLink } from '../components/FounderFooterLink';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Section } from '../components/Section';
@@ -450,6 +451,8 @@ export function CountryPackageStoreScreen({ navigation }: CountryPackageStorePro
             );
           })}
         </Section>
+
+        <FounderFooterLink />
       </ScrollView>
     </SafeAreaView>
   );

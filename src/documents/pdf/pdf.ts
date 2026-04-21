@@ -3,6 +3,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Linking } from 'react-native';
 
+import { measurePerformance } from '../../performance';
 import type { StructuredDocument } from '../types';
 import { buildPdfHtml } from './html';
 
@@ -11,6 +12,7 @@ export type GeneratedPdf = {
   numberOfPages: number;
   fileName: string;
   isTemporary: boolean;
+  cacheKey?: string;
 };
 
 export type SavedPdf = GeneratedPdf & {
@@ -39,39 +41,64 @@ const TEMP_DIRECTORY_NAME = 'temp-pdf';
 const HISTORY_FILE_NAME = 'document-history.json';
 const TEMP_FILE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const DOCUMENT_HISTORY_LIMIT = 20;
+const PDF_CACHE_LIMIT = 8;
+
+type CachedPdfEntry = {
+  key: string;
+  pdf: GeneratedPdf;
+  updatedAt: number;
+};
+
+const generatedPdfCache = new Map<string, CachedPdfEntry>();
 
 export async function generatePdfFromStructuredDocument(
   document: StructuredDocument,
   fileName = buildStatementPdfFileName(document)
 ): Promise<GeneratedPdf> {
-  try {
-    cleanupTemporaryGeneratedPdfs();
+  const cacheKey = buildPdfCacheKey(document, fileName);
+  return measurePerformance(
+    document.kind === 'invoice' ? 'invoice_pdf_generation' : 'statement_pdf_generation',
+    document.kind === 'invoice' ? 'Invoice PDF generation' : 'Statement PDF generation',
+    async () => {
+      try {
+        cleanupTemporaryGeneratedPdfs();
 
-    const html = await buildPdfHtml(document);
-    const result = await Print.printToFileAsync({
-      html,
-      width: A4_WIDTH,
-      height: A4_HEIGHT,
-      margins: {
-        top: 28,
-        right: 28,
-        bottom: 28,
-        left: 28,
-      },
-    });
+        const cachedPdf = getCachedPdf(cacheKey);
+        if (cachedPdf) {
+          return cachedPdf;
+        }
 
-    const printFile = new File(result.uri);
-    const cachedFile = movePdfToTemporaryCache(printFile, uniqueTemporaryFileName(fileName));
+        const html = await buildPdfHtml(document);
+        const result = await Print.printToFileAsync({
+          html,
+          width: A4_WIDTH,
+          height: A4_HEIGHT,
+          margins: {
+            top: 28,
+            right: 28,
+            bottom: 28,
+            left: 28,
+          },
+        });
 
-    return {
-      uri: cachedFile.uri,
-      numberOfPages: result.numberOfPages,
-      fileName: cachedFile.name,
-      isTemporary: true,
-    };
-  } catch {
-    throw new Error('PDF could not be generated.');
-  }
+        const printFile = new File(result.uri);
+        const cachedFile = movePdfToTemporaryCache(printFile, uniqueTemporaryFileName(fileName));
+
+        const generatedPdf = {
+          uri: cachedFile.uri,
+          numberOfPages: result.numberOfPages,
+          fileName: cachedFile.name,
+          isTemporary: true,
+          cacheKey,
+        };
+        cacheGeneratedPdf(cacheKey, generatedPdf);
+        return generatedPdf;
+      } catch {
+        throw new Error('PDF could not be generated.');
+      }
+    },
+    { documentKind: document.kind, fileName, cacheKey }
+  );
 }
 
 export async function generateAndSavePdfFromStructuredDocument(
@@ -128,6 +155,24 @@ export function saveGeneratedPdfToDevice(
     }
 
     const savedFile = new File(statementsDirectory, normalizedFileName);
+    if (!pdf.isTemporary && sourceFile.uri === savedFile.uri) {
+      const historyEntry = createHistoryEntry(savedFile, normalizedFileName, pdf.numberOfPages, document);
+      recordGeneratedDocument(historyEntry);
+      const savedPdf = {
+        ...pdf,
+        uri: savedFile.uri,
+        fileName: normalizedFileName,
+        savedUri: savedFile.uri,
+        directoryUri: statementsDirectory.uri,
+        historyEntry,
+        isTemporary: false,
+      };
+      if (pdf.cacheKey) {
+        cacheGeneratedPdf(pdf.cacheKey, savedPdf);
+      }
+      return savedPdf;
+    }
+
     if (savedFile.exists) {
       savedFile.delete();
     }
@@ -138,7 +183,7 @@ export function saveGeneratedPdfToDevice(
     const historyEntry = createHistoryEntry(savedFile, normalizedFileName, pdf.numberOfPages, document);
     recordGeneratedDocument(historyEntry);
 
-    return {
+    const savedPdf = {
       ...pdf,
       uri: savedFile.uri,
       fileName: normalizedFileName,
@@ -147,6 +192,10 @@ export function saveGeneratedPdfToDevice(
       historyEntry,
       isTemporary: false,
     };
+    if (pdf.cacheKey) {
+      cacheGeneratedPdf(pdf.cacheKey, savedPdf);
+    }
+    return savedPdf;
   } catch {
     throw new Error('PDF could not be saved locally.');
   }
@@ -338,6 +387,70 @@ function deleteTemporaryFileIfNeeded(file: File): void {
 function uniqueTemporaryFileName(fileName: string): string {
   const baseName = fileNamePart(fileName.replace(/\.pdf$/i, ''), 'Statement');
   return `${baseName}_${Date.now()}.pdf`;
+}
+
+function buildPdfCacheKey(document: StructuredDocument, fileName: string): string {
+  return `${document.kind}:${ensurePdfExtension(fileName)}:${hashString(stableStringify(document))}`;
+}
+
+function getCachedPdf(cacheKey: string): GeneratedPdf | null {
+  const entry = generatedPdfCache.get(cacheKey);
+  if (!entry) {
+    return null;
+  }
+
+  const cachedFile = new File(entry.pdf.uri);
+  if (!cachedFile.exists) {
+    generatedPdfCache.delete(cacheKey);
+    return null;
+  }
+
+  entry.updatedAt = Date.now();
+  return { ...entry.pdf };
+}
+
+function cacheGeneratedPdf(cacheKey: string, pdf: GeneratedPdf): void {
+  generatedPdfCache.set(cacheKey, {
+    key: cacheKey,
+    pdf: { ...pdf, cacheKey },
+    updatedAt: Date.now(),
+  });
+
+  if (generatedPdfCache.size <= PDF_CACHE_LIMIT) {
+    return;
+  }
+
+  const oldestEntries = Array.from(generatedPdfCache.values()).sort(
+    (left, right) => left.updatedAt - right.updatedAt
+  );
+  for (const entry of oldestEntries.slice(0, generatedPdfCache.size - PDF_CACHE_LIMIT)) {
+    generatedPdfCache.delete(entry.key);
+  }
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  }
+
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+    .join(',')}}`;
+}
+
+function hashString(value: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+  }
+  return (hash >>> 0).toString(16);
 }
 
 function createHistoryEntry(

@@ -1,8 +1,8 @@
-# Orbit Ledger by Bhaumik Mehta
-
 <p align="center">
-  <img src="./assets/icon.png" width="120" alt="Orbit Ledger app icon" />
+  <img src="./assets/branding/readme-banner.png" width="100%" alt="Orbit Ledger banner" />
 </p>
+
+# Orbit Ledger by Rudraix
 
 <h3 align="center">Offline-first business ledger, invoices, statements, backups, and local trust tools for small businesses.</h3>
 
@@ -21,10 +21,10 @@
 </p>
 
 <p align="center">
-  <strong>Copyright (c) 2026 Bhaumik Mehta. All rights reserved.</strong><br />
+  <strong>Copyright (c) 2026 Rudraix. All rights reserved.</strong><br />
   This project is proprietary. Use, copying, redistribution, modification, or
   commercialization is not permitted without prior written permission from
-  Bhaumik Mehta.
+  Rudraix.
 </p>
 
 ---
@@ -317,14 +317,14 @@ erDiagram
 ### 1. Clone The Repository
 
 ```bash
-git clone git@github.com:mehtabhaumik/OrbitLedger.git
+git clone git@github.com:rudraix/OrbitLedger.git
 cd OrbitLedger
 ```
 
 If your folder is named with a space locally:
 
 ```bash
-cd "/Users/bhaumikmehta/Downloads/Orbit Ledger"
+cd "/path/to/Orbit Ledger"
 ```
 
 ### 2. Install Dependencies
@@ -351,7 +351,19 @@ npm run start
 npm run android
 ```
 
-For complete native feature testing, prefer a development build or Play testing build instead of Expo Go.
+For localhost Android simulator testing:
+
+```bash
+npm run android:local
+```
+
+For complete native feature testing, use a development build or Play testing build instead of Expo
+Go:
+
+```bash
+npm run android:dev-client
+npm run start:dev-client
+```
 
 ### 6. Run On iOS
 
@@ -362,10 +374,26 @@ npm run ios
 For physical iPhone testing with native modules:
 
 ```bash
-npx expo start --dev-client
+npm run ios:dev-client
+npm run start:dev-client
 ```
 
 Use an EAS development build when testing biometrics, billing, secure storage, PDF, and sharing behavior.
+
+### 7. Native Runtime QA
+
+The native runtime QA guide is available here:
+
+[docs/native-runtime-qa.md](./docs/native-runtime-qa.md)
+
+Development builds include a hidden QA screen:
+
+```text
+Settings -> Business Profile -> Development only -> Open Runtime QA
+```
+
+Use it to check SQLite, SecureStore, biometrics, file storage, PDF generation, sharing, billing
+runtime availability, and safe demo data setup.
 
 ---
 
@@ -407,10 +435,10 @@ Current product matrix:
 
 | Product | Product ID | Type |
 | --- | --- | --- |
-| Pro Monthly | `com.bhaumikmehta.orbitledger.pro.monthly` | Subscription |
-| Pro Yearly | `com.bhaumikmehta.orbitledger.pro.yearly` | Subscription |
-| United States Country Pack | `com.bhaumikmehta.orbitledger.countrypack.us` | One-time product |
-| United Kingdom Country Pack | `com.bhaumikmehta.orbitledger.countrypack.uk` | One-time product |
+| Pro Monthly | `com.rudraix.orbitledger.pro.monthly` | Subscription |
+| Pro Yearly | `com.rudraix.orbitledger.pro.yearly` | Subscription |
+| United States Country Pack | `com.rudraix.orbitledger.countrypack.us` | One-time product |
+| United Kingdom Country Pack | `com.rudraix.orbitledger.countrypack.uk` | One-time product |
 
 India is included by default in this phase and should not be configured as a paid country pack product.
 
@@ -425,8 +453,8 @@ The remote update contract is documented here:
 Production defaults:
 
 ```text
-https://updates.orbitledger.bhaumikmehta.com/v1/tax-packs/manifest.json
-https://updates.orbitledger.bhaumikmehta.com/v1/country-packages/manifest.json
+https://updates.orbitledger.rudraix.com/v1/tax-packs/manifest.json
+https://updates.orbitledger.rudraix.com/v1/country-packages/manifest.json
 ```
 
 Staging overrides:
@@ -557,9 +585,9 @@ This repository contains the app implementation and launch preparation structure
 
 ## Copyright And License
 
-Copyright (c) 2026 Bhaumik Mehta. All rights reserved.
+Copyright (c) 2026 Rudraix. All rights reserved.
 
-Orbit Ledger by Bhaumik Mehta is proprietary software. The source code, documentation, UI design, assets, product names, business logic, and related materials may not be copied, modified, published, distributed, sublicensed, sold, hosted, reverse engineered, reused, or used to create derivative works without prior written permission from Bhaumik Mehta.
+Orbit Ledger by Rudraix is proprietary software. The source code, documentation, UI design, assets, product names, business logic, and related materials may not be copied, modified, published, distributed, sublicensed, sold, hosted, reverse engineered, reused, or used to create derivative works without prior written permission from Rudraix.
 
 Access to this repository does not grant any ownership rights or usage rights. Third-party dependencies remain governed by their respective licenses.
 
@@ -576,6 +604,12 @@ npm run start
 # Android
 npm run android
 
+# Android simulator through localhost
+npm run android:local
+
+# Android native development client
+npm run android:dev-client
+
 # iOS simulator
 npm run ios
 
@@ -585,11 +619,20 @@ npm run ios:local
 # Clear iOS local Expo state
 npm run ios:local:clear
 
+# iOS native development client
+npm run ios:dev-client
+
+# Start Metro for development client builds
+npm run start:dev-client
+
 # Web preview
 npm run web
 
 # TypeScript verification
-npx tsc --noEmit
+npm run typecheck
+
+# Expo project doctor
+npm run doctor
 
 # Regenerate brand assets
 npm run brand:assets

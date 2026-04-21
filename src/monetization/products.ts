@@ -14,7 +14,7 @@ export type ProPlanCatalogItem = {
 export const PRO_PLAN_CATALOG: ProPlanCatalogItem[] = [
   {
     id: 'pro_monthly',
-    productId: 'com.bhaumikmehta.orbitledger.pro.monthly',
+    productId: 'com.rudraix.orbitledger.pro.monthly',
     title: 'Monthly',
     price: 'INR 199',
     cadence: 'per month',
@@ -24,7 +24,7 @@ export const PRO_PLAN_CATALOG: ProPlanCatalogItem[] = [
   },
   {
     id: 'pro_yearly',
-    productId: 'com.bhaumikmehta.orbitledger.pro.yearly',
+    productId: 'com.rudraix.orbitledger.pro.yearly',
     title: 'Yearly',
     price: 'INR 1,999',
     cadence: 'per year',
@@ -45,14 +45,14 @@ export type CountryPackCatalogItem = {
 export const COUNTRY_PACK_PRODUCT_CATALOG: CountryPackCatalogItem[] = [
   {
     countryCode: 'US',
-    productId: 'com.bhaumikmehta.orbitledger.countrypack.us',
+    productId: 'com.rudraix.orbitledger.countrypack.us',
     title: 'United States Country Pack',
     fallbackPrice: 'USD 9.99',
     helper: 'Sales-tax-ready templates, country package logic, and reports for US businesses.',
   },
   {
     countryCode: 'GB',
-    productId: 'com.bhaumikmehta.orbitledger.countrypack.uk',
+    productId: 'com.rudraix.orbitledger.countrypack.uk',
     title: 'United Kingdom Country Pack',
     fallbackPrice: 'GBP 9.99',
     helper: 'VAT-ready templates, tax pack labels, and compliance summaries for UK businesses.',

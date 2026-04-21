@@ -235,9 +235,38 @@ function formatAmountInWords(amount: number, currency: string): string {
   const whole = Math.floor(Math.abs(rounded));
   const cents = Math.round((Math.abs(rounded) - whole) * 100);
   const currencyName = currency.trim().toUpperCase() || 'INR';
+  const wording = getCurrencyAmountWording(currencyName);
   const words = numberToWords(whole);
-  const centsText = cents > 0 ? ` and ${numberToWords(cents)} cents` : '';
-  return `${words}${centsText} ${currencyName} only`;
+  const centsText = cents > 0 ? ` and ${numberToWords(cents)} ${wording.fractionalUnit}` : '';
+  return `${words}${centsText} ${wording.majorUnit} only`;
+}
+
+function getCurrencyAmountWording(currency: string): {
+  majorUnit: string;
+  fractionalUnit: string;
+} {
+  switch (currency) {
+    case 'INR':
+      return {
+        majorUnit: 'Indian Rupees',
+        fractionalUnit: 'paise',
+      };
+    case 'USD':
+      return {
+        majorUnit: 'US Dollars',
+        fractionalUnit: 'cents',
+      };
+    case 'GBP':
+      return {
+        majorUnit: 'Pounds Sterling',
+        fractionalUnit: 'pence',
+      };
+    default:
+      return {
+        majorUnit: currency,
+        fractionalUnit: 'cents',
+      };
+  }
 }
 
 function numberToWords(value: number): string {

@@ -1,0 +1,32 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#F7FAFC"/>
+  <text x="72" y="96" fill="#145CFF" font-family="Arial" font-size="18" font-weight="800">Architecture</text>
+  <text x="72" y="138" fill="#0F172A" font-family="Arial" font-size="42" font-weight="800">Offline-first mobile architecture</text>
+  <text x="72" y="176" fill="#475569" font-family="Arial" font-size="20">Core business operations remain local. Network services are optional extensions.</text>
+  <rect x="88" y="250" width="240" height="124" rx="14" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="120" y="298" fill="#0F172A" font-family="Arial" font-size="20" font-weight="800">React Native UI</text>
+  <text x="120" y="330" fill="#64748B" font-family="Arial" font-size="15">Expo + TypeScript</text>
+  <text x="120" y="354" fill="#64748B" font-family="Arial" font-size="15">Navigation + forms</text>
+  <rect x="480" y="250" width="240" height="124" rx="14" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="512" y="298" fill="#0F172A" font-family="Arial" font-size="20" font-weight="800">Domain Services</text>
+  <text x="512" y="330" fill="#64748B" font-family="Arial" font-size="15">Ledger, invoices, backup</text>
+  <text x="512" y="354" fill="#64748B" font-family="Arial" font-size="15">Documents, tax, reports</text>
+  <rect x="872" y="250" width="240" height="124" rx="14" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="904" y="298" fill="#0F172A" font-family="Arial" font-size="20" font-weight="800">Local Storage</text>
+  <text x="904" y="330" fill="#64748B" font-family="Arial" font-size="15">SQLite + SecureStore</text>
+  <text x="904" y="354" fill="#64748B" font-family="Arial" font-size="15">File system exports</text>
+  <path d="M328 312 H480" stroke="#145CFF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M720 312 H872" stroke="#145CFF" stroke-width="4" stroke-linecap="round"/>
+  <rect x="284" y="500" width="240" height="124" rx="14" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="316" y="548" fill="#0F172A" font-family="Arial" font-size="20" font-weight="800">Documents</text>
+  <text x="316" y="580" fill="#64748B" font-family="Arial" font-size="15">PDF preview, save, share</text>
+  <text x="316" y="604" fill="#64748B" font-family="Arial" font-size="15">Templates + branding</text>
+  <rect x="676" y="500" width="240" height="124" rx="14" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="708" y="548" fill="#0F172A" font-family="Arial" font-size="20" font-weight="800">Optional APIs</text>
+  <text x="708" y="580" fill="#64748B" font-family="Arial" font-size="15">Firebase, Play Billing</text>
+  <text x="708" y="604" fill="#64748B" font-family="Arial" font-size="15">Remote tax/package updates</text>
+  <path d="M600 374 V432 C600 470 404 462 404 500" stroke="#8B5CF6" stroke-width="4" stroke-linecap="round"/>
+  <path d="M600 374 V432 C600 470 796 462 796 500" stroke="#8B5CF6" stroke-width="4" stroke-linecap="round"/>
+  <rect x="72" y="690" width="1056" height="52" rx="12" fill="#E6F7EF"/>
+  <text x="104" y="723" fill="#07865F" font-family="Arial" font-size="18" font-weight="800">Core ledger workflows work offline; online services enhance billing, updates, and analytics readiness.</text>
+</svg>

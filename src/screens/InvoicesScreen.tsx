@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
+import { FounderFooterLink } from '../components/FounderFooterLink';
 import { ListRow } from '../components/ListRow';
 import { MoneyText } from '../components/MoneyText';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -187,6 +188,7 @@ export function InvoicesScreen({ navigation }: InvoicesScreenProps) {
             )}
           </>
         )}
+        <FounderFooterLink />
       </ScrollView>
       <BottomNavigation
         active="dashboard"

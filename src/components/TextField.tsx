@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
 
 import { colors, radii, spacing, typography } from '../theme/theme';
@@ -8,11 +9,15 @@ type TextFieldProps = TextInputProps & {
   helperText?: string;
 };
 
-export function TextField({ label, error, helperText, style, ...inputProps }: TextFieldProps) {
+export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
+  { label, error, helperText, style, ...inputProps },
+  ref
+) {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
+        ref={ref}
         placeholderTextColor={colors.textMuted}
         style={[styles.input, error ? styles.inputError : null, style]}
         {...inputProps}
@@ -21,7 +26,7 @@ export function TextField({ label, error, helperText, style, ...inputProps }: Te
       {!error && helperText ? <Text style={styles.helper}>{helperText}</Text> : null}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

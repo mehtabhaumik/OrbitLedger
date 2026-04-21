@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -47,9 +47,12 @@ export function CustomersScreen({ navigation }: CustomersScreenProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const searchRequestIdRef = useRef(0);
+  const isFocusedRef = useRef(false);
+  const queryRef = useRef(query);
+  const filterRef = useRef(filter);
 
   const loadCustomers = useCallback(
-    async (searchQuery = query, selectedFilter = filter) => {
+    async (searchQuery: string, selectedFilter: CustomerSummaryFilter) => {
       const requestId = searchRequestIdRef.current + 1;
       searchRequestIdRef.current = requestId;
       const [settings, results] = await Promise.all([
@@ -66,17 +69,18 @@ export function CustomersScreen({ navigation }: CustomersScreenProps) {
         setCustomers(results);
       }
     },
-    [filter, query]
+    []
   );
 
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
+      isFocusedRef.current = true;
 
       async function load() {
         try {
           setIsLoading(true);
-          await loadCustomers();
+          await loadCustomers(queryRef.current, filterRef.current);
         } catch {
           if (isActive) {
             Alert.alert('Customers could not load', 'Please try again.');
@@ -92,14 +96,32 @@ export function CustomersScreen({ navigation }: CustomersScreenProps) {
 
       return () => {
         isActive = false;
+        isFocusedRef.current = false;
       };
     }, [loadCustomers])
   );
 
+  useEffect(() => {
+    queryRef.current = query;
+    filterRef.current = filter;
+
+    if (!isFocusedRef.current || isLoading) {
+      return undefined;
+    }
+
+    const timeout = setTimeout(() => {
+      loadCustomers(query, filter).catch(() => {
+        Alert.alert('Search failed', 'Please try again.');
+      });
+    }, 140);
+
+    return () => clearTimeout(timeout);
+  }, [filter, isLoading, loadCustomers, query]);
+
   async function refresh() {
     try {
       setIsRefreshing(true);
-      await loadCustomers();
+      await loadCustomers(queryRef.current, filterRef.current);
     } catch {
       Alert.alert('Refresh failed', 'Please try again.');
     } finally {
@@ -107,105 +129,32 @@ export function CustomersScreen({ navigation }: CustomersScreenProps) {
     }
   }
 
-  async function onSearchChange(value: string) {
+  function onSearchChange(value: string) {
+    queryRef.current = value;
     setQuery(value);
-    try {
-      await loadCustomers(value, filter);
-    } catch {
-      Alert.alert('Search failed', 'Please try again.');
-    }
   }
 
-  async function onFilterChange(nextFilter: CustomerSummaryFilter) {
+  function onFilterChange(nextFilter: CustomerSummaryFilter) {
+    filterRef.current = nextFilter;
     setFilter(nextFilter);
-    try {
-      await loadCustomers(query, nextFilter);
-    } catch {
-      Alert.alert('Filter failed', 'Please try again.');
-    }
   }
 
-  const renderCustomer: ListRenderItem<CustomerSummary> = ({ item }) => {
-    const balanceLabel =
-      item.isArchived
-        ? 'Archived'
-        : item.balance > 0
-          ? 'They owe you'
-          : item.balance < 0
-            ? 'You owe them'
-            : 'Settled';
-    const latestActivityDate = new Date(item.latestActivityAt);
-    const activityText = Number.isNaN(latestActivityDate.getTime())
-      ? 'Latest activity not available'
-      : `Latest activity ${latestActivityDate.toLocaleDateString()}`;
+  const openCustomer = useCallback(
+    (customerId: string) => navigation.navigate('CustomerDetail', { customerId }),
+    [navigation]
+  );
 
-    return (
-      <Pressable
-        accessibilityRole="button"
-        hitSlop={touch.hitSlop}
-        onPress={() => navigation.navigate('CustomerDetail', { customerId: item.id })}
-        pressRetentionOffset={touch.pressRetentionOffset}
-        style={[
-          styles.customerCard,
-          item.isArchived
-            ? styles.customerArchived
-            : item.balance > 0
-              ? styles.customerDue
-              : item.balance < 0
-                ? styles.customerAdvance
-                : styles.customerSettled,
-        ]}
-      >
-        <View style={styles.customerText}>
-          <HighlightedText
-            text={item.name}
-            query={query}
-            style={styles.customerName}
-            highlightStyle={styles.highlightText}
-          />
-          {item.phone ? (
-            <HighlightedText
-              text={item.phone}
-              query={query}
-              style={styles.muted}
-              highlightStyle={styles.highlightText}
-            />
-          ) : null}
-          {item.notes ? (
-            <HighlightedText
-              text={item.notes}
-              query={query}
-              numberOfLines={2}
-              style={styles.noteText}
-              highlightStyle={styles.highlightText}
-            />
-          ) : null}
-          <Text style={styles.activityText}>{activityText}</Text>
-        </View>
-        <View style={styles.balanceBlock}>
-          <StatusChip
-            label={balanceLabel}
-            tone={
-              item.isArchived
-                ? 'neutral'
-                : item.balance > 0
-                  ? 'warning'
-                  : item.balance < 0
-                    ? 'tax'
-                    : 'success'
-            }
-          />
-          <MoneyText
-            size="sm"
-            align="right"
-            tone={item.balance > 0 ? 'due' : item.balance < 0 ? 'muted' : 'payment'}
-          >
-            {formatCurrency(item.balance, currency)}
-          </MoneyText>
-        </View>
-      </Pressable>
-    );
-  };
+  const renderCustomer = useCallback<ListRenderItem<CustomerSummary>>(
+    ({ item }) => (
+      <CustomerRow
+        currency={currency}
+        item={item}
+        query={query}
+        onOpen={openCustomer}
+      />
+    ),
+    [currency, openCustomer, query]
+  );
 
   return (
     <SafeAreaView style={styles.root}>
@@ -216,9 +165,11 @@ export function CustomersScreen({ navigation }: CustomersScreenProps) {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.content}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
-        initialNumToRender={12}
-        maxToRenderPerBatch={12}
-        windowSize={7}
+        initialNumToRender={10}
+        maxToRenderPerBatch={8}
+        removeClippedSubviews
+        updateCellsBatchingPeriod={45}
+        windowSize={6}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor={colors.primary} />
         }
@@ -257,9 +208,18 @@ export function CustomersScreen({ navigation }: CustomersScreenProps) {
               })}
             </View>
             <Card compact accent="primary">
-              <PrimaryButton onPress={() => navigation.navigate('CustomerForm')}>
-                Add Customer
-              </PrimaryButton>
+              <View style={styles.customerTools}>
+                <PrimaryButton style={styles.customerToolButton} onPress={() => navigation.navigate('CustomerForm')}>
+                  Add Customer
+                </PrimaryButton>
+                <PrimaryButton
+                  style={styles.customerToolButton}
+                  variant="secondary"
+                  onPress={() => navigation.navigate('StatementBatch')}
+                >
+                  Statement Batch
+                </PrimaryButton>
+              </View>
             </Card>
           </View>
         }
@@ -300,6 +260,115 @@ export function CustomersScreen({ navigation }: CustomersScreenProps) {
     </SafeAreaView>
   );
 }
+
+type CustomerRowProps = {
+  item: CustomerSummary;
+  query: string;
+  currency: string;
+  onOpen: (customerId: string) => void;
+};
+
+const CustomerRow = memo(function CustomerRow({
+  item,
+  query,
+  currency,
+  onOpen,
+}: CustomerRowProps) {
+  const balanceLabel =
+    item.isArchived
+      ? 'Archived'
+      : item.balance > 0
+        ? 'They owe you'
+        : item.balance < 0
+          ? 'You owe them'
+          : 'Settled';
+  const latestActivityDate = new Date(item.latestActivityAt);
+  const activityText = Number.isNaN(latestActivityDate.getTime())
+    ? 'Latest activity not available'
+    : `Latest activity ${latestActivityDate.toLocaleDateString()}`;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      hitSlop={touch.hitSlop}
+      onPress={() => onOpen(item.id)}
+      pressRetentionOffset={touch.pressRetentionOffset}
+      style={[
+        styles.customerCard,
+        item.isArchived
+          ? styles.customerArchived
+          : item.balance > 0
+            ? styles.customerDue
+            : item.balance < 0
+              ? styles.customerAdvance
+              : styles.customerSettled,
+      ]}
+    >
+      <View style={styles.customerText}>
+        <HighlightedText
+          text={item.name}
+          query={query}
+          style={styles.customerName}
+          highlightStyle={styles.highlightText}
+        />
+        {item.phone ? (
+          <HighlightedText
+            text={item.phone}
+            query={query}
+            style={styles.muted}
+            highlightStyle={styles.highlightText}
+          />
+        ) : null}
+        {item.notes ? (
+          <HighlightedText
+            text={item.notes}
+            query={query}
+            numberOfLines={2}
+            style={styles.noteText}
+            highlightStyle={styles.highlightText}
+          />
+        ) : null}
+        <Text style={styles.activityText}>{activityText}</Text>
+        <View style={styles.insightRow}>
+          <StatusChip
+            label={item.insight.behaviorLabel}
+            tone={item.insight.behaviorTone === 'primary' ? 'primary' : item.insight.behaviorTone}
+          />
+          {item.balance > 0 ? (
+            <StatusChip
+              label={item.insight.dueAgingLabel}
+              tone={item.insight.dueAgingBucket === 'thirty_plus' ? 'danger' : 'warning'}
+            />
+          ) : null}
+        </View>
+        <Text numberOfLines={2} style={styles.insightText}>
+          {item.insight.behaviorHelper}
+        </Text>
+      </View>
+      <View style={styles.balanceBlock}>
+        <StatusChip
+          label={balanceLabel}
+          tone={
+            item.isArchived
+              ? 'neutral'
+              : item.balance > 0
+                ? 'warning'
+                : item.balance < 0
+                  ? 'tax'
+                  : 'success'
+          }
+        />
+        <MoneyText
+          size="sm"
+          align="right"
+          tone={item.balance > 0 ? 'due' : item.balance < 0 ? 'muted' : 'payment'}
+        >
+          {formatCurrency(item.balance, currency)}
+        </MoneyText>
+      </View>
+    </Pressable>
+  );
+});
 
 function getEmptyTitle(query: string, filter: CustomerSummaryFilter): string {
   if (query.trim()) {
@@ -431,6 +500,15 @@ const styles = StyleSheet.create({
   filterChipTextSelected: {
     color: colors.primary,
   },
+  customerTools: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  customerToolButton: {
+    flexGrow: 1,
+    flexBasis: 150,
+  },
   separator: {
     height: spacing.md,
   },
@@ -480,6 +558,16 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   activityText: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 17,
+  },
+  insightRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  insightText: {
     color: colors.textMuted,
     fontSize: typography.caption,
     lineHeight: 17,

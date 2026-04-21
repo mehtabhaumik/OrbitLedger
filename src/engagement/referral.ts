@@ -14,9 +14,9 @@ export type ReferralShareResult = {
 
 const REFERRAL_SHARE_COUNT_KEY = 'referral_share_count';
 const REFERRAL_LAST_SHARED_AT_KEY = 'referral_last_shared_at';
-const PLAY_STORE_PACKAGE_NAME = 'com.bhaumikmehta.orbitledger';
+const PLAY_STORE_PACKAGE_NAME = 'com.rudraix.orbitledger';
 
-const referralMessage = `I use Orbit Ledger by Bhaumik Mehta to manage customer dues, credits, payments, statements, and backups offline.
+const referralMessage = `I use Orbit Ledger by Rudraix to manage customer dues, credits, payments, statements, and backups offline.
 
 Try it here:
 https://play.google.com/store/apps/details?id=${PLAY_STORE_PACKAGE_NAME}`;
@@ -24,7 +24,7 @@ https://play.google.com/store/apps/details?id=${PLAY_STORE_PACKAGE_NAME}`;
 export async function shareOrbitLedgerReferral(): Promise<ReferralShareResult> {
   try {
     const result = await Share.share({
-      title: 'Orbit Ledger by Bhaumik Mehta',
+      title: 'Orbit Ledger by Rudraix',
       message: referralMessage,
     });
 

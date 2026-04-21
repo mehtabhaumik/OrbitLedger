@@ -1,0 +1,32 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#EEF3F6"/>
+  <rect x="390" y="40" width="420" height="720" rx="34" fill="#0F172A"/>
+  <rect x="407" y="62" width="386" height="676" rx="26" fill="#F7FAFC"/>
+  <text x="435" y="108" fill="#0F172A" font-family="Arial" font-size="25" font-weight="800">Set up your business</text>
+  <text x="435" y="137" fill="#64748B" font-family="Arial" font-size="15">Used on invoices, statements, and backups</text>
+  <rect x="435" y="162" width="325" height="102" rx="14" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <circle cx="477" cy="213" r="28" fill="#EFF6FF"/>
+  <text x="463" y="222" fill="#145CFF" font-family="Arial" font-size="25" font-weight="800">R</text>
+  <text x="522" y="205" fill="#0F172A" font-family="Arial" font-size="18" font-weight="800">Rudraix Trading Co.</text>
+  <text x="522" y="231" fill="#64748B" font-family="Arial" font-size="14">Owner · Ahmedabad, Gujarat</text>
+  <rect x="435" y="288" width="325" height="58" rx="12" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="453" y="310" fill="#64748B" font-family="Arial" font-size="12" font-weight="700">BUSINESS NAME</text>
+  <text x="453" y="332" fill="#0F172A" font-family="Arial" font-size="17" font-weight="700">Rudraix Trading Co.</text>
+  <rect x="435" y="360" width="154" height="58" rx="12" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="453" y="382" fill="#64748B" font-family="Arial" font-size="12" font-weight="700">COUNTRY</text>
+  <text x="453" y="404" fill="#0F172A" font-family="Arial" font-size="16" font-weight="700">India</text>
+  <rect x="606" y="360" width="154" height="58" rx="12" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="624" y="382" fill="#64748B" font-family="Arial" font-size="12" font-weight="700">STATE</text>
+  <text x="624" y="404" fill="#0F172A" font-family="Arial" font-size="16" font-weight="700">Gujarat</text>
+  <rect x="435" y="432" width="325" height="58" rx="12" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="453" y="454" fill="#64748B" font-family="Arial" font-size="12" font-weight="700">GSTIN</text>
+  <text x="453" y="476" fill="#0F172A" font-family="Arial" font-size="16" font-weight="700">24ABCDE1234F1Z5</text>
+  <rect x="435" y="514" width="325" height="84" rx="14" fill="#F5F3FF" stroke="#D8CCFF"/>
+  <text x="457" y="546" fill="#4C1D95" font-family="Arial" font-size="16" font-weight="800">Tax-ready profile</text>
+  <text x="457" y="573" fill="#64748B" font-family="Arial" font-size="14">Install or update country tax packs when needed.</text>
+  <rect x="435" y="624" width="325" height="58" rx="12" fill="#145CFF"/>
+  <text x="531" y="660" fill="#FFFFFF" font-family="Arial" font-size="16" font-weight="800">Complete Setup</text>
+  <text x="60" y="96" fill="#145CFF" font-family="Arial" font-size="18" font-weight="800">Interface preview</text>
+  <text x="60" y="130" fill="#0F172A" font-family="Arial" font-size="42" font-weight="800">Business onboarding</text>
+  <text x="60" y="168" fill="#475569" font-family="Arial" font-size="20">Business identity, tax profile, logo/signature readiness, and local setup.</text>
+</svg>

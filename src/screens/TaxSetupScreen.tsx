@@ -17,6 +17,7 @@ import { z } from 'zod';
 
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
+import { FounderFooterLink } from '../components/FounderFooterLink';
 import { FormSection } from '../components/FormSection';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -952,6 +953,8 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
           >
             Skip For Now
           </PrimaryButton>
+
+          <FounderFooterLink />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -19,6 +19,7 @@ import {
 } from '../backup';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
+import { FounderFooterLink } from '../components/FounderFooterLink';
 import { PinConfirmationModal } from '../components/PinConfirmationModal';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -57,13 +58,18 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
     useState<SelectedBackupForRestore | null>(null);
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null);
   const [restoreStatus, setRestoreStatus] = useState<ExportStatus | null>(null);
+  const [progressStage, setProgressStage] = useState<string | null>(null);
 
   async function exportBackup() {
     try {
       setIsExporting(true);
       setExportStatus(null);
+      setProgressStage('Collecting local ledger records');
 
+      await waitForProgressFrame();
+      setProgressStage('Writing encrypted-device-local backup file');
       const backupFile = await createAndSaveOrbitLedgerBackup();
+      setProgressStage('Finalizing backup status');
       try {
         await recordLedgerBackupCompletedForNudge();
       } catch (nudgeError) {
@@ -92,6 +98,7 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
       );
     } finally {
       setIsExporting(false);
+      setProgressStage(null);
     }
   }
 
@@ -102,6 +109,7 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
 
     try {
       setIsSharing(true);
+      setProgressStage('Opening share sheet');
       await shareOrbitLedgerBackupFile(lastBackup);
     } catch (error) {
       console.warn('[backup-share] Backup sharing failed', error);
@@ -116,6 +124,7 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
       );
     } finally {
       setIsSharing(false);
+      setProgressStage(null);
     }
   }
 
@@ -163,12 +172,16 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
     try {
       setIsPickingRestoreFile(true);
       setRestoreStatus(null);
+      setProgressStage('Opening file picker');
 
+      await waitForProgressFrame();
+      setProgressStage('Reading and validating backup file');
       const selectedBackup = await pickAndValidateOrbitLedgerBackupFile();
       if (!selectedBackup) {
         return;
       }
 
+      setProgressStage('Preparing restore preview');
       setSelectedRestoreBackup(selectedBackup);
       setRestoreStatus({
         tone: 'success',
@@ -192,6 +205,7 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
       Alert.alert(title, message);
     } finally {
       setIsPickingRestoreFile(false);
+      setProgressStage(null);
     }
   }
 
@@ -233,7 +247,11 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
 
     try {
       setIsRestoring(true);
+      setProgressStage('Validating backup before restore');
+      await waitForProgressFrame();
+      setProgressStage('Replacing local data inside a safe transaction');
       const summary = await restoreOrbitLedgerBackup(selectedRestoreBackup.backup);
+      setProgressStage('Refreshing restored app state');
       try {
         await recordLedgerBackupCompletedForNudge();
       } catch (nudgeError) {
@@ -258,6 +276,7 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
       Alert.alert('Restore failed', message);
     } finally {
       setIsRestoring(false);
+      setProgressStage(null);
     }
   }
 
@@ -296,7 +315,7 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
             />
             <IncludedRow
               title="Customers and ledger"
-              detail="Customers, credit entries, payment entries, balances, and saved status."
+              detail="Customers, credit entries, payment entries, balances, reminder history, and saved status."
             />
             <IncludedRow
               title="Documents and stock"
@@ -323,10 +342,10 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
           <Text style={styles.muted}>
             Export a copy of your ledger data for safekeeping. You can share it after it is saved.
           </Text>
-          {isExporting ? (
+          {isExporting || isSharing ? (
             <View style={styles.progressRow}>
               <ActivityIndicator color={colors.primary} />
-              <Text style={styles.progressText}>Saving backup copy</Text>
+              <Text style={styles.progressText}>{progressStage ?? 'Saving backup copy'}</Text>
             </View>
           ) : null}
 
@@ -365,6 +384,12 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
           <Text style={styles.muted}>
             Choose a previously exported backup file. You can review it before anything changes.
           </Text>
+          {isPickingRestoreFile || isRestoring ? (
+            <View style={styles.progressRow}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={styles.progressText}>{progressStage ?? 'Preparing restore'}</Text>
+            </View>
+          ) : null}
           <PrimaryButton
             variant="secondary"
             loading={isPickingRestoreFile}
@@ -421,6 +446,14 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
             <PreviewLine
               label="Transaction count"
               value={`${selectedRestoreBackup.preview.transactions}`}
+            />
+            <PreviewLine
+              label="Payment reminders"
+              value={`${selectedRestoreBackup.preview.paymentReminders}`}
+            />
+            <PreviewLine
+              label="Payment promises"
+              value={`${selectedRestoreBackup.preview.paymentPromises}`}
             />
             <PreviewLine
               label="Invoices"
@@ -536,6 +569,14 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
                 />
                 <SummaryPill label="Customers" value={`${exportedCounts.customers}`} />
                 <SummaryPill label="Transactions" value={`${exportedCounts.transactions}`} />
+                <SummaryPill
+                  label="Reminders"
+                  value={`${exportedCounts.paymentReminders}`}
+                />
+                <SummaryPill
+                  label="Promises"
+                  value={`${exportedCounts.paymentPromises}`}
+                />
                 <SummaryPill label="Invoices" value={`${exportedCounts.invoices}`} />
                 <SummaryPill label="Invoice items" value={`${exportedCounts.invoiceItems}`} />
                 <SummaryPill label="Products" value={`${exportedCounts.products}`} />
@@ -596,6 +637,8 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
           />
         )}
 
+        <FounderFooterLink />
+
         <PinConfirmationModal
           visible={isRestorePinConfirmationVisible}
           title="Confirm restore"
@@ -638,6 +681,8 @@ function getBackupRecordCounts(backupFile: SavedBackupFile): BackupRecordCounts 
     backupFile.backup.metadata.recordCounts ?? {
       customers: backupFile.backup.data.customers.length,
       transactions: backupFile.backup.data.transactions.length,
+      paymentReminders: backupFile.backup.data.paymentReminders.length,
+      paymentPromises: backupFile.backup.data.paymentPromises.length,
       taxProfiles: backupFile.backup.data.taxProfiles.length,
       taxPacks: backupFile.backup.data.taxPacks.length,
       documentTemplates: backupFile.backup.data.documentTemplates.length,
@@ -726,6 +771,12 @@ function formatFileSize(value: number | null): string {
   }
 
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function waitForProgressFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
 }
 
 const styles = StyleSheet.create({

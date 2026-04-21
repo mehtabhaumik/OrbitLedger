@@ -1,0 +1,32 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#EEF3F6"/>
+  <rect x="390" y="40" width="420" height="720" rx="34" fill="#0F172A"/>
+  <rect x="407" y="62" width="386" height="676" rx="26" fill="#F7FAFC"/>
+  <text x="435" y="112" fill="#0F172A" font-family="Arial" font-size="26" font-weight="800">Reports</text>
+  <text x="435" y="143" fill="#64748B" font-family="Arial" font-size="15">April 2026 business review</text>
+  <rect x="435" y="174" width="154" height="84" rx="14" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="454" y="206" fill="#64748B" font-family="Arial" font-size="12" font-weight="700">SALES</text>
+  <text x="454" y="236" fill="#0F172A" font-family="Arial" font-size="23" font-weight="800">INR 1.8L</text>
+  <rect x="606" y="174" width="154" height="84" rx="14" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="625" y="206" fill="#64748B" font-family="Arial" font-size="12" font-weight="700">PAYMENTS</text>
+  <text x="625" y="236" fill="#07865F" font-family="Arial" font-size="23" font-weight="800">INR 92K</text>
+  <rect x="435" y="276" width="154" height="84" rx="14" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="454" y="308" fill="#64748B" font-family="Arial" font-size="12" font-weight="700">CREDIT</text>
+  <text x="454" y="338" fill="#92400E" font-family="Arial" font-size="23" font-weight="800">INR 61K</text>
+  <rect x="606" y="276" width="154" height="84" rx="14" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="625" y="308" fill="#64748B" font-family="Arial" font-size="12" font-weight="700">LOW STOCK</text>
+  <text x="625" y="338" fill="#DC2626" font-family="Arial" font-size="23" font-weight="800">4 items</text>
+  <text x="435" y="406" fill="#0F172A" font-family="Arial" font-size="19" font-weight="800">Customer insights</text>
+  <rect x="435" y="428" width="325" height="64" rx="12" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="457" y="454" fill="#0F172A" font-family="Arial" font-size="15" font-weight="800">Top payer</text>
+  <text x="457" y="475" fill="#64748B" font-family="Arial" font-size="13">Patel Store · INR 28,000</text>
+  <rect x="435" y="506" width="325" height="64" rx="12" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="457" y="532" fill="#0F172A" font-family="Arial" font-size="15" font-weight="800">Highest dues</text>
+  <text x="457" y="553" fill="#64748B" font-family="Arial" font-size="13">Shah Electronics · INR 24,000</text>
+  <rect x="435" y="596" width="325" height="76" rx="14" fill="#F5F3FF" stroke="#D8CCFF"/>
+  <text x="457" y="627" fill="#4C1D95" font-family="Arial" font-size="16" font-weight="800">Compliance summary ready</text>
+  <text x="457" y="654" fill="#64748B" font-family="Arial" font-size="14">GST sales, dues, and tax summary export.</text>
+  <text x="60" y="96" fill="#7C3AED" font-family="Arial" font-size="18" font-weight="800">Interface preview</text>
+  <text x="60" y="130" fill="#0F172A" font-family="Arial" font-size="42" font-weight="800">Reports and compliance</text>
+  <text x="60" y="168" fill="#475569" font-family="Arial" font-size="20">Monthly review, customer insights, compliance summaries, and action cues.</text>
+</svg>

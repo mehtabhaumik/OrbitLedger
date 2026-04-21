@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
@@ -11,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,11 +31,13 @@ import {
   addTransaction,
   getBusinessSettings,
   getTransaction,
+  listOpenPaymentPromisesForCustomer,
   searchCustomerSummaries,
+  updatePaymentPromiseStatus,
   updateTransaction,
 } from '../database';
 import { recordRatingPositiveMoment } from '../engagement';
-import type { CustomerSummary, LedgerTransaction, TransactionType } from '../database';
+import type { CustomerSummary, LedgerTransaction, PaymentPromise, TransactionType } from '../database';
 import { showSuccessFeedback } from '../lib/feedback';
 import { formatCurrency } from '../lib/format';
 import {
@@ -68,6 +71,7 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
   const initialCustomerId = route.params?.customerId;
   const initialType = route.params?.type ?? rememberedTransactionType;
   const transactionId = route.params?.transactionId;
+  const initialPromiseId = route.params?.promiseId;
   const isEditing = Boolean(transactionId);
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [customerQuery, setCustomerQuery] = useState('');
@@ -75,6 +79,9 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [isLoadingTransaction, setIsLoadingTransaction] = useState(Boolean(transactionId));
   const [loadedTransaction, setLoadedTransaction] = useState<LedgerTransaction | null>(null);
+  const [openPromises, setOpenPromises] = useState<PaymentPromise[]>([]);
+  const [selectedPromiseId, setSelectedPromiseId] = useState(initialPromiseId ?? '');
+  const amountInputRef = useRef<TextInput>(null);
   const {
     control,
     formState: { errors, isSubmitting, isValid },
@@ -91,7 +98,7 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
       note: '',
       effectiveDate: getTodayDateInput(),
     },
-    mode: 'onTouched',
+    mode: 'onChange',
     reValidateMode: 'onChange',
   });
 
@@ -100,6 +107,7 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
   const amount = Number(watch('amount') || 0);
   const isLoadingInitialData = isLoadingCustomers || isLoadingTransaction;
   const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId);
+  const selectedPromise = openPromises.find((promise) => promise.id === selectedPromiseId);
   const recentCustomers = useMemo(() => customers.slice(0, 6), [customers]);
   const visibleCustomers = useMemo(() => {
     const cleaned = customerQuery.trim().toLowerCase();
@@ -170,12 +178,61 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
     };
   }, [initialCustomerId, navigation, reset, setValue, transactionId]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPromises() {
+      if (isEditing || selectedType !== 'payment' || !selectedCustomerId) {
+        if (isMounted) {
+          setOpenPromises([]);
+          setSelectedPromiseId('');
+        }
+        return;
+      }
+
+      try {
+        const promises = await listOpenPaymentPromisesForCustomer(selectedCustomerId, 8);
+        if (!isMounted) {
+          return;
+        }
+
+        setOpenPromises(promises);
+        if (initialPromiseId && promises.some((promise) => promise.id === initialPromiseId)) {
+          const promise = promises.find((item) => item.id === initialPromiseId);
+          setSelectedPromiseId(initialPromiseId);
+          if (promise && !watch('amount')) {
+            setValue('amount', formatAmountInput(promise.promisedAmount), {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
+          }
+        } else if (selectedPromiseId && !promises.some((promise) => promise.id === selectedPromiseId)) {
+          setSelectedPromiseId('');
+        }
+      } catch {
+        if (isMounted) {
+          setOpenPromises([]);
+        }
+      }
+    }
+
+    loadPromises();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [initialPromiseId, isEditing, selectedCustomerId, selectedPromiseId, selectedType, setValue, watch]);
+
   function selectCustomer(customerId: string) {
     setValue('customerId', customerId, {
       shouldDirty: true,
       shouldValidate: true,
     });
+    setSelectedPromiseId('');
     setCustomerQuery('');
+    if (customerId) {
+      setTimeout(() => amountInputRef.current?.focus(), 80);
+    }
   }
 
   async function onSubmit(input: TransactionFormValues) {
@@ -201,12 +258,25 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
         note: input.note,
         effectiveDate: input.effectiveDate,
       });
+      let promiseStatusMessage = '';
+      if (input.type === 'payment' && selectedPromise) {
+        if (Number(input.amount) >= selectedPromise.promisedAmount) {
+          try {
+            await updatePaymentPromiseStatus(selectedPromise.id, 'fulfilled');
+            promiseStatusMessage = ' Promise marked fulfilled.';
+          } catch {
+            promiseStatusMessage = ' Promise status could not be updated.';
+          }
+        } else {
+          promiseStatusMessage = ' Promise left open because this is a partial payment.';
+        }
+      }
       rememberedTransactionType = input.type;
       await recordLedgerDataChangedForBackupNudge('transaction');
       await recordLedgerActivityForUpgradeNudge();
       await recordRatingPositiveMoment('transaction_saved');
       await recordUsageAnalyticsEvent('transaction_added');
-      showSuccessFeedback('Transaction saved. Balance updated.', 'Transaction saved');
+      showSuccessFeedback(`Transaction saved. Balance updated.${promiseStatusMessage}`, 'Transaction saved');
       navigation.replace('CustomerDetail', { customerId: input.customerId });
     } catch {
       Alert.alert(
@@ -411,16 +481,70 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
             </View>
           </Section>
 
+          {!isEditing && selectedType === 'payment' && selectedCustomerId && openPromises.length > 0 ? (
+            <Section title="Payment promise" subtitle="Match this payment to a customer commitment.">
+              <View style={styles.promiseChoices}>
+                <Pressable
+                  accessibilityRole="button"
+                  hitSlop={touch.hitSlop}
+                  onPress={() => setSelectedPromiseId('')}
+                  pressRetentionOffset={touch.pressRetentionOffset}
+                  style={[
+                    styles.promiseChoice,
+                    selectedPromiseId ? null : styles.promiseChoiceSelected,
+                  ]}
+                >
+                  <View style={styles.choiceTextBlock}>
+                    <Text style={styles.choiceText}>No promise selected</Text>
+                    <Text style={styles.choiceMeta}>Save this as a regular payment.</Text>
+                  </View>
+                </Pressable>
+                {openPromises.map((promise) => {
+                  const selected = selectedPromiseId === promise.id;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      hitSlop={touch.hitSlop}
+                      key={promise.id}
+                      onPress={() => {
+                        setSelectedPromiseId(promise.id);
+                          setValue('amount', formatAmountInput(promise.promisedAmount), {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                          setTimeout(() => amountInputRef.current?.focus(), 80);
+                        }}
+                      pressRetentionOffset={touch.pressRetentionOffset}
+                      style={[styles.promiseChoice, selected ? styles.promiseChoiceSelected : null]}
+                    >
+                      <View style={styles.choiceTextBlock}>
+                        <Text style={[styles.choiceText, selected ? styles.choiceTextSelected : null]}>
+                          {formatCurrency(promise.promisedAmount, currency)}
+                        </Text>
+                        <Text style={styles.choiceMeta}>
+                          Promised for {promise.promisedDate}
+                          {promise.note ? ` · ${promise.note}` : ''}
+                        </Text>
+                      </View>
+                      {selected ? <StatusChip label="Selected" tone="warning" /> : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </Section>
+          ) : null}
+
           <Controller
             control={control}
             name="amount"
             render={({ field: { onBlur, onChange, value } }) => (
               <TextField
+                ref={amountInputRef}
                 label="Amount"
                 value={value}
                 onBlur={onBlur}
                 onChangeText={(text) => onChange(normalizeDecimalInput(text))}
-                autoFocus={Boolean(initialCustomerId)}
+                autoFocus={Boolean(initialCustomerId) || isEditing}
                 keyboardType="decimal-pad"
                 inputMode="decimal"
                 placeholder="0.00"
@@ -665,6 +789,26 @@ const styles = StyleSheet.create({
   typePaymentSelected: {
     borderColor: colors.success,
     backgroundColor: colors.successSurface,
+  },
+  promiseChoices: {
+    gap: spacing.sm,
+  },
+  promiseChoice: {
+    minHeight: 64,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  promiseChoiceSelected: {
+    borderColor: colors.warning,
+    backgroundColor: colors.warningSurface,
   },
   choiceCreditSelected: {
     color: colors.accent,

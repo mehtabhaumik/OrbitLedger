@@ -24,6 +24,7 @@ import {
 } from '../compliance';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
+import { FounderFooterLink } from '../components/FounderFooterLink';
 import { ListRow } from '../components/ListRow';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Section } from '../components/Section';
@@ -304,6 +305,8 @@ export function ComplianceReportsScreen({ navigation }: ComplianceReportsScreenP
             </View>
           )}
         </Section>
+
+        <FounderFooterLink />
       </ScrollView>
     </SafeAreaView>
   );

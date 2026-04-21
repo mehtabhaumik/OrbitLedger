@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
 
 import { BottomNavigation } from '../components/BottomNavigation';
+import { FounderFooterLink } from '../components/FounderFooterLink';
 import { IdentityPreviewCard } from '../components/IdentityPreviewCard';
 import { ImagePickerField } from '../components/ImagePickerField';
 import { OrbitHelperStatus } from '../components/OrbitHelperStatus';
@@ -628,7 +629,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextField
                   label="Business name"
-                  placeholder="Bhaumik Mehta Trading Co."
+                  placeholder="Rudraix Trading Co."
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
@@ -1373,6 +1374,13 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
               >
                 Seed Demo Data
               </PrimaryButton>
+              <PrimaryButton
+                variant="ghost"
+                disabled={isLoading || isSavingProfile}
+                onPress={() => navigation.navigate('RuntimeQA')}
+              >
+                Open Runtime & Performance QA
+              </PrimaryButton>
             </View>
           ) : null}
 
@@ -1402,6 +1410,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
               }
             }}
           />
+          <FounderFooterLink />
         </ScrollView>
       </KeyboardAvoidingView>
       <BottomNavigation

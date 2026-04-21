@@ -17,6 +17,7 @@ import type { AccountantExportFormat } from '../accountant';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
+import { FounderFooterLink } from '../components/FounderFooterLink';
 import { ListRow } from '../components/ListRow';
 import { MoneyText } from '../components/MoneyText';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -41,6 +42,7 @@ export function ReportsScreen({ navigation }: ReportsScreenProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSharingAccountant, setIsSharingAccountant] = useState(false);
   const currency = business?.currency ?? 'INR';
+  const inventoryEnabled = (featureToggles?.invoices ?? true) && (featureToggles?.inventory ?? true);
 
   const loadReports = useCallback(async () => {
     const [settings, summary, toggles] = await Promise.all([
@@ -233,6 +235,83 @@ export function ReportsScreen({ navigation }: ReportsScreenProps) {
           )}
         </Section>
 
+        <Card accent="success">
+          <View style={styles.accountantText}>
+            <Text style={styles.accountantTitle}>Business health snapshot</Text>
+            <Text style={styles.accountantDescription}>
+              See collections, customer risk, sales movement, stock warnings, and recommended next actions.
+            </Text>
+          </View>
+          <PrimaryButton
+            variant="secondary"
+            onPress={() => navigation.navigate('BusinessHealthSnapshot')}
+          >
+            Open Business Health
+          </PrimaryButton>
+        </Card>
+
+        <Card accent="primary">
+          <View style={styles.accountantText}>
+            <Text style={styles.accountantTitle}>Monthly business review</Text>
+            <Text style={styles.accountantDescription}>
+              Review month-end receivables, sales, tax, customer movement, and month-close actions.
+            </Text>
+          </View>
+          <PrimaryButton
+            variant="secondary"
+            onPress={() => navigation.navigate('MonthlyBusinessReview')}
+          >
+            Open Monthly Review
+          </PrimaryButton>
+        </Card>
+
+        <Card accent="warning">
+          <View style={styles.accountantText}>
+            <Text style={styles.accountantTitle}>Statement batch</Text>
+            <Text style={styles.accountantDescription}>
+              Generate customer statements in batches for month-end, active customers, or selected dues.
+            </Text>
+          </View>
+          <PrimaryButton
+            variant="secondary"
+            onPress={() => navigation.navigate('StatementBatch')}
+          >
+            Open Statement Batch
+          </PrimaryButton>
+        </Card>
+
+        {inventoryEnabled ? (
+          <Card accent="warning">
+            <View style={styles.accountantText}>
+              <Text style={styles.accountantTitle}>Inventory reorder assistant</Text>
+              <Text style={styles.accountantDescription}>
+                Use recent invoice movement and current stock to prepare a practical reorder list.
+              </Text>
+            </View>
+            <PrimaryButton
+              variant="secondary"
+              onPress={() => navigation.navigate('InventoryReorderAssistant')}
+            >
+              Open Reorder Assistant
+            </PrimaryButton>
+          </Card>
+        ) : null}
+
+        <Card accent="primary">
+          <View style={styles.accountantText}>
+            <Text style={styles.accountantTitle}>Daily closing report</Text>
+            <Text style={styles.accountantDescription}>
+              Review end-of-day receivables, payments, credits, invoices, follow-ups, and stock alerts.
+            </Text>
+          </View>
+          <PrimaryButton
+            variant="secondary"
+            onPress={() => navigation.navigate('DailyClosingReport')}
+          >
+            Open Daily Closing
+          </PrimaryButton>
+        </Card>
+
         <Card accent="primary">
           <View style={styles.accountantText}>
             <Text style={styles.accountantTitle}>Share with accountant</Text>
@@ -271,6 +350,8 @@ export function ReportsScreen({ navigation }: ReportsScreenProps) {
             Reports are calculated fully offline from saved invoices and ledger entries.
           </Text>
         </Card>
+
+        <FounderFooterLink />
       </ScrollView>
       <BottomNavigation
         active="dashboard"

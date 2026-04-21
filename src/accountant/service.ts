@@ -33,7 +33,7 @@ export async function createAccountantIntegrationPayload(): Promise<AccountantIn
 
   return {
     schemaVersion: 1,
-    appName: 'Orbit Ledger by Bhaumik Mehta',
+    appName: 'Orbit Ledger by Rudraix',
     exportedAt,
     business,
     data: {

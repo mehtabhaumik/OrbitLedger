@@ -1,0 +1,43 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#EEF3F6"/>
+  <rect x="390" y="40" width="420" height="720" rx="34" fill="#0F172A"/>
+  <rect x="407" y="62" width="386" height="676" rx="26" fill="#F7FAFC"/>
+  <text x="435" y="112" fill="#0F172A" font-family="Arial" font-size="26" font-weight="700">Rudraix Traders</text>
+  <text x="435" y="143" fill="#64748B" font-family="Arial" font-size="15">Today · Offline ready</text>
+  <rect x="672" y="96" width="88" height="30" rx="15" fill="#E6F7EF"/>
+  <text x="690" y="117" fill="#07865F" font-family="Arial" font-size="13" font-weight="700">Saved</text>
+  <rect x="435" y="172" width="325" height="132" rx="14" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <rect x="435" y="172" width="6" height="132" rx="3" fill="#F59E0B"/>
+  <text x="458" y="209" fill="#64748B" font-family="Arial" font-size="16" font-weight="700">TOTAL RECEIVABLE</text>
+  <text x="458" y="257" fill="#0F172A" font-family="Arial" font-size="38" font-weight="800">INR 84,200</text>
+  <text x="458" y="284" fill="#64748B" font-family="Arial" font-size="16">7 customers need follow-up</text>
+  <rect x="435" y="326" width="99" height="72" rx="12" fill="#145CFF"/>
+  <text x="456" y="356" fill="#FFFFFF" font-family="Arial" font-size="15" font-weight="700">Add</text>
+  <text x="456" y="378" fill="#FFFFFF" font-family="Arial" font-size="15" font-weight="700">Payment</text>
+  <rect x="548" y="326" width="99" height="72" rx="12" fill="#FFF7E6" stroke="#F5D08B"/>
+  <text x="570" y="356" fill="#92400E" font-family="Arial" font-size="15" font-weight="700">Add</text>
+  <text x="570" y="378" fill="#92400E" font-family="Arial" font-size="15" font-weight="700">Credit</text>
+  <rect x="661" y="326" width="99" height="72" rx="12" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <text x="681" y="356" fill="#0F172A" font-family="Arial" font-size="15" font-weight="700">Add</text>
+  <text x="681" y="378" fill="#0F172A" font-family="Arial" font-size="15" font-weight="700">Customer</text>
+  <text x="435" y="444" fill="#0F172A" font-family="Arial" font-size="20" font-weight="800">Needs attention</text>
+  <rect x="435" y="466" width="325" height="64" rx="12" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <circle cx="463" cy="498" r="11" fill="#FEF3C7"/>
+  <text x="485" y="493" fill="#0F172A" font-family="Arial" font-size="15" font-weight="700">Shah Electronics</text>
+  <text x="485" y="515" fill="#64748B" font-family="Arial" font-size="13">Outstanding for 21 days</text>
+  <text x="675" y="505" fill="#92400E" font-family="Arial" font-size="16" font-weight="800">INR 24,000</text>
+  <text x="435" y="572" fill="#0F172A" font-family="Arial" font-size="20" font-weight="800">Recent activity</text>
+  <rect x="435" y="594" width="325" height="54" rx="12" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <rect x="454" y="612" width="72" height="22" rx="11" fill="#E6F7EF"/>
+  <text x="467" y="628" fill="#07865F" font-family="Arial" font-size="12" font-weight="700">Payment</text>
+  <text x="542" y="628" fill="#334155" font-family="Arial" font-size="14">Patel Store</text>
+  <text x="681" y="628" fill="#07865F" font-family="Arial" font-size="14" font-weight="800">+5,000</text>
+  <rect x="435" y="662" width="325" height="54" rx="12" fill="#FFFFFF" stroke="#DDE7EE"/>
+  <rect x="454" y="680" width="62" height="22" rx="11" fill="#FFF7E6"/>
+  <text x="468" y="696" fill="#92400E" font-family="Arial" font-size="12" font-weight="700">Credit</text>
+  <text x="542" y="696" fill="#334155" font-family="Arial" font-size="14">Apex Repairs</text>
+  <text x="681" y="696" fill="#92400E" font-family="Arial" font-size="14" font-weight="800">+1,800</text>
+  <text x="60" y="96" fill="#145CFF" font-family="Arial" font-size="18" font-weight="800">Interface preview</text>
+  <text x="60" y="130" fill="#0F172A" font-family="Arial" font-size="42" font-weight="800">Dashboard command center</text>
+  <text x="60" y="168" fill="#475569" font-family="Arial" font-size="20">Money, follow-ups, recent entries, and daily actions in one view.</text>
+</svg>

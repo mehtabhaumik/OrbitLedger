@@ -66,6 +66,27 @@ const transactionSchema = syncMetadataSchema.extend({
   createdAt: nonEmptyString,
 });
 
+const paymentReminderSchema = syncMetadataSchema.extend({
+  id: nonEmptyString,
+  customerId: nonEmptyString,
+  tone: z.enum(['polite', 'firm', 'final']),
+  message: nonEmptyString,
+  balanceAtSend: z.number().finite(),
+  sharedVia: nonEmptyString,
+  createdAt: nonEmptyString,
+});
+
+const paymentPromiseSchema = syncMetadataSchema.extend({
+  id: nonEmptyString,
+  customerId: nonEmptyString,
+  promisedAmount: z.number().positive(),
+  promisedDate: nonEmptyString,
+  note: nullableString,
+  status: z.enum(['open', 'fulfilled', 'missed', 'cancelled']),
+  createdAt: nonEmptyString,
+  updatedAt: nonEmptyString,
+});
+
 const taxProfileSchema = syncMetadataSchema.extend({
   id: nonEmptyString,
   countryCode: nonEmptyString,
@@ -197,6 +218,8 @@ const documentHistoryEntrySchema = z.object({
 const recordCountsSchema = z.object({
   customers: z.number().int().nonnegative(),
   transactions: z.number().int().nonnegative(),
+  paymentReminders: z.number().int().nonnegative().default(0),
+  paymentPromises: z.number().int().nonnegative().default(0),
   taxProfiles: z.number().int().nonnegative(),
   taxPacks: z.number().int().nonnegative(),
   documentTemplates: z.number().int().nonnegative(),
@@ -225,6 +248,8 @@ const backupSchema = z.object({
     businessSettings: businessSettingsSchema.nullable(),
     customers: z.array(customerSchema),
     transactions: z.array(transactionSchema),
+    paymentReminders: z.array(paymentReminderSchema).default([]),
+    paymentPromises: z.array(paymentPromiseSchema).default([]),
     taxProfiles: z.array(taxProfileSchema),
     taxPacks: z.array(taxPackSchema),
     documentTemplates: z.array(documentTemplateSchema),
@@ -426,6 +451,16 @@ function validateBackupRelationships(backup: OrbitLedgerBackup): void {
     'Duplicate transaction id'
   );
   assertUniqueIds(
+    backup.data.paymentReminders.map((reminder) => reminder.id),
+    'This backup contains repeated payment reminder records.',
+    'Duplicate payment reminder id'
+  );
+  assertUniqueIds(
+    backup.data.paymentPromises.map((promise) => promise.id),
+    'This backup contains repeated payment promise records.',
+    'Duplicate payment promise id'
+  );
+  assertUniqueIds(
     backup.data.taxProfiles.map((profile) => profile.id),
     'This backup contains repeated tax profile records.',
     'Duplicate tax profile id'
@@ -461,6 +496,24 @@ function validateBackupRelationships(backup: OrbitLedgerBackup): void {
       throw new BackupValidationError(
         'This backup has entries that do not match any customer.',
         `Transaction ${transaction.id} references missing customer ${transaction.customerId}`
+      );
+    }
+  }
+
+  for (const reminder of backup.data.paymentReminders) {
+    if (!customerIds.has(reminder.customerId)) {
+      throw new BackupValidationError(
+        'This backup has payment reminders that do not match any customer.',
+        `Payment reminder ${reminder.id} references missing customer ${reminder.customerId}`
+      );
+    }
+  }
+
+  for (const promise of backup.data.paymentPromises) {
+    if (!customerIds.has(promise.customerId)) {
+      throw new BackupValidationError(
+        'This backup has payment promises that do not match any customer.',
+        `Payment promise ${promise.id} references missing customer ${promise.customerId}`
       );
     }
   }
@@ -609,6 +662,8 @@ function validateRecordCounts(backup: OrbitLedgerBackup): void {
   const actualCounts = {
     customers: backup.data.customers.length,
     transactions: backup.data.transactions.length,
+    paymentReminders: backup.data.paymentReminders.length,
+    paymentPromises: backup.data.paymentPromises.length,
     taxProfiles: backup.data.taxProfiles.length,
     taxPacks: backup.data.taxPacks.length,
     documentTemplates: backup.data.documentTemplates.length,
@@ -693,6 +748,12 @@ function friendlySchemaMessage(path: Array<PropertyKey> | undefined): string {
   }
   if (first === 'data' && second === 'transactions') {
     return 'This backup has transaction records Orbit Ledger cannot read.';
+  }
+  if (first === 'data' && second === 'paymentReminders') {
+    return 'This backup has payment reminder records Orbit Ledger cannot read.';
+  }
+  if (first === 'data' && second === 'paymentPromises') {
+    return 'This backup has payment promise records Orbit Ledger cannot read.';
   }
   if (first === 'data' && second === 'products') {
     return 'This backup has product records Orbit Ledger cannot read.';
