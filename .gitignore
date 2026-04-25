@@ -7,6 +7,9 @@ apps/mobile/node_modules/
 # Expo
 .expo/
 apps/mobile/.expo/
+.next/
+apps/web/.next/
+apps/web/out/
 dist/
 apps/mobile/dist/
 web-build/
