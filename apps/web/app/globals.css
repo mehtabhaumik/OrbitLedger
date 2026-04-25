@@ -682,29 +682,29 @@ a:focus-visible {
 
 .ol-form-grid {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
 .ol-form-row {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .ol-form-row--3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .ol-form-row--4 {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .ol-form-row--transaction-entry {
-  grid-template-columns: minmax(220px, 1.1fr) minmax(150px, 0.8fr) minmax(140px, 0.8fr) minmax(220px, 1.4fr) minmax(140px, auto);
+  grid-template-columns: 1fr;
   align-items: end;
 }
 
 .ol-form-row--lock {
-  grid-template-columns: minmax(180px, 0.9fr) minmax(180px, 0.9fr) minmax(160px, auto);
+  grid-template-columns: 1fr;
   align-items: end;
 }
 
@@ -715,6 +715,12 @@ a:focus-visible {
 
 .ol-field--action {
   align-self: end;
+}
+
+.ol-field--action .ol-button,
+.ol-field--action .ol-button-secondary,
+.ol-field--action .ol-button-ghost {
+  width: 100%;
 }
 
 .ol-field-label {
@@ -1152,7 +1158,7 @@ a:focus-visible {
 }
 
 .ol-onboarding-step-content--identity {
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  grid-template-columns: 1fr;
   align-items: start;
 }
 
@@ -1163,7 +1169,7 @@ a:focus-visible {
 
 .ol-onboarding-insights {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .ol-onboarding-info-card {

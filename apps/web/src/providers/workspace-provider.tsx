@@ -43,19 +43,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
 
     setIsLoading(true);
-    const nextWorkspaces = await listWorkspacesForUser(user.uid);
-    setWorkspaces(nextWorkspaces);
-    const nextActiveWorkspaceId =
-      nextWorkspaces.find((workspace) => workspace.workspaceId === activeWorkspaceId)?.workspaceId ??
-      nextWorkspaces[0]?.workspaceId ??
-      null;
-    setActiveWorkspaceId(nextActiveWorkspaceId);
-    if (nextActiveWorkspaceId) {
-      setDashboardSnapshot(await loadWorkspaceDashboardSnapshot(nextActiveWorkspaceId));
-    } else {
-      setDashboardSnapshot(null);
+    try {
+      const nextWorkspaces = await listWorkspacesForUser(user.uid);
+      setWorkspaces(nextWorkspaces);
+
+      const nextActiveWorkspaceId =
+        nextWorkspaces.find((workspace) => workspace.workspaceId === activeWorkspaceId)?.workspaceId ??
+        nextWorkspaces[0]?.workspaceId ??
+        null;
+      setActiveWorkspaceId(nextActiveWorkspaceId);
+
+      // Do not block route readiness on dashboard snapshot hydration.
+      if (!nextActiveWorkspaceId) {
+        setDashboardSnapshot(null);
+      }
+    } catch {
+      // Keep previous state if remote fetch fails so the UI can continue.
+      setWorkspaces((current) => current);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }
 
   useEffect(() => {
@@ -67,9 +74,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!activeWorkspaceId) {
+      setDashboardSnapshot(null);
       return;
     }
-    void loadWorkspaceDashboardSnapshot(activeWorkspaceId).then(setDashboardSnapshot).catch(() => undefined);
+
+    void loadWorkspaceDashboardSnapshot(activeWorkspaceId)
+      .then(setDashboardSnapshot)
+      .catch(() => undefined);
   }, [activeWorkspaceId]);
 
   const value = useMemo<WorkspaceContextValue>(() => {
@@ -88,7 +99,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const workspace = await createWorkspace(user.uid, user.email, input);
         setWorkspaces([workspace]);
         setActiveWorkspaceId(workspace.workspaceId);
-        setDashboardSnapshot(await loadWorkspaceDashboardSnapshot(workspace.workspaceId));
+        setDashboardSnapshot(null);
+        void loadWorkspaceDashboardSnapshot(workspace.workspaceId)
+          .then(setDashboardSnapshot)
+          .catch(() => undefined);
         return workspace;
       },
       selectWorkspace(workspaceId) {
