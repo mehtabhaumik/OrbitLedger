@@ -168,7 +168,6 @@ export default function CustomersPage() {
                 <input
                   className="ol-input"
                   inputMode="tel"
-                  placeholder="+91 98765 43210"
                   value={newPhone}
                   onBlur={handlePhoneBlur}
                   onChange={(event) => handlePhoneChange(event.target.value)}
@@ -180,7 +179,6 @@ export default function CustomersPage() {
                 <input
                   className="ol-input ol-amount"
                   inputMode="decimal"
-                  placeholder="0.00"
                   value={openingBalance}
                   onBlur={() => {
                     setTouched((current) => ({ ...current, openingBalance: true }));

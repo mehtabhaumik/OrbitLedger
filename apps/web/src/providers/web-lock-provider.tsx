@@ -246,7 +246,6 @@ function WebLockOverlay({ onUnlock }: { onUnlock(pin: string): Promise<boolean> 
             className="ol-input ol-input--pin"
             inputMode="numeric"
             maxLength={4}
-            placeholder="0000"
             type="password"
             value={pin}
             onChange={(event) => {

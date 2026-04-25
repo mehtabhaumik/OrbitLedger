@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type InputHTMLAttributes } from 'react';
+import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from 'react';
 
 import {
   normalizePhoneForCountry,
@@ -10,6 +10,7 @@ import {
 } from '@/lib/form-validation';
 import { INDIA_COUNTRY, INDIAN_STATES, getIndianStateName } from '@/lib/india';
 import type { WorkspaceProfileInput } from '@/lib/workspaces';
+import { useAuth } from '@/providers/auth-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 const defaultValues: WorkspaceProfileInput = {
@@ -63,8 +64,10 @@ const capabilityHighlights = [
 ] as const;
 
 export function WorkspaceSetupCard() {
+  const { user } = useAuth();
   const { createFirstWorkspace } = useWorkspace();
   const [values, setValues] = useState(defaultValues);
+  const emailAutofillAppliedRef = useRef(false);
   const [fieldErrors, setFieldErrors] = useState<{
     businessName: string | null;
     ownerName: string | null;
@@ -109,6 +112,22 @@ export function WorkspaceSetupCard() {
     ],
     [values]
   );
+
+  useEffect(() => {
+    if (emailAutofillAppliedRef.current) {
+      return;
+    }
+    const signedInEmail = user?.email?.trim();
+    if (!signedInEmail) {
+      return;
+    }
+    if (values.email.trim()) {
+      emailAutofillAppliedRef.current = true;
+      return;
+    }
+    setValues((current) => ({ ...current, email: signedInEmail }));
+    emailAutofillAppliedRef.current = true;
+  }, [user?.email, values.email]);
 
   function validateField(field: keyof typeof fieldErrors, nextValues = values) {
     if (field === 'businessName') {
@@ -292,7 +311,6 @@ export function WorkspaceSetupCard() {
                     autoComplete="organization"
                     error={fieldErrors.businessName}
                     label="Business name"
-                    placeholder="Orbit Ledger Services"
                     value={values.businessName}
                     onBlur={() => handleFieldBlur('businessName')}
                     onChange={(businessName) => handleFieldChange('businessName', businessName)}
@@ -301,7 +319,6 @@ export function WorkspaceSetupCard() {
                     autoComplete="name"
                     error={fieldErrors.ownerName}
                     label="Owner name"
-                    placeholder="Bhaumik Mehta"
                     value={values.ownerName}
                     onBlur={() => handleFieldBlur('ownerName')}
                     onChange={(ownerName) => handleFieldChange('ownerName', ownerName)}
@@ -311,7 +328,6 @@ export function WorkspaceSetupCard() {
                     error={fieldErrors.phone}
                     inputMode="tel"
                     label="Phone"
-                    placeholder="+91 98765 43210"
                     value={values.phone}
                     onBlur={() => handleFieldBlur('phone')}
                     onChange={(phone) => handleFieldChange('phone', phone)}
@@ -322,7 +338,6 @@ export function WorkspaceSetupCard() {
                   error={fieldErrors.email}
                   help="Used for workspace alerts and password recovery."
                   label="Email"
-                  placeholder="owner@example.com"
                   type="email"
                   value={values.email}
                   onBlur={() => handleFieldBlur('email')}
@@ -346,7 +361,6 @@ export function WorkspaceSetupCard() {
             <div className="ol-form-grid">
               <Field
                 label="Business address"
-                placeholder="12 Market Road, Ahmedabad, Gujarat"
                 value={values.address}
                 onChange={(address) => setValues({ ...values, address })}
               />
@@ -445,14 +459,12 @@ function Field({
   label,
   onBlur,
   onChange,
-  placeholder,
   type = 'text',
   value,
 }: {
   label: string;
   value: string;
   error?: string | null;
-  placeholder?: string;
   type?: string;
   autoComplete?: string;
   help?: string;
@@ -467,7 +479,6 @@ function Field({
         autoComplete={autoComplete}
         className="ol-input"
         inputMode={inputMode}
-        placeholder={placeholder}
         type={type}
         value={value}
         onBlur={onBlur}

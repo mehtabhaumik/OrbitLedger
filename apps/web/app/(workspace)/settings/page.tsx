@@ -253,7 +253,6 @@ export default function SettingsPage() {
               error={fieldErrors.phone}
               inputMode="tel"
               label="Phone"
-              placeholder="+91 98765 43210"
               value={profile.phone}
               onBlur={() => handleFieldBlur('phone')}
               onChange={(value) => handleFieldChange('phone', value)}
@@ -264,7 +263,6 @@ export default function SettingsPage() {
               error={fieldErrors.email}
               inputMode="email"
               label="Email"
-              placeholder="owner@example.com"
               type="email"
               value={profile.email}
               onBlur={() => handleFieldBlur('email')}
@@ -352,7 +350,6 @@ export default function SettingsPage() {
               className="ol-input ol-input--pin ol-input--pin-left"
               inputMode="numeric"
               maxLength={4}
-              placeholder="0000"
               type="password"
               value={pinInput}
               onBlur={() => {
@@ -414,7 +411,6 @@ function ProfileField({
   label,
   onBlur,
   onChange,
-  placeholder,
   type = 'text',
   value,
 }: {
@@ -422,7 +418,6 @@ function ProfileField({
   value: string;
   type?: string;
   inputMode?: InputHTMLAttributes<HTMLInputElement>['inputMode'];
-  placeholder?: string;
   error?: string | null;
   onBlur?(): void;
   onChange(value: string): void;
@@ -433,7 +428,6 @@ function ProfileField({
       <input
         className="ol-input"
         inputMode={inputMode}
-        placeholder={placeholder}
         type={type}
         value={value}
         onBlur={onBlur}

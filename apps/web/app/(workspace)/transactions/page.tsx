@@ -161,7 +161,6 @@ export default function TransactionsPage() {
             <input
               className="ol-input ol-amount"
               inputMode="decimal"
-              placeholder="0.00"
               value={amount}
               onBlur={() => {
                 setTouched((current) => ({ ...current, amount: true }));
@@ -176,7 +175,7 @@ export default function TransactionsPage() {
           </label>
           <label className="ol-field">
             <span className="ol-field-label">Note</span>
-            <input className="ol-input" placeholder="Optional note" value={note} onChange={(event) => setNote(event.target.value)} />
+            <input className="ol-input" value={note} onChange={(event) => setNote(event.target.value)} />
           </label>
           <div className="ol-field ol-field--action">
             <span className="ol-field-label">Action</span>

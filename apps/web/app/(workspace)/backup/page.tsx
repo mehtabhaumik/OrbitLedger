@@ -151,9 +151,8 @@ export default function BackupPage() {
               <span className="ol-field-label">Selected backup file</span>
               <input
                 className="ol-input"
-                placeholder="No file selected"
                 readOnly
-                value={selectedFileName}
+                value={selectedFileName || 'No file selected'}
               />
               {fileError ? <span className="ol-field-error">{fileError}</span> : null}
             </div>
