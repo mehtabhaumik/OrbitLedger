@@ -139,34 +139,43 @@ export default function SettingsPage() {
           </span>
         </div>
 
-        <div className="ol-form-row" style={{ gridTemplateColumns: '0.9fr 0.9fr auto' }}>
-          <input
-            className="ol-input"
-            inputMode="numeric"
-            maxLength={4}
-            placeholder="4-digit PIN"
-            type="password"
-            value={pinInput}
-            onChange={(event) => setPinInput(event.target.value.replace(/\D/g, '').slice(0, 4))}
-          />
-          <select
-            className="ol-select"
-            value={String(timeoutMs)}
-            onChange={(event) => void setTimeoutMs(Number(event.target.value))}
-          >
-            <option value={String(60_000)}>1 minute</option>
-            <option value={String(5 * 60_000)}>5 minutes</option>
-            <option value={String(15 * 60_000)}>15 minutes</option>
-          </select>
-          {!isEnabled ? (
-            <button className="ol-button" type="button" onClick={() => void enableBrowserLock()}>
-              Turn On Lock
-            </button>
-          ) : (
-            <button className="ol-button-secondary" type="button" onClick={() => void disableBrowserLock()}>
-              Turn Off Lock
-            </button>
-          )}
+        <div className="ol-form-row ol-form-row--lock">
+          <label className="ol-field">
+            <span className="ol-field-label">PIN</span>
+            <input
+              className="ol-input ol-input--pin ol-input--pin-left"
+              inputMode="numeric"
+              maxLength={4}
+              placeholder="0000"
+              type="password"
+              value={pinInput}
+              onChange={(event) => setPinInput(event.target.value.replace(/\D/g, '').slice(0, 4))}
+            />
+          </label>
+          <label className="ol-field">
+            <span className="ol-field-label">Lock timeout</span>
+            <select
+              className="ol-select"
+              value={String(timeoutMs)}
+              onChange={(event) => void setTimeoutMs(Number(event.target.value))}
+            >
+              <option value={String(60_000)}>1 minute</option>
+              <option value={String(5 * 60_000)}>5 minutes</option>
+              <option value={String(15 * 60_000)}>15 minutes</option>
+            </select>
+          </label>
+          <div className="ol-field ol-field--action">
+            <span className="ol-field-label">Action</span>
+            {!isEnabled ? (
+              <button className="ol-button" type="button" onClick={() => void enableBrowserLock()}>
+                Turn On Lock
+              </button>
+            ) : (
+              <button className="ol-button-secondary" type="button" onClick={() => void disableBrowserLock()}>
+                Turn Off Lock
+              </button>
+            )}
+          </div>
         </div>
 
         {lockMessage ? <div className="ol-message">{lockMessage}</div> : null}

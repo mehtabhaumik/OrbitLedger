@@ -73,24 +73,39 @@ export default function TransactionsPage() {
           </div>
         </div>
 
-        <div className="ol-form-row" style={{ gridTemplateColumns: '1.1fr 0.8fr 0.8fr 1.4fr auto' }}>
-          <select className="ol-select" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
-            <option value="">Select customer</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.name}
-              </option>
-            ))}
-          </select>
-          <select className="ol-select" value={type} onChange={(event) => setType(event.target.value as 'credit' | 'payment')}>
-            <option value="payment">Payment</option>
-            <option value="credit">Credit</option>
-          </select>
-          <input className="ol-input ol-amount" inputMode="decimal" placeholder="Amount" value={amount} onChange={(event) => setAmount(event.target.value)} />
-          <input className="ol-input" placeholder="Note" value={note} onChange={(event) => setNote(event.target.value)} />
-          <button className="ol-button" type="button" onClick={() => void addTransaction()}>
-            Save
-          </button>
+        <div className="ol-form-row ol-form-row--transaction-entry">
+          <label className="ol-field">
+            <span className="ol-field-label">Customer</span>
+            <select className="ol-select" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+              <option value="">Select customer</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="ol-field">
+            <span className="ol-field-label">Type</span>
+            <select className="ol-select" value={type} onChange={(event) => setType(event.target.value as 'credit' | 'payment')}>
+              <option value="payment">Payment</option>
+              <option value="credit">Credit</option>
+            </select>
+          </label>
+          <label className="ol-field">
+            <span className="ol-field-label">Amount</span>
+            <input className="ol-input ol-amount" inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} />
+          </label>
+          <label className="ol-field">
+            <span className="ol-field-label">Note</span>
+            <input className="ol-input" placeholder="Optional note" value={note} onChange={(event) => setNote(event.target.value)} />
+          </label>
+          <div className="ol-field ol-field--action">
+            <span className="ol-field-label">Action</span>
+            <button className="ol-button" type="button" onClick={() => void addTransaction()}>
+              Save
+            </button>
+          </div>
         </div>
       </section>
 

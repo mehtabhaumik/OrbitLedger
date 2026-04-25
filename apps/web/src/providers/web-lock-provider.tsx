@@ -227,99 +227,46 @@ function WebLockOverlay({ onUnlock }: { onUnlock(pin: string): Promise<boolean> 
   }
 
   return (
-    <div style={overlayStyles.backdrop}>
-      <div style={overlayStyles.card}>
+    <div className="ol-lock-backdrop">
+      <div className="ol-lock-card">
         <img
           alt="Orbit Ledger"
           src="/branding/orbit-ledger-logo-transparent.png"
           style={{ height: '1.8rem', width: 'auto' }}
         />
-        <strong style={overlayStyles.title}>Enter your PIN to continue</strong>
-        <p style={overlayStyles.copy}>
+        <strong className="ol-lock-title">Enter your PIN to continue</strong>
+        <p className="ol-lock-copy">
           This browser lock protects this workspace on this device. It does not change your cloud
           sign-in state.
         </p>
-        <input
-          autoFocus
-          inputMode="numeric"
-          maxLength={4}
-          placeholder="0000"
-          style={overlayStyles.input}
-          type="password"
-          value={pin}
-          onChange={(event) => {
-            setPin(event.target.value.replace(/\D/g, '').slice(0, 4));
-            if (error) {
-              setError(null);
-            }
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              void submit();
-            }
-          }}
-        />
-        {error ? <div style={overlayStyles.error}>{error}</div> : null}
-        <button disabled={isSubmitting} style={overlayStyles.button} type="button" onClick={() => void submit()}>
+        <label className="ol-field">
+          <span className="ol-field-label">4-digit PIN</span>
+          <input
+            autoFocus
+            className="ol-input ol-input--pin"
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="0000"
+            type="password"
+            value={pin}
+            onChange={(event) => {
+              setPin(event.target.value.replace(/\D/g, '').slice(0, 4));
+              if (error) {
+                setError(null);
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                void submit();
+              }
+            }}
+          />
+        </label>
+        {error ? <div className="ol-lock-error">{error}</div> : null}
+        <button className="ol-button" disabled={isSubmitting} type="button" onClick={() => void submit()}>
           {isSubmitting ? 'Checking...' : 'Unlock'}
         </button>
       </div>
     </div>
   );
 }
-
-const overlayStyles: Record<string, React.CSSProperties> = {
-  backdrop: {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(11, 17, 28, 0.58)',
-    backdropFilter: 'blur(14px)',
-    WebkitBackdropFilter: 'blur(14px)',
-    display: 'grid',
-    placeItems: 'center',
-    zIndex: 200,
-    padding: 24,
-  },
-  card: {
-    width: 'min(420px, 100%)',
-    background: 'rgba(255,255,255,0.94)',
-    border: '1px solid rgba(120, 148, 192, 0.24)',
-    borderRadius: 12,
-    boxShadow: '0 28px 60px rgba(17, 24, 39, 0.22)',
-    padding: 24,
-    display: 'grid',
-    gap: 14,
-  },
-  title: {
-    fontSize: 22,
-    color: '#0f172a',
-  },
-  copy: {
-    margin: 0,
-    color: '#516072',
-    lineHeight: 1.6,
-  },
-  input: {
-    minHeight: 52,
-    borderRadius: 10,
-    border: '1px solid #d7deea',
-    padding: '0 16px',
-    fontSize: 24,
-    fontWeight: 800,
-    letterSpacing: 2,
-    textAlign: 'center',
-  },
-  error: {
-    color: '#c2410c',
-    fontSize: 14,
-    fontWeight: 700,
-  },
-  button: {
-    minHeight: 48,
-    borderRadius: 10,
-    border: 'none',
-    background: 'var(--primary)',
-    color: '#fff',
-    fontWeight: 800,
-  },
-};

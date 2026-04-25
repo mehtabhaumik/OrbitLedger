@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type InputHTMLAttributes } from 'react';
 
 import { INDIA_COUNTRY, INDIAN_STATES, getIndianStateName } from '@/lib/india';
 import type { WorkspaceProfileInput } from '@/lib/workspaces';
@@ -190,50 +190,52 @@ export function WorkspaceSetupCard() {
           </div>
 
           {step === 0 ? (
-            <div className="ol-form-grid">
-              <div className="ol-form-row ol-form-row--3">
+            <div className="ol-onboarding-step-content ol-onboarding-step-content--identity">
+              <div className="ol-onboarding-identity-fields">
+                <div className="ol-form-row ol-form-row--3">
+                  <Field
+                    autoComplete="organization"
+                    label="Business name"
+                    placeholder="Orbit Ledger Services"
+                    value={values.businessName}
+                    onChange={(businessName) => setValues({ ...values, businessName })}
+                  />
+                  <Field
+                    autoComplete="name"
+                    label="Owner name"
+                    placeholder="Bhaumik Mehta"
+                    value={values.ownerName}
+                    onChange={(ownerName) => setValues({ ...values, ownerName })}
+                  />
+                  <Field
+                    autoComplete="tel"
+                    inputMode="tel"
+                    label="Phone"
+                    placeholder="+91 98765 43210"
+                    value={values.phone}
+                    onChange={(phone) => setValues({ ...values, phone })}
+                  />
+                </div>
                 <Field
-                  label="Business name"
-                  placeholder="Orbit Ledger Services"
-                  value={values.businessName}
-                  onChange={(businessName) => setValues({ ...values, businessName })}
-                />
-                <Field
-                  label="Owner name"
-                  placeholder="Bhaumik Mehta"
-                  value={values.ownerName}
-                  onChange={(ownerName) => setValues({ ...values, ownerName })}
-                />
-                <Field
-                  label="Phone"
-                  placeholder="+91 98765 43210"
-                  value={values.phone}
-                  onChange={(phone) => setValues({ ...values, phone })}
-                />
-              </div>
-              <div className="ol-form-row ol-form-row--3">
-                <Field
+                  autoComplete="email"
+                  help="Used for workspace alerts and password recovery."
                   label="Email"
                   placeholder="owner@example.com"
                   type="email"
                   value={values.email}
                   onChange={(email) => setValues({ ...values, email })}
                 />
-                <div className="ol-panel-glass" style={{ padding: 16, display: 'grid', gap: 8 }}>
-                  <strong style={{ fontSize: 14 }}>Why this step first?</strong>
-                  <span className="ol-muted" style={{ lineHeight: 1.6, fontSize: 13 }}>
-                    The synced workspace identity is what later appears in the dashboard, reports,
-                    document headers, and settings.
-                  </span>
-                </div>
-                <div className="ol-panel-glass" style={{ padding: 16, display: 'grid', gap: 8 }}>
-                  <strong style={{ fontSize: 14 }}>What happens next?</strong>
-                  <span className="ol-muted" style={{ lineHeight: 1.6, fontSize: 13 }}>
-                    Orbit Ledger uses this profile to prepare invoices, statements, backup naming,
-                    and workspace-level trust messaging.
-                  </span>
-                </div>
               </div>
+              <aside className="ol-onboarding-insights">
+                <InfoCard
+                  copy="The synced workspace identity is what later appears in the dashboard, reports, document headers, and settings."
+                  title="Why this step first?"
+                />
+                <InfoCard
+                  copy="Orbit Ledger uses this profile to prepare invoices, statements, backup naming, and workspace-level trust messaging."
+                  title="What happens next?"
+                />
+              </aside>
             </div>
           ) : null}
 
@@ -331,6 +333,9 @@ export function WorkspaceSetupCard() {
 }
 
 function Field({
+  autoComplete,
+  help,
+  inputMode,
   label,
   onChange,
   placeholder,
@@ -341,18 +346,24 @@ function Field({
   value: string;
   placeholder?: string;
   type?: string;
+  autoComplete?: string;
+  help?: string;
+  inputMode?: InputHTMLAttributes<HTMLInputElement>['inputMode'];
   onChange(value: string): void;
 }) {
   return (
     <label className="ol-field">
       <span className="ol-field-label">{label}</span>
       <input
+        autoComplete={autoComplete}
         className="ol-input"
+        inputMode={inputMode}
         placeholder={placeholder}
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
+      {help ? <span className="ol-field-help">{help}</span> : null}
     </label>
   );
 }
@@ -386,5 +397,14 @@ function SelectField({
         ))}
       </select>
     </label>
+  );
+}
+
+function InfoCard({ copy, title }: { title: string; copy: string }) {
+  return (
+    <div className="ol-onboarding-info-card">
+      <strong>{title}</strong>
+      <span>{copy}</span>
+    </div>
   );
 }
