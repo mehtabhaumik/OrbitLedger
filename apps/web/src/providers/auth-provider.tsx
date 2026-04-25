@@ -29,6 +29,15 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const GOOGLE_REDIRECT_PENDING_KEY = 'orbit-ledger:web-google-redirect-pending';
+const WORKSPACE_BOOTSTRAP_HINT_PREFIX = 'orbit-ledger:skip-workspace-bootstrap:';
+
+function setWorkspaceBootstrapHint(userId: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.sessionStorage.setItem(`${WORKSPACE_BOOTSTRAP_HINT_PREFIX}${userId}`, '1');
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -37,8 +46,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
     const auth = getWebAuth();
-
-    void getRedirectResult(auth).catch(() => undefined);
+    const shouldResolveRedirect =
+      typeof window !== 'undefined' &&
+      window.sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === '1';
+    if (shouldResolveRedirect) {
+      void getRedirectResult(auth)
+        .catch(() => undefined)
+        .finally(() => {
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+          }
+        });
+    }
 
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       if (!isMounted) {
@@ -64,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async register(name, email, password) {
         const result = await createUserWithEmailAndPassword(getWebAuth(), email.trim(), password);
+        setWorkspaceBootstrapHint(result.user.uid);
         if (name.trim()) {
           await updateProfile(result.user, { displayName: name.trim() });
         }
@@ -82,6 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             throw error;
           }
 
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, '1');
+          }
           await signInWithRedirect(auth, provider);
         }
       },

@@ -736,6 +736,23 @@ a:focus-visible {
   line-height: 1.35;
 }
 
+.ol-field.is-invalid .ol-input,
+.ol-field.is-invalid .ol-select,
+.ol-field.is-invalid .ol-textarea {
+  border-color: rgba(214, 96, 112, 0.78);
+  background: linear-gradient(180deg, rgba(255, 248, 249, 0.98) 0%, rgba(255, 242, 245, 0.96) 100%);
+  box-shadow:
+    0 0 0 3px rgba(214, 96, 112, 0.12),
+    0 8px 18px rgba(110, 40, 52, 0.08);
+}
+
+.ol-field-error {
+  color: #bc3f58;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .ol-input--pin {
   text-align: center;
   letter-spacing: 0.18em;
@@ -750,17 +767,20 @@ a:focus-visible {
 }
 
 .ol-message {
-  border-radius: 14px;
-  padding: 14px 16px;
-  border: 1px solid rgba(170, 198, 240, 0.84);
-  background: linear-gradient(180deg, rgba(234, 243, 255, 0.95) 0%, rgba(246, 250, 255, 0.92) 100%);
-  color: var(--text);
-  font-weight: 700;
+  border-radius: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(185, 204, 231, 0.92);
+  background: linear-gradient(180deg, rgba(247, 251, 255, 0.96) 0%, rgba(240, 247, 255, 0.94) 100%);
+  color: #2c4466;
+  font-weight: 650;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .ol-message--danger {
-  border-color: rgba(238, 186, 186, 0.9);
-  background: linear-gradient(180deg, rgba(255, 241, 241, 0.95) 0%, rgba(255, 248, 248, 0.94) 100%);
+  border-color: rgba(223, 150, 161, 0.86);
+  background: linear-gradient(180deg, rgba(255, 245, 247, 0.96) 0%, rgba(255, 239, 242, 0.95) 100%);
+  color: #a43850;
 }
 
 .ol-message--success {
@@ -885,12 +905,6 @@ a:focus-visible {
   margin: 0;
   color: #516072;
   line-height: 1.6;
-}
-
-.ol-lock-error {
-  color: #c2410c;
-  font-size: 14px;
-  font-weight: 700;
 }
 
 .ol-segmented {
@@ -1054,12 +1068,64 @@ a:focus-visible {
 }
 
 .ol-showcase-card {
+  position: relative;
   padding: 18px;
   border-radius: 18px;
   border: 1px solid rgba(102, 126, 161, 0.62);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.085) 0%, rgba(255, 255, 255, 0.035) 100%);
   display: grid;
-  gap: 8px;
+  gap: 10px;
+}
+
+.ol-showcase-card::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  bottom: 18px;
+  width: 3px;
+  border-radius: 999px;
+  background: rgba(126, 164, 228, 0.62);
+}
+
+.ol-showcase-card[data-tone="primary"]::before {
+  background: rgba(87, 149, 248, 0.86);
+}
+
+.ol-showcase-card[data-tone="tax"]::before {
+  background: rgba(151, 126, 255, 0.86);
+}
+
+.ol-showcase-card[data-tone="success"]::before {
+  background: rgba(92, 187, 154, 0.86);
+}
+
+.ol-showcase-card-kicker {
+  margin-left: 12px;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(142, 168, 205, 0.54);
+  color: #dbe8ff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.ol-showcase-card[data-tone="primary"] .ol-showcase-card-kicker {
+  color: #6faeff;
+}
+
+.ol-showcase-card[data-tone="tax"] .ol-showcase-card-kicker {
+  color: #9f8dff;
+}
+
+.ol-showcase-card[data-tone="success"] .ol-showcase-card-kicker {
+  color: #70cca7;
 }
 
 .ol-brand-header {
@@ -1088,9 +1154,14 @@ a:focus-visible {
 }
 
 .ol-showcase-card-copy {
+  margin-left: 12px;
   color: rgba(224, 232, 244, 0.76);
   line-height: 1.65;
   font-size: 14px;
+}
+
+.ol-showcase-card-title {
+  margin-left: 12px;
 }
 
 .ol-onboarding-shell {
@@ -1170,6 +1241,44 @@ a:focus-visible {
 .ol-onboarding-insights {
   display: grid;
   gap: 14px;
+}
+
+.ol-showcase-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.ol-showcase-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  flex: 0 0 auto;
+  min-width: auto;
+  min-height: 0;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.ol-showcase-badge--premium {
+  background: rgba(255, 240, 255, 0.9);
+  color: var(--premium);
+  border-color: rgba(231, 191, 235, 0.8);
+}
+
+.ol-showcase-badge--success {
+  background: rgba(234, 250, 244, 0.9);
+  color: var(--success);
+  border-color: rgba(177, 226, 209, 0.78);
 }
 
 .ol-onboarding-info-card {

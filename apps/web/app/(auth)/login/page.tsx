@@ -4,6 +4,7 @@ import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import { validateEmail, validateName } from '@/lib/form-validation';
 import { useAuth } from '@/providers/auth-provider';
 
 const loginFeatures = [
@@ -26,6 +27,20 @@ export default function LoginPage() {
   const { signIn, register, sendPasswordReset, signInWithGoogle } = useAuth();
   const [mode, setMode] = useState<'sign_in' | 'register'>('sign_in');
   const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [fieldErrors, setFieldErrors] = useState<{
+    name: string | null;
+    email: string | null;
+    password: string | null;
+  }>({
+    name: null,
+    email: null,
+    password: null,
+  });
+  const [touched, setTouched] = useState({
+    name: false,
+    email: false,
+    password: false,
+  });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,8 +68,66 @@ export default function LoginPage() {
     [isGoogleSubmitting, isSubmitting, localHostFixUrl]
   );
 
+  function validateField(
+    field: 'name' | 'email' | 'password',
+    value: string,
+    nextMode: 'sign_in' | 'register' = mode
+  ) {
+    if (field === 'name') {
+      if (nextMode !== 'register') {
+        return null;
+      }
+      return validateName(value, 'Full name', true);
+    }
+
+    if (field === 'email') {
+      return validateEmail(value, true);
+    }
+
+    const normalized = value.trim();
+    if (!normalized) {
+      return 'Password is required.';
+    }
+    if (nextMode === 'register' && normalized.length < 8) {
+      return 'Password must be at least 8 characters.';
+    }
+    return null;
+  }
+
+  function setFieldValue(field: 'name' | 'email' | 'password', value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+
+    if (!touched[field]) {
+      return;
+    }
+
+    const nextError = validateField(field, value);
+    setFieldErrors((current) => ({ ...current, [field]: nextError }));
+  }
+
+  function touchAndValidate(field: 'name' | 'email' | 'password') {
+    setTouched((current) => ({ ...current, [field]: true }));
+    const nextError = validateField(field, form[field]);
+    setFieldErrors((current) => ({ ...current, [field]: nextError }));
+  }
+
+  function validateBeforeSubmit(nextMode: 'sign_in' | 'register') {
+    const nextErrors = {
+      name: validateField('name', form.name, nextMode),
+      email: validateField('email', form.email, nextMode),
+      password: validateField('password', form.password, nextMode),
+    };
+
+    setTouched({ name: true, email: true, password: true });
+    setFieldErrors(nextErrors);
+    return !nextErrors.name && !nextErrors.email && !nextErrors.password;
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!validateBeforeSubmit(mode)) {
+      return;
+    }
     setError(null);
     setNotice(null);
     setIsSubmitting(true);
@@ -76,8 +149,10 @@ export default function LoginPage() {
     const email = form.email.trim();
     setError(null);
     setNotice(null);
-    if (!email || !isValidEmail(email)) {
-      setError('Enter a valid email address first.');
+    setTouched((current) => ({ ...current, email: true }));
+    const emailError = validateField('email', email);
+    if (emailError) {
+      setFieldErrors((current) => ({ ...current, email: emailError }));
       return;
     }
 
@@ -148,14 +223,24 @@ export default function LoginPage() {
           <div className="ol-segmented">
             <button
               className={`ol-segment${mode === 'sign_in' ? ' is-active' : ''}`}
-              onClick={() => setMode('sign_in')}
+              onClick={() => {
+                setMode('sign_in');
+                setFieldErrors((current) => ({ ...current, name: null }));
+                setTouched((current) => ({ ...current, name: false }));
+                setError(null);
+                setNotice(null);
+              }}
               type="button"
             >
               Sign in
             </button>
             <button
               className={`ol-segment${mode === 'register' ? ' is-active' : ''}`}
-              onClick={() => setMode('register')}
+              onClick={() => {
+                setMode('register');
+                setError(null);
+                setNotice(null);
+              }}
               type="button"
             >
               Create account
@@ -164,34 +249,46 @@ export default function LoginPage() {
 
           <form className="ol-form-grid" onSubmit={submit}>
             {mode === 'register' ? (
-              <label className="ol-field">
+              <label className={`ol-field${fieldErrors.name ? ' is-invalid' : ''}`}>
                 <span className="ol-field-label">Full name</span>
                 <input
+                  autoComplete="name"
                   className="ol-input"
                   value={form.name}
-                  onChange={(event) => setForm({ ...form, name: event.target.value })}
+                  onBlur={() => touchAndValidate('name')}
+                  onChange={(event) => setFieldValue('name', event.target.value)}
                 />
+                {fieldErrors.name ? <span className="ol-field-error">{fieldErrors.name}</span> : null}
               </label>
             ) : null}
 
-            <label className="ol-field">
+            <label className={`ol-field${fieldErrors.email ? ' is-invalid' : ''}`}>
               <span className="ol-field-label">Email</span>
               <input
+                autoComplete="email"
                 className="ol-input"
+                inputMode="email"
                 type="email"
                 value={form.email}
-                onChange={(event) => setForm({ ...form, email: event.target.value })}
+                onBlur={() => touchAndValidate('email')}
+                onChange={(event) => setFieldValue('email', event.target.value)}
               />
+              {fieldErrors.email ? <span className="ol-field-error">{fieldErrors.email}</span> : null}
             </label>
 
-            <label className="ol-field">
+            <label className={`ol-field${fieldErrors.password ? ' is-invalid' : ''}`}>
               <span className="ol-field-label">Password</span>
               <input
+                autoComplete={mode === 'sign_in' ? 'current-password' : 'new-password'}
                 className="ol-input"
                 type="password"
                 value={form.password}
-                onChange={(event) => setForm({ ...form, password: event.target.value })}
+                onBlur={() => touchAndValidate('password')}
+                onChange={(event) => setFieldValue('password', event.target.value)}
               />
+              {fieldErrors.password ? (
+                <span className="ol-field-error">{fieldErrors.password}</span>
+              ) : null}
             </label>
 
             {mode === 'sign_in' ? (
@@ -254,10 +351,6 @@ export default function LoginPage() {
       </div>
     </main>
   );
-}
-
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function getAuthErrorMessage(error: unknown) {

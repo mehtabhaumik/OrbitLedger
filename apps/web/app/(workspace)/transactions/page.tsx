@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { AppShell } from '@/components/app-shell';
+import { parseAmount, validatePositiveAmount } from '@/lib/form-validation';
 import {
   createWorkspaceTransaction,
   listWorkspaceCustomers,
@@ -20,6 +21,20 @@ export default function TransactionsPage() {
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'credit' | 'payment'>('payment');
   const [note, setNote] = useState('');
+  const [errors, setErrors] = useState<{
+    customerId: string | null;
+    amount: string | null;
+  }>({
+    customerId: null,
+    amount: null,
+  });
+  const [touched, setTouched] = useState({
+    customerId: false,
+    amount: false,
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -36,24 +51,54 @@ export default function TransactionsPage() {
   }, [activeWorkspace]);
 
   async function addTransaction() {
-    if (!activeWorkspace || !amount.trim() || !customerId) {
+    if (!activeWorkspace) {
       return;
     }
 
-    const numericAmount = Number(amount);
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    const nextErrors = {
+      customerId: customerId ? null : 'Choose a customer.',
+      amount: validatePositiveAmount(amount, 'Amount'),
+    };
+    setTouched({ customerId: true, amount: true });
+    setErrors(nextErrors);
+
+    if (nextErrors.customerId || nextErrors.amount) {
+      setMessageTone('danger');
+      setMessage('Fix highlighted fields before saving.');
       return;
     }
 
-    const transaction = await createWorkspaceTransaction(activeWorkspace.workspaceId, {
-      customerId,
-      type,
-      amount: numericAmount,
-      note,
-    });
-    setTransactions((current) => [transaction, ...current]);
-    setAmount('');
-    setNote('');
+    setIsSaving(true);
+    setMessage(null);
+    try {
+      const transaction = await createWorkspaceTransaction(activeWorkspace.workspaceId, {
+        customerId,
+        type,
+        amount: parseAmount(amount) ?? 0,
+        note,
+      });
+      setTransactions((current) => [transaction, ...current]);
+      setAmount('');
+      setNote('');
+      setTouched({ customerId: false, amount: false });
+      setErrors({ customerId: null, amount: null });
+      setMessageTone('success');
+      setMessage('Transaction saved.');
+    } catch (error) {
+      setMessageTone('danger');
+      setMessage(error instanceof Error ? error.message : 'Transaction could not be saved.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function handleAmountChange(value: string) {
+    setAmount(value);
+    setMessage(null);
+    if (!touched.amount) {
+      return;
+    }
+    setErrors((current) => ({ ...current, amount: validatePositiveAmount(value, 'Amount') }));
   }
 
   return (
@@ -74,9 +119,27 @@ export default function TransactionsPage() {
         </div>
 
         <div className="ol-form-row ol-form-row--transaction-entry">
-          <label className="ol-field">
+          <label className={`ol-field${errors.customerId ? ' is-invalid' : ''}`}>
             <span className="ol-field-label">Customer</span>
-            <select className="ol-select" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+            <select
+              className="ol-select"
+              value={customerId}
+              onBlur={() => {
+                setTouched((current) => ({ ...current, customerId: true }));
+                setErrors((current) => ({
+                  ...current,
+                  customerId: customerId ? null : 'Choose a customer.',
+                }));
+              }}
+              onChange={(event) => {
+                const next = event.target.value;
+                setCustomerId(next);
+                setMessage(null);
+                if (touched.customerId) {
+                  setErrors((current) => ({ ...current, customerId: next ? null : 'Choose a customer.' }));
+                }
+              }}
+            >
               <option value="">Select customer</option>
               {customers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
@@ -84,6 +147,7 @@ export default function TransactionsPage() {
                 </option>
               ))}
             </select>
+            {errors.customerId ? <span className="ol-field-error">{errors.customerId}</span> : null}
           </label>
           <label className="ol-field">
             <span className="ol-field-label">Type</span>
@@ -92,9 +156,23 @@ export default function TransactionsPage() {
               <option value="credit">Credit</option>
             </select>
           </label>
-          <label className="ol-field">
+          <label className={`ol-field${errors.amount ? ' is-invalid' : ''}`}>
             <span className="ol-field-label">Amount</span>
-            <input className="ol-input ol-amount" inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} />
+            <input
+              className="ol-input ol-amount"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={amount}
+              onBlur={() => {
+                setTouched((current) => ({ ...current, amount: true }));
+                setErrors((current) => ({
+                  ...current,
+                  amount: validatePositiveAmount(amount, 'Amount'),
+                }));
+              }}
+              onChange={(event) => handleAmountChange(event.target.value)}
+            />
+            {errors.amount ? <span className="ol-field-error">{errors.amount}</span> : null}
           </label>
           <label className="ol-field">
             <span className="ol-field-label">Note</span>
@@ -102,11 +180,16 @@ export default function TransactionsPage() {
           </label>
           <div className="ol-field ol-field--action">
             <span className="ol-field-label">Action</span>
-            <button className="ol-button" type="button" onClick={() => void addTransaction()}>
-              Save
+            <button className="ol-button" disabled={isSaving} type="button" onClick={() => void addTransaction()}>
+              {isSaving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>
+        {message ? (
+          <div className={`ol-message${messageTone === 'danger' ? ' ol-message--danger' : ' ol-message--success'}`}>
+            {message}
+          </div>
+        ) : null}
       </section>
 
       <section className="ol-table">

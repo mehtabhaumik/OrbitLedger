@@ -2,6 +2,12 @@
 
 import { useMemo, useState, type InputHTMLAttributes } from 'react';
 
+import {
+  normalizePhoneForCountry,
+  validateEmail,
+  validateName,
+  validatePhone,
+} from '@/lib/form-validation';
 import { INDIA_COUNTRY, INDIAN_STATES, getIndianStateName } from '@/lib/india';
 import type { WorkspaceProfileInput } from '@/lib/workspaces';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -59,6 +65,32 @@ const capabilityHighlights = [
 export function WorkspaceSetupCard() {
   const { createFirstWorkspace } = useWorkspace();
   const [values, setValues] = useState(defaultValues);
+  const [fieldErrors, setFieldErrors] = useState<{
+    businessName: string | null;
+    ownerName: string | null;
+    phone: string | null;
+    email: string | null;
+    stateCode: string | null;
+  }>({
+    businessName: null,
+    ownerName: null,
+    phone: null,
+    email: null,
+    stateCode: null,
+  });
+  const [touched, setTouched] = useState<{
+    businessName: boolean;
+    ownerName: boolean;
+    phone: boolean;
+    email: boolean;
+    stateCode: boolean;
+  }>({
+    businessName: false,
+    ownerName: false,
+    phone: false,
+    email: false,
+    stateCode: false,
+  });
   const [step, setStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,25 +110,88 @@ export function WorkspaceSetupCard() {
     [values]
   );
 
+  function validateField(field: keyof typeof fieldErrors, nextValues = values) {
+    if (field === 'businessName') {
+      return validateName(nextValues.businessName, 'Business name', true);
+    }
+    if (field === 'ownerName') {
+      return validateName(nextValues.ownerName, 'Owner name', true);
+    }
+    if (field === 'email') {
+      return validateEmail(nextValues.email, false);
+    }
+    if (field === 'phone') {
+      return validatePhone(nextValues.phone, INDIA_COUNTRY.code, false);
+    }
+    if (field === 'stateCode') {
+      return nextValues.stateCode.trim() ? null : 'Choose the state where this business operates.';
+    }
+    return null;
+  }
+
+  function handleFieldChange(field: keyof typeof fieldErrors, value: string) {
+    const nextValues = { ...values, [field]: value };
+    setValues(nextValues);
+    setError(null);
+
+    if (!touched[field]) {
+      return;
+    }
+
+    const nextError = validateField(field, nextValues);
+    setFieldErrors((current) => ({ ...current, [field]: nextError }));
+  }
+
+  function handleFieldBlur(field: keyof typeof fieldErrors) {
+    setTouched((current) => ({ ...current, [field]: true }));
+    let nextValues = values;
+    if (field === 'phone') {
+      const formatted = normalizePhoneForCountry(INDIA_COUNTRY.code, values.phone);
+      if (formatted) {
+        nextValues = { ...values, phone: formatted };
+        setValues(nextValues);
+      }
+    }
+
+    const nextError = validateField(field, nextValues);
+    setFieldErrors((current) => ({ ...current, [field]: nextError }));
+  }
+
   function validateStep(index: number) {
     if (index === 0) {
-      if (!values.businessName.trim()) {
-        setError('Enter the business name before continuing.');
-        return false;
-      }
-      if (!values.ownerName.trim()) {
-        setError('Enter the owner name before continuing.');
-        return false;
-      }
-      if (values.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) {
-        setError('Enter a valid email address or leave it blank for now.');
+      const identityErrors = {
+        businessName: validateField('businessName'),
+        ownerName: validateField('ownerName'),
+        phone: validateField('phone'),
+        email: validateField('email'),
+      };
+      setTouched((current) => ({
+        ...current,
+        businessName: true,
+        ownerName: true,
+        phone: true,
+        email: true,
+      }));
+      setFieldErrors((current) => ({ ...current, ...identityErrors }));
+      if (
+        identityErrors.businessName ||
+        identityErrors.ownerName ||
+        identityErrors.phone ||
+        identityErrors.email
+      ) {
+        setError('Fix highlighted fields before continuing.');
         return false;
       }
     }
 
-    if (index === 1 && !values.stateCode.trim()) {
-      setError('Choose the state where this business operates.');
-      return false;
+    if (index === 1) {
+      const stateError = validateField('stateCode');
+      setTouched((current) => ({ ...current, stateCode: true }));
+      setFieldErrors((current) => ({ ...current, stateCode: stateError }));
+      if (stateError) {
+        setError('Fix highlighted fields before continuing.');
+        return false;
+      }
     }
 
     setError(null);
@@ -151,9 +246,9 @@ export function WorkspaceSetupCard() {
 
       <div className="ol-onboarding-grid">
         <aside className="ol-onboarding-showcase">
-          <div className="ol-chip-row">
-            <span className="ol-chip ol-chip--premium">Synced workspace</span>
-            <span className="ol-chip ol-chip--success">India-first</span>
+          <div className="ol-showcase-badge-row">
+            <span className="ol-showcase-badge ol-showcase-badge--premium">Synced workspace</span>
+            <span className="ol-showcase-badge ol-showcase-badge--success">India-first</span>
           </div>
           <div className="ol-onboarding-headline">Create your synced business</div>
           <p className="ol-auth-showcase-copy">
@@ -163,8 +258,8 @@ export function WorkspaceSetupCard() {
 
           <div className="ol-showcase-stack">
             {capabilityHighlights.map((card) => (
-              <article className="ol-showcase-card" key={card.title}>
-                <div className={`ol-chip ol-chip--${card.tone}`}>{card.title}</div>
+              <article className="ol-showcase-card" data-tone={card.tone} key={card.title}>
+                <div className="ol-showcase-card-kicker">{card.title}</div>
                 <div className="ol-showcase-card-copy">{card.copy}</div>
               </article>
             ))}
@@ -195,35 +290,43 @@ export function WorkspaceSetupCard() {
                 <div className="ol-form-row ol-form-row--3">
                   <Field
                     autoComplete="organization"
+                    error={fieldErrors.businessName}
                     label="Business name"
                     placeholder="Orbit Ledger Services"
                     value={values.businessName}
-                    onChange={(businessName) => setValues({ ...values, businessName })}
+                    onBlur={() => handleFieldBlur('businessName')}
+                    onChange={(businessName) => handleFieldChange('businessName', businessName)}
                   />
                   <Field
                     autoComplete="name"
+                    error={fieldErrors.ownerName}
                     label="Owner name"
                     placeholder="Bhaumik Mehta"
                     value={values.ownerName}
-                    onChange={(ownerName) => setValues({ ...values, ownerName })}
+                    onBlur={() => handleFieldBlur('ownerName')}
+                    onChange={(ownerName) => handleFieldChange('ownerName', ownerName)}
                   />
                   <Field
                     autoComplete="tel"
+                    error={fieldErrors.phone}
                     inputMode="tel"
                     label="Phone"
                     placeholder="+91 98765 43210"
                     value={values.phone}
-                    onChange={(phone) => setValues({ ...values, phone })}
+                    onBlur={() => handleFieldBlur('phone')}
+                    onChange={(phone) => handleFieldChange('phone', phone)}
                   />
                 </div>
                 <Field
                   autoComplete="email"
+                  error={fieldErrors.email}
                   help="Used for workspace alerts and password recovery."
                   label="Email"
                   placeholder="owner@example.com"
                   type="email"
                   value={values.email}
-                  onChange={(email) => setValues({ ...values, email })}
+                  onBlur={() => handleFieldBlur('email')}
+                  onChange={(email) => handleFieldChange('email', email)}
                 />
               </div>
               <aside className="ol-onboarding-insights">
@@ -263,10 +366,12 @@ export function WorkspaceSetupCard() {
                   onChange={() => undefined}
                 />
                 <SelectField
+                  error={fieldErrors.stateCode}
                   label="State"
                   value={values.stateCode}
                   options={INDIAN_STATES}
-                  onChange={(stateCode) => setValues({ ...values, stateCode })}
+                  onBlur={() => handleFieldBlur('stateCode')}
+                  onChange={(stateCode) => handleFieldChange('stateCode', stateCode)}
                 />
               </div>
               <div className="ol-note">
@@ -334,9 +439,11 @@ export function WorkspaceSetupCard() {
 
 function Field({
   autoComplete,
+  error,
   help,
   inputMode,
   label,
+  onBlur,
   onChange,
   placeholder,
   type = 'text',
@@ -344,15 +451,17 @@ function Field({
 }: {
   label: string;
   value: string;
+  error?: string | null;
   placeholder?: string;
   type?: string;
   autoComplete?: string;
   help?: string;
   inputMode?: InputHTMLAttributes<HTMLInputElement>['inputMode'];
+  onBlur?(): void;
   onChange(value: string): void;
 }) {
   return (
-    <label className="ol-field">
+    <label className={`ol-field${error ? ' is-invalid' : ''}`}>
       <span className="ol-field-label">{label}</span>
       <input
         autoComplete={autoComplete}
@@ -361,8 +470,10 @@ function Field({
         placeholder={placeholder}
         type={type}
         value={value}
+        onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
       />
+      {error ? <span className="ol-field-error">{error}</span> : null}
       {help ? <span className="ol-field-help">{help}</span> : null}
     </label>
   );
@@ -370,7 +481,9 @@ function Field({
 
 function SelectField({
   disabled,
+  error,
   label,
+  onBlur,
   onChange,
   options,
   value,
@@ -378,16 +491,19 @@ function SelectField({
   label: string;
   value: string;
   disabled?: boolean;
+  error?: string | null;
   options: ReadonlyArray<{ code: string; name: string }>;
+  onBlur?(): void;
   onChange(value: string): void;
 }) {
   return (
-    <label className="ol-field">
+    <label className={`ol-field${error ? ' is-invalid' : ''}`}>
       <span className="ol-field-label">{label}</span>
       <select
         className="ol-select"
         disabled={disabled}
         value={value}
+        onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
       >
         {options.map((option) => (
@@ -396,6 +512,7 @@ function SelectField({
           </option>
         ))}
       </select>
+      {error ? <span className="ol-field-error">{error}</span> : null}
     </label>
   );
 }

@@ -13,12 +13,22 @@ import { useWorkspace } from '@/providers/workspace-provider';
 export default function InvoicesPage() {
   const { activeWorkspace } = useWorkspace();
   const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
 
   useEffect(() => {
     if (!activeWorkspace) {
       return;
     }
-    void listWorkspaceInvoices(activeWorkspace.workspaceId).then(setInvoices);
+    setMessage(null);
+    setMessageTone('success');
+    void listWorkspaceInvoices(activeWorkspace.workspaceId)
+      .then(setInvoices)
+      .catch((error) => {
+        setMessageTone('danger');
+        setMessage(error instanceof Error ? error.message : 'Invoices could not be loaded.');
+      });
   }, [activeWorkspace]);
 
   async function addDraftInvoice() {
@@ -26,8 +36,19 @@ export default function InvoicesPage() {
       return;
     }
 
-    const invoice = await createDraftWorkspaceInvoice(activeWorkspace.workspaceId);
-    setInvoices((current) => [invoice, ...current]);
+    setIsCreating(true);
+    setMessage(null);
+    try {
+      const invoice = await createDraftWorkspaceInvoice(activeWorkspace.workspaceId);
+      setInvoices((current) => [invoice, ...current]);
+      setMessageTone('success');
+      setMessage(`Draft ${invoice.invoiceNumber} created.`);
+    } catch (error) {
+      setMessageTone('danger');
+      setMessage(error instanceof Error ? error.message : 'Invoice draft could not be created.');
+    } finally {
+      setIsCreating(false);
+    }
   }
 
   return (
@@ -42,10 +63,15 @@ export default function InvoicesPage() {
                 The layout leans into a more desktop document workflow than the mobile app.
               </p>
             </div>
-            <button className="ol-button" type="button" onClick={() => void addDraftInvoice()}>
-              Create draft
+            <button className="ol-button" disabled={isCreating} type="button" onClick={() => void addDraftInvoice()}>
+              {isCreating ? 'Creating draft...' : 'Create draft'}
             </button>
           </div>
+          {message ? (
+            <div className={`ol-message${messageTone === 'danger' ? ' ol-message--danger' : ' ol-message--success'}`}>
+              {message}
+            </div>
+          ) : null}
         </article>
 
         <article className="ol-panel-glass">

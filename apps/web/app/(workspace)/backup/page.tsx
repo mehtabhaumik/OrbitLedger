@@ -18,6 +18,9 @@ export default function BackupPage() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [preview, setPreview] = useState<WebWorkspaceBackup | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
+  const [selectedFileName, setSelectedFileName] = useState('');
+  const [fileError, setFileError] = useState<string | null>(null);
 
   async function handleExport() {
     if (!activeWorkspace) {
@@ -26,6 +29,7 @@ export default function BackupPage() {
 
     setIsExporting(true);
     setMessage(null);
+    setMessageTone('success');
     try {
       const backup = await exportWorkspaceBackup(activeWorkspace.workspaceId);
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -37,8 +41,10 @@ export default function BackupPage() {
         .replace(/[^a-z0-9]+/g, '-')}-workspace-backup.json`;
       link.click();
       URL.revokeObjectURL(href);
+      setMessageTone('success');
       setMessage('Workspace backup exported.');
     } catch (error) {
+      setMessageTone('danger');
       setMessage(error instanceof Error ? error.message : 'Workspace backup could not be exported.');
     } finally {
       setIsExporting(false);
@@ -46,17 +52,37 @@ export default function BackupPage() {
   }
 
   async function handleFilePicked(file: File | null) {
+    setPreview(null);
+    setSelectedFileName('');
+    setFileError(null);
+    setMessage(null);
+
     if (!file) {
       return;
     }
 
-    setMessage(null);
+    const fileName = file.name || 'backup.json';
+    setSelectedFileName(fileName);
+    const isJsonName = /\.json$/i.test(fileName);
+    const isJsonType =
+      file.type === 'application/json' ||
+      file.type === 'text/json' ||
+      file.type === 'application/octet-stream' ||
+      file.type === '';
+    if (!isJsonName || !isJsonType) {
+      setFileError('Choose a valid JSON backup file.');
+      return;
+    }
+
     try {
       const parsed = parseWorkspaceBackup(await file.text());
       setPreview(parsed);
+      setMessageTone('success');
+      setMessage('Backup file loaded. Review counts before restoring.');
     } catch (error) {
       setPreview(null);
-      setMessage(error instanceof Error ? error.message : 'Backup preview could not be loaded.');
+      setMessageTone('danger');
+      setFileError(error instanceof Error ? error.message : 'Backup preview could not be loaded.');
     }
   }
 
@@ -67,12 +93,17 @@ export default function BackupPage() {
 
     setIsRestoring(true);
     setMessage(null);
+    setMessageTone('success');
     try {
       await restoreWorkspaceBackup(activeWorkspace.workspaceId, preview);
       await refresh();
       setPreview(null);
+      setSelectedFileName('');
+      setFileError(null);
+      setMessageTone('success');
       setMessage('Workspace backup restored. Current workspace data was fully replaced.');
     } catch (error) {
+      setMessageTone('danger');
       setMessage(error instanceof Error ? error.message : 'Backup restore could not be completed.');
     } finally {
       setIsRestoring(false);
@@ -116,6 +147,16 @@ export default function BackupPage() {
               type="file"
               onChange={(event) => void handleFilePicked(event.target.files?.[0] ?? null)}
             />
+            <div className={`ol-field${fileError ? ' is-invalid' : ''}`}>
+              <span className="ol-field-label">Selected backup file</span>
+              <input
+                className="ol-input"
+                placeholder="No file selected"
+                readOnly
+                value={selectedFileName}
+              />
+              {fileError ? <span className="ol-field-error">{fileError}</span> : null}
+            </div>
             <button
               className="ol-button"
               disabled={!preview || isRestoring}
@@ -146,7 +187,11 @@ export default function BackupPage() {
         </section>
       ) : null}
 
-      {message ? <div className={`ol-message${message.includes('could not') ? ' ol-message--danger' : ''}`}>{message}</div> : null}
+      {message ? (
+        <div className={`ol-message${messageTone === 'danger' ? ' ol-message--danger' : ' ol-message--success'}`}>
+          {message}
+        </div>
+      ) : null}
     </AppShell>
   );
 }

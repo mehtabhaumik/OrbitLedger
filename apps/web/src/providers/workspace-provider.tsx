@@ -1,6 +1,7 @@
 'use client';
 
 import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
+import type { User } from 'firebase/auth';
 import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
@@ -23,6 +24,52 @@ type WorkspaceContextValue = {
 };
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
+const WORKSPACE_BOOTSTRAP_HINT_PREFIX = 'orbit-ledger:skip-workspace-bootstrap:';
+const WORKSPACE_STATE_CACHE_PREFIX = 'orbit-ledger:workspace-state:';
+const WORKSPACE_STATE_HAS = 'has_workspace';
+const WORKSPACE_STATE_NONE = 'no_workspace';
+const WORKSPACE_LOADING_GUARD_MS = 2500;
+
+function hasWorkspaceBootstrapHint(userId: string) {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return window.sessionStorage.getItem(`${WORKSPACE_BOOTSTRAP_HINT_PREFIX}${userId}`) === '1';
+}
+
+function clearWorkspaceBootstrapHint(userId: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.sessionStorage.removeItem(`${WORKSPACE_BOOTSTRAP_HINT_PREFIX}${userId}`);
+}
+
+function readWorkspaceStateCache(userId: string) {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const value = window.localStorage.getItem(`${WORKSPACE_STATE_CACHE_PREFIX}${userId}`);
+  return value === WORKSPACE_STATE_HAS || value === WORKSPACE_STATE_NONE ? value : null;
+}
+
+function writeWorkspaceStateCache(userId: string, hasWorkspace: boolean) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.localStorage.setItem(
+    `${WORKSPACE_STATE_CACHE_PREFIX}${userId}`,
+    hasWorkspace ? WORKSPACE_STATE_HAS : WORKSPACE_STATE_NONE
+  );
+}
+
+function isLikelyFirstSignIn(user: User) {
+  const createdAt = Number(user.metadata.creationTime ? Date.parse(user.metadata.creationTime) : NaN);
+  const lastSignInAt = Number(user.metadata.lastSignInTime ? Date.parse(user.metadata.lastSignInTime) : NaN);
+  if (!Number.isFinite(createdAt) || !Number.isFinite(lastSignInAt)) {
+    return false;
+  }
+  return Math.abs(lastSignInAt - createdAt) < 2 * 60 * 1000;
+}
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user, isLoading: authLoading } = useAuth();
@@ -41,26 +88,63 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
       return;
     }
+    const currentUser = user;
 
-    setIsLoading(true);
-    try {
-      const nextWorkspaces = await listWorkspacesForUser(user.uid);
+    const cachedWorkspaceState = readWorkspaceStateCache(currentUser.uid);
+    const shouldSkipBlockingBootstrap =
+      isLikelyFirstSignIn(currentUser) ||
+      hasWorkspaceBootstrapHint(currentUser.uid) ||
+      cachedWorkspaceState === WORKSPACE_STATE_NONE;
+
+    function applyWorkspaceList(nextWorkspaces: OrbitWorkspaceSummary[]) {
       setWorkspaces(nextWorkspaces);
-
+      writeWorkspaceStateCache(currentUser.uid, nextWorkspaces.length > 0);
+      if (nextWorkspaces.length > 0) {
+        clearWorkspaceBootstrapHint(currentUser.uid);
+      }
       const nextActiveWorkspaceId =
         nextWorkspaces.find((workspace) => workspace.workspaceId === activeWorkspaceId)?.workspaceId ??
         nextWorkspaces[0]?.workspaceId ??
         null;
       setActiveWorkspaceId(nextActiveWorkspaceId);
-
-      // Do not block route readiness on dashboard snapshot hydration.
       if (!nextActiveWorkspaceId) {
         setDashboardSnapshot(null);
       }
+    }
+
+    if (shouldSkipBlockingBootstrap) {
+      setWorkspaces([]);
+      setActiveWorkspaceId(null);
+      setDashboardSnapshot(null);
+      setIsLoading(false);
+
+      // Resolve real workspace state in background to correct stale/no-workspace assumptions.
+      void listWorkspacesForUser(currentUser.uid)
+        .then((nextWorkspaces) => {
+          applyWorkspaceList(nextWorkspaces);
+        })
+        .catch(() => undefined);
+      return;
+    }
+
+    setIsLoading(true);
+    const loadingGuard =
+      typeof window === 'undefined'
+        ? null
+        : window.setTimeout(() => {
+            setIsLoading(false);
+          }, WORKSPACE_LOADING_GUARD_MS);
+
+    try {
+      const nextWorkspaces = await listWorkspacesForUser(currentUser.uid);
+      applyWorkspaceList(nextWorkspaces);
     } catch {
       // Keep previous state if remote fetch fails so the UI can continue.
       setWorkspaces((current) => current);
     } finally {
+      if (loadingGuard !== null) {
+        window.clearTimeout(loadingGuard);
+      }
       setIsLoading(false);
     }
   }
@@ -97,6 +181,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           throw new Error('Sign in before creating a workspace.');
         }
         const workspace = await createWorkspace(user.uid, user.email, input);
+        clearWorkspaceBootstrapHint(user.uid);
         setWorkspaces([workspace]);
         setActiveWorkspaceId(workspace.workspaceId);
         setDashboardSnapshot(null);

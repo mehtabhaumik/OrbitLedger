@@ -239,7 +239,7 @@ function WebLockOverlay({ onUnlock }: { onUnlock(pin: string): Promise<boolean> 
           This browser lock protects this workspace on this device. It does not change your cloud
           sign-in state.
         </p>
-        <label className="ol-field">
+        <label className={`ol-field${error ? ' is-invalid' : ''}`}>
           <span className="ol-field-label">4-digit PIN</span>
           <input
             autoFocus
@@ -262,7 +262,7 @@ function WebLockOverlay({ onUnlock }: { onUnlock(pin: string): Promise<boolean> 
             }}
           />
         </label>
-        {error ? <div className="ol-lock-error">{error}</div> : null}
+        {error ? <div className="ol-message ol-message--danger">{error}</div> : null}
         <button className="ol-button" disabled={isSubmitting} type="button" onClick={() => void submit()}>
           {isSubmitting ? 'Checking...' : 'Unlock'}
         </button>

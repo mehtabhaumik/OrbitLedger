@@ -91,6 +91,27 @@ export function parseWorkspaceBackup(raw: string): WebWorkspaceBackup {
     throw new Error('Backup file is missing required workspace data.');
   }
 
+  if (typeof backup.exported_at !== 'string' || Number.isNaN(Date.parse(backup.exported_at))) {
+    throw new Error('Backup exported timestamp is invalid.');
+  }
+
+  if (!backup.notes || backup.notes.browser_lock_included !== false) {
+    throw new Error('Backup security notes are invalid.');
+  }
+
+  for (const collectionName of COLLECTIONS) {
+    const collectionEntries = backup.entities[collectionName];
+    if (!Array.isArray(collectionEntries)) {
+      throw new Error(`Backup entity list for ${collectionName} is invalid.`);
+    }
+
+    for (const entry of collectionEntries) {
+      if (!entry || typeof entry !== 'object' || typeof entry.id !== 'string' || !entry.id.trim()) {
+        throw new Error(`Backup contains an invalid record in ${collectionName}.`);
+      }
+    }
+  }
+
   return backup as WebWorkspaceBackup;
 }
 
