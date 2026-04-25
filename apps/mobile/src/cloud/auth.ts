@@ -9,6 +9,7 @@ import {
   getAuth,
   initializeAuth,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -111,6 +112,10 @@ export async function registerForCloud(input: CloudRegistrationInput): Promise<O
     ...user,
     displayName: input.displayName?.trim() || user.displayName,
   };
+}
+
+export async function sendCloudPasswordReset(email: string): Promise<void> {
+  await sendPasswordResetEmail(getCloudAuth(), email.trim());
 }
 
 export async function signOutFromCloud(): Promise<void> {

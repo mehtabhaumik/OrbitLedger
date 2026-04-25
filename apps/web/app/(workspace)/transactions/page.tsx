@@ -1,6 +1,5 @@
 'use client';
 
-import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 
 import { AppShell } from '@/components/app-shell';
@@ -59,10 +58,23 @@ export default function TransactionsPage() {
 
   return (
     <AppShell title="Transactions" subtitle="Quick payment and credit entry with a clean audit trail.">
-      <section style={styles.panel}>
-        <div style={styles.header}>Fast entry</div>
-        <div style={styles.formRow}>
-          <select style={styles.input} value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+      <section className="ol-panel-dark">
+        <div className="ol-panel-header">
+          <div>
+            <div className="ol-panel-title">Fast entry</div>
+            <p className="ol-panel-copy" style={{ maxWidth: 620 }}>
+              Use the wider web layout to log payments and credits without losing context. This is
+              where the product should feel faster and more deliberate than a flat form sheet.
+            </p>
+          </div>
+          <div className="ol-chip-row">
+            <span className="ol-chip ol-chip--success">Payments</span>
+            <span className="ol-chip ol-chip--warning">Credits</span>
+          </div>
+        </div>
+
+        <div className="ol-form-row" style={{ gridTemplateColumns: '1.1fr 0.8fr 0.8fr 1.4fr auto' }}>
+          <select className="ol-select" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
             <option value="">Select customer</option>
             {customers.map((customer) => (
               <option key={customer.id} value={customer.id}>
@@ -70,34 +82,46 @@ export default function TransactionsPage() {
               </option>
             ))}
           </select>
-          <select style={styles.input} value={type} onChange={(event) => setType(event.target.value as 'credit' | 'payment')}>
+          <select className="ol-select" value={type} onChange={(event) => setType(event.target.value as 'credit' | 'payment')}>
             <option value="payment">Payment</option>
             <option value="credit">Credit</option>
           </select>
-          <input style={styles.input} inputMode="decimal" placeholder="Amount" value={amount} onChange={(event) => setAmount(event.target.value)} />
-          <input style={styles.input} placeholder="Note" value={note} onChange={(event) => setNote(event.target.value)} />
-          <button style={styles.button} type="button" onClick={() => void addTransaction()}>
+          <input className="ol-input ol-amount" inputMode="decimal" placeholder="Amount" value={amount} onChange={(event) => setAmount(event.target.value)} />
+          <input className="ol-input" placeholder="Note" value={note} onChange={(event) => setNote(event.target.value)} />
+          <button className="ol-button" type="button" onClick={() => void addTransaction()}>
             Save
           </button>
         </div>
       </section>
-      <section style={styles.list}>
+
+      <section className="ol-table">
+        <div className="ol-table-head" style={{ gridTemplateColumns: '0.7fr 1.4fr 0.7fr' }}>
+          <span>Type</span>
+          <span>Customer and note</span>
+          <span style={{ textAlign: 'right' }}>Amount</span>
+        </div>
         {transactions.map((transaction) => (
-          <div key={transaction.id} style={styles.row}>
-            <span style={{ color: transaction.type === 'payment' ? 'var(--success)' : 'var(--warning)', fontWeight: 800 }}>
+          <div className="ol-table-row" key={transaction.id} style={{ gridTemplateColumns: '0.7fr 1.4fr 0.7fr' }}>
+            <span className="ol-status-text" data-tone={transaction.type === 'payment' ? 'success' : 'warning'} style={{ fontWeight: 800 }}>
               {transaction.type === 'payment' ? 'Payment' : 'Credit'}
             </span>
             <span>
-              {transaction.customerName}
+              <strong>{transaction.customerName}</strong>
               <br />
-              <span style={styles.noteText}>{transaction.note || 'No note'}</span>
+              <span className="ol-muted" style={{ fontSize: 13 }}>
+                {transaction.note || 'No note'}
+              </span>
             </span>
-            <span style={{ textAlign: 'right', fontWeight: 800 }}>
+            <span className="ol-amount" style={{ textAlign: 'right', fontWeight: 800 }}>
               {formatCurrency(transaction.amount, activeWorkspace?.currency ?? 'INR')}
             </span>
           </div>
         ))}
-        {!transactions.length ? <div style={styles.empty}>No transactions yet. Add the first payment or credit entry.</div> : null}
+        {!transactions.length ? (
+          <div className="ol-empty">
+            No transactions yet. Add the first payment or credit entry.
+          </div>
+        ) : null}
       </section>
     </AppShell>
   );
@@ -110,61 +134,3 @@ function formatCurrency(value: number, currency: string) {
     maximumFractionDigits: 2,
   }).format(value);
 }
-
-const styles: Record<string, CSSProperties> = {
-  panel: {
-    background: '#fff',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    boxShadow: 'var(--shadow)',
-    padding: 20,
-    display: 'grid',
-    gap: 12,
-  },
-  header: {
-    fontSize: 18,
-    fontWeight: 900,
-  },
-  formRow: {
-    display: 'grid',
-    gridTemplateColumns: '1.1fr 0.8fr 0.8fr 1.4fr auto',
-    gap: 12,
-  },
-  input: {
-    minHeight: 44,
-    borderRadius: 8,
-    border: '1px solid var(--border)',
-    padding: '0 14px',
-  },
-  button: {
-    minHeight: 44,
-    borderRadius: 8,
-    border: 'none',
-    background: 'var(--primary)',
-    color: '#fff',
-    fontWeight: 800,
-    padding: '0 18px',
-  },
-  list: {
-    background: '#fff',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    boxShadow: 'var(--shadow)',
-  },
-  row: {
-    display: 'grid',
-    gridTemplateColumns: '0.7fr 1.4fr 0.7fr',
-    gap: 16,
-    alignItems: 'center',
-    padding: '16px 18px',
-    borderBottom: '1px solid var(--border)',
-  },
-  empty: {
-    padding: 24,
-    color: 'var(--text-muted)',
-  },
-  noteText: {
-    color: 'var(--text-muted)',
-    fontSize: 13,
-  },
-};

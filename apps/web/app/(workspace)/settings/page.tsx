@@ -1,9 +1,9 @@
 'use client';
 
-import type { CSSProperties } from 'react';
 import { useState } from 'react';
 
 import { AppShell } from '@/components/app-shell';
+import { INDIA_COUNTRY, INDIAN_STATES } from '@/lib/india';
 import { updateWorkspaceProfile } from '@/lib/workspaces';
 import { useWebLock } from '@/providers/web-lock-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -30,8 +30,8 @@ export default function SettingsPage() {
         phone: String(formData.get('phone') ?? ''),
         email: String(formData.get('email') ?? ''),
         address: String(formData.get('address') ?? ''),
-        currency: String(formData.get('currency') ?? 'INR'),
-        countryCode: String(formData.get('countryCode') ?? 'IN'),
+        currency: INDIA_COUNTRY.currency,
+        countryCode: INDIA_COUNTRY.code,
         stateCode: String(formData.get('stateCode') ?? ''),
       });
       await refresh();
@@ -63,51 +63,94 @@ export default function SettingsPage() {
 
   return (
     <AppShell title="Settings" subtitle="Workspace profile, sync truth, and business identity.">
-      <form action={saveWorkspaceProfile} style={styles.form}>
-        <div style={styles.grid}>
-          <Field name="businessName" label="Business name" defaultValue={workspace.businessName} />
-          <Field name="ownerName" label="Owner name" defaultValue={workspace.ownerName} />
-          <Field name="phone" label="Phone" defaultValue={workspace.phone} />
-          <Field name="email" label="Email" defaultValue={workspace.email} />
-          <Field name="address" label="Address" defaultValue={workspace.address} />
-          <div style={styles.row}>
-            <Field name="currency" label="Currency" defaultValue={workspace.currency} />
-            <Field name="countryCode" label="Country" defaultValue={workspace.countryCode} />
-            <Field name="stateCode" label="State" defaultValue={workspace.stateCode} />
+      <form action={saveWorkspaceProfile} className="ol-panel-glass">
+        <div className="ol-panel-header">
+          <div>
+            <div className="ol-panel-title">Workspace profile</div>
+            <p className="ol-panel-copy">
+              Keep the business identity coherent across invoices, reports, settings, and backup
+              naming.
+            </p>
           </div>
         </div>
-        <button style={styles.button} disabled={isSaving} type="submit">
-          {isSaving ? 'Saving...' : 'Save workspace profile'}
-        </button>
+
+        <div className="ol-form-grid">
+          <div className="ol-form-row ol-form-row--3">
+            <Field name="businessName" label="Business name" defaultValue={workspace.businessName} />
+            <Field name="ownerName" label="Owner name" defaultValue={workspace.ownerName} />
+            <Field name="phone" label="Phone" defaultValue={workspace.phone} />
+          </div>
+          <div className="ol-form-row ol-form-row--3">
+            <Field name="email" label="Email" defaultValue={workspace.email} />
+            <Field name="address" label="Address" defaultValue={workspace.address} />
+            <label className="ol-field">
+              <span className="ol-field-label">Country</span>
+              <select className="ol-select" defaultValue={INDIA_COUNTRY.code} disabled name="countryCode">
+                <option value={INDIA_COUNTRY.code}>{INDIA_COUNTRY.name}</option>
+              </select>
+            </label>
+          </div>
+          <div className="ol-form-row ol-form-row--3">
+            <label className="ol-field">
+              <span className="ol-field-label">Currency</span>
+              <select className="ol-select" defaultValue={INDIA_COUNTRY.currency} disabled name="currency">
+                <option value={INDIA_COUNTRY.currency}>{INDIA_COUNTRY.currency}</option>
+              </select>
+            </label>
+            <label className="ol-field">
+              <span className="ol-field-label">State</span>
+              <select className="ol-select" defaultValue={workspace.stateCode} name="stateCode">
+                {INDIAN_STATES.map((state) => (
+                  <option key={state.code} value={state.code}>
+                    {state.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div className="ol-actions">
+          <button className="ol-button" disabled={isSaving} type="submit">
+            {isSaving ? 'Saving...' : 'Save workspace profile'}
+          </button>
+        </div>
       </form>
-      <section style={styles.note}>
+
+      <section className="ol-note">
         <strong>Trust note</strong>
         <span>
           Web uses a signed-in workspace. Local mobile-only businesses must be linked from the
           mobile app before they can appear here.
         </span>
       </section>
-      <section style={styles.form}>
-        <div style={styles.titleRow}>
-          <strong>Browser lock</strong>
-          <span style={styles.pill}>{isEnabled ? 'On for this browser' : 'Off'}</span>
+
+      <section className="ol-panel">
+        <div className="ol-panel-header">
+          <div>
+            <div className="ol-panel-title">Browser lock</div>
+            <p className="ol-panel-copy">
+              This is a browser-local PIN lock. It is not your cloud password and it is not
+              included in workspace backups.
+            </p>
+          </div>
+          <span className={`ol-chip ${isEnabled ? 'ol-chip--premium' : 'ol-chip--warning'}`}>
+            {isEnabled ? 'On for this browser' : 'Off'}
+          </span>
         </div>
-        <p style={styles.noteCopy}>
-          This is a browser-local PIN lock. It is not your cloud password and it is not included in
-          workspace backups.
-        </p>
-        <div style={styles.lockRow}>
+
+        <div className="ol-form-row" style={{ gridTemplateColumns: '0.9fr 0.9fr auto' }}>
           <input
+            className="ol-input"
             inputMode="numeric"
             maxLength={4}
             placeholder="4-digit PIN"
-            style={styles.input}
             type="password"
             value={pinInput}
             onChange={(event) => setPinInput(event.target.value.replace(/\D/g, '').slice(0, 4))}
           />
           <select
-            style={styles.input}
+            className="ol-select"
             value={String(timeoutMs)}
             onChange={(event) => void setTimeoutMs(Number(event.target.value))}
           >
@@ -116,16 +159,17 @@ export default function SettingsPage() {
             <option value={String(15 * 60_000)}>15 minutes</option>
           </select>
           {!isEnabled ? (
-            <button style={styles.button} type="button" onClick={() => void enableBrowserLock()}>
+            <button className="ol-button" type="button" onClick={() => void enableBrowserLock()}>
               Turn On Lock
             </button>
           ) : (
-            <button style={styles.secondaryButton} type="button" onClick={() => void disableBrowserLock()}>
+            <button className="ol-button-secondary" type="button" onClick={() => void disableBrowserLock()}>
               Turn Off Lock
             </button>
           )}
         </div>
-        {lockMessage ? <span style={styles.helpText}>{lockMessage}</span> : null}
+
+        {lockMessage ? <div className="ol-message">{lockMessage}</div> : null}
       </section>
     </AppShell>
   );
@@ -141,99 +185,9 @@ function Field({
   name: string;
 }) {
   return (
-    <label style={styles.field}>
-      <span style={styles.label}>{label}</span>
-      <input defaultValue={defaultValue} name={name} style={styles.input} />
+    <label className="ol-field">
+      <span className="ol-field-label">{label}</span>
+      <input className="ol-input" defaultValue={defaultValue} name={name} />
     </label>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  form: {
-    background: '#fff',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    boxShadow: 'var(--shadow)',
-    padding: 20,
-    display: 'grid',
-    gap: 16,
-  },
-  grid: {
-    display: 'grid',
-    gap: 14,
-  },
-  row: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-    gap: 12,
-  },
-  field: {
-    display: 'grid',
-    gap: 8,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: 700,
-  },
-  input: {
-    minHeight: 46,
-    borderRadius: 8,
-    border: '1px solid var(--border)',
-    padding: '0 14px',
-  },
-  button: {
-    minHeight: 48,
-    borderRadius: 8,
-    border: 'none',
-    background: 'var(--primary)',
-    color: '#fff',
-    fontWeight: 800,
-  },
-  secondaryButton: {
-    minHeight: 48,
-    borderRadius: 8,
-    border: '1px solid var(--border)',
-    background: '#fff',
-    color: 'var(--text)',
-    fontWeight: 800,
-    padding: '0 18px',
-  },
-  note: {
-    display: 'grid',
-    gap: 6,
-    background: 'var(--warning-surface)',
-    border: '1px solid #f0d7a7',
-    borderRadius: 8,
-    padding: 18,
-    color: 'var(--text)',
-  },
-  titleRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  pill: {
-    padding: '8px 10px',
-    borderRadius: 999,
-    background: 'var(--premium-surface)',
-    color: 'var(--premium)',
-    fontSize: 12,
-    fontWeight: 800,
-  },
-  noteCopy: {
-    margin: 0,
-    color: 'var(--text-muted)',
-    lineHeight: 1.6,
-  },
-  lockRow: {
-    display: 'grid',
-    gridTemplateColumns: '0.9fr 0.9fr auto',
-    gap: 12,
-  },
-  helpText: {
-    color: 'var(--text-muted)',
-    fontSize: 13,
-    fontWeight: 700,
-  },
-};

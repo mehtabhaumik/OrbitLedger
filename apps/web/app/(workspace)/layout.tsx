@@ -1,10 +1,11 @@
 'use client';
 
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 import { WorkspaceSetupCard } from '@/components/workspace-setup-card';
+import { WorkspaceLoadingScreen } from '@/components/workspace-loading-screen';
 import { useAuth } from '@/providers/auth-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
@@ -21,7 +22,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   }, [authLoading, pathname, router, user]);
 
   if (authLoading || workspaceLoading) {
-    return <div style={styles.center}>Preparing workspace...</div>;
+    return <WorkspaceLoadingScreen />;
   }
 
   if (!user) {
@@ -30,20 +31,11 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
 
   if (!activeWorkspace) {
     return (
-      <div style={styles.center}>
+      <main className="ol-onboarding-page">
         <WorkspaceSetupCard />
-      </div>
+      </main>
     );
   }
 
   return children;
 }
-
-const styles: Record<string, CSSProperties> = {
-  center: {
-    minHeight: '100vh',
-    display: 'grid',
-    placeItems: 'center',
-    padding: 24,
-  },
-};

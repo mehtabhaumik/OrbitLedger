@@ -1,6 +1,7 @@
 export {
   getCurrentCloudUser,
   registerForCloud,
+  sendCloudPasswordReset,
   signInToCloud,
   signOutFromCloud,
   subscribeToCloudAuth,

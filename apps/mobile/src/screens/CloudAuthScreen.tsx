@@ -6,7 +6,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
 
-import { registerForCloud, signInToCloud } from '../cloud';
+import { registerForCloud, sendCloudPasswordReset, signInToCloud } from '../cloud';
 import { Card } from '../components/Card';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -34,10 +34,13 @@ type CloudAuthScreenProps = NativeStackScreenProps<RootStackParamList, 'CloudAut
 export function CloudAuthScreen({ navigation, route }: CloudAuthScreenProps) {
   const [mode, setMode] = useState<'sign_in' | 'register'>('sign_in');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
   const {
     control: signInControl,
     formState: { errors: signInErrors, touchedFields: signInTouched, isSubmitted: signInSubmitted },
+    getValues: getSignInValues,
     handleSubmit: handleSignInSubmit,
+    trigger: triggerSignIn,
   } = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
     defaultValues: { email: '', password: '' },
@@ -112,6 +115,27 @@ export function CloudAuthScreen({ navigation, route }: CloudAuthScreenProps) {
       Alert.alert('Account could not be created', getAuthErrorMessage(error));
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handlePasswordReset() {
+    const emailIsValid = await triggerSignIn('email');
+    if (!emailIsValid) {
+      return;
+    }
+
+    setIsSendingReset(true);
+    try {
+      const email = getSignInValues('email').trim();
+      await sendCloudPasswordReset(email);
+      Alert.alert(
+        'Reset email sent',
+        `If ${email} is linked to Orbit Ledger cloud sync, a password reset link has been sent.`
+      );
+    } catch (error) {
+      Alert.alert('Reset email could not be sent', getAuthErrorMessage(error));
+    } finally {
+      setIsSendingReset(false);
     }
   }
 
@@ -201,6 +225,14 @@ export function CloudAuthScreen({ navigation, route }: CloudAuthScreenProps) {
                   />
                 )}
               />
+              <PrimaryButton
+                disabled={isSubmitting}
+                loading={isSendingReset}
+                onPress={() => void handlePasswordReset()}
+                variant="ghost"
+              >
+                Reset Password
+              </PrimaryButton>
               <PrimaryButton loading={isSubmitting} onPress={handleSignInSubmit(submitSignIn)}>
                 Sign In
               </PrimaryButton>
@@ -308,11 +340,20 @@ function getAuthErrorMessage(error: unknown): string {
   if (raw.includes('auth/invalid-credential')) {
     return 'The email or password is not correct.';
   }
+  if (raw.includes('auth/invalid-email')) {
+    return 'Enter a valid email address.';
+  }
   if (raw.includes('auth/email-already-in-use')) {
     return 'This email is already linked to an account.';
   }
   if (raw.includes('auth/weak-password')) {
     return 'Use a stronger password with at least 8 characters.';
+  }
+  if (raw.includes('auth/user-not-found')) {
+    return 'No account was found for that email address.';
+  }
+  if (raw.includes('auth/too-many-requests')) {
+    return 'Too many attempts were made. Wait a moment and try again.';
   }
   if (raw.includes('auth/network-request-failed')) {
     return 'A network connection is required to reach cloud sync right now.';

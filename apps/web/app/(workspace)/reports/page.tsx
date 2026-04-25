@@ -1,6 +1,5 @@
 'use client';
 
-import type { CSSProperties } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { WorkspaceStatusCards } from '@/components/workspace-status-cards';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -26,12 +25,44 @@ export default function ReportsPage() {
           },
         ]}
       />
-      <section style={styles.panel}>
-        <div style={styles.title}>Monthly business review</div>
-        <p style={styles.copy}>
-          Monthly reviews, compliance summaries, and aging reports belong here in the web shell
-          because they are easier to compare on a wider canvas.
-        </p>
+
+      <section className="ol-page-grid ol-page-grid--2">
+        <article className="ol-panel-glass">
+          <div className="ol-panel-title" style={{ marginBottom: 12 }}>
+            Monthly business review
+          </div>
+          <p className="ol-panel-copy">
+            Monthly reviews, compliance summaries, and aging reports belong here because the wider
+            canvas makes them easier to compare than a stacked mobile screen.
+          </p>
+        </article>
+        <article className="ol-panel">
+          <div className="ol-panel-title" style={{ marginBottom: 12 }}>
+            Report direction
+          </div>
+          <div className="ol-list">
+            <div className="ol-list-item">
+              <div className="ol-list-icon">M</div>
+              <div className="ol-list-copy">
+                <div className="ol-list-title">Month-end review</div>
+                <div className="ol-list-text">
+                  Surface business movement, payment quality, and follow-up work without crowding
+                  the interface.
+                </div>
+              </div>
+            </div>
+            <div className="ol-list-item">
+              <div className="ol-list-icon">C</div>
+              <div className="ol-list-copy">
+                <div className="ol-list-title">Compliance-friendly summaries</div>
+                <div className="ol-list-text">
+                  Keep report structure calm and export-friendly so it feels closer to operations
+                  software than a decorative dashboard.
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
       </section>
     </AppShell>
   );
@@ -44,24 +75,3 @@ function formatCurrency(value: number, currency: string) {
     maximumFractionDigits: 2,
   }).format(value);
 }
-
-const styles: Record<string, CSSProperties> = {
-  panel: {
-    background: '#fff',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    boxShadow: 'var(--shadow)',
-    padding: 20,
-    display: 'grid',
-    gap: 10,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 900,
-  },
-  copy: {
-    margin: 0,
-    color: 'var(--text-muted)',
-    lineHeight: 1.6,
-  },
-};

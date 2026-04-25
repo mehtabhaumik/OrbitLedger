@@ -9,6 +9,15 @@ import { WorkspaceProvider } from './workspace-provider';
 
 export function WebAppProviders({ children }: { children: ReactNode }) {
   useEffect(() => {
+    if (process.env.NODE_ENV !== 'production' && 'serviceWorker' in navigator) {
+      void navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          void registration.unregister();
+        });
+      });
+      return;
+    }
+
     if ('serviceWorker' in navigator) {
       void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
     }

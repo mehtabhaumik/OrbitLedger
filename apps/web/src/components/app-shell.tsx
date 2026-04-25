@@ -1,12 +1,11 @@
 'use client';
 
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
-import { webFoundation } from '@orbit-ledger/ui';
 import { useAuth } from '@/providers/auth-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
@@ -34,15 +33,13 @@ export function AppShell({
   const { user, signOutUser } = useAuth();
   const { activeWorkspace, workspaces, selectWorkspace } = useWorkspace();
   const [isOnline, setIsOnline] = useState(true);
-  const syncBadge = useMemo(
-    () => {
-      if (!activeWorkspace) {
-        return 'No workspace';
-      }
-      return isOnline ? 'Cloud workspace' : 'Offline cache';
-    },
-    [activeWorkspace, isOnline]
-  );
+  const syncBadge = useMemo(() => {
+    if (!activeWorkspace) {
+      return 'No workspace';
+    }
+
+    return isOnline ? 'Cloud workspace' : 'Offline cache';
+  }, [activeWorkspace, isOnline]);
 
   useEffect(() => {
     function updateOnlineState() {
@@ -60,52 +57,75 @@ export function AppShell({
   }, []);
 
   return (
-    <div style={styles.shell}>
-      <aside style={styles.sidebar}>
-        <div style={styles.logoRow}>
-          <img
-            alt="Orbit Ledger"
-            src="/branding/orbit-ledger-logo-transparent.png"
-            style={{ height: '1.6rem', width: 'auto' }}
-          />
+    <div className="ol-app-shell">
+      <aside className="ol-sidebar">
+        <div className="ol-sidebar-brand">
+          <div className="ol-sidebar-brand-mark">
+            <img
+              alt="Orbit Ledger"
+              src="/branding/orbit-ledger-logo-transparent.png"
+              style={{ height: '1.6rem', width: 'auto' }}
+            />
+          </div>
+          <span className="ol-sidebar-badge">SaaS</span>
         </div>
-        <nav style={styles.nav}>
-          {navItems.map((item) => {
-            const active = pathname === item.href;
-            return (
-              <Link
-                href={item.href}
-                key={item.href}
-                style={{
-                  ...styles.navLink,
-                  ...(active ? styles.navLinkActive : null),
-                }}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-        <div style={styles.sidebarFooter}>
-          <div style={styles.sidebarBadge}>{syncBadge}</div>
-          <Link href="/settings" style={styles.sidebarFooterLink}>
+
+        <div className="ol-sidebar-group">
+          <div className="ol-sidebar-group-label">Status</div>
+          <div className="ol-chip-row">
+            <span className={`ol-chip ${isOnline ? 'ol-chip--success' : 'ol-chip--warning'}`}>
+              <span className="ol-dot" />
+              {syncBadge}
+            </span>
+          </div>
+        </div>
+
+        <div className="ol-sidebar-group">
+          <div className="ol-sidebar-group-label">Navigation</div>
+          <nav className="ol-nav">
+            {navItems.map((item) => {
+              const active = pathname === item.href;
+              return (
+                <Link
+                  href={item.href}
+                  key={item.href}
+                  className={`ol-nav-link${active ? ' is-active' : ''}`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        <div className="ol-sidebar-footer">
+          <Link href="/settings" className="ol-nav-link">
             Business settings
           </Link>
+
+          <div className="ol-panel-glass" style={{ padding: 16, display: 'grid', gap: 8 }}>
+            <strong style={{ fontSize: 14 }}>Workspace design</strong>
+            <span className="ol-muted" style={{ lineHeight: 1.6, fontSize: 13 }}>
+              This shell keeps business actions, documents, backup trust, and sync state visible
+              without making the product feel cluttered.
+            </span>
+          </div>
         </div>
       </aside>
 
-      <div style={styles.workspace}>
-        <header style={styles.topbar}>
+      <div className="ol-workspace-shell">
+        <header className="ol-topbar">
           <div>
-            <div style={styles.pageTitle}>{title}</div>
-            <div style={styles.pageSubtitle}>{subtitle}</div>
+            <div className="ol-topbar-title">{title}</div>
+            <div className="ol-topbar-subtitle">{subtitle}</div>
           </div>
-          <div style={styles.topbarActions}>
+          <div className="ol-topbar-actions">
             {workspaces.length > 0 ? (
               <select
                 onChange={(event) => selectWorkspace(event.target.value)}
-                style={styles.workspaceSelect}
+                className="ol-select"
                 value={activeWorkspace?.workspaceId ?? ''}
+                style={{ minWidth: 240 }}
               >
                 {workspaces.map((workspace) => (
                   <option key={workspace.workspaceId} value={workspace.workspaceId}>
@@ -114,140 +134,22 @@ export function AppShell({
                 ))}
               </select>
             ) : null}
-            <div style={styles.userBadge}>
+            <span className="ol-chip ol-chip--primary">
               {user?.displayName || user?.email || 'Signed-in owner'}
-            </div>
+            </span>
             <button
               onClick={() => {
                 void signOutUser().then(() => router.replace('/login'));
               }}
-              style={styles.secondaryButton}
+              className="ol-button-secondary"
               type="button"
             >
               Sign out
             </button>
           </div>
         </header>
-        <main style={styles.main}>{children}</main>
+        <main className="ol-page-content">{children}</main>
       </div>
     </div>
   );
 }
-
-const foundation = webFoundation;
-
-const styles: Record<string, CSSProperties> = {
-  shell: {
-    minHeight: '100vh',
-    display: 'grid',
-    gridTemplateColumns: `${foundation.shell.sidebarWidth}px minmax(0, 1fr)`,
-    background: foundation.surface.app,
-  },
-  sidebar: {
-    background: foundation.surface.sidebar,
-    borderRight: `1px solid ${foundation.surface.divider}`,
-    padding: '28px 20px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 24,
-  },
-  logoRow: {
-    minHeight: 42,
-    display: 'flex',
-    alignItems: 'center',
-  },
-  nav: {
-    display: 'grid',
-    gap: 10,
-  },
-  navLink: {
-    padding: '12px 14px',
-    borderRadius: 8,
-    color: 'var(--text-muted)',
-    fontWeight: 700,
-  },
-  navLinkActive: {
-    background: 'var(--primary-surface)',
-    color: 'var(--primary)',
-  },
-  sidebarFooter: {
-    marginTop: 'auto',
-    display: 'grid',
-    gap: 10,
-  },
-  sidebarBadge: {
-    alignSelf: 'flex-start',
-    padding: '8px 10px',
-    borderRadius: 999,
-    background: 'var(--premium-surface)',
-    color: 'var(--premium)',
-    fontSize: 12,
-    fontWeight: 800,
-  },
-  sidebarFooterLink: {
-    color: 'var(--text-muted)',
-    fontSize: 14,
-    fontWeight: 700,
-  },
-  workspace: {
-    minWidth: 0,
-    display: 'grid',
-    gridTemplateRows: `${foundation.shell.topbarHeight}px minmax(0, 1fr)`,
-  },
-  topbar: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '0 28px',
-    background: 'rgba(255,255,255,0.84)',
-    borderBottom: `1px solid ${foundation.surface.glassBorder}`,
-    backdropFilter: 'blur(18px)',
-    WebkitBackdropFilter: 'blur(18px)',
-    position: 'sticky',
-    top: 0,
-    zIndex: 20,
-  },
-  pageTitle: {
-    fontSize: foundation.typography.pageTitle,
-    fontWeight: 900,
-  },
-  pageSubtitle: {
-    fontSize: foundation.typography.pageSubtitle,
-    color: 'var(--text-muted)',
-  },
-  topbarActions: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-  },
-  workspaceSelect: {
-    minHeight: 42,
-    borderRadius: 8,
-    border: '1px solid var(--border)',
-    background: '#fff',
-    padding: '0 12px',
-  },
-  userBadge: {
-    padding: '10px 12px',
-    borderRadius: 999,
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    color: 'var(--text)',
-    fontSize: 13,
-    fontWeight: 700,
-  },
-  secondaryButton: {
-    minHeight: 42,
-    borderRadius: 8,
-    border: '1px solid var(--border)',
-    background: '#fff',
-    padding: '0 14px',
-    color: 'var(--text)',
-    fontWeight: 700,
-  },
-  main: {
-    padding: '28px',
-    display: 'grid',
-    gap: 24,
-  },
-};

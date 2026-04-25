@@ -5,8 +5,8 @@ import { colors, layout, shadows, spacing, touch, typography } from '../theme/th
 
 const headerIcon = require('../../assets/branding/orbit-ledger-logo-transparent.png');
 const logoSize = Platform.select({
-  web: { width: 84, height: 26 },
-  default: { width: 76, height: 24 },
+  web: { width: 196, height: 26 },
+  default: { width: 148, height: 14 },
 });
 
 type ScreenHeaderProps = {

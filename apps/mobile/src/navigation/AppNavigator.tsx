@@ -385,13 +385,13 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   splashBrand: {
-    width: 260,
-    height: 81,
+    width: 340,
+    height: 32,
     marginBottom: spacing.sm,
   },
   routeBrand: {
-    width: 200,
-    height: 62,
+    width: 250,
+    height: 24,
     marginBottom: spacing.xs,
   },
   title: {

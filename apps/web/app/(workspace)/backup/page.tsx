@@ -1,6 +1,5 @@
 'use client';
 
-import type { CSSProperties } from 'react';
 import { useRef, useState } from 'react';
 
 import { AppShell } from '@/components/app-shell';
@@ -82,27 +81,33 @@ export default function BackupPage() {
 
   return (
     <AppShell title="Backup" subtitle="Export a cloud workspace copy or restore a reviewed backup into the current workspace.">
-      <section style={styles.grid}>
-        <article style={styles.panel}>
-          <div style={styles.title}>Export workspace backup</div>
-          <p style={styles.copy}>
+      <section className="ol-page-grid ol-page-grid--2">
+        <article className="ol-panel-dark">
+          <div className="ol-panel-title" style={{ marginBottom: 12 }}>
+            Export workspace backup
+          </div>
+          <p className="ol-panel-copy">
             Export a JSON copy of the current cloud workspace. Browser-local PIN settings are not
-            included.
+            included, and that limitation should stay explicit.
           </p>
-          <button style={styles.button} disabled={isExporting} type="button" onClick={() => void handleExport()}>
-            {isExporting ? 'Exporting...' : 'Export Backup'}
-          </button>
+          <div className="ol-actions">
+            <button className="ol-button" disabled={isExporting} type="button" onClick={() => void handleExport()}>
+              {isExporting ? 'Exporting...' : 'Export Backup'}
+            </button>
+          </div>
         </article>
 
-        <article style={styles.panel}>
-          <div style={styles.title}>Restore reviewed backup</div>
-          <p style={styles.copy}>
+        <article className="ol-panel-glass">
+          <div className="ol-panel-title" style={{ marginBottom: 12 }}>
+            Restore reviewed backup
+          </div>
+          <p className="ol-panel-copy">
             Restoring replaces the current workspace records in cloud storage. Review the backup
             first before confirming.
           </p>
-          <div style={styles.row}>
-            <button style={styles.secondaryButton} type="button" onClick={() => fileInputRef.current?.click()}>
-              Choose Backup File
+          <div className="ol-actions">
+            <button className="ol-button-secondary" type="button" onClick={() => fileInputRef.current?.click()}>
+              Choose backup file
             </button>
             <input
               hidden
@@ -112,7 +117,7 @@ export default function BackupPage() {
               onChange={(event) => void handleFilePicked(event.target.files?.[0] ?? null)}
             />
             <button
-              style={styles.button}
+              className="ol-button"
               disabled={!preview || isRestoring}
               type="button"
               onClick={() => void handleRestore()}
@@ -124,118 +129,34 @@ export default function BackupPage() {
       </section>
 
       {preview ? (
-        <section style={styles.preview}>
-          <div style={styles.title}>Backup preview</div>
-          <div style={styles.previewGrid}>
-            <PreviewMetric label="Customers" value={preview.entities.customers.length} />
-            <PreviewMetric label="Transactions" value={preview.entities.transactions.length} />
-            <PreviewMetric label="Products" value={preview.entities.products.length} />
-            <PreviewMetric label="Invoices" value={preview.entities.invoices.length} />
-            <PreviewMetric label="Invoice items" value={preview.entities.invoice_items.length} />
+        <section className="ol-panel">
+          <div className="ol-panel-title" style={{ marginBottom: 14 }}>
+            Backup preview
           </div>
-          <p style={styles.copy}>
+          <div className="ol-metric-grid">
+            <MetricCard label="Customers" value={preview.entities.customers.length} />
+            <MetricCard label="Transactions" value={preview.entities.transactions.length} />
+            <MetricCard label="Products" value={preview.entities.products.length} />
+            <MetricCard label="Invoices" value={preview.entities.invoices.length} />
+            <MetricCard label="Invoice items" value={preview.entities.invoice_items.length} />
+          </div>
+          <p className="ol-panel-copy">
             Exported at {new Date(preview.exported_at).toLocaleString()}.
           </p>
         </section>
       ) : null}
 
-      {message ? <div style={styles.message}>{message}</div> : null}
+      {message ? <div className={`ol-message${message.includes('could not') ? ' ol-message--danger' : ''}`}>{message}</div> : null}
     </AppShell>
   );
 }
 
-function PreviewMetric({ label, value }: { label: string; value: number }) {
+function MetricCard({ label, value }: { label: string; value: number }) {
   return (
-    <div style={styles.metric}>
-      <strong style={styles.metricValue}>{value}</strong>
-      <span style={styles.metricLabel}>{label}</span>
-    </div>
+    <article className="ol-metric-card" data-tone="primary" style={{ minHeight: 128 }}>
+      <div className="ol-metric-label">{label}</div>
+      <div className="ol-metric-value">{value}</div>
+      <div className="ol-metric-helper">Included in this backup preview.</div>
+    </article>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-    gap: 16,
-  },
-  panel: {
-    background: '#fff',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    boxShadow: 'var(--shadow)',
-    padding: 20,
-    display: 'grid',
-    gap: 12,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 900,
-  },
-  copy: {
-    margin: 0,
-    color: 'var(--text-muted)',
-    lineHeight: 1.6,
-  },
-  row: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  button: {
-    minHeight: 44,
-    borderRadius: 8,
-    border: 'none',
-    background: 'var(--primary)',
-    color: '#fff',
-    fontWeight: 800,
-    padding: '0 18px',
-  },
-  secondaryButton: {
-    minHeight: 44,
-    borderRadius: 8,
-    border: '1px solid var(--border)',
-    background: '#fff',
-    color: 'var(--text)',
-    fontWeight: 800,
-    padding: '0 18px',
-  },
-  preview: {
-    background: '#fff',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    boxShadow: 'var(--shadow)',
-    padding: 20,
-    display: 'grid',
-    gap: 14,
-  },
-  previewGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-    gap: 12,
-  },
-  metric: {
-    borderRadius: 8,
-    border: '1px solid var(--border)',
-    padding: 16,
-    display: 'grid',
-    gap: 6,
-    background: '#f9fbfe',
-  },
-  metricValue: {
-    fontSize: 22,
-    color: 'var(--text)',
-  },
-  metricLabel: {
-    color: 'var(--text-muted)',
-    fontSize: 13,
-    fontWeight: 700,
-  },
-  message: {
-    padding: 16,
-    borderRadius: 8,
-    background: 'var(--primary-surface)',
-    color: 'var(--text)',
-    fontWeight: 700,
-  },
-};

@@ -1,6 +1,5 @@
 'use client';
 
-import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 
 import { AppShell } from '@/components/app-shell';
@@ -33,28 +32,71 @@ export default function InvoicesPage() {
 
   return (
     <AppShell title="Invoices" subtitle="Document-focused invoice workspace with clean draft control.">
-      <section style={styles.panel}>
-        <div style={styles.headerRow}>
-          <div>
-            <div style={styles.header}>Invoice workspace</div>
-            <div style={styles.copy}>Drafts created here can later be completed with itemized details and shared as PDFs.</div>
+      <section className="ol-split-grid">
+        <article className="ol-panel-dark">
+          <div className="ol-panel-header">
+            <div>
+              <div className="ol-panel-title">Invoice workspace</div>
+              <p className="ol-panel-copy" style={{ maxWidth: 560 }}>
+                Drafts created here can later be completed with itemized details and shared as PDFs.
+                The layout leans into a more desktop document workflow than the mobile app.
+              </p>
+            </div>
+            <button className="ol-button" type="button" onClick={() => void addDraftInvoice()}>
+              Create draft
+            </button>
           </div>
-          <button style={styles.button} type="button" onClick={() => void addDraftInvoice()}>
-            Create draft
-          </button>
-        </div>
+        </article>
+
+        <article className="ol-panel-glass">
+          <div className="ol-panel-title" style={{ marginBottom: 12 }}>
+            Why web invoices feel different
+          </div>
+          <div className="ol-list">
+            <div className="ol-list-item">
+              <div className="ol-list-icon">P</div>
+              <div className="ol-list-copy">
+                <div className="ol-list-title">Preview-first flow</div>
+                <div className="ol-list-text">
+                  The wide shell is better suited for long item tables, PDF review, and export
+                  controls than a single mobile column.
+                </div>
+              </div>
+            </div>
+            <div className="ol-list-item">
+              <div className="ol-list-icon">B</div>
+              <div className="ol-list-copy">
+                <div className="ol-list-title">Brand and trust</div>
+                <div className="ol-list-text">
+                  Consistent business identity matters more on document surfaces than almost any
+                  other page in the product.
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
       </section>
-      <section style={styles.list}>
+
+      <section className="ol-table">
+        <div className="ol-table-head" style={{ gridTemplateColumns: '1fr 0.6fr 0.8fr' }}>
+          <span>Invoice</span>
+          <span>Status</span>
+          <span style={{ textAlign: 'right' }}>Total</span>
+        </div>
         {invoices.map((invoice) => (
-          <div key={invoice.id} style={styles.row}>
+          <div className="ol-table-row" key={invoice.id} style={{ gridTemplateColumns: '1fr 0.6fr 0.8fr' }}>
             <span style={{ fontWeight: 800 }}>{invoice.invoiceNumber}</span>
             <span>{invoice.status}</span>
-            <span style={{ textAlign: 'right', fontWeight: 800 }}>
+            <span className="ol-amount" style={{ textAlign: 'right', fontWeight: 800 }}>
               {formatCurrency(invoice.totalAmount, activeWorkspace?.currency ?? 'INR')}
             </span>
           </div>
         ))}
-        {!invoices.length ? <div style={styles.empty}>No invoices yet. Create the first draft to start the document flow.</div> : null}
+        {!invoices.length ? (
+          <div className="ol-empty">
+            No invoices yet. Create the first draft to start the document flow.
+          </div>
+        ) : null}
       </section>
     </AppShell>
   );
@@ -67,54 +109,3 @@ function formatCurrency(value: number, currency: string) {
     maximumFractionDigits: 2,
   }).format(value);
 }
-
-const styles: Record<string, CSSProperties> = {
-  panel: {
-    background: '#fff',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    boxShadow: 'var(--shadow)',
-    padding: 20,
-  },
-  headerRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 16,
-  },
-  header: {
-    fontSize: 18,
-    fontWeight: 900,
-  },
-  copy: {
-    color: 'var(--text-muted)',
-    lineHeight: 1.6,
-  },
-  button: {
-    minHeight: 44,
-    borderRadius: 8,
-    border: 'none',
-    background: 'var(--primary)',
-    color: '#fff',
-    fontWeight: 800,
-    padding: '0 18px',
-  },
-  list: {
-    background: '#fff',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    boxShadow: 'var(--shadow)',
-  },
-  row: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 0.6fr 0.8fr',
-    gap: 16,
-    alignItems: 'center',
-    padding: '16px 18px',
-    borderBottom: '1px solid var(--border)',
-  },
-  empty: {
-    padding: 24,
-    color: 'var(--text-muted)',
-  },
-};

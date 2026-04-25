@@ -8,6 +8,15 @@ export const metadata: Metadata = {
   title: 'Orbit Ledger',
   description: 'Offline-aware business ledger workspace for invoices, receivables, and reports.',
   applicationName: 'Orbit Ledger',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icons/favicon-32.png', type: 'image/png', sizes: '32x32' },
+      { url: '/icons/favicon-16.png', type: 'image/png', sizes: '16x16' },
+    ],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    shortcut: ['/favicon.ico'],
+  },
 };
 
 export const viewport: Viewport = {

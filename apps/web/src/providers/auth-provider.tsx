@@ -2,10 +2,14 @@
 
 import type { User } from 'firebase/auth';
 import {
+  browserPopupRedirectResolver,
   createUserWithEmailAndPassword,
+  getRedirectResult,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   updateProfile,
 } from 'firebase/auth';
@@ -19,6 +23,7 @@ type AuthContextValue = {
   isLoading: boolean;
   signIn(email: string, password: string): Promise<void>;
   register(name: string, email: string, password: string): Promise<void>;
+  sendPasswordReset(email: string): Promise<void>;
   signInWithGoogle(): Promise<void>;
   signOutUser(): Promise<void>;
 };
@@ -30,10 +35,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    return onAuthStateChanged(getWebAuth(), (nextUser) => {
+    let isMounted = true;
+    const auth = getWebAuth();
+
+    void getRedirectResult(auth).catch(() => undefined);
+
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+      if (!isMounted) {
+        return;
+      }
+
       setUser(nextUser);
       setIsLoading(false);
     });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   const value = useMemo<AuthContextValue>(
@@ -49,8 +68,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await updateProfile(result.user, { displayName: name.trim() });
         }
       },
+      async sendPasswordReset(email) {
+        await sendPasswordResetEmail(getWebAuth(), email.trim());
+      },
       async signInWithGoogle() {
-        await signInWithPopup(getWebAuth(), createGoogleProvider());
+        const auth = getWebAuth();
+        const provider = createGoogleProvider();
+
+        try {
+          await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+        } catch (error) {
+          if (!shouldFallbackToGoogleRedirect(error)) {
+            throw error;
+          }
+
+          await signInWithRedirect(auth, provider);
+        }
       },
       async signOutUser() {
         await signOut(getWebAuth());
@@ -60,6 +93,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+function shouldFallbackToGoogleRedirect(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return (
+    message.includes('auth/popup-blocked') ||
+    message.includes('auth/cancelled-popup-request') ||
+    message.includes('auth/operation-not-supported-in-this-environment')
+  );
 }
 
 export function useAuth() {

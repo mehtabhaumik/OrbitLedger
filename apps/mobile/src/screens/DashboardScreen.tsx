@@ -65,8 +65,8 @@ import { colors, shadows, spacing, touch, typography } from '../theme/theme';
 
 const headerIcon = require('../../assets/branding/orbit-ledger-logo-transparent.png');
 const dashboardLogoSize = Platform.select({
-  web: { width: 90, height: 26 },
-  default: { width: 84, height: 24 },
+  web: { width: 208, height: 26 },
+  default: { width: 168, height: 16 },
 });
 
 type DashboardScreenProps = NativeStackScreenProps<RootStackParamList, 'Dashboard'>;
