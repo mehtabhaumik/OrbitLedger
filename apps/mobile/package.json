@@ -1,0 +1,72 @@
+{
+  "name": "@orbit-ledger/mobile",
+  "version": "1.0.0",
+  "license": "UNLICENSED",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "start:dev-client": "expo start --dev-client",
+    "android": "expo run:android",
+    "android:local": "expo start --android --localhost",
+    "android:dev-client": "expo run:android",
+    "ios": "expo run:ios",
+    "ios:local": "expo start --ios --localhost",
+    "ios:local:clear": "expo start --ios --localhost --clear",
+    "ios:dev-client": "expo run:ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "doctor": "npx expo-doctor",
+    "brand:assets": "node scripts/generateBrandAssets.js"
+  },
+  "dependencies": {
+    "@orbit-ledger/contracts": "file:../../packages/contracts",
+    "@orbit-ledger/core": "file:../../packages/core",
+    "@orbit-ledger/sync": "file:../../packages/sync",
+    "@orbit-ledger/ui": "file:../../packages/ui",
+    "@hookform/resolvers": "^5.2.2",
+    "@react-native-community/datetimepicker": "8.4.4",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/native": "^7.2.2",
+    "@react-navigation/native-stack": "^7.14.10",
+    "expo": "~54.0.33",
+    "expo-crypto": "~15.0.8",
+    "expo-dev-client": "~6.0.20",
+    "expo-document-picker": "~14.0.8",
+    "expo-file-system": "~19.0.21",
+    "expo-iap": "^4.0.2",
+    "expo-image-picker": "~17.0.10",
+    "expo-local-authentication": "~17.0.8",
+    "expo-print": "~15.0.8",
+    "expo-screen-capture": "~8.0.9",
+    "expo-secure-store": "~15.0.8",
+    "expo-sharing": "~14.0.8",
+    "expo-splash-screen": "~31.0.13",
+    "expo-sqlite": "~16.0.10",
+    "expo-status-bar": "~3.0.9",
+    "expo-system-ui": "~6.0.9",
+    "firebase": "^12.4.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-hook-form": "^7.72.1",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "^0.21.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "typescript": "~5.9.2"
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "expo-iap"
+        ]
+      }
+    }
+  },
+  "private": true
+}

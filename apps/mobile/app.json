@@ -1,0 +1,72 @@
+{
+  "expo": {
+    "name": "Orbit Ledger by Rudraix",
+    "slug": "orbit-ledger",
+    "scheme": "orbitledger",
+    "version": "1.0.0",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/branding/orbit-ledger-logo-transparent.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F6F8F7"
+    },
+    "ios": {
+      "bundleIdentifier": "com.rudraix.orbitledger",
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "requireFullScreen": false,
+      "usesIcloudStorage": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "Orbit Ledger uses Face ID to unlock your local ledger faster when you choose.",
+        "NSPhotoLibraryUsageDescription": "Orbit Ledger lets you choose a business logo or signature image for local documents.",
+        "NSPhotoLibraryAddUsageDescription": "Orbit Ledger can save exported ledger documents and backups when you choose.",
+        "LSSupportsOpeningDocumentsInPlace": true,
+        "UIFileSharingEnabled": true
+      }
+    },
+    "android": {
+      "package": "com.rudraix.orbitledger",
+      "googleServicesFile": "./android/app/google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#145C52"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-dev-client",
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Orbit Ledger lets you choose a business logo or signature image for local documents.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-document-picker",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Orbit Ledger uses Face ID to unlock your local ledger faster when you choose."
+        }
+      ],
+      "expo-iap",
+      "expo-secure-store"
+    ]
+  }
+}
