@@ -63,6 +63,32 @@ const capabilityHighlights = [
   },
 ] as const;
 
+const workspaceCreateSteps = [
+  'Creating your workspace profile',
+  'Syncing customer and transaction modules',
+  'Preparing invoice and statement capabilities',
+  'Enabling backup, reports, and tax-ready setup',
+] as const;
+
+const workspaceCreateHighlights = [
+  {
+    title: 'Fast collections and dues tracking',
+    copy: 'Record credits and payments quickly, then see clear receivable status in one place.',
+  },
+  {
+    title: 'Invoice, statement, and PDF exports',
+    copy: 'Generate business-ready documents you can review, share, and export from the same workspace.',
+  },
+  {
+    title: 'Backup and trust controls',
+    copy: 'Export full workspace backups and restore safely with preview checks when needed.',
+  },
+  {
+    title: 'Tax, country, and compliance readiness',
+    copy: 'Keep your ledger ready for local tax packs, country settings, and practical reporting workflows.',
+  },
+] as const;
+
 export function WorkspaceSetupCard() {
   const { user } = useAuth();
   const { createFirstWorkspace } = useWorkspace();
@@ -97,6 +123,8 @@ export function WorkspaceSetupCard() {
   const [step, setStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeCreateStep, setActiveCreateStep] = useState(0);
+  const [activeCreateHighlight, setActiveCreateHighlight] = useState(0);
 
   const reviewRows = useMemo(
     () => [
@@ -112,6 +140,11 @@ export function WorkspaceSetupCard() {
     ],
     [values]
   );
+  const createProgress = useMemo(
+    () => `${((activeCreateStep + 1) / workspaceCreateSteps.length) * 100}%`,
+    [activeCreateStep]
+  );
+  const activeHighlight = workspaceCreateHighlights[activeCreateHighlight];
 
   useEffect(() => {
     if (emailAutofillAppliedRef.current) {
@@ -128,6 +161,27 @@ export function WorkspaceSetupCard() {
     setValues((current) => ({ ...current, email: signedInEmail }));
     emailAutofillAppliedRef.current = true;
   }, [user?.email, values.email]);
+
+  useEffect(() => {
+    if (!isSaving) {
+      setActiveCreateStep(0);
+      setActiveCreateHighlight(0);
+      return;
+    }
+
+    const stepTimer = window.setInterval(() => {
+      setActiveCreateStep((current) => (current + 1) % workspaceCreateSteps.length);
+    }, 1700);
+
+    const highlightTimer = window.setInterval(() => {
+      setActiveCreateHighlight((current) => (current + 1) % workspaceCreateHighlights.length);
+    }, 3000);
+
+    return () => {
+      window.clearInterval(stepTimer);
+      window.clearInterval(highlightTimer);
+    };
+  }, [isSaving]);
 
   function validateField(field: keyof typeof fieldErrors, nextValues = values) {
     if (field === 'businessName') {
@@ -256,9 +310,9 @@ export function WorkspaceSetupCard() {
     <section className="ol-onboarding-shell">
       <div className="ol-brand-header">
         <img
+          className="ol-brand-logo"
           alt="Orbit Ledger"
           src="/branding/orbit-ledger-logo-transparent.png"
-          style={{ height: '1.6rem', width: 'auto' }}
         />
         <span className="ol-brand-header-copy">Workspace setup</span>
       </div>
@@ -447,6 +501,85 @@ export function WorkspaceSetupCard() {
           </div>
         </div>
       </div>
+      {isSaving ? (
+        <div className="ol-creating-backdrop" role="status" aria-live="polite">
+          <section className="ol-creating-modal">
+            <div className="ol-creating-header">
+              <img
+                className="ol-brand-logo"
+                alt="Orbit Ledger"
+                src="/branding/orbit-ledger-logo-transparent.png"
+              />
+              <span className="ol-brand-header-copy">Preparing workspace</span>
+            </div>
+
+            <div className="ol-creating-grid">
+              <section className="ol-creating-main">
+                <div className="ol-loading-top">
+                  <div>
+                    <div className="ol-panel-title">Creating your workspace</div>
+                    <p className="ol-panel-copy" style={{ maxWidth: 520 }}>
+                      Orbit Ledger is setting up your business profile and enabling the core
+                      modules so you can start recording entries immediately.
+                    </p>
+                  </div>
+                  <div className="ol-loader-cluster" aria-hidden="true">
+                    <div className="ol-loader-ring" />
+                    <div className="ol-loader-core" />
+                  </div>
+                </div>
+
+                <div className="ol-loading-progress" aria-hidden="true">
+                  <span style={{ width: createProgress }} />
+                </div>
+
+                <div className="ol-loading-steps">
+                  {workspaceCreateSteps.map((createStep, index) => (
+                    <div
+                      className={`ol-loading-step${index === activeCreateStep ? ' is-active' : ''}`}
+                      key={createStep}
+                    >
+                      <span className="ol-chip ol-chip--primary" style={{ minWidth: 84, justifyContent: 'center' }}>
+                        Step {index + 1}
+                      </span>
+                      <span>{createStep}</span>
+                      <span
+                        className="ol-dot"
+                        style={{
+                          marginLeft: 'auto',
+                          color:
+                            index <= activeCreateStep
+                              ? 'var(--primary)'
+                              : 'rgba(125, 139, 160, 0.45)',
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <aside className="ol-creating-side">
+                <div className="ol-chip-row">
+                  <span className="ol-chip ol-chip--tax">
+                    <span className="ol-dot" />
+                    Business-ready
+                  </span>
+                  <span className="ol-chip ol-chip--success">
+                    <span className="ol-dot" />
+                    India-first
+                  </span>
+                </div>
+
+                <div className="ol-creating-side-title">What you can do with Orbit Ledger</div>
+                <article className="ol-creating-tip" key={activeHighlight.title}>
+                  <div className="ol-creating-tip-title">{activeHighlight.title}</div>
+                  <div className="ol-creating-tip-copy">{activeHighlight.copy}</div>
+                </article>
+              </aside>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -46,9 +46,9 @@ export function WorkspaceLoadingScreen() {
         <section className="ol-loading-main">
           <div className="ol-brand-header" style={{ paddingLeft: 0, paddingRight: 0 }}>
             <img
+              className="ol-brand-logo"
               alt="Orbit Ledger"
               src="/branding/orbit-ledger-logo-transparent.png"
-              style={{ height: '1.6rem', width: 'auto' }}
             />
             <span className="ol-brand-header-copy">Workspace preparation</span>
           </div>

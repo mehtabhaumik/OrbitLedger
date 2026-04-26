@@ -127,12 +127,36 @@ a:focus-visible {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(247, 250, 255, 0.72) 100%);
   border: 1px solid rgba(190, 204, 225, 0.72);
   box-shadow: 0 12px 34px rgba(20, 32, 51, 0.06);
+  overflow: hidden;
 }
 
 .ol-sidebar-brand-mark {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ol-brand-logo {
+  display: block;
+  width: auto;
+  height: 1.6rem;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: left center;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.ol-brand-logo--md {
+  height: 1.8rem;
+}
+
+.ol-sidebar-brand-mark .ol-brand-logo {
+  width: 100%;
+  height: auto;
+  max-height: 1.6rem;
 }
 
 .ol-sidebar-badge {
@@ -327,6 +351,17 @@ a:focus-visible {
     border-color 140ms ease-out,
     box-shadow 140ms ease-out,
     background-color 140ms ease-out;
+}
+
+.ol-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1.5L7 7.5L13 1.5' fill='none' stroke='%237B8AA3' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 14px 9px;
 }
 
 .ol-input::placeholder,
@@ -882,6 +917,90 @@ a:focus-visible {
   -webkit-backdrop-filter: blur(14px);
 }
 
+.ol-creating-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 230;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  background: rgba(11, 17, 28, 0.56);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.ol-creating-modal {
+  width: min(1060px, 100%);
+  border-radius: 22px;
+  border: 1px solid rgba(194, 208, 229, 0.86);
+  background: linear-gradient(180deg, rgba(252, 254, 255, 0.97) 0%, rgba(246, 251, 255, 0.93) 100%);
+  box-shadow:
+    0 26px 70px rgba(17, 24, 39, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+}
+
+.ol-creating-header {
+  min-height: 66px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(192, 207, 229, 0.68);
+}
+
+.ol-creating-grid {
+  padding: 22px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.82fr);
+  gap: 18px;
+}
+
+.ol-creating-main {
+  display: grid;
+  gap: 16px;
+}
+
+.ol-creating-side {
+  border-radius: 18px;
+  border: 1px solid rgba(103, 129, 166, 0.56);
+  background:
+    linear-gradient(180deg, rgba(28, 44, 70, 0.97) 0%, rgba(21, 35, 58, 0.99) 100%);
+  color: #f5f8ff;
+  padding: 18px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.ol-creating-side-title {
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.ol-creating-tip {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(132, 158, 193, 0.54);
+  background: rgba(255, 255, 255, 0.08);
+  animation: orbit-fade-in 220ms ease-out;
+}
+
+.ol-creating-tip-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #cfe2ff;
+}
+
+.ol-creating-tip-copy {
+  color: rgba(224, 232, 244, 0.82);
+  line-height: 1.6;
+  font-size: 13px;
+}
+
 .ol-lock-card {
   width: min(420px, 100%);
   border-radius: 18px;
@@ -1138,6 +1257,8 @@ a:focus-visible {
   padding: 0 4px 18px;
   margin-bottom: 14px;
   border-bottom: 1px solid rgba(132, 170, 226, 0.34);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .ol-brand-header-copy {
@@ -1371,6 +1492,17 @@ a:focus-visible {
   }
 }
 
+@keyframes orbit-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 1100px) {
   .ol-app-shell {
     grid-template-columns: 1fr;
@@ -1396,6 +1528,10 @@ a:focus-visible {
 
   .ol-onboarding-insights {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ol-creating-grid {
+    grid-template-columns: 1fr;
   }
 }
 

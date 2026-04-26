@@ -64,6 +64,7 @@ export async function createWorkspace(
   ownerEmail: string | null,
   input: WorkspaceProfileInput
 ): Promise<OrbitWorkspaceSummary> {
+  const createdIso = new Date().toISOString();
   const payload: FirestoreWorkspaceDoc = {
     business_name: input.businessName.trim(),
     owner_name: input.ownerName.trim(),
@@ -82,8 +83,12 @@ export async function createWorkspace(
   };
 
   const ref = await addDoc(collection(getWebFirestore(), 'workspaces'), payload);
-  const snapshot = await getDoc(ref);
-  return mapWorkspace(snapshot.id, snapshot.data() as FirestoreWorkspaceDoc);
+  // Avoid a second immediate round trip after write to keep workspace creation responsive.
+  return mapWorkspace(ref.id, {
+    ...payload,
+    created_at: createdIso,
+    updated_at: createdIso,
+  });
 }
 
 export async function updateWorkspaceProfile(

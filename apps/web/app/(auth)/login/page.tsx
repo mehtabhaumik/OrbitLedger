@@ -174,9 +174,9 @@ export default function LoginPage() {
       <div className="ol-auth-grid">
         <div className="ol-brand-header">
           <img
+            className="ol-brand-logo"
             alt="Orbit Ledger"
             src="/branding/orbit-ledger-logo-transparent.png"
-            style={{ height: '1.6rem', width: 'auto' }}
           />
           <span className="ol-brand-header-copy">Signed-in workspace</span>
         </div>

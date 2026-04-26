@@ -8,8 +8,9 @@ import {
   setPersistence,
 } from 'firebase/auth';
 import {
+  initializeFirestore,
   enableIndexedDbPersistence,
-  getFirestore,
+  type Firestore,
 } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -32,6 +33,7 @@ const firebaseConfig = {
 
 let persistenceInitialized = false;
 let firestorePersistenceInitialized = false;
+let firestoreInstance: Firestore | null = null;
 
 export function getWebFirebaseApp() {
   return getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -47,7 +49,13 @@ export function getWebAuth() {
 }
 
 export function getWebFirestore() {
-  const firestore = getFirestore(getWebFirebaseApp());
+  if (!firestoreInstance) {
+    firestoreInstance = initializeFirestore(getWebFirebaseApp(), {
+      // Auto-detect long polling when WebChannel handshake is slow/blocked on some networks.
+      experimentalAutoDetectLongPolling: true,
+    });
+  }
+  const firestore = firestoreInstance;
   if (!firestorePersistenceInitialized && typeof window !== 'undefined') {
     firestorePersistenceInitialized = true;
     void enableIndexedDbPersistence(firestore).catch(() => undefined);

@@ -62,9 +62,9 @@ export function AppShell({
         <div className="ol-sidebar-brand">
           <div className="ol-sidebar-brand-mark">
             <img
+              className="ol-brand-logo"
               alt="Orbit Ledger"
               src="/branding/orbit-ledger-logo-transparent.png"
-              style={{ height: '1.6rem', width: 'auto' }}
             />
           </div>
           <span className="ol-sidebar-badge">SaaS</span>

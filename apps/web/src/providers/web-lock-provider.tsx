@@ -230,9 +230,9 @@ function WebLockOverlay({ onUnlock }: { onUnlock(pin: string): Promise<boolean> 
     <div className="ol-lock-backdrop">
       <div className="ol-lock-card">
         <img
+          className="ol-brand-logo ol-brand-logo--md"
           alt="Orbit Ledger"
           src="/branding/orbit-ledger-logo-transparent.png"
-          style={{ height: '1.8rem', width: 'auto' }}
         />
         <strong className="ol-lock-title">Enter your PIN to continue</strong>
         <p className="ol-lock-copy">
