@@ -28,7 +28,6 @@ const WORKSPACE_BOOTSTRAP_HINT_PREFIX = 'orbit-ledger:skip-workspace-bootstrap:'
 const WORKSPACE_STATE_CACHE_PREFIX = 'orbit-ledger:workspace-state:';
 const WORKSPACE_STATE_HAS = 'has_workspace';
 const WORKSPACE_STATE_NONE = 'no_workspace';
-const WORKSPACE_LOADING_GUARD_MS = 2500;
 
 function hasWorkspaceBootstrapHint(userId: string) {
   if (typeof window === 'undefined') {
@@ -90,11 +89,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
     const currentUser = user;
 
-    const cachedWorkspaceState = readWorkspaceStateCache(currentUser.uid);
     const shouldSkipBlockingBootstrap =
       isLikelyFirstSignIn(currentUser) ||
-      hasWorkspaceBootstrapHint(currentUser.uid) ||
-      cachedWorkspaceState === WORKSPACE_STATE_NONE;
+      hasWorkspaceBootstrapHint(currentUser.uid);
 
     function applyWorkspaceList(nextWorkspaces: OrbitWorkspaceSummary[]) {
       setWorkspaces(nextWorkspaces);
@@ -128,12 +125,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
 
     setIsLoading(true);
-    const loadingGuard =
-      typeof window === 'undefined'
-        ? null
-        : window.setTimeout(() => {
-            setIsLoading(false);
-          }, WORKSPACE_LOADING_GUARD_MS);
 
     try {
       const nextWorkspaces = await listWorkspacesForUser(currentUser.uid);
@@ -142,9 +133,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       // Keep previous state if remote fetch fails so the UI can continue.
       setWorkspaces((current) => current);
     } finally {
-      if (loadingGuard !== null) {
-        window.clearTimeout(loadingGuard);
-      }
       setIsLoading(false);
     }
   }
@@ -182,6 +170,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         }
         const workspace = await createWorkspace(user.uid, user.email, input);
         clearWorkspaceBootstrapHint(user.uid);
+        writeWorkspaceStateCache(user.uid, true);
         setWorkspaces([workspace]);
         setActiveWorkspaceId(workspace.workspaceId);
         setDashboardSnapshot(null);
