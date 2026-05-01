@@ -34,6 +34,18 @@ Choose the provider that best supports:
 
 ## Current Provider Decision
 
+Current connection status: **no real payment provider account is connected yet**.
+
+Orbit Ledger currently supports:
+
+- Orbit-hosted invoice payment pages.
+- Manual UPI/payment instructions on invoices.
+- A deployed provider webhook ready to receive trusted payment events.
+- Razorpay, Cashfree, Stripe, and generic webhook payload mapping.
+- Payment review, payment application, refunds, and reversal history after trusted events arrive.
+
+Until Razorpay credentials are added, Orbit Ledger must not claim that online checkout is live. The owner can still collect with UPI or manual payment details, and the app can prepare the exact Razorpay test-link payload for later account setup.
+
 ### Primary: Razorpay
 
 Use Razorpay first for:
@@ -151,6 +163,82 @@ Every payment link must carry Orbit Ledger IDs into the provider:
 - `customerId` lets customer balance updates happen without guessing.
 
 If a provider event does not include enough information to match an invoice, Orbit Ledger must keep it in review. It must not guess.
+
+## Razorpay Account Setup + Test Mode Payment Link
+
+This is the strict setup path to follow once the Razorpay account is available.
+
+### Account Setup
+
+1. Create or open the Razorpay account.
+2. Keep the Razorpay dashboard in **test mode**.
+3. Generate test API keys inside Razorpay. Store them only in secret storage. Do not place them in app code, docs, screenshots, or client-side settings.
+4. Add the Orbit Ledger webhook URL:
+
+   ```text
+   https://asia-south1-orbit-ledger-f41c2.cloudfunctions.net/providerWebhook
+   ```
+
+5. Add the webhook secret as `x-orbit-ledger-webhook-secret` if Razorpay account settings allow a custom header. If the dashboard only supports a webhook secret/signature flow, add a Razorpay signature verification adapter before accepting live traffic.
+6. Enable payment, payment link, and refund events needed for:
+   - successful payments,
+   - pending or authorized payments,
+   - failed payments,
+   - processed refunds.
+7. Create one test invoice in Orbit Ledger.
+8. Open the web Payments page and use **Copy Razorpay test link**. This produces a provider payload with:
+   - amount in paise,
+   - INR currency,
+   - invoice reference,
+   - customer name,
+   - Orbit Ledger metadata in `notes`.
+
+### Test Payment Link Payload
+
+Orbit Ledger now prepares a Razorpay payment-link draft in this shape:
+
+```json
+{
+  "amount": 177000,
+  "currency": "INR",
+  "accept_partial": false,
+  "description": "Rudraix PVT invoice WEB-641090",
+  "reference_id": "INV-WEB-641090",
+  "customer": {
+    "name": "Sonali Traders"
+  },
+  "notify": {
+    "sms": false,
+    "email": false
+  },
+  "reminder_enable": true,
+  "callback_url": "https://orbit-ledger-f41c2.web.app/pay",
+  "callback_method": "get",
+  "notes": {
+    "orbit_workspace_id": "workspace_id",
+    "orbit_invoice_id": "invoice_id",
+    "orbit_invoice_number": "WEB-641090",
+    "orbit_customer_id": "customer_id",
+    "orbit_customer_name": "Sonali Traders"
+  }
+}
+```
+
+Important Razorpay test-mode note: Razorpay documents that UPI Payment Links are not supported in test mode. For test mode, create a standard payment link and keep UPI-specific live testing for the final verified live account path.
+
+### What Must Happen After Payment
+
+The redirect or payment-link status page is not enough proof. Orbit Ledger should update invoice payment status only after a trusted webhook is received and matched by metadata.
+
+Expected result after a successful Razorpay test payment:
+
+- Provider event is stored.
+- Invoice is matched by `orbit_invoice_id` or `orbit_invoice_number`.
+- Customer is matched by `orbit_customer_id` when available.
+- Payment allocation is created once.
+- Invoice payment state becomes `Paid` or `Partially paid`.
+- Duplicate webhook delivery does not duplicate the payment.
+- Refund webhook creates a reversal without deleting the original payment.
 
 ## Supported Payment Outcomes
 

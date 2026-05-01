@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { buildInvoicePaymentReference, buildRazorpayPaymentLinkDraft } from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
 import { getWebFirebaseProjectId } from '@/lib/firebase';
@@ -110,6 +111,32 @@ export default function PaymentsPage() {
       ),
     [invoices]
   );
+  const razorpayPaymentLinkDraft = useMemo(() => {
+    if (!activeWorkspace) {
+      return null;
+    }
+    const sampleInvoice = openInvoices[0] ?? invoices[0] ?? null;
+    const sampleCustomer = sampleInvoice
+      ? customers.find((customer) => customer.id === sampleInvoice.customerId) ?? null
+      : null;
+    const invoiceNumber = sampleInvoice?.invoiceNumber ?? 'WEB-641090';
+    const amount = sampleInvoice
+      ? Math.max(sampleInvoice.totalAmount - sampleInvoice.paidAmount, sampleInvoice.totalAmount, 1)
+      : 1770;
+
+    return buildRazorpayPaymentLinkDraft({
+      workspaceId: activeWorkspace.workspaceId,
+      businessName: activeWorkspace.businessName,
+      invoiceId: sampleInvoice?.id ?? 'invoice_id',
+      invoiceNumber,
+      customerId: sampleInvoice?.customerId ?? 'customer_id',
+      customerName: sampleCustomer?.name ?? 'Customer name',
+      amount,
+      currency: activeWorkspace.currency,
+      reference: buildInvoicePaymentReference(invoiceNumber),
+      callbackUrl: paymentPageUrl,
+    });
+  }, [activeWorkspace, customers, invoices, openInvoices, paymentPageUrl]);
 
   async function copyWebhookUrl() {
     await navigator.clipboard.writeText(webhookUrl);
@@ -135,6 +162,14 @@ export default function PaymentsPage() {
       )
     );
     showToast('Example payload copied.', 'success');
+  }
+
+  async function copyRazorpayPaymentLinkDraft() {
+    if (!razorpayPaymentLinkDraft) {
+      return;
+    }
+    await navigator.clipboard.writeText(JSON.stringify(razorpayPaymentLinkDraft, null, 2));
+    showToast('Razorpay test link details copied.', 'success');
   }
 
   async function copyPaymentPageUrl() {
@@ -227,12 +262,14 @@ export default function PaymentsPage() {
           <div>
             <div className="ol-panel-title">Automatic Payment Updates</div>
             <p className="ol-panel-copy" style={{ maxWidth: 680 }}>
-              Add this URL in your payment provider so paid invoices can update Orbit Ledger automatically.
+              No payment provider is connected yet. Orbit Ledger is prepared for Razorpay test mode when the account is ready.
             </p>
           </div>
-          <span className="ol-chip ol-chip--success">Ready</span>
+          <span className="ol-chip ol-chip--tax">Ready to connect</span>
         </div>
         <div className="ol-review-grid">
+          <Review label="Provider status" value="Not connected" />
+          <Review label="First provider" value="Razorpay test mode" />
           <Review label="Provider URL" value={webhookUrl} />
           <Review label="Secret header" value="x-orbit-ledger-webhook-secret" />
           <Review label="Region" value="Asia South" />
@@ -244,6 +281,9 @@ export default function PaymentsPage() {
           </button>
           <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentPageUrl()}>
             Copy payment page
+          </button>
+          <button className="ol-button-secondary" type="button" onClick={() => void copyRazorpayPaymentLinkDraft()}>
+            Copy Razorpay test link
           </button>
           <button className="ol-button-secondary" type="button" onClick={() => void copyExamplePayload()}>
             Copy sample data
@@ -387,6 +427,14 @@ export default function PaymentsPage() {
 }
 
 const providerSetupChecklist = [
+  {
+    label: 'Razorpay account',
+    value: 'Create the account later and keep it in test mode until the full payment test passes.',
+  },
+  {
+    label: 'Test link details',
+    value: 'Use Copy Razorpay test link after opening an invoice so amount, reference, and invoice details stay aligned.',
+  },
   {
     label: 'Secure provider access',
     value: 'Add the secret header inside the payment provider dashboard. Do not place it in the payment link.',

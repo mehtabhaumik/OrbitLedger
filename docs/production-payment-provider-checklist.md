@@ -6,6 +6,8 @@ Do not paste provider secrets into this document, screenshots, issue comments, s
 
 ## Current Production Endpoints
 
+Current provider connection status: **not connected**. The production webhook and payment review tools are deployed, but there is no live Razorpay account or provider credential connected to Orbit Ledger yet.
+
 - Public web app: `https://orbit-ledger-f41c2.web.app`
 - Hosted payment page: `https://orbit-ledger-f41c2.web.app/pay`
 - Provider webhook: `https://asia-south1-orbit-ledger-f41c2.cloudfunctions.net/providerWebhook`
@@ -22,6 +24,8 @@ Every provider event should be sent as a `POST` request with JSON.
 Provider-specific mapping details are maintained in:
 
 - `docs/payment-provider-selection-and-mapping.md`
+
+The web Payments page can copy a Razorpay test payment-link draft. That draft contains no secrets. It is intended for the later Razorpay account setup phase and must remain in test mode until a real provider transaction has passed the full checklist.
 
 Required fields:
 

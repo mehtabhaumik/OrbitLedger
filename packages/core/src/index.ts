@@ -115,6 +115,14 @@ export type {
   PaymentLinkDetails,
 } from './paymentLinks';
 export {
+  buildRazorpayNotes,
+  buildRazorpayPaymentLinkDraft,
+} from './paymentProviderSetup';
+export type {
+  RazorpayPaymentLinkDraft,
+  RazorpayPaymentLinkDraftInput,
+} from './paymentProviderSetup';
+export {
   normalizeProviderReference,
   reconcileProviderPayment,
 } from './paymentReconciliation';
