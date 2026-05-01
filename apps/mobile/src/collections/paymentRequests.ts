@@ -1,9 +1,14 @@
+import {
+  appendPaymentLinkToMessage,
+  buildInvoicePaymentLink,
+  normalizeUpiId,
+  type PaymentLinkDetails,
+} from '@orbit-ledger/core';
+
 import { formatCurrency, formatShortDate } from '../lib/format';
 
-export type PaymentShareDetails = {
-  upiId?: string | null;
-  paymentNote?: string | null;
-};
+export type PaymentShareDetails = PaymentLinkDetails;
+export { normalizeUpiId };
 
 export type PaymentRequestKind = 'reminder' | 'invoice' | 'statement';
 
@@ -24,17 +29,6 @@ export type PaymentRequestShareResult = {
   shared: boolean;
   sharedVia: string | null;
 };
-
-const upiPattern = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z][a-zA-Z0-9.\-_]{1,64}$/;
-
-export function normalizeUpiId(value: string | null | undefined): string | null {
-  const normalized = (value ?? '').trim().toLowerCase();
-  if (!normalized) {
-    return null;
-  }
-
-  return upiPattern.test(normalized) ? normalized : null;
-}
 
 export function formatPaymentDetailsLine(
   paymentDetails: PaymentShareDetails | null | undefined,
@@ -60,8 +54,21 @@ export function buildPaymentRequestMessage(input: PaymentRequestMessageInput): s
   const detailsLine = formatPaymentDetailsLine(input.paymentDetails, input.countryCode);
   const titleLine = buildTitleLine(input, amount);
   const dueLine = input.dueDate ? `Due date: ${formatShortDate(input.dueDate)}.` : null;
+  const paymentLink =
+    input.kind === 'invoice'
+      ? buildInvoicePaymentLink({
+          amount: input.amount,
+          businessName: input.businessName,
+          countryCode: input.countryCode,
+          currency: input.currency,
+          customerName: input.customerName,
+          dueDate: input.dueDate,
+          invoiceNumber: input.invoiceNumber,
+          details: input.paymentDetails,
+        })
+      : null;
 
-  return [
+  const message = [
     `Hi ${input.customerName},`,
     '',
     titleLine,
@@ -73,6 +80,8 @@ export function buildPaymentRequestMessage(input: PaymentRequestMessageInput): s
   ]
     .filter(Boolean)
     .join('\n');
+
+  return appendPaymentLinkToMessage(message, paymentLink);
 }
 
 export async function sharePaymentRequestMessage(

@@ -3,6 +3,7 @@ import {
   getGeneratedInvoiceDocumentLabel,
   getLocalBusinessPack,
   normalizeInvoiceDocumentState,
+  type InvoicePaymentLink,
 } from '@orbit-ledger/core';
 
 import type {
@@ -50,6 +51,7 @@ type BuildInvoiceDocumentInput = {
     name: string;
     url: string;
   } | null;
+  paymentLink?: InvoicePaymentLink | null;
 };
 
 type BuildStatementDocumentInput = {
@@ -375,6 +377,7 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
         </div>
         ${signatureBlock(input.workspace, includeBranding)}
       </section>
+      ${input.paymentLink ? paymentLinkBlock(input.paymentLink) : ''}
       ${input.instrumentAttachment ? instrumentAttachmentBlock(input.instrumentAttachment) : ''}
       <section class="tax-note">
         <p class="label">${escapeHtml(template.taxLabel)} Details</p>
@@ -394,6 +397,7 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
     pdfStyle,
     subscription,
     invoiceData,
+    paymentLink: input.paymentLink ?? null,
   };
 }
 
@@ -661,6 +665,18 @@ export async function downloadInvoicePdf(document: WebInvoiceDocument) {
   addSummaryLine(pdf, 'Total', formatPlainAmount(data.total), summaryX + 14, y + 84, 202, true);
   y += 130;
   y = addText(`Amount in words: ${data.amountWords} only`, margin, y, { size: 10, style: 'bold', maxWidth: pageWidth - margin * 2 });
+
+  if (document.paymentLink) {
+    ensureSpace(74);
+    y += 14;
+    pdf.setFillColor(244, 248, 255);
+    pdf.roundedRect(margin, y, pageWidth - margin * 2, 62, 8, 8, 'FD');
+    addText(document.paymentLink.label, margin + 14, y + 20, { size: 11, style: 'bold', maxWidth: pageWidth - margin * 2 - 28 });
+    addText(document.paymentLink.instruction, margin + 14, y + 36, { size: 9, maxWidth: pageWidth - margin * 2 - 28 });
+    addText(document.paymentLink.url, margin + 14, y + 52, { size: 8, maxWidth: pageWidth - margin * 2 - 28 });
+    pdf.link(margin, y, pageWidth - margin * 2, 62, { url: document.paymentLink.url });
+    y += 76;
+  }
 
   if (data.notes) {
     ensureSpace(42);
@@ -1001,6 +1017,10 @@ function instrumentAttachmentBlock(attachment: { name: string; url: string }) {
   return `<section class="instrument-proof"><div><p class="label">Payment instrument proof</p><h2>${escapeHtml(attachment.name)}</h2><p>Included by the business for payment review.</p></div><img src="${escapeAttribute(attachment.url)}" alt="${escapeAttribute(attachment.name)}"></section>`;
 }
 
+function paymentLinkBlock(link: InvoicePaymentLink) {
+  return `<section class="payment-link-block"><div><p class="label">Payment link</p><h2>${escapeHtml(link.label)}</h2><p>${escapeHtml(link.instruction)}</p><a href="${escapeAttribute(link.url)}">${escapeHtml(link.url)}</a></div></section>`;
+}
+
 function invoiceTable(rows: Array<Record<string, string | number | null>>, columns: WebDocumentTemplate['columns']) {
   if (!rows.length) {
     return '<div class="empty-table">No items added to this invoice.</div>';
@@ -1250,6 +1270,7 @@ const pdfStyles = `
   .signature-box{height:60px;border:1px dashed #cad6e6;border-radius:12px;display:grid;place-items:center;color:#8390a3;margin:12px 0}.signature{max-width:100%;max-height:52px;object-fit:contain}.signature-line{height:1px;background:#aebace;margin-bottom:8px}
   .urgent-stamp{margin:0 0 14px auto;width:max-content;max-width:100%;border:2px solid #b42318;color:#b42318;border-radius:12px;padding:8px 14px;text-transform:uppercase;font-weight:900;letter-spacing:.08em;transform:rotate(-1deg)}
   .instrument-proof{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:16px;align-items:center;border:1px solid #dce6f2;border-radius:16px;padding:14px;background:#fbfdff;margin:16px 0;break-inside:avoid}.instrument-proof h2{font-size:15px;margin:6px 0}.instrument-proof p{font-size:11px;color:#516173}.instrument-proof img{width:100%;max-height:140px;object-fit:contain;border:1px solid #dce6f2;border-radius:12px;background:#fff}
+  .payment-link-block{border:1px solid #b9d7ff;border-radius:16px;padding:14px;background:#f4f8ff;margin:16px 0;break-inside:avoid}.payment-link-block h2{font-size:16px;margin:6px 0;color:#1a62d3}.payment-link-block p,.payment-link-block a{font-size:11px;line-height:1.5;word-break:break-word}.payment-link-block a{color:#1a62d3;font-weight:800}
   .tax-note{font-size:11px;color:#516173;line-height:1.55}.tax-breakdown{margin:8px 0}.account-summary-panel h2{font-size:26px;color:#b56a18}
   .style-advanced .page{border-top:8px solid var(--pro-accent)}.style-advanced .logo-fallback,.style-advanced .style-badge{background:var(--pro-surface);color:var(--pro-accent);border-color:var(--pro-line)}.style-advanced .statement-title strong,.style-advanced .summary-line.emphasized{color:var(--pro-accent)}
   .brand-footer{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid var(--pro-line);font-size:10px;font-weight:800;color:var(--pro-accent)}

@@ -101,6 +101,19 @@ export type {
   PaymentModeConfig,
   PaymentModeDetails,
 } from './paymentModes';
+
+export {
+  appendPaymentLinkToMessage,
+  buildInvoicePaymentLink,
+  buildInvoicePaymentReference,
+  normalizePaymentPageUrl,
+  normalizeUpiId,
+} from './paymentLinks';
+export type {
+  InvoicePaymentLink,
+  InvoicePaymentLinkInput,
+  PaymentLinkDetails,
+} from './paymentLinks';
 export type {
   InvoiceDocumentState,
   InvoiceLifecycleInput,

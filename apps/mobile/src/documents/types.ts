@@ -1,3 +1,4 @@
+import type { InvoicePaymentLink } from '@orbit-ledger/core';
 import type {
   BusinessSettings,
   Customer,
@@ -221,6 +222,7 @@ export type InvoiceDocumentData = {
   metadata: InvoiceMetadataBlock;
   items: InvoiceItemTableRow[];
   summary: InvoiceSummaryBlock;
+  paymentLink: InvoicePaymentLink | null;
   taxPlaceholder: DocumentTaxPlaceholderBlock;
   footer: DocumentFooterBlock;
   rendering: {
@@ -378,5 +380,6 @@ export type InvoiceDocumentInput = {
     placeOfSupply?: string | null;
     taxPointLabel?: string;
     taxPointDate?: string | null;
+    paymentLink?: InvoicePaymentLink | null;
   };
 };

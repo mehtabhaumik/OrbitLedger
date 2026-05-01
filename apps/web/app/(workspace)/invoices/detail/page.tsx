@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
+  appendPaymentLinkToMessage,
+  buildInvoicePaymentLink,
   getInvoiceDocumentStateLabel,
   getInvoicePaymentStatusLabel,
   getPaymentClearanceStatusLabel,
@@ -15,6 +17,7 @@ import {
   type InvoicePaymentStatus,
   type PaymentClearanceStatus,
   type PaymentInstrumentAttachment,
+  type PaymentLinkDetails,
   type PaymentMode,
   type PaymentModeDetails,
 } from '@orbit-ledger/core';
@@ -81,6 +84,9 @@ function InvoiceEditorContent() {
   const [paymentAttachments, setPaymentAttachments] = useState<PaymentInstrumentAttachment[]>([]);
   const [includeInstrumentInDocument, setIncludeInstrumentInDocument] = useState(false);
   const [urgentPaymentRequired, setUrgentPaymentRequired] = useState(false);
+  const [paymentLinkDetails, setPaymentLinkDetails] = useState<PaymentLinkDetails>({});
+  const [includePaymentLinkInDocument, setIncludePaymentLinkInDocument] = useState(true);
+  const [paymentLinkDetailsLoaded, setPaymentLinkDetailsLoaded] = useState(false);
   const [allocations, setAllocations] = useState<WorkspaceInvoicePaymentAllocation[]>([]);
   const [revisionReason, setRevisionReason] = useState('');
   const [notes, setNotes] = useState('');
@@ -91,6 +97,9 @@ function InvoiceEditorContent() {
   const [templateKey, setTemplateKey] = useState('');
   const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
   const selectedTemplate = invoiceTemplates.find((template) => template.key === templateKey) ?? invoiceTemplates[0];
+  const paymentLinkStorageKey = activeWorkspace
+    ? `orbit-ledger:payment-link-details:${activeWorkspace.workspaceId}`
+    : null;
 
   const defaultTaxRate = useMemo(
     () => getDefaultInvoiceTaxRate(activeWorkspace?.countryCode, selectedTemplate?.countryFormat),
@@ -146,6 +155,30 @@ function InvoiceEditorContent() {
       });
   }, [activeWorkspace, invoiceId]);
 
+  useEffect(() => {
+    if (!paymentLinkStorageKey) {
+      return;
+    }
+    setPaymentLinkDetailsLoaded(false);
+    try {
+      const saved = window.localStorage.getItem(paymentLinkStorageKey);
+      if (saved) {
+        setPaymentLinkDetails(JSON.parse(saved) as PaymentLinkDetails);
+      }
+    } catch {
+      setPaymentLinkDetails({});
+    } finally {
+      setPaymentLinkDetailsLoaded(true);
+    }
+  }, [paymentLinkStorageKey]);
+
+  useEffect(() => {
+    if (!paymentLinkStorageKey || !paymentLinkDetailsLoaded) {
+      return;
+    }
+    window.localStorage.setItem(paymentLinkStorageKey, JSON.stringify(paymentLinkDetails));
+  }, [paymentLinkDetails, paymentLinkDetailsLoaded, paymentLinkStorageKey]);
+
   const totals = useMemo(() => {
     return items.reduce(
       (summary, item) => {
@@ -166,6 +199,22 @@ function InvoiceEditorContent() {
   const dueAmount = invoice ? Math.max(total - invoice.paidAmount, 0) : 0;
   const documentInstrumentAttachment =
     paymentAttachments[0] ?? allocations.flatMap((allocation) => allocation.paymentAttachments)[0] ?? null;
+  const invoicePaymentLink = useMemo(
+    () =>
+      activeWorkspace
+        ? buildInvoicePaymentLink({
+            amount: dueAmount > 0 ? dueAmount : total,
+            businessName: activeWorkspace.businessName,
+            countryCode: activeWorkspace.countryCode,
+            currency,
+            customerName: selectedCustomer?.name ?? null,
+            dueDate,
+            invoiceNumber,
+            details: paymentLinkDetails,
+          })
+        : null,
+    [activeWorkspace, currency, dueAmount, dueDate, invoiceNumber, paymentLinkDetails, selectedCustomer?.name, total]
+  );
   const currentInvoiceDocument = useMemo(() => {
     if (!activeWorkspace || !invoice) {
       return null;
@@ -212,8 +261,9 @@ function InvoiceEditorContent() {
         includeInstrumentInDocument && documentInstrumentAttachment
           ? { name: documentInstrumentAttachment.name, url: documentInstrumentAttachment.url }
           : null,
+      paymentLink: includePaymentLinkInDocument ? invoicePaymentLink : null,
     });
-  }, [activeWorkspace, customerId, documentInstrumentAttachment, dueDate, includeInstrumentInDocument, invoice, invoiceNumber, issueDate, items, notes, paymentStatus, selectedCustomer, selectedTemplate?.key, total, urgentPaymentRequired]);
+  }, [activeWorkspace, customerId, documentInstrumentAttachment, dueDate, includeInstrumentInDocument, includePaymentLinkInDocument, invoice, invoiceNumber, invoicePaymentLink, issueDate, items, notes, paymentStatus, selectedCustomer, selectedTemplate?.key, total, urgentPaymentRequired]);
 
   async function saveInvoice(
     nextPaymentStatus = paymentStatus,
@@ -333,12 +383,12 @@ function InvoiceEditorContent() {
     const messageText = buildPaymentRequestMessage({
       businessName: activeWorkspace.businessName,
       customerName: selectedCustomer?.name ?? 'Customer',
-      amount: total,
+      amount: dueAmount > 0 ? dueAmount : total,
       currency,
       documentLabel: 'invoice',
       documentNumber: invoiceNumber,
     });
-    await navigator.clipboard.writeText(messageText);
+    await navigator.clipboard.writeText(appendPaymentLinkToMessage(messageText, invoicePaymentLink));
     showToast('Payment message copied.', 'success');
   }
 
@@ -721,6 +771,48 @@ function InvoiceEditorContent() {
                 />
                 <span>Add payment required urgently stamp</span>
               </label>
+              <label className="ol-field">
+                <span className="ol-field-label">UPI ID</span>
+                <input
+                  className="ol-input"
+                  placeholder="name@bank"
+                  value={paymentLinkDetails.upiId ?? ''}
+                  onChange={(event) => setPaymentLinkDetails((current) => ({ ...current, upiId: event.target.value }))}
+                />
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">Payment page</span>
+                <input
+                  className="ol-input"
+                  placeholder="https://..."
+                  value={paymentLinkDetails.paymentPageUrl ?? ''}
+                  onChange={(event) => setPaymentLinkDetails((current) => ({ ...current, paymentPageUrl: event.target.value }))}
+                />
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">Payment note</span>
+                <input
+                  className="ol-input"
+                  placeholder="Invoice payment reference"
+                  value={paymentLinkDetails.paymentNote ?? ''}
+                  onChange={(event) => setPaymentLinkDetails((current) => ({ ...current, paymentNote: event.target.value }))}
+                />
+              </label>
+              <label className="ol-check-row">
+                <input
+                  type="checkbox"
+                  checked={includePaymentLinkInDocument}
+                  onChange={(event) => setIncludePaymentLinkInDocument(event.target.checked)}
+                />
+                <span>Show payment link on invoice</span>
+              </label>
+              {invoicePaymentLink ? (
+                <div className="ol-message ol-message--success">
+                  {invoicePaymentLink.label}: {invoicePaymentLink.reference}
+                </div>
+              ) : (
+                <div className="ol-message">Add UPI ID or a secure payment page to create a payment link.</div>
+              )}
               <div className="ol-field ol-field--action">
                 <span className="ol-field-label">Action</span>
                 <button className="ol-button" type="button" disabled={isRecordingPayment || dueAmount <= 0} onClick={() => void recordInvoicePayment()}>
@@ -805,6 +897,7 @@ function InvoiceEditorContent() {
               <Review label="Tax format" value={currentInvoiceDocument?.template.countryFormat?.replace(/_/g, ' ') ?? 'Local'} />
               <Review label="PDF style" value={currentInvoiceDocument?.pdfStyle === 'advanced' ? 'Advanced' : 'Basic'} />
               <Review label="Customer" value={selectedCustomer?.name ?? 'Unlinked customer'} />
+              <Review label="Payment link" value={invoicePaymentLink ? invoicePaymentLink.label : 'Not added'} />
             </div>
           </section>
 

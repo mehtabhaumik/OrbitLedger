@@ -162,7 +162,6 @@ async function buildStatementPdfHtml(
       </section>`
           : ''
       }
-
       ${
         showTax
           ? `<section class="tax-note">
@@ -303,6 +302,8 @@ async function buildInvoicePdfHtml(
       </section>`
           : ''
       }
+
+      ${data.paymentLink ? paymentLinkBlock(data.paymentLink) : ''}
 
       ${
         showTax
@@ -553,6 +554,15 @@ function summaryLine(label: string, value: string, emphasized = false): string {
     <span>${escapeHtml(label)}</span>
     <strong>${escapeHtml(value)}</strong>
   </div>`;
+}
+
+function paymentLinkBlock(link: NonNullable<InvoiceDocumentData['paymentLink']>): string {
+  return `<section class="payment-link-block">
+    <p class="label">Payment link</p>
+    <h2>${escapeHtml(link.label)}</h2>
+    <p>${escapeHtml(link.instruction)}</p>
+    <a href="${escapeAttribute(link.url)}">${escapeHtml(link.url)}</a>
+  </section>`;
 }
 
 function templateBadge(template: StructuredDocument['data']['rendering']['template']): string {
@@ -887,6 +897,31 @@ const pdfStyles = `
     color: #64736B;
     margin-top: 8px;
     padding-top: 8px;
+  }
+
+  .payment-link-block {
+    border: 1px solid #B9D7FF;
+    border-radius: 12px;
+    background: #F4F8FF;
+    margin: 14px 0;
+    padding: 12px;
+    break-inside: avoid;
+  }
+
+  .payment-link-block h2 {
+    color: #1A62D3;
+    margin: 4px 0;
+  }
+
+  .payment-link-block p,
+  .payment-link-block a {
+    font-size: 10px;
+    overflow-wrap: anywhere;
+  }
+
+  .payment-link-block a {
+    color: #1A62D3;
+    font-weight: 800;
   }
 
   .account-summary-panel h2 {

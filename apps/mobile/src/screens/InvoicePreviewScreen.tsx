@@ -1,5 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
+  buildInvoicePaymentLink,
   getInvoiceDocumentStateLabel,
   getInvoicePaymentStatusLabel,
   summarizePaymentClearance,
@@ -141,10 +142,20 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
         gatedPremiumFeatures: documentGates.lockedFeatures.map((access) => access.feature),
         documentTemplate:
           getBuiltInDocumentTemplate(source.selectedTemplateKey)?.config ?? source.documentTemplate,
+        paymentLink: buildInvoicePaymentLink({
+          amount: Math.max(source.invoice.totalAmount - source.invoice.paidAmount, 0) || source.invoice.totalAmount,
+          businessName: source.businessProfile.businessName,
+          countryCode: source.businessProfile.countryCode,
+          currency: source.businessProfile.currency,
+          customerName: source.customer?.name ?? null,
+          dueDate: source.invoice.dueDate,
+          invoiceNumber: source.invoice.invoiceNumber,
+          details: paymentDetails,
+        }),
         ...getInvoiceTaxDocumentLabels(source.invoiceTaxProfile),
       },
     });
-  }, [documentGates, source]);
+  }, [documentGates, paymentDetails, source]);
 
   const data = document?.data;
   const activeProTheme = data?.rendering.proTheme;

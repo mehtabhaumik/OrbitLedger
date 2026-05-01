@@ -37,9 +37,14 @@ export function normalizeBusinessPaymentDetails(input: unknown): BusinessPayment
     typeof record.paymentNote === 'string' && record.paymentNote.trim()
       ? record.paymentNote.trim()
       : null;
+  const paymentPageUrl =
+    typeof record.paymentPageUrl === 'string' && record.paymentPageUrl.trim()
+      ? record.paymentPageUrl.trim()
+      : null;
 
   return {
     upiId,
+    paymentPageUrl,
     paymentNote,
   };
 }

@@ -1156,6 +1156,17 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
               }
               helperText="Optional note added to shared payment messages."
             />
+            <TextField
+              label="Payment page"
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="https://..."
+              value={paymentDetails.paymentPageUrl ?? ''}
+              onChangeText={(paymentPageUrl) =>
+                setPaymentDetails((current) => ({ ...current, paymentPageUrl }))
+              }
+              helperText="Optional secure payment page shown on invoice payment links."
+            />
           </View>
 
           <View style={styles.notice}>
