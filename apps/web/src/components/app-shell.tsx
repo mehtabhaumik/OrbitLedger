@@ -14,7 +14,9 @@ const navItems: Array<{ href: Route; label: string }> = [
   { href: '/customers', label: 'Customers' },
   { href: '/transactions', label: 'Transactions' },
   { href: '/invoices', label: 'Invoices' },
+  { href: '/documents' as Route, label: 'Documents' },
   { href: '/reports', label: 'Reports' },
+  { href: '/market' as Route, label: 'Market' },
   { href: '/backup', label: 'Backup' },
   { href: '/settings', label: 'Settings' },
 ];

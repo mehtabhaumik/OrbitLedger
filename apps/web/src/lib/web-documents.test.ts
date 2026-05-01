@@ -1,0 +1,129 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  buildInvoiceWebDocument,
+  buildStatementWebDocument,
+  getWebDocumentTemplate,
+  getWebDocumentTemplates,
+} from './web-documents';
+import { getDefaultWebSubscriptionStatus, getWebProSubscriptionStatus } from './web-monetization';
+import type { WorkspaceCustomer, WorkspaceInvoiceDetail, WorkspaceTransaction } from './workspace-data';
+import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
+
+const workspace: OrbitWorkspaceSummary = {
+  workspaceId: 'workspace-1',
+  businessName: 'Asha Traders',
+  ownerName: 'Asha',
+  phone: '+91 98765 43210',
+  email: 'billing@example.com',
+  address: 'Market Road',
+  currency: 'INR',
+  countryCode: 'IN',
+  stateCode: 'GJ',
+  logoUri: null,
+  authorizedPersonName: 'Asha',
+  authorizedPersonTitle: 'Owner',
+  signatureUri: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  serverRevision: 1,
+  dataState: 'full_dataset',
+};
+
+const customer: WorkspaceCustomer = {
+  id: 'customer-1',
+  name: 'City Mart',
+  phone: '+91 91234 56780',
+  address: 'Station Road',
+  notes: null,
+  openingBalance: 100,
+  isArchived: false,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  balance: 350,
+};
+
+describe('web document parity', () => {
+  it('uses the same India invoice template family and locks Pro templates on Free', () => {
+    const templates = getWebDocumentTemplates(workspace, 'invoice');
+    expect(templates.map((template) => template.key)).toContain('IN_GST_STANDARD_FREE');
+    expect(templates.map((template) => template.key)).toContain('IN_GST_LETTERHEAD_PRO');
+
+    const selected = getWebDocumentTemplate(
+      workspace,
+      'invoice',
+      'IN_GST_LETTERHEAD_PRO',
+      getDefaultWebSubscriptionStatus().isPro
+    );
+    expect(selected.key).toBe('IN_GST_STANDARD_FREE');
+  });
+
+  it('renders invoice tax labels and PDF file names from the selected market template', () => {
+    const invoice: WorkspaceInvoiceDetail = {
+      id: 'invoice-1',
+      customerId: customer.id,
+      invoiceNumber: 'INV-100',
+      issueDate: '2026-05-01',
+      dueDate: '2026-05-08',
+      totalAmount: 1180,
+      status: 'issued',
+      notes: null,
+      items: [
+        {
+          id: 'item-1',
+          invoiceId: 'invoice-1',
+          productId: null,
+          name: 'Repair service',
+          description: null,
+          quantity: 1,
+          price: 1000,
+          taxRate: 18,
+          total: 1180,
+        },
+      ],
+    };
+
+    const document = buildInvoiceWebDocument({ workspace, invoice, customer });
+    expect(document.fileName).toBe('OrbitLedger_City_Mart_Invoice_INV-100.pdf');
+    expect(document.html).toContain('Tax Invoice');
+    expect(document.html).toContain('GST');
+    expect(document.html).toContain('CGST');
+    expect(document.html).toContain('SGST');
+  });
+
+  it('renders Pro statement styling when Pro is active', () => {
+    const transactions: WorkspaceTransaction[] = [
+      {
+        id: 'credit-1',
+        customerId: customer.id,
+        customerName: customer.name,
+        type: 'credit',
+        amount: 500,
+        note: 'Credit entry',
+        effectiveDate: '2026-05-01',
+        createdAt: '2026-05-01T08:00:00.000Z',
+      },
+      {
+        id: 'payment-1',
+        customerId: customer.id,
+        customerName: customer.name,
+        type: 'payment',
+        amount: 250,
+        note: 'Payment received',
+        effectiveDate: '2026-05-02',
+        createdAt: '2026-05-02T08:00:00.000Z',
+      },
+    ];
+
+    const document = buildStatementWebDocument({
+      workspace,
+      customer,
+      transactions,
+      subscription: getWebProSubscriptionStatus(),
+      templateKey: 'IN_STATEMENT_LETTERHEAD_PRO',
+    });
+    expect(document.pdfStyle).toBe('advanced');
+    expect(document.fileName).toContain('Statement_2026-05-01_to_2026-05-02.pdf');
+    expect(document.html).toContain('Orbit Ledger Pro');
+  });
+});

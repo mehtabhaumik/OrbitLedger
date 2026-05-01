@@ -1,0 +1,665 @@
+import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
+import { getLocalBusinessPack } from '@orbit-ledger/core';
+
+import type {
+  WorkspaceCustomer,
+  WorkspaceInvoiceDetail,
+  WorkspaceTransaction,
+} from './workspace-data';
+import {
+  getDefaultWebSubscriptionStatus,
+  getWebProBrandTheme,
+  resolveWebFeatureAccess,
+  type WebProBrandTheme,
+  type WebSubscriptionStatus,
+} from './web-monetization';
+
+export type WebDocumentKind = 'invoice' | 'statement';
+export type WebDocumentTier = 'free' | 'pro';
+export type WebDocumentTemplateRole = 'invoice' | 'statement';
+
+export type WebDocumentTemplate = {
+  key: string;
+  role: WebDocumentTemplateRole;
+  countryCode: 'IN' | 'US' | 'GB' | 'GENERIC';
+  tier: WebDocumentTier;
+  label: string;
+  description: string;
+  visualStyle: 'classic_tax' | 'modern_minimal' | 'premium_letterhead' | 'balance_forward' | 'account_letterhead';
+  countryFormat?: 'india_gst' | 'us_sales_tax' | 'uk_vat' | 'generic_tax';
+  taxLabel: string;
+  taxRegistrationLabel: string;
+  locale?: string;
+  columns: Array<{ key: string; label: string; align: 'left' | 'right' }>;
+};
+
+type BuildInvoiceDocumentInput = {
+  workspace: OrbitWorkspaceSummary;
+  invoice: WorkspaceInvoiceDetail;
+  customer: WorkspaceCustomer | null;
+  subscription?: WebSubscriptionStatus;
+  templateKey?: string | null;
+  proTheme?: WebProBrandTheme | null;
+};
+
+type BuildStatementDocumentInput = {
+  workspace: OrbitWorkspaceSummary;
+  customer: WorkspaceCustomer;
+  transactions: WorkspaceTransaction[];
+  dateFrom?: string;
+  dateTo?: string;
+  subscription?: WebSubscriptionStatus;
+  templateKey?: string | null;
+  proTheme?: WebProBrandTheme | null;
+};
+
+const invoiceTemplates: WebDocumentTemplate[] = [
+  invoiceTemplate('IN_GST_STANDARD_FREE', 'IN', 'free', 'India GST Standard', 'Classic India invoice wording with GSTIN, HSN/SAC, CGST/SGST/IGST and amount in words.', 'classic_tax', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
+    ['name', 'Description', 'left'],
+    ['hsnSac', 'HSN/SAC', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Rate', 'right'],
+    ['taxableValue', 'Taxable value', 'right'],
+    ['taxRate', 'GST', 'right'],
+    ['cgst', 'CGST', 'right'],
+    ['sgst', 'SGST', 'right'],
+    ['igst', 'IGST', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('IN_GST_LETTERHEAD_PRO', 'IN', 'pro', 'India GST Letterhead', 'Premium India letterhead with branding, GSTIN focus, signature and polished totals.', 'premium_letterhead', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
+    ['name', 'Item / Service', 'left'],
+    ['hsnSac', 'HSN/SAC', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['taxableValue', 'Taxable', 'right'],
+    ['taxRate', 'GST', 'right'],
+    ['cgst', 'CGST', 'right'],
+    ['sgst', 'SGST', 'right'],
+    ['igst', 'IGST', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('US_SALES_STANDARD_FREE', 'US', 'free', 'US Sales Standard', 'Modern sales invoice with taxable subtotal, sales tax and item descriptions.', 'modern_minimal', 'us_sales_tax', 'Sales tax', 'Seller permit', 'en-US', [
+    ['name', 'Description', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Unit price', 'right'],
+    ['taxableValue', 'Taxable amount', 'right'],
+    ['taxRate', 'Sales tax', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('US_SALES_PRO', 'US', 'pro', 'US Sales Pro', 'Premium sales invoice with branding, seller permit field and strong totals panel.', 'premium_letterhead', 'us_sales_tax', 'Sales tax', 'Seller permit', 'en-US', [
+    ['name', 'Item / Service', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Rate', 'right'],
+    ['taxAmount', 'Sales tax', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('UK_VAT_STANDARD_FREE', 'GB', 'free', 'UK VAT Standard', 'UK VAT invoice wording with VAT number, tax point and net/VAT/gross totals.', 'classic_tax', 'uk_vat', 'VAT', 'VAT reg no.', 'en-GB', [
+    ['name', 'Description', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Unit price', 'right'],
+    ['taxableValue', 'Net', 'right'],
+    ['taxRate', 'VAT', 'right'],
+    ['taxAmount', 'VAT amount', 'right'],
+    ['total', 'Gross', 'right'],
+  ]),
+  invoiceTemplate('UK_VAT_LETTERHEAD_PRO', 'GB', 'pro', 'UK VAT Letterhead', 'Premium UK invoice wording with logo, VAT number highlight, signature and refined totals.', 'premium_letterhead', 'uk_vat', 'VAT', 'VAT reg no.', 'en-GB', [
+    ['name', 'Item / Service', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['taxableValue', 'Net', 'right'],
+    ['taxRate', 'VAT', 'right'],
+    ['taxAmount', 'VAT', 'right'],
+    ['total', 'Gross', 'right'],
+  ]),
+  invoiceTemplate('GENERIC_INVOICE_STANDARD_FREE', 'GENERIC', 'free', 'Standard Invoice', 'Clean general invoice for countries without a specific local template yet.', 'modern_minimal', 'generic_tax', 'Tax', 'Tax ID', undefined, [
+    ['name', 'Description', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Price', 'right'],
+    ['taxRate', 'Tax', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('GENERIC_INVOICE_LETTERHEAD_PRO', 'GENERIC', 'pro', 'Premium Letterhead', 'Premium general invoice with richer branding and signature treatment.', 'premium_letterhead', 'generic_tax', 'Tax', 'Tax ID', undefined, [
+    ['name', 'Item / Service', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['taxableValue', 'Taxable', 'right'],
+    ['taxAmount', 'Tax', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+];
+
+const statementTemplates: WebDocumentTemplate[] = [
+  statementTemplate('IN_STATEMENT_STANDARD_FREE', 'IN', 'free', 'India Statement Standard', 'Balance-forward customer statement for Indian ledger dues.', 'en-IN'),
+  statementTemplate('IN_STATEMENT_LETTERHEAD_PRO', 'IN', 'pro', 'India Statement Letterhead', 'Premium branded statement with stronger account summary and signature.', 'en-IN'),
+  statementTemplate('US_STATEMENT_STANDARD_FREE', 'US', 'free', 'US Statement Standard', 'Balance-forward statement for US customers and payments.', 'en-US'),
+  statementTemplate('US_STATEMENT_LETTERHEAD_PRO', 'US', 'pro', 'US Statement Letterhead', 'Premium branded US customer statement.', 'en-US'),
+  statementTemplate('UK_STATEMENT_STANDARD_FREE', 'GB', 'free', 'UK Statement Standard', 'Balance-forward statement for UK accounts.', 'en-GB'),
+  statementTemplate('UK_STATEMENT_LETTERHEAD_PRO', 'GB', 'pro', 'UK Statement Letterhead', 'Premium branded UK statement with professional account summary.', 'en-GB'),
+  statementTemplate('GENERIC_STATEMENT_STANDARD_FREE', 'GENERIC', 'free', 'Statement Standard', 'Clean balance-forward customer statement.', undefined),
+  statementTemplate('GENERIC_STATEMENT_LETTERHEAD_PRO', 'GENERIC', 'pro', 'Statement Letterhead', 'Premium branded customer statement.', undefined),
+];
+
+export function getWebDocumentTemplates(workspace: OrbitWorkspaceSummary, role: WebDocumentTemplateRole) {
+  const countryCode = normalizeSupportedCountry(workspace.countryCode);
+  const templates = role === 'invoice' ? invoiceTemplates : statementTemplates;
+  const localTemplates = templates.filter((template) => template.countryCode === countryCode);
+  return localTemplates.length ? localTemplates : templates.filter((template) => template.countryCode === 'GENERIC');
+}
+
+export function getDefaultWebDocumentTemplate(
+  workspace: OrbitWorkspaceSummary,
+  role: WebDocumentTemplateRole,
+  isPro: boolean
+) {
+  const templates = getWebDocumentTemplates(workspace, role);
+  return templates.find((template) => template.tier === (isPro ? 'pro' : 'free')) ?? templates[0];
+}
+
+export function getWebDocumentTemplate(
+  workspace: OrbitWorkspaceSummary,
+  role: WebDocumentTemplateRole,
+  key: string | null | undefined,
+  isPro: boolean
+) {
+  const templates = getWebDocumentTemplates(workspace, role);
+  const selected = key ? templates.find((template) => template.key === key) : null;
+  if (selected && canUseWebTemplate(selected, isPro)) {
+    return selected;
+  }
+  return getDefaultWebDocumentTemplate(workspace, role, isPro);
+}
+
+export function canUseWebTemplate(template: WebDocumentTemplate, isPro: boolean) {
+  return template.tier === 'free' || isPro;
+}
+
+export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
+  const subscription = input.subscription ?? getDefaultWebSubscriptionStatus();
+  const access = resolveWebFeatureAccess(subscription, 'advanced_pdf_styling');
+  const template = getWebDocumentTemplate(input.workspace, 'invoice', input.templateKey, subscription.isPro);
+  const pdfStyle = template.tier === 'pro' && access.allowed ? 'advanced' : 'basic';
+  const includeBranding = resolveWebFeatureAccess(subscription, 'custom_document_branding').allowed;
+  const pack = getLocalBusinessPack({
+    countryCode: input.workspace.countryCode,
+    regionCode: input.workspace.stateCode,
+  });
+  const proTheme = pdfStyle === 'advanced' ? input.proTheme ?? getWebProBrandTheme() : null;
+  const subtotal = input.invoice.items.reduce((total, item) => total + item.quantity * item.price, 0);
+  const taxAmount = input.invoice.items.reduce((total, item) => total + item.quantity * item.price * (item.taxRate / 100), 0);
+  const total = subtotal + taxAmount;
+  const taxMode = taxModeForTemplate(template);
+  const rows = input.invoice.items.map((item) => {
+    const taxableValue = roundCurrency(item.quantity * item.price);
+    const rowTaxAmount = roundCurrency(taxableValue * (item.taxRate / 100));
+    const split = splitTax(rowTaxAmount, taxMode);
+    return {
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      quantity: item.quantity,
+      price: money(item.price, input.workspace.currency, template.locale),
+      taxRate: `${item.taxRate}%`,
+      hsnSac: taxMode.startsWith('india') ? 'HSN/SAC' : '-',
+      taxableValue: money(taxableValue, input.workspace.currency, template.locale),
+      taxAmount: money(rowTaxAmount, input.workspace.currency, template.locale),
+      cgst: split.cgst === null ? '-' : money(split.cgst, input.workspace.currency, template.locale),
+      sgst: split.sgst === null ? '-' : money(split.sgst, input.workspace.currency, template.locale),
+      igst: split.igst === null ? '-' : money(split.igst, input.workspace.currency, template.locale),
+      total: money(item.total, input.workspace.currency, template.locale),
+    };
+  });
+  const taxBreakdown = buildTaxBreakdown(taxAmount, taxMode, input.workspace.currency, template.locale);
+  const fileName = buildInvoicePdfFileName(input.customer?.name ?? 'Customer', input.invoice.invoiceNumber);
+  const html = documentShell({
+    title: `Invoice - ${input.invoice.invoiceNumber}`,
+    bodyClass: `document-invoice style-${pdfStyle} template-${template.visualStyle} template-${template.countryFormat}`,
+    proTheme,
+    content: `
+      ${headerBlock({
+        workspace: input.workspace,
+        title: pack.documents.invoiceTitle,
+        strong: input.invoice.invoiceNumber,
+        meta: `${template.label} · ${input.invoice.status}`,
+        includeBranding,
+        template,
+      })}
+      <section class="identity-grid">
+        <div class="panel">
+          <p class="label">${escapeHtml(pack.documents.buyerLabel)}</p>
+          <h2>${escapeHtml(input.customer?.name ?? 'Unlinked customer')}</h2>
+          ${detailLine('Phone', input.customer?.phone ?? null)}
+          ${detailLine('Address', input.customer?.address ?? null)}
+        </div>
+        <div class="panel">
+          <p class="label">${escapeHtml(pack.documents.invoiceDetailsLabel)}</p>
+          <h2>${escapeHtml(input.invoice.invoiceNumber)}</h2>
+          ${detailLine('Issue date', input.invoice.issueDate)}
+          ${detailLine('Due date', input.invoice.dueDate)}
+          ${detailLine('Place of supply', input.workspace.stateCode || null)}
+        </div>
+      </section>
+      <section class="table-section">
+        <h2>${escapeHtml(pack.documents.itemTableLabel)}</h2>
+        ${invoiceTable(rows, template.columns)}
+      </section>
+      <section class="summary-signature">
+        <div class="summary-card">
+          <h2>Totals</h2>
+          ${summaryLine('Subtotal', money(subtotal, input.workspace.currency, template.locale))}
+          ${summaryLine(template.taxLabel, money(taxAmount, input.workspace.currency, template.locale))}
+          ${summaryLine('Total', money(total, input.workspace.currency, template.locale), true)}
+          <p class="amount-words"><strong>Amount in words:</strong> ${escapeHtml(amountInWords(total, input.workspace.currency))}</p>
+        </div>
+        ${signatureBlock(input.workspace, includeBranding)}
+      </section>
+      <section class="tax-note">
+        <p class="label">${escapeHtml(template.taxLabel)} Details</p>
+        <p>${escapeHtml(taxAmount > 0 ? `${template.taxLabel} is included from saved invoice item rates.` : `No ${template.taxLabel.toLowerCase()} amount is applied to this invoice.`)}</p>
+        ${taxBreakdownList(taxBreakdown)}
+        <p>${escapeHtml(pack.compliance.disclaimer)}</p>
+      </section>
+      ${pdfStyle === 'advanced' ? proFooter('Prepared with custom invoice branding') : ''}
+    `,
+  });
+  return { kind: 'invoice' as const, html, fileName, template, pdfStyle, subscription };
+}
+
+export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
+  const subscription = input.subscription ?? getDefaultWebSubscriptionStatus();
+  const template = getWebDocumentTemplate(input.workspace, 'statement', input.templateKey, subscription.isPro);
+  const pdfStyle = template.tier === 'pro' && subscription.isPro ? 'advanced' : 'basic';
+  const includeBranding = resolveWebFeatureAccess(subscription, 'custom_document_branding').allowed;
+  const proTheme = pdfStyle === 'advanced' ? input.proTheme ?? getWebProBrandTheme() : null;
+  const sortedTransactions = [...input.transactions].sort((left, right) =>
+    `${left.effectiveDate}${left.createdAt}`.localeCompare(`${right.effectiveDate}${right.createdAt}`)
+  );
+  const firstDate = sortedTransactions[0]?.effectiveDate ?? today();
+  const lastDate = sortedTransactions[sortedTransactions.length - 1]?.effectiveDate ?? today();
+  const from = normalizeDate(input.dateFrom || firstDate);
+  const to = normalizeDate(input.dateTo || lastDate);
+  let openingBalance = input.customer.openingBalance;
+  for (const transaction of sortedTransactions) {
+    if (normalizeDate(transaction.effectiveDate) >= from) {
+      continue;
+    }
+    openingBalance += transaction.type === 'credit' ? transaction.amount : -transaction.amount;
+  }
+  let runningBalance = openingBalance;
+  let totalCredit = 0;
+  let totalPayment = 0;
+  const rows = sortedTransactions
+    .filter((transaction) => normalizeDate(transaction.effectiveDate) >= from && normalizeDate(transaction.effectiveDate) <= to)
+    .map((transaction) => {
+      if (transaction.type === 'credit') {
+        totalCredit += transaction.amount;
+        runningBalance += transaction.amount;
+      } else {
+        totalPayment += transaction.amount;
+        runningBalance -= transaction.amount;
+      }
+      return {
+        date: normalizeDate(transaction.effectiveDate),
+        description: transaction.note || (transaction.type === 'credit' ? 'Credit entry' : 'Payment received'),
+        credit: transaction.type === 'credit' ? money(transaction.amount, input.workspace.currency, template.locale) : '-',
+        payment: transaction.type === 'payment' ? money(transaction.amount, input.workspace.currency, template.locale) : '-',
+        runningBalance: money(runningBalance, input.workspace.currency, template.locale),
+      };
+    });
+  const pack = getLocalBusinessPack({
+    countryCode: input.workspace.countryCode,
+    regionCode: input.workspace.stateCode,
+  });
+  const fileName = buildStatementPdfFileName(input.customer.name, from, to);
+  const amountDue = Math.abs(runningBalance);
+  const dueMessage =
+    runningBalance > 0
+      ? `${input.customer.name} owes you ${money(amountDue, input.workspace.currency, template.locale)}.`
+      : runningBalance < 0
+        ? `You owe ${input.customer.name} ${money(amountDue, input.workspace.currency, template.locale)}.`
+        : 'This account is settled for the selected statement period.';
+  const html = documentShell({
+    title: `Statement - ${input.customer.name}`,
+    bodyClass: `document-statement style-${pdfStyle} template-${template.visualStyle}`,
+    proTheme,
+    content: `
+      ${headerBlock({
+        workspace: input.workspace,
+        title: pack.documents.statementTitle,
+        strong: today(),
+        meta: template.label,
+        includeBranding,
+        template,
+      })}
+      <section class="identity-grid">
+        <div class="panel">
+          <p class="label">Statement For</p>
+          <h2>${escapeHtml(input.customer.name)}</h2>
+          ${detailLine('Phone', input.customer.phone)}
+          ${detailLine('Address', input.customer.address)}
+        </div>
+        <div class="panel">
+          <p class="label">Statement Period</p>
+          <h2>${escapeHtml(from)} to ${escapeHtml(to)}</h2>
+          <p>Statement date: ${escapeHtml(today())}</p>
+        </div>
+      </section>
+      <section class="summary-signature">
+        <div class="panel account-summary-panel">
+          <p class="label">Amount due</p>
+          <h2>${escapeHtml(money(amountDue, input.workspace.currency, template.locale))}</h2>
+          <p>${escapeHtml(dueMessage)}</p>
+        </div>
+        <div class="summary-card">
+          <h2>${escapeHtml(pack.documents.statementSummaryLabel)}</h2>
+          ${summaryLine('Opening balance', money(openingBalance, input.workspace.currency, template.locale))}
+          ${summaryLine('Credit / charges', money(totalCredit, input.workspace.currency, template.locale))}
+          ${summaryLine('Payments received', money(totalPayment, input.workspace.currency, template.locale))}
+          ${summaryLine('Closing balance', money(runningBalance, input.workspace.currency, template.locale), true)}
+        </div>
+      </section>
+      <section class="table-section">
+        <h2>${escapeHtml(pack.documents.statementActivityLabel)}</h2>
+        ${statementTable(rows, template.columns)}
+      </section>
+      <section class="summary-signature">${signatureBlock(input.workspace, includeBranding)}</section>
+      <section class="tax-note">
+        <p class="label">Statement Note</p>
+        <p>Customer statements summarize ledger dues and payments. Invoice tax totals are handled in invoice documents and reports.</p>
+        <p>Please review this statement and contact us if anything looks incorrect.</p>
+      </section>
+      ${pdfStyle === 'advanced' ? proFooter('Prepared with custom document branding') : ''}
+    `,
+  });
+  return { kind: 'statement' as const, html, fileName, template, pdfStyle, subscription };
+}
+
+export function openPrintableDocument(html: string) {
+  const target = window.open('', '_blank', 'noopener,noreferrer,width=960,height=720');
+  if (!target) {
+    throw new Error('Allow popups to view or save this PDF.');
+  }
+  target.document.open();
+  target.document.write(html);
+  target.document.close();
+  target.focus();
+  window.setTimeout(() => target.print(), 350);
+}
+
+export function downloadDocumentHtml(fileName: string, html: string) {
+  const htmlFileName = fileName.replace(/\.pdf$/i, '.html');
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = href;
+  link.download = htmlFileName;
+  link.click();
+  URL.revokeObjectURL(href);
+}
+
+export function buildPaymentRequestMessage(input: {
+  businessName: string;
+  customerName: string;
+  amount: number;
+  currency: string;
+  documentLabel: string;
+  documentNumber?: string;
+}) {
+  const amount = money(input.amount, input.currency);
+  const reference = input.documentNumber ? ` for ${input.documentLabel} ${input.documentNumber}` : '';
+  return `Hello ${input.customerName}, please share the payment of ${amount}${reference} when convenient. Thank you, ${input.businessName}.`;
+}
+
+function invoiceTemplate(
+  key: string,
+  countryCode: WebDocumentTemplate['countryCode'],
+  tier: WebDocumentTier,
+  label: string,
+  description: string,
+  visualStyle: Extract<WebDocumentTemplate['visualStyle'], 'classic_tax' | 'modern_minimal' | 'premium_letterhead'>,
+  countryFormat: NonNullable<WebDocumentTemplate['countryFormat']>,
+  taxLabel: string,
+  taxRegistrationLabel: string,
+  locale: string | undefined,
+  columns: Array<[string, string, 'left' | 'right']>
+): WebDocumentTemplate {
+  return {
+    key,
+    role: 'invoice',
+    countryCode,
+    tier,
+    label,
+    description,
+    visualStyle,
+    countryFormat,
+    taxLabel,
+    taxRegistrationLabel,
+    locale,
+    columns: columns.map(([columnKey, columnLabel, align]) => ({ key: columnKey, label: columnLabel, align })),
+  };
+}
+
+function statementTemplate(
+  key: string,
+  countryCode: WebDocumentTemplate['countryCode'],
+  tier: WebDocumentTier,
+  label: string,
+  description: string,
+  locale: string | undefined
+): WebDocumentTemplate {
+  return {
+    key,
+    role: 'statement',
+    countryCode,
+    tier,
+    label,
+    description,
+    visualStyle: tier === 'pro' ? 'account_letterhead' : 'balance_forward',
+    taxLabel: 'Tax',
+    taxRegistrationLabel: 'Tax ID',
+    locale,
+    columns: [
+      { key: 'date', label: 'Date', align: 'left' },
+      { key: 'description', label: 'Details', align: 'left' },
+      { key: 'credit', label: 'Credit / Charges', align: 'right' },
+      { key: 'payment', label: 'Payments', align: 'right' },
+      { key: 'runningBalance', label: 'Balance', align: 'right' },
+    ],
+  };
+}
+
+function normalizeSupportedCountry(countryCode: string): WebDocumentTemplate['countryCode'] {
+  const normalized = countryCode.trim().toUpperCase();
+  return normalized === 'IN' || normalized === 'US' || normalized === 'GB' ? normalized : 'GENERIC';
+}
+
+function taxModeForTemplate(template: WebDocumentTemplate) {
+  if (template.countryFormat === 'india_gst') {
+    return 'india_intra_state';
+  }
+  if (template.countryFormat === 'us_sales_tax') {
+    return 'us_sales_tax';
+  }
+  if (template.countryFormat === 'uk_vat') {
+    return 'uk_vat';
+  }
+  return 'generic';
+}
+
+function splitTax(amount: number, mode: string) {
+  const rounded = roundCurrency(amount);
+  if (rounded <= 0) {
+    return { cgst: null, sgst: null, igst: null };
+  }
+  if (mode === 'india_intra_state') {
+    const half = roundCurrency(rounded / 2);
+    return { cgst: half, sgst: roundCurrency(rounded - half), igst: null };
+  }
+  if (mode === 'india_inter_state') {
+    return { cgst: null, sgst: null, igst: rounded };
+  }
+  if (mode === 'us_sales_tax') {
+    return { cgst: null, sgst: null, igst: rounded };
+  }
+  if (mode === 'uk_vat') {
+    return { cgst: null, sgst: null, igst: rounded };
+  }
+  return { cgst: null, sgst: null, igst: rounded };
+}
+
+function buildTaxBreakdown(amount: number, mode: string, currency: string, locale?: string) {
+  const rounded = roundCurrency(amount);
+  if (rounded <= 0) {
+    return [];
+  }
+  if (mode === 'india_intra_state') {
+    const cgst = roundCurrency(rounded / 2);
+    return [
+      { label: 'CGST', amount: money(cgst, currency, locale) },
+      { label: 'SGST', amount: money(roundCurrency(rounded - cgst), currency, locale) },
+    ];
+  }
+  if (mode === 'india_inter_state') {
+    return [{ label: 'IGST', amount: money(rounded, currency, locale) }];
+  }
+  if (mode === 'us_sales_tax') {
+    return [{ label: 'Sales tax', amount: money(rounded, currency, locale) }];
+  }
+  if (mode === 'uk_vat') {
+    return [{ label: 'VAT', amount: money(rounded, currency, locale) }];
+  }
+  return [{ label: 'Tax', amount: money(rounded, currency, locale) }];
+}
+
+function documentShell(input: { title: string; bodyClass: string; proTheme: WebProBrandTheme | null; content: string }) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(input.title)}</title><style>${pdfStyles}</style></head><body class="${escapeAttribute(input.bodyClass)}"${proThemeStyle(input.proTheme)}><main class="page">${input.content}</main></body></html>`;
+}
+
+function headerBlock(input: {
+  workspace: OrbitWorkspaceSummary;
+  title: string;
+  strong: string;
+  meta: string;
+  includeBranding: boolean;
+  template: WebDocumentTemplate;
+}) {
+  const logo = input.includeBranding && input.workspace.logoUri
+    ? `<img class="logo" src="${escapeAttribute(input.workspace.logoUri)}" alt="${escapeAttribute(input.workspace.businessName)} logo">`
+    : `<div class="logo-fallback">${escapeHtml(initials(input.workspace.businessName))}</div>`;
+  return `<header class="document-header"><div class="brand-row">${logo}<div class="business-copy"><h1>${escapeHtml(input.workspace.businessName)}</h1><p>${escapeHtml(input.workspace.address)}</p><p class="business-contact">${escapeHtml(input.workspace.phone)} | ${escapeHtml(input.workspace.email)}</p></div></div><div class="statement-title"><p class="label">${escapeHtml(input.title)}</p><strong>${escapeHtml(input.strong)}</strong><span>${escapeHtml(input.meta)}</span><em class="style-badge">${escapeHtml(input.template.tier === 'pro' ? `${input.template.label} · Pro` : input.template.label)}</em></div></header>`;
+}
+
+function signatureBlock(workspace: OrbitWorkspaceSummary, includeBranding: boolean) {
+  const signature = includeBranding && workspace.signatureUri
+    ? `<img class="signature" src="${escapeAttribute(workspace.signatureUri)}" alt="Authorized signature">`
+    : '<span>Signature not added</span>';
+  return `<div class="signature-card"><p class="label">Authorized by</p><div class="signature-box">${signature}</div><div class="signature-line"></div><h2>${escapeHtml(workspace.authorizedPersonName || workspace.ownerName || workspace.businessName)}</h2><p>${escapeHtml(workspace.authorizedPersonTitle || 'Authorized person')}</p></div>`;
+}
+
+function invoiceTable(rows: Array<Record<string, string | number | null>>, columns: WebDocumentTemplate['columns']) {
+  if (!rows.length) {
+    return '<div class="empty-table">No items added to this invoice.</div>';
+  }
+  return `<table><thead><tr>${columns.map((column) => `<th class="${column.align === 'right' ? 'numeric' : ''}">${escapeHtml(column.label)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${columns.map((column) => `<td class="${column.align === 'right' ? 'numeric' : ''} ${column.key === 'name' ? 'description' : ''}">${escapeHtml(String(row[column.key] ?? '-'))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+function statementTable(rows: Array<Record<string, string>>, columns: WebDocumentTemplate['columns']) {
+  if (!rows.length) {
+    return '<div class="empty-table">No transactions in this statement period.</div>';
+  }
+  return `<table><thead><tr>${columns.map((column) => `<th class="${column.align === 'right' ? 'numeric' : ''}">${escapeHtml(column.label)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${columns.map((column) => `<td class="${column.align === 'right' ? 'numeric' : ''} ${column.key === 'description' ? 'description' : ''}">${escapeHtml(row[column.key] ?? '-')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+function detailLine(label: string, value: string | null | undefined) {
+  return value ? `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>` : '';
+}
+
+function summaryLine(label: string, value: string, emphasized = false) {
+  return `<div class="summary-line ${emphasized ? 'emphasized' : ''}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
+}
+
+function taxBreakdownList(rows: Array<{ label: string; amount: string }>) {
+  if (!rows.length) {
+    return '';
+  }
+  return `<div class="tax-breakdown">${rows.map((row) => summaryLine(row.label, row.amount)).join('')}</div>`;
+}
+
+function proFooter(message: string) {
+  return `<section class="brand-footer"><span>Orbit Ledger Pro</span><span>${escapeHtml(message)}</span></section>`;
+}
+
+function proThemeStyle(theme: WebProBrandTheme | null) {
+  if (!theme) {
+    return '';
+  }
+  return ` style="--pro-accent:${escapeAttribute(theme.accentColor)};--pro-surface:${escapeAttribute(theme.surfaceColor)};--pro-line:${escapeAttribute(theme.lineColor)};--pro-text:${escapeAttribute(theme.textColor)}"`;
+}
+
+function buildInvoicePdfFileName(customerName: string, invoiceNumber: string) {
+  return `OrbitLedger_${fileNamePart(customerName, 'Customer')}_Invoice_${fileNamePart(invoiceNumber, 'Invoice')}.pdf`;
+}
+
+function buildStatementPdfFileName(customerName: string, from: string, to: string) {
+  const range = from === to ? fileNamePart(from, today()) : `${fileNamePart(from, today())}_to_${fileNamePart(to, today())}`;
+  return `OrbitLedger_${fileNamePart(customerName, 'Customer')}_Statement_${range}.pdf`;
+}
+
+function fileNamePart(value: string, fallback: string) {
+  return (value || fallback).replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || fallback;
+}
+
+function money(amount: number, currency: string, locale?: string) {
+  return new Intl.NumberFormat(locale ?? (currency === 'INR' ? 'en-IN' : 'en-US'), {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+function amountInWords(amount: number, currency: string) {
+  return `${money(amount, currency)} only`;
+}
+
+function roundCurrency(value: number) {
+  return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+}
+
+function normalizeDate(value: string) {
+  return value.slice(0, 10);
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function initials(value: string) {
+  return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'OL';
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+function escapeAttribute(value: string) {
+  return escapeHtml(value).replace(/`/g, '&#096;');
+}
+
+const pdfStyles = `
+  :root{--pro-accent:#145C52;--pro-surface:#E5F1ED;--pro-line:#D6E0DA;--pro-text:#18231F}
+  *{box-sizing:border-box}
+  body{margin:0;background:#edf2f7;color:#18231f;font-family:Inter,Arial,sans-serif}
+  .page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:18mm;box-shadow:0 20px 60px rgba(20,32,51,.16)}
+  .document-header{display:flex;justify-content:space-between;gap:24px;border-bottom:2px solid #dce6f2;padding-bottom:18px;margin-bottom:20px}
+  .brand-row{display:flex;gap:14px;align-items:flex-start;min-width:0}
+  .logo,.logo-fallback{width:58px;height:58px;border-radius:16px;object-fit:contain;flex:0 0 auto}
+  .logo-fallback{display:grid;place-items:center;background:#e8f1ff;color:#245db5;font-weight:900;font-size:18px}
+  h1,h2,p{margin:0}.business-copy h1{font-size:24px;line-height:1.1}.business-copy p{margin-top:6px;color:#516173;font-size:12px;line-height:1.5}
+  .statement-title{text-align:right;display:grid;gap:6px;justify-items:end}.label{font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#66758a}.statement-title strong{font-size:22px}.statement-title span{font-size:12px;color:#66758a}
+  .style-badge{display:inline-flex;border:1px solid #cdd8e8;border-radius:999px;padding:5px 9px;font-size:10px;font-style:normal;font-weight:800;color:#245db5;background:#f5f8fc}
+  .identity-grid,.summary-signature{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}.panel,.summary-card,.signature-card,.tax-note{border:1px solid #dce6f2;border-radius:16px;padding:14px;background:#fbfdff}
+  .panel h2,.summary-card h2,.signature-card h2{font-size:16px;margin-top:6px}.panel p{font-size:12px;line-height:1.6;color:#516173;margin-top:6px}
+  .table-section{margin:18px 0}.table-section h2{font-size:15px;margin-bottom:10px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border-bottom:1px solid #e2eaf4;padding:9px 8px;text-align:left;vertical-align:top}th{background:#f4f8fc;color:#516173;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.numeric{text-align:right}.description{font-weight:700}.empty-table{border:1px dashed #cdd8e8;border-radius:14px;padding:18px;color:#66758a}
+  .summary-line{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid #e5edf6;font-size:12px}.summary-line.emphasized{font-size:15px;font-weight:900;color:#145C52;border-bottom:0}.amount-words{font-size:11px;line-height:1.5;margin-top:10px;color:#516173}
+  .signature-box{height:60px;border:1px dashed #cad6e6;border-radius:12px;display:grid;place-items:center;color:#8390a3;margin:12px 0}.signature{max-width:100%;max-height:52px;object-fit:contain}.signature-line{height:1px;background:#aebace;margin-bottom:8px}
+  .tax-note{font-size:11px;color:#516173;line-height:1.55}.tax-breakdown{margin:8px 0}.account-summary-panel h2{font-size:26px;color:#b56a18}
+  .style-advanced .page{border-top:8px solid var(--pro-accent)}.style-advanced .logo-fallback,.style-advanced .style-badge{background:var(--pro-surface);color:var(--pro-accent);border-color:var(--pro-line)}.style-advanced .statement-title strong,.style-advanced .summary-line.emphasized{color:var(--pro-accent)}
+  .brand-footer{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid var(--pro-line);font-size:10px;font-weight:800;color:var(--pro-accent)}
+  @media print{body{background:#fff}.page{width:auto;min-height:auto;margin:0;box-shadow:none;padding:12mm}@page{size:A4;margin:10mm}}
+`;

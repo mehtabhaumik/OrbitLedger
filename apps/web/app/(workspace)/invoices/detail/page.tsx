@@ -12,6 +12,13 @@ import {
   type WorkspaceCustomer,
   type WorkspaceInvoiceDetail,
 } from '@/lib/workspace-data';
+import {
+  buildInvoiceWebDocument,
+  buildPaymentRequestMessage,
+  downloadDocumentHtml,
+  getWebDocumentTemplates,
+  openPrintableDocument,
+} from '@/lib/web-documents';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
@@ -48,6 +55,7 @@ function InvoiceEditorContent() {
   const [items, setItems] = useState<EditableItem[]>([emptyItem()]);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [templateKey, setTemplateKey] = useState('');
 
   useEffect(() => {
     if (!activeWorkspace || !invoiceId) {
@@ -106,6 +114,49 @@ function InvoiceEditorContent() {
   }, [items]);
   const total = totals.subtotal + totals.tax;
   const currency = activeWorkspace?.currency ?? 'INR';
+  const selectedCustomer = customers.find((customer) => customer.id === customerId) ?? null;
+  const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
+  const selectedTemplate = invoiceTemplates.find((template) => template.key === templateKey) ?? invoiceTemplates[0];
+  const currentInvoiceDocument = useMemo(() => {
+    if (!activeWorkspace || !invoice) {
+      return null;
+    }
+    const documentInvoice: WorkspaceInvoiceDetail = {
+      ...invoice,
+      customerId: customerId || null,
+      invoiceNumber,
+      issueDate,
+      dueDate: dueDate || null,
+      status,
+      notes,
+      totalAmount: total,
+      items: items
+        .filter((item) => item.name.trim())
+        .map((item, index) => {
+          const quantity = parseMoney(item.quantity);
+          const price = parseMoney(item.price);
+          const taxRate = parseMoney(item.taxRate);
+          const subtotal = quantity * price;
+          return {
+            id: item.id ?? `draft-${index}`,
+            invoiceId: invoice.id,
+            productId: null,
+            name: item.name.trim(),
+            description: item.description.trim() || null,
+            quantity,
+            price,
+            taxRate,
+            total: subtotal + subtotal * (taxRate / 100),
+          };
+        }),
+    };
+    return buildInvoiceWebDocument({
+      workspace: activeWorkspace,
+      invoice: documentInvoice,
+      customer: selectedCustomer,
+      templateKey: selectedTemplate?.key,
+    });
+  }, [activeWorkspace, customerId, dueDate, invoice, invoiceNumber, issueDate, items, notes, selectedCustomer, selectedTemplate?.key, status, total]);
 
   async function saveInvoice() {
     if (!activeWorkspace || !invoice) {
@@ -178,33 +229,40 @@ function InvoiceEditorContent() {
     });
   }
 
-  function exportInvoice() {
-    if (!invoice) {
+  function viewPdf() {
+    if (!currentInvoiceDocument) {
       return;
     }
-    const selectedCustomer = customers.find((customer) => customer.id === customerId);
-    const html = buildInvoiceHtml({
-      businessName: activeWorkspace?.businessName ?? 'Orbit Ledger',
+    try {
+      openPrintableDocument(currentInvoiceDocument.html);
+      showToast('Invoice opened. Choose Save as PDF in the print window.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Invoice PDF could not be opened.', 'danger');
+    }
+  }
+
+  function downloadInvoiceDocument() {
+    if (!currentInvoiceDocument) {
+      return;
+    }
+    downloadDocumentHtml(currentInvoiceDocument.fileName, currentInvoiceDocument.html);
+    showToast('Invoice document downloaded.', 'success');
+  }
+
+  async function copyPaymentMessage() {
+    if (!activeWorkspace || !currentInvoiceDocument) {
+      return;
+    }
+    const messageText = buildPaymentRequestMessage({
+      businessName: activeWorkspace.businessName,
       customerName: selectedCustomer?.name ?? 'Customer',
+      amount: total,
       currency,
-      invoiceNumber,
-      issueDate,
-      dueDate,
-      status,
-      notes,
-      items,
-      subtotal: totals.subtotal,
-      tax: totals.tax,
-      total,
+      documentLabel: 'invoice',
+      documentNumber: invoiceNumber,
     });
-    const blob = new Blob([html], { type: 'text/html' });
-    const href = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = href;
-    link.download = `${invoiceNumber || invoice.id}.html`;
-    link.click();
-    URL.revokeObjectURL(href);
-    showToast('Invoice document exported.', 'success');
+    await navigator.clipboard.writeText(messageText);
+    showToast('Payment message copied.', 'success');
   }
 
   return (
@@ -213,8 +271,14 @@ function InvoiceEditorContent() {
         <Link className="ol-button-secondary" href="/invoices">
           Back to invoices
         </Link>
-        <button className="ol-button-secondary" type="button" onClick={exportInvoice} disabled={!invoice}>
-          Export document
+        <button className="ol-button-secondary" type="button" onClick={viewPdf} disabled={!currentInvoiceDocument}>
+          View / save PDF
+        </button>
+        <button className="ol-button-secondary" type="button" onClick={downloadInvoiceDocument} disabled={!currentInvoiceDocument}>
+          Download document
+        </button>
+        <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentMessage()} disabled={!currentInvoiceDocument || total <= 0}>
+          Copy payment message
         </button>
         <button className="ol-button" type="button" onClick={() => void saveInvoice()} disabled={isSaving || !invoice}>
           {isSaving ? 'Saving...' : 'Save invoice'}
@@ -261,6 +325,20 @@ function InvoiceEditorContent() {
                 <option value="paid">Paid</option>
                 <option value="overdue">Overdue</option>
                 <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+            <label className="ol-field" style={{ marginTop: 16 }}>
+              <span className="ol-field-label">PDF template</span>
+              <select
+                className="ol-select"
+                value={templateKey || selectedTemplate?.key || ''}
+                onChange={(event) => setTemplateKey(event.target.value)}
+              >
+                {invoiceTemplates.map((template) => (
+                  <option key={template.key} value={template.key}>
+                    {template.tier === 'pro' ? `${template.label} · Pro` : template.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="ol-field" style={{ marginTop: 16 }}>
@@ -320,6 +398,27 @@ function InvoiceEditorContent() {
             <Metric label="Tax" value={formatCurrency(totals.tax, currency)} tone="warning" />
             <Metric label="Total" value={formatCurrency(total, currency)} tone="success" />
           </section>
+
+          <section className="ol-panel-glass">
+            <div className="ol-panel-header">
+              <div>
+                <div className="ol-panel-title">PDF readiness</div>
+                <p className="ol-panel-copy">
+                  The PDF uses the same country-ready template catalog, Pro access, branding rules,
+                  and payment message flow across Orbit Ledger.
+                </p>
+              </div>
+              <span className={`ol-chip ${currentInvoiceDocument?.template.tier === 'pro' ? 'ol-chip--premium' : 'ol-chip--primary'}`}>
+                {currentInvoiceDocument?.template.label ?? 'Template'}
+              </span>
+            </div>
+            <div className="ol-review-grid">
+              <Review label="PDF name" value={currentInvoiceDocument?.fileName ?? 'Save invoice details first'} />
+              <Review label="Tax format" value={currentInvoiceDocument?.template.countryFormat?.replace(/_/g, ' ') ?? 'Local'} />
+              <Review label="PDF style" value={currentInvoiceDocument?.pdfStyle === 'advanced' ? 'Advanced' : 'Basic'} />
+              <Review label="Customer" value={selectedCustomer?.name ?? 'Unlinked customer'} />
+            </div>
+          </section>
         </>
       ) : null}
     </AppShell>
@@ -353,35 +452,13 @@ function Metric({ label, value, tone }: { label: string; value: string; tone: 'p
   );
 }
 
-function buildInvoiceHtml(input: {
-  businessName: string;
-  customerName: string;
-  currency: string;
-  invoiceNumber: string;
-  issueDate: string;
-  dueDate: string;
-  status: string;
-  notes: string;
-  items: EditableItem[];
-  subtotal: number;
-  tax: number;
-  total: number;
-}) {
-  const rows = input.items
-    .filter((item) => item.name.trim())
-    .map((item) => {
-      const lineTotal = parseMoney(item.quantity) * parseMoney(item.price);
-      return `<tr><td>${escapeHtml(item.name)}${item.description ? `<br><small>${escapeHtml(item.description)}</small>` : ''}</td><td>${escapeHtml(item.quantity)}</td><td>${formatCurrency(parseMoney(item.price), input.currency)}</td><td>${formatCurrency(lineTotal, input.currency)}</td></tr>`;
-    })
-    .join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(input.invoiceNumber)}</title><style>body{font-family:Inter,Arial,sans-serif;margin:40px;color:#142033}table{width:100%;border-collapse:collapse;margin-top:24px}td,th{border-bottom:1px solid #d8e1ef;padding:12px;text-align:left}.total{text-align:right;font-weight:800}</style></head><body><h1>${escapeHtml(input.businessName)}</h1><p>Invoice ${escapeHtml(input.invoiceNumber)} - ${escapeHtml(input.status)}</p><p>Customer: ${escapeHtml(input.customerName)}</p><p>Issue: ${escapeHtml(input.issueDate)} ${input.dueDate ? `- Due: ${escapeHtml(input.dueDate)}` : ''}</p><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table><p class="total">Subtotal ${formatCurrency(input.subtotal, input.currency)}</p><p class="total">Tax ${formatCurrency(input.tax, input.currency)}</p><h2 class="total">Total ${formatCurrency(input.total, input.currency)}</h2><p>${escapeHtml(input.notes)}</p></body></html>`;
-}
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => {
-    const entities: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-    return entities[char] ?? char;
-  });
+function Review({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="ol-review-item">
+      <span className="ol-review-label">{label}</span>
+      <strong className="ol-review-value">{value}</strong>
+    </div>
+  );
 }
 
 function formatCurrency(value: number, currency: string) {

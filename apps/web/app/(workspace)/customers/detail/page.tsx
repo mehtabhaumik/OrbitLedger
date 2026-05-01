@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import type { Route } from 'next';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
@@ -153,6 +154,9 @@ function CustomerDetailContent() {
         </Link>
         <Link className="ol-button" href="/transactions">
           Record transaction
+        </Link>
+        <Link className="ol-button-secondary" href={'/documents' as Route}>
+          Create statement
         </Link>
       </div>
 

@@ -1700,6 +1700,59 @@ a:focus-visible {
   line-height: 1.5;
 }
 
+.ol-market-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.ol-market-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(203, 214, 232, 0.82);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.ol-market-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ol-market-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.ol-market-price {
+  color: var(--primary);
+  font-size: 22px;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.ol-market-card p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.ol-theme-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(174, 190, 214, 0.82);
+}
+
 .ol-actions {
   display: flex;
   flex-wrap: wrap;
