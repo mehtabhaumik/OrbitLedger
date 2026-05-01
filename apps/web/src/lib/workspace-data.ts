@@ -4,12 +4,17 @@ import {
   buildCustomerHealthScore,
   deriveInvoicePaymentStatus,
   legacyStatusForInvoiceLifecycle,
+  normalizePaymentMode,
+  normalizePaymentModeDetails,
   normalizeInvoiceDocumentState,
   normalizeInvoicePaymentStatus,
+  validatePaymentModeDetails,
   type InvoiceDocumentState,
   type InvoicePaymentStatus,
   type PaymentAllocationStrategy,
   type CustomerHealthScore,
+  type PaymentMode,
+  type PaymentModeDetails,
 } from '@orbit-ledger/core';
 import {
   addDoc,
@@ -51,6 +56,8 @@ export type WorkspaceTransaction = {
   type: 'credit' | 'payment';
   amount: number;
   note: string | null;
+  paymentMode: PaymentMode | null;
+  paymentDetails: PaymentModeDetails | null;
   effectiveDate: string;
   createdAt: string;
 };
@@ -126,12 +133,16 @@ export type WorkspacePaymentAllocation = {
 export type WorkspaceInvoicePaymentAllocation = WorkspacePaymentAllocation & {
   transactionEffectiveDate: string;
   transactionNote: string | null;
+  paymentMode: PaymentMode | null;
+  paymentDetails: PaymentModeDetails | null;
 };
 
 export type CreateWorkspaceInvoicePaymentInput = {
   amount: number;
   effectiveDate?: string;
   note?: string | null;
+  paymentMode?: PaymentMode | null;
+  paymentDetails?: PaymentModeDetails | null;
 };
 
 export type SaveWorkspaceInvoiceInput = {
@@ -167,6 +178,8 @@ export type CreateWorkspaceTransactionInput = {
   amount: number;
   note?: string | null;
   effectiveDate?: string;
+  paymentMode?: PaymentMode | null;
+  paymentDetails?: PaymentModeDetails | null;
   allocationStrategy?: PaymentAllocationStrategy;
   invoiceId?: string | null;
 };
@@ -332,6 +345,9 @@ export async function listWorkspaceTransactions(
         type?: 'credit' | 'payment';
         amount?: number;
         note?: string | null;
+        payment_mode?: string | null;
+        payment_details?: PaymentModeDetails | null;
+        payment_details_json?: string | null;
         effective_date?: string;
         created_at?: string;
       };
@@ -342,6 +358,8 @@ export async function listWorkspaceTransactions(
         type: data.type ?? 'payment',
         amount: data.amount ?? 0,
         note: data.note ?? null,
+        paymentMode: data.payment_mode ? normalizePaymentMode(data.payment_mode) : null,
+        paymentDetails: normalizeStoredPaymentDetails(data),
         effectiveDate: data.effective_date ?? '',
         createdAt: data.created_at ?? '',
       } satisfies WorkspaceTransaction;
@@ -373,6 +391,9 @@ export async function listWorkspaceCustomerTransactions(
       type?: 'credit' | 'payment';
       amount?: number;
       note?: string | null;
+      payment_mode?: string | null;
+      payment_details?: PaymentModeDetails | null;
+      payment_details_json?: string | null;
       effective_date?: string;
       created_at?: string;
     };
@@ -383,6 +404,8 @@ export async function listWorkspaceCustomerTransactions(
       type: data.type ?? 'payment',
       amount: data.amount ?? 0,
       note: data.note ?? null,
+      paymentMode: data.payment_mode ? normalizePaymentMode(data.payment_mode) : null,
+      paymentDetails: normalizeStoredPaymentDetails(data),
       effectiveDate: data.effective_date ?? '',
       createdAt: data.created_at ?? '',
     } satisfies WorkspaceTransaction;
@@ -405,11 +428,24 @@ export async function createWorkspaceTransaction(
 
   const customerName = String(customerSnapshot.data().name ?? 'Customer');
   const now = new Date().toISOString();
+  const paymentMode = input.type === 'payment' ? normalizePaymentMode(input.paymentMode) : null;
+  const paymentDetails =
+    input.type === 'payment' ? normalizePaymentModeDetails(input.paymentDetails) : null;
+  const paymentModeError =
+    input.type === 'payment' && paymentMode && paymentDetails
+      ? validatePaymentModeDetails(paymentMode, paymentDetails)
+      : null;
+  if (paymentModeError) {
+    throw new Error(paymentModeError);
+  }
   const payload = {
     customer_id: input.customerId,
     type: input.type,
     amount: input.amount,
     note: input.note?.trim() || null,
+    payment_mode: paymentMode,
+    payment_details: paymentDetails,
+    payment_details_json: serializePaymentDetails(paymentDetails),
     effective_date: input.effectiveDate ?? now.slice(0, 10),
     created_at: now,
     last_modified: now,
@@ -464,6 +500,8 @@ export async function createWorkspaceTransaction(
     type: input.type,
     amount: input.amount,
     note: payload.note,
+    paymentMode,
+    paymentDetails,
     effectiveDate: payload.effective_date,
     createdAt: now,
   };
@@ -546,6 +584,8 @@ export async function listWorkspaceInvoicePaymentAllocations(
         createdAt: data.created_at ?? '',
         transactionEffectiveDate: transaction?.effectiveDate ?? data.created_at?.slice(0, 10) ?? '',
         transactionNote: transaction?.note ?? null,
+        paymentMode: transaction?.paymentMode ?? null,
+        paymentDetails: transaction?.paymentDetails ?? null,
       };
     })
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
@@ -578,6 +618,8 @@ export async function createWorkspaceInvoicePayment(
     amount,
     effectiveDate: input.effectiveDate,
     note: input.note?.trim() || `Payment for invoice ${invoice.invoiceNumber}`,
+    paymentMode: input.paymentMode,
+    paymentDetails: input.paymentDetails,
     allocationStrategy: 'selected_invoice',
     invoiceId,
   });
@@ -926,6 +968,9 @@ async function loadTransactionsByIds(
       type?: 'credit' | 'payment';
       amount?: number;
       note?: string | null;
+      payment_mode?: string | null;
+      payment_details?: PaymentModeDetails | null;
+      payment_details_json?: string | null;
       effective_date?: string;
       created_at?: string;
     };
@@ -936,6 +981,8 @@ async function loadTransactionsByIds(
       type: data.type ?? 'payment',
       amount: data.amount ?? 0,
       note: data.note ?? null,
+      paymentMode: data.payment_mode ? normalizePaymentMode(data.payment_mode) : null,
+      paymentDetails: normalizeStoredPaymentDetails(data),
       effectiveDate: data.effective_date ?? '',
       createdAt: data.created_at ?? '',
     });
@@ -1349,6 +1396,36 @@ function dayDifference(value: string) {
   }
 
   return Math.max(0, Math.floor((Date.now() - parsed.getTime()) / (24 * 60 * 60 * 1000)));
+}
+
+function normalizeStoredPaymentDetails(data: {
+  payment_details?: PaymentModeDetails | null;
+  payment_details_json?: string | null;
+}): PaymentModeDetails | null {
+  if (data.payment_details) {
+    return normalizePaymentModeDetails(data.payment_details);
+  }
+
+  if (!data.payment_details_json) {
+    return null;
+  }
+
+  try {
+    return normalizePaymentModeDetails(JSON.parse(data.payment_details_json) as PaymentModeDetails);
+  } catch {
+    return null;
+  }
+}
+
+function serializePaymentDetails(details: PaymentModeDetails | null): string | null {
+  if (!details) {
+    return null;
+  }
+
+  const compact = Object.fromEntries(
+    Object.entries(details).filter(([, value]) => typeof value === 'string' && value.trim())
+  );
+  return Object.keys(compact).length ? JSON.stringify(compact) : null;
 }
 
 function mapInvoiceItem(entry: QueryDocumentSnapshot): WorkspaceInvoiceItem {

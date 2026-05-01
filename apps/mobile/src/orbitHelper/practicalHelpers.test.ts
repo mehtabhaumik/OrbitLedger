@@ -100,6 +100,8 @@ function recentTransaction(id: string, amount: number) {
     effectiveDate: '2026-04-27',
     lastModified: '2026-04-27T10:00:00.000Z',
     note: null,
+    paymentMode: null,
+    paymentDetails: null,
     serverRevision: 0,
     syncId: id,
     syncStatus: 'synced' as const,

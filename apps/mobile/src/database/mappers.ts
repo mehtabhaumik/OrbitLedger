@@ -1,3 +1,9 @@
+import {
+  normalizePaymentMode,
+  normalizePaymentModeDetails,
+  type PaymentModeDetails,
+} from '@orbit-ledger/core';
+
 import type {
   AppSecurity,
   AppSecurityRow,
@@ -108,6 +114,7 @@ export function mapCustomerTimelineNote(row: CustomerTimelineNoteRow): CustomerT
 }
 
 export function mapTransaction(row: LedgerTransactionRow): LedgerTransaction {
+  const paymentDetails = parsePaymentDetails(row.payment_details_json);
   return {
     ...mapSyncMetadata(row),
     id: row.id,
@@ -115,9 +122,23 @@ export function mapTransaction(row: LedgerTransactionRow): LedgerTransaction {
     type: row.type,
     amount: row.amount,
     note: row.note,
+    paymentMode: row.payment_mode ? normalizePaymentMode(row.payment_mode) : null,
+    paymentDetails,
     effectiveDate: row.effective_date,
     createdAt: row.created_at,
   };
+}
+
+function parsePaymentDetails(value: string | null): PaymentModeDetails | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return normalizePaymentModeDetails(JSON.parse(value) as PaymentModeDetails);
+  } catch {
+    return null;
+  }
 }
 
 export function mapRecentTransaction(row: RecentTransactionRow): RecentTransaction {

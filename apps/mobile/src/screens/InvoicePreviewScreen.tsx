@@ -2,6 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   getInvoiceDocumentStateLabel,
   getInvoicePaymentStatusLabel,
+  summarizePaymentMode,
 } from '@orbit-ledger/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -690,6 +691,8 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
                     </Text>
                     <Text style={styles.muted}>
                       {formatShortDate(allocation.transactionEffectiveDate)}
+                      {' - '}
+                      {summarizePaymentMode(allocation.paymentMode, allocation.paymentDetails)}
                       {allocation.transactionNote ? ` - ${allocation.transactionNote}` : ''}
                     </Text>
                   </View>

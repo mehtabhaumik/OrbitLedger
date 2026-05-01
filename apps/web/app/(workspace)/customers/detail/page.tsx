@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { summarizePaymentMode } from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
 import { downloadCustomerProfilePdf } from '@/lib/customer-export';
@@ -131,10 +132,11 @@ function CustomerDetailContent() {
     const rows = exportRows.map((transaction) => [
       transaction.effectiveDate,
       transaction.type === 'payment' ? 'Payment' : 'Credit',
+      transaction.type === 'payment' ? summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails) : '',
       transaction.note ?? '',
       transaction.amount,
     ]);
-    const csv = buildCsv(['Date', 'Type', 'Note', 'Amount'], rows);
+    const csv = buildCsv(['Date', 'Type', 'Payment mode', 'Note', 'Amount'], rows);
     downloadTextFile(
       makeExportFileName([
         activeWorkspace.businessName,
@@ -327,7 +329,11 @@ function CustomerDetailContent() {
                 >
                   {transaction.type === 'payment' ? 'Payment' : 'Credit'}
                 </span>
-                <span>{transaction.note || transaction.effectiveDate}</span>
+                <span>
+                  {transaction.type === 'payment'
+                    ? `${summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails)}${transaction.note ? ` · ${transaction.note}` : ''}`
+                    : transaction.note || transaction.effectiveDate}
+                </span>
                 <span>{transaction.effectiveDate || '—'}</span>
                 <span className="ol-amount" style={{ textAlign: 'right', fontWeight: 800 }}>
                   {formatCurrency(transaction.amount, currency)}

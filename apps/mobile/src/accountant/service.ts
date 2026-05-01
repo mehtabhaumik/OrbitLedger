@@ -78,6 +78,8 @@ export function serializeAccountantPayloadAsCsv(payload: AccountantIntegrationPa
       country_code: countryCode,
       metadata_json: JSON.stringify({
         createdAt: transaction.createdAt,
+        paymentDetails: transaction.paymentDetails,
+        paymentMode: transaction.paymentMode,
         syncStatus: transaction.syncStatus,
       }),
     });

@@ -78,6 +78,21 @@ export {
   normalizeInvoiceDocumentState,
   normalizeInvoicePaymentStatus,
 } from './invoiceLifecycle';
+
+export {
+  getPaymentModeConfig,
+  getPaymentModeLabel,
+  normalizePaymentMode,
+  normalizePaymentModeDetails,
+  PAYMENT_MODE_CONFIGS,
+  summarizePaymentMode,
+  validatePaymentModeDetails,
+} from './paymentModes';
+export type {
+  PaymentMode,
+  PaymentModeConfig,
+  PaymentModeDetails,
+} from './paymentModes';
 export type {
   InvoiceDocumentState,
   InvoiceLifecycleInput,

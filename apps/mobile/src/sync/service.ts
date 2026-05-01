@@ -114,6 +114,8 @@ type TransactionSyncRow = {
   type: 'credit' | 'payment';
   amount: number;
   note: string | null;
+  payment_mode: string | null;
+  payment_details_json: string | null;
   effective_date: string;
   created_at: string;
   sync_id: string;
@@ -666,6 +668,8 @@ function buildWorkspacePayload(entity: OrbitSyncEntityName, row: Record<string, 
         type: row.type,
         amount: row.amount,
         note: row.note ?? null,
+        payment_mode: row.payment_mode ?? null,
+        payment_details_json: row.payment_details_json ?? null,
         effective_date: row.effective_date,
         created_at: row.created_at,
         last_modified: row.last_modified,
@@ -849,14 +853,16 @@ async function applyRemoteTransactions(
 
     await db.runAsync(
       `INSERT INTO transactions (
-          id, customer_id, type, amount, note, effective_date, created_at,
+          id, customer_id, type, amount, note, payment_mode, payment_details_json, effective_date, created_at,
           sync_id, last_modified, sync_status, server_revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
         ON CONFLICT(id) DO UPDATE SET
           customer_id = excluded.customer_id,
           type = excluded.type,
           amount = excluded.amount,
           note = excluded.note,
+          payment_mode = excluded.payment_mode,
+          payment_details_json = excluded.payment_details_json,
           effective_date = excluded.effective_date,
           created_at = excluded.created_at,
           sync_id = excluded.sync_id,
@@ -868,6 +874,8 @@ async function applyRemoteTransactions(
       record.type,
       record.amount,
       record.note ?? null,
+      record.payment_mode ?? null,
+      record.payment_details_json ?? null,
       record.effective_date,
       record.created_at,
       record.id,

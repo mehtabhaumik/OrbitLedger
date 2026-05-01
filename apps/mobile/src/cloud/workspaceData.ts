@@ -46,6 +46,8 @@ export type RemoteWorkspaceDataset = {
       type: 'credit' | 'payment';
       amount: number;
       note: string | null;
+      payment_mode?: string | null;
+      payment_details_json?: string | null;
       effective_date: string;
       created_at: string;
     }>

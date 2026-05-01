@@ -1,6 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import {
+  getPaymentModeConfig,
+  PAYMENT_MODE_CONFIGS,
+  summarizePaymentMode,
+  type PaymentMode,
+  type PaymentModeDetails,
+} from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
 import { parseAmount, validatePositiveAmount } from '@/lib/form-validation';
@@ -33,6 +40,8 @@ export default function TransactionsPage() {
   const [customerId, setCustomerId] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'credit' | 'payment'>('payment');
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
+  const [paymentDetails, setPaymentDetails] = useState<PaymentModeDetails>({});
   const [allocationStrategy, setAllocationStrategy] = useState<'ledger_only' | 'oldest_invoice' | 'selected_invoice'>('ledger_only');
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const [customerInvoices, setCustomerInvoices] = useState<WorkspaceInvoice[]>([]);
@@ -117,12 +126,16 @@ export default function TransactionsPage() {
         amount: parseAmount(amount) ?? 0,
         note,
         effectiveDate,
+        paymentMode: type === 'payment' ? paymentMode : null,
+        paymentDetails: type === 'payment' ? paymentDetails : null,
         allocationStrategy: type === 'payment' ? allocationStrategy : 'ledger_only',
         invoiceId: allocationStrategy === 'selected_invoice' ? selectedInvoiceId : null,
       });
       setTransactions((current) => [transaction, ...current]);
       setAmount('');
       setNote('');
+      setPaymentMode('cash');
+      setPaymentDetails({});
       setEffectiveDate(new Date().toISOString().slice(0, 10));
       setAllocationStrategy('ledger_only');
       setSelectedInvoiceId('');
@@ -206,10 +219,11 @@ export default function TransactionsPage() {
       transaction.effectiveDate,
       transaction.type === 'payment' ? 'Payment' : 'Credit',
       transaction.customerName,
+      transaction.type === 'payment' ? summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails) : '',
       transaction.note ?? '',
       transaction.amount,
     ]);
-    const csv = buildCsv(['Date', 'Type', 'Customer', 'Note', 'Amount'], rows);
+    const csv = buildCsv(['Date', 'Type', 'Customer', 'Payment mode', 'Note', 'Amount'], rows);
     downloadTextFile(
       makeExportFileName([
         activeWorkspace.businessName,
@@ -296,6 +310,24 @@ export default function TransactionsPage() {
           </label>
           {type === 'payment' ? (
             <>
+              <label className="ol-field">
+                <span className="ol-field-label">Payment mode</span>
+                <select
+                  className="ol-select"
+                  value={paymentMode}
+                  onChange={(event) => {
+                    setPaymentMode(event.target.value as PaymentMode);
+                    setPaymentDetails({});
+                  }}
+                >
+                  {PAYMENT_MODE_CONFIGS.map((config) => (
+                    <option key={config.mode} value={config.mode}>
+                      {config.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <PaymentModeFields details={paymentDetails} mode={paymentMode} onChange={setPaymentDetails} />
               <label className="ol-field">
                 <span className="ol-field-label">Apply payment</span>
                 <select
@@ -451,7 +483,9 @@ export default function TransactionsPage() {
               <strong>{transaction.customerName}</strong>
               <br />
               <span className="ol-muted" style={{ fontSize: 13 }}>
-                {transaction.note || 'No note'}
+                {transaction.type === 'payment'
+                  ? `${summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails)}${transaction.note ? ` · ${transaction.note}` : ''}`
+                  : transaction.note || 'No note'}
               </span>
             </span>
             <span>{transaction.effectiveDate || '—'}</span>
@@ -487,6 +521,82 @@ function Metric({
       <div className="ol-metric-value">{value}</div>
       <div className="ol-metric-helper">{helper}</div>
     </article>
+  );
+}
+
+function PaymentModeFields({
+  details,
+  mode,
+  onChange,
+}: {
+  details: PaymentModeDetails;
+  mode: PaymentMode;
+  onChange: (details: PaymentModeDetails) => void;
+}) {
+  const config = getPaymentModeConfig(mode);
+  const update = (field: keyof PaymentModeDetails, value: string) => {
+    onChange({ ...details, [field]: value });
+  };
+
+  if (mode === 'cash') {
+    return null;
+  }
+
+  return (
+    <>
+      {['cheque', 'demand_draft', 'bank_transfer', 'upi', 'wallet'].includes(mode) ? (
+        <label className="ol-field">
+          <span className="ol-field-label">Reference</span>
+          <input className="ol-input" value={details.referenceNumber ?? ''} onChange={(event) => update('referenceNumber', event.target.value)} />
+        </label>
+      ) : null}
+      {['cheque', 'demand_draft', 'bank_transfer'].includes(mode) ? (
+        <label className="ol-field">
+          <span className="ol-field-label">Bank</span>
+          <input className="ol-input" value={details.bankName ?? ''} onChange={(event) => update('bankName', event.target.value)} />
+        </label>
+      ) : null}
+      {['cheque', 'demand_draft'].includes(mode) ? (
+        <>
+          <label className="ol-field">
+            <span className="ol-field-label">Branch</span>
+            <input className="ol-input" value={details.branchName ?? ''} onChange={(event) => update('branchName', event.target.value)} />
+          </label>
+          <label className="ol-field">
+            <span className="ol-field-label">Instrument date</span>
+            <input className="ol-input" type="date" value={details.instrumentDate ?? ''} onChange={(event) => update('instrumentDate', event.target.value)} />
+          </label>
+        </>
+      ) : null}
+      {mode === 'upi' ? (
+        <label className="ol-field">
+          <span className="ol-field-label">UPI ID</span>
+          <input className="ol-input" value={details.upiId ?? ''} onChange={(event) => update('upiId', event.target.value)} />
+        </label>
+      ) : null}
+      {mode === 'card' ? (
+        <label className="ol-field">
+          <span className="ol-field-label">Card last 4</span>
+          <input className="ol-input" inputMode="numeric" maxLength={4} value={details.cardLastFour ?? ''} onChange={(event) => update('cardLastFour', event.target.value.replace(/\D/g, '').slice(0, 4))} />
+        </label>
+      ) : null}
+      {mode === 'wallet' ? (
+        <label className="ol-field">
+          <span className="ol-field-label">Provider</span>
+          <input className="ol-input" value={details.provider ?? ''} onChange={(event) => update('provider', event.target.value)} />
+        </label>
+      ) : null}
+      {mode === 'other' ? (
+        <label className="ol-field">
+          <span className="ol-field-label">Payment detail</span>
+          <input className="ol-input" value={details.note ?? ''} onChange={(event) => update('note', event.target.value)} />
+        </label>
+      ) : null}
+      <div className="ol-field">
+        <span className="ol-field-label">Mode note</span>
+        <div className="ol-message ol-message--success" style={{ margin: 0 }}>{config.helper}</div>
+      </div>
+    </>
   );
 }
 

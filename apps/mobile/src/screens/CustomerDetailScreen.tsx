@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { buildCustomerHealthScore, type CustomerHealthScore } from '@orbit-ledger/core';
+import { buildCustomerHealthScore, summarizePaymentMode, type CustomerHealthScore } from '@orbit-ledger/core';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -960,6 +960,11 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
                               ) : (
                                 <Text style={styles.transactionNoteMuted}>No note added</Text>
                               )}
+                              {transaction.type === 'payment' ? (
+                                <Text style={styles.runningBalance}>
+                                  {summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails)}
+                                </Text>
+                              ) : null}
                               <Text style={styles.runningBalance}>
                                 Balance after entry{' '}
                                 {formatCurrency(transaction.runningBalance, currency)}

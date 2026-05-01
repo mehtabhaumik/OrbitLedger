@@ -3,11 +3,16 @@ import {
   buildCustomerHealthScore,
   deriveInvoicePaymentStatus,
   legacyStatusForInvoiceLifecycle,
+  normalizePaymentMode,
+  normalizePaymentModeDetails,
   normalizeInvoiceDocumentState,
   normalizeInvoicePaymentStatus,
+  validatePaymentModeDetails,
   type InvoiceDocumentState,
   type InvoicePaymentStatus,
   type PaymentAllocationStrategy,
+  type PaymentMode,
+  type PaymentModeDetails,
 } from '@orbit-ledger/core';
 
 import { calculateLedgerBalance } from './balance';
@@ -1454,6 +1459,16 @@ export async function addTransaction(input: AddTransactionInput): Promise<Ledger
         const db = await getDatabase();
         const id = createEntityId('txn');
         const now = new Date().toISOString();
+        const paymentMode = input.type === 'payment' ? normalizePaymentMode(input.paymentMode) : null;
+        const paymentDetails =
+          input.type === 'payment' ? normalizePaymentModeDetails(input.paymentDetails) : null;
+        const paymentModeError =
+          input.type === 'payment' && paymentMode && paymentDetails
+            ? validatePaymentModeDetails(paymentMode, paymentDetails)
+            : null;
+        if (paymentModeError) {
+          throw new Error(paymentModeError);
+        }
 
         await db.withTransactionAsync(async () => {
           await db.runAsync(
@@ -1463,17 +1478,21 @@ export async function addTransaction(input: AddTransactionInput): Promise<Ledger
               type,
               amount,
               note,
+              payment_mode,
+              payment_details_json,
               effective_date,
               created_at,
               sync_id,
               last_modified,
               sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             input.customerId,
             input.type,
             input.amount,
             cleanText(input.note),
+            paymentMode,
+            serializePaymentDetails(paymentDetails),
             input.effectiveDate ?? toDateOnlyIso(),
             now,
             id,
@@ -1554,12 +1573,29 @@ export async function updateTransaction(
 
         const db = await getDatabase();
         const now = new Date().toISOString();
+        const paymentMode =
+          type === 'payment'
+            ? normalizePaymentMode(input.paymentMode ?? existing.paymentMode)
+            : null;
+        const paymentDetails =
+          type === 'payment'
+            ? normalizePaymentModeDetails(input.paymentDetails ?? existing.paymentDetails)
+            : null;
+        const paymentModeError =
+          type === 'payment' && paymentMode && paymentDetails
+            ? validatePaymentModeDetails(paymentMode, paymentDetails)
+            : null;
+        if (paymentModeError) {
+          throw new Error(paymentModeError);
+        }
 
         await db.runAsync(
           `UPDATE transactions SET
             type = ?,
             amount = ?,
             note = ?,
+            payment_mode = ?,
+            payment_details_json = ?,
             effective_date = ?,
             last_modified = ?,
             sync_status = 'pending'
@@ -1567,6 +1603,8 @@ export async function updateTransaction(
           type,
           amount,
           input.note === undefined ? existing.note : cleanText(input.note),
+          paymentMode,
+          serializePaymentDetails(paymentDetails),
           input.effectiveDate ?? existing.effectiveDate,
           now,
           id
@@ -2386,12 +2424,16 @@ export async function listInvoicePaymentAllocations(invoiceId: string): Promise<
       PaymentAllocationRow & {
         transaction_effective_date: string | null;
         transaction_note: string | null;
+        transaction_payment_mode: PaymentMode | null;
+        transaction_payment_details_json: string | null;
       }
     >(
       `SELECT
         pa.*,
         t.effective_date AS transaction_effective_date,
-        t.note AS transaction_note
+        t.note AS transaction_note,
+        t.payment_mode AS transaction_payment_mode,
+        t.payment_details_json AS transaction_payment_details_json
        FROM payment_allocations pa
        LEFT JOIN transactions t ON t.id = pa.transaction_id
        WHERE pa.invoice_id = ?
@@ -2403,6 +2445,8 @@ export async function listInvoicePaymentAllocations(invoiceId: string): Promise<
       ...mapPaymentAllocation(row),
       transactionEffectiveDate: row.transaction_effective_date ?? row.created_at.slice(0, 10),
       transactionNote: row.transaction_note,
+      paymentMode: row.transaction_payment_mode ? normalizePaymentMode(row.transaction_payment_mode) : null,
+      paymentDetails: parsePaymentDetailsJson(row.transaction_payment_details_json),
     }));
   } catch (error) {
     return throwDatabaseError('listInvoicePaymentAllocations', error);
@@ -3827,6 +3871,29 @@ async function allocatePaymentToInvoices(
     );
 
     remainingAmount = roundCurrency(remainingAmount - allocationAmount);
+  }
+}
+
+function serializePaymentDetails(details: PaymentModeDetails | null): string | null {
+  if (!details) {
+    return null;
+  }
+
+  const compact = Object.fromEntries(
+    Object.entries(details).filter(([, value]) => typeof value === 'string' && value.trim())
+  );
+  return Object.keys(compact).length ? JSON.stringify(compact) : null;
+}
+
+function parsePaymentDetailsJson(value: string | null): PaymentModeDetails | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return normalizePaymentModeDetails(JSON.parse(value) as PaymentModeDetails);
+  } catch {
+    return null;
   }
 }
 

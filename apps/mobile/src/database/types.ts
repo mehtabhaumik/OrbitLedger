@@ -4,7 +4,12 @@ import type {
   OrbitSyncStatus,
   OrbitWorkspaceLink,
 } from '@orbit-ledger/contracts';
-import type { CustomerHealthScore, PaymentAllocationStrategy } from '@orbit-ledger/core';
+import type {
+  CustomerHealthScore,
+  PaymentAllocationStrategy,
+  PaymentMode,
+  PaymentModeDetails,
+} from '@orbit-ledger/core';
 
 export type TaxMode = 'not_configured' | 'manual' | 'exempt';
 
@@ -164,6 +169,8 @@ export type LedgerTransaction = SyncMetadata & {
   type: TransactionType;
   amount: number;
   note: string | null;
+  paymentMode: PaymentMode | null;
+  paymentDetails: PaymentModeDetails | null;
   effectiveDate: string;
   createdAt: string;
 };
@@ -174,6 +181,8 @@ export type AddTransactionInput = {
   amount: number;
   note?: string | null;
   effectiveDate?: string;
+  paymentMode?: PaymentMode | null;
+  paymentDetails?: PaymentModeDetails | null;
   allocationStrategy?: PaymentAllocationStrategy;
   invoiceId?: string | null;
 };
@@ -182,6 +191,8 @@ export type UpdateTransactionInput = {
   type?: TransactionType;
   amount?: number;
   note?: string | null;
+  paymentMode?: PaymentMode | null;
+  paymentDetails?: PaymentModeDetails | null;
   effectiveDate?: string;
 };
 
@@ -351,6 +362,8 @@ export type PaymentAllocation = SyncMetadata & {
 export type InvoicePaymentAllocation = PaymentAllocation & {
   transactionEffectiveDate: string;
   transactionNote: string | null;
+  paymentMode: PaymentMode | null;
+  paymentDetails: PaymentModeDetails | null;
 };
 
 export type AddInvoiceItemInput = {
@@ -764,6 +777,8 @@ export type LedgerTransactionRow = {
   type: TransactionType;
   amount: number;
   note: string | null;
+  payment_mode: PaymentMode | null;
+  payment_details_json: string | null;
   effective_date: string;
   created_at: string;
   sync_id: string;

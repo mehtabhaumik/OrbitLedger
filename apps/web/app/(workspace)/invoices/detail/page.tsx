@@ -6,8 +6,13 @@ import { useSearchParams } from 'next/navigation';
 import {
   getInvoiceDocumentStateLabel,
   getInvoicePaymentStatusLabel,
+  getPaymentModeConfig,
+  PAYMENT_MODE_CONFIGS,
+  summarizePaymentMode,
   type InvoiceDocumentState,
   type InvoicePaymentStatus,
+  type PaymentMode,
+  type PaymentModeDetails,
 } from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
@@ -64,6 +69,8 @@ function InvoiceEditorContent() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentNote, setPaymentNote] = useState('');
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
+  const [paymentDetails, setPaymentDetails] = useState<PaymentModeDetails>({});
   const [allocations, setAllocations] = useState<WorkspaceInvoicePaymentAllocation[]>([]);
   const [revisionReason, setRevisionReason] = useState('');
   const [notes, setNotes] = useState('');
@@ -346,6 +353,8 @@ function InvoiceEditorContent() {
         amount: amountToSave,
         effectiveDate: paymentDate,
         note: paymentNote,
+        paymentMode,
+        paymentDetails,
       });
       const nextAllocations = await listWorkspaceInvoicePaymentAllocations(activeWorkspace.workspaceId, invoice.id);
       setInvoice(updated);
@@ -354,6 +363,8 @@ function InvoiceEditorContent() {
       const nextDueAmount = Math.max(updated.totalAmount - updated.paidAmount, 0);
       setPaymentAmount(nextDueAmount > 0 ? formatAmountInput(nextDueAmount) : '');
       setPaymentNote(`Payment for invoice ${updated.invoiceNumber}`);
+      setPaymentMode('cash');
+      setPaymentDetails({});
       showToast('Payment recorded and applied to this invoice.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Payment could not be recorded.', 'danger');
@@ -559,9 +570,27 @@ function InvoiceEditorContent() {
                 <input className="ol-input" type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
               </label>
               <label className="ol-field">
+                <span className="ol-field-label">Payment mode</span>
+                <select
+                  className="ol-select"
+                  value={paymentMode}
+                  onChange={(event) => {
+                    setPaymentMode(event.target.value as PaymentMode);
+                    setPaymentDetails({});
+                  }}
+                >
+                  {PAYMENT_MODE_CONFIGS.map((config) => (
+                    <option key={config.mode} value={config.mode}>
+                      {config.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="ol-field">
                 <span className="ol-field-label">Payment note</span>
                 <input className="ol-input" value={paymentNote} onChange={(event) => setPaymentNote(event.target.value)} />
               </label>
+              <PaymentModeFields details={paymentDetails} mode={paymentMode} onChange={setPaymentDetails} />
               <div className="ol-field ol-field--action">
                 <span className="ol-field-label">Action</span>
                 <button className="ol-button" type="button" disabled={isRecordingPayment || dueAmount <= 0} onClick={() => void recordInvoicePayment()}>
@@ -581,7 +610,7 @@ function InvoiceEditorContent() {
                   <div className="ol-list-copy">
                     <div className="ol-list-title">{formatCurrency(allocation.amount, currency)}</div>
                     <div className="ol-list-text">
-                      {allocation.transactionEffectiveDate || allocation.createdAt.slice(0, 10)}
+                      {summarizePaymentMode(allocation.paymentMode, allocation.paymentDetails)} · {allocation.transactionEffectiveDate || allocation.createdAt.slice(0, 10)}
                       {allocation.transactionNote ? ` · ${allocation.transactionNote}` : ''}
                     </div>
                   </div>
@@ -685,6 +714,82 @@ function formatTaxRateInput(value: number): string {
 
 function formatAmountInput(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function PaymentModeFields({
+  details,
+  mode,
+  onChange,
+}: {
+  details: PaymentModeDetails;
+  mode: PaymentMode;
+  onChange: (details: PaymentModeDetails) => void;
+}) {
+  const config = getPaymentModeConfig(mode);
+  const update = (field: keyof PaymentModeDetails, value: string) => {
+    onChange({ ...details, [field]: value });
+  };
+
+  if (mode === 'cash') {
+    return null;
+  }
+
+  return (
+    <>
+      {['cheque', 'demand_draft', 'bank_transfer', 'upi', 'wallet'].includes(mode) ? (
+        <label className="ol-field">
+          <span className="ol-field-label">Reference</span>
+          <input className="ol-input" value={details.referenceNumber ?? ''} onChange={(event) => update('referenceNumber', event.target.value)} />
+        </label>
+      ) : null}
+      {['cheque', 'demand_draft', 'bank_transfer'].includes(mode) ? (
+        <label className="ol-field">
+          <span className="ol-field-label">Bank</span>
+          <input className="ol-input" value={details.bankName ?? ''} onChange={(event) => update('bankName', event.target.value)} />
+        </label>
+      ) : null}
+      {['cheque', 'demand_draft'].includes(mode) ? (
+        <>
+          <label className="ol-field">
+            <span className="ol-field-label">Branch</span>
+            <input className="ol-input" value={details.branchName ?? ''} onChange={(event) => update('branchName', event.target.value)} />
+          </label>
+          <label className="ol-field">
+            <span className="ol-field-label">Instrument date</span>
+            <input className="ol-input" type="date" value={details.instrumentDate ?? ''} onChange={(event) => update('instrumentDate', event.target.value)} />
+          </label>
+        </>
+      ) : null}
+      {mode === 'upi' ? (
+        <label className="ol-field">
+          <span className="ol-field-label">UPI ID</span>
+          <input className="ol-input" value={details.upiId ?? ''} onChange={(event) => update('upiId', event.target.value)} />
+        </label>
+      ) : null}
+      {mode === 'card' ? (
+        <label className="ol-field">
+          <span className="ol-field-label">Card last 4</span>
+          <input className="ol-input" inputMode="numeric" maxLength={4} value={details.cardLastFour ?? ''} onChange={(event) => update('cardLastFour', event.target.value.replace(/\D/g, '').slice(0, 4))} />
+        </label>
+      ) : null}
+      {mode === 'wallet' ? (
+        <label className="ol-field">
+          <span className="ol-field-label">Provider</span>
+          <input className="ol-input" value={details.provider ?? ''} onChange={(event) => update('provider', event.target.value)} />
+        </label>
+      ) : null}
+      {mode === 'other' ? (
+        <label className="ol-field">
+          <span className="ol-field-label">Payment detail</span>
+          <input className="ol-input" value={details.note ?? ''} onChange={(event) => update('note', event.target.value)} />
+        </label>
+      ) : null}
+      <div className="ol-field">
+        <span className="ol-field-label">Mode note</span>
+        <div className="ol-message ol-message--success" style={{ margin: 0 }}>{config.helper}</div>
+      </div>
+    </>
+  );
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone: 'primary' | 'warning' | 'success' }) {

@@ -3,6 +3,7 @@ import type {
   WorkspaceInvoice,
   WorkspaceTransaction,
 } from './workspace-data';
+import { summarizePaymentMode } from '@orbit-ledger/core';
 
 export type DateRangeFilter = {
   from: string;
@@ -67,7 +68,8 @@ export function filterWorkspaceTransactions(
     const matchesSearch =
       !query ||
       transaction.customerName.toLowerCase().includes(query) ||
-      (transaction.note ?? '').toLowerCase().includes(query);
+      (transaction.note ?? '').toLowerCase().includes(query) ||
+      summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails).toLowerCase().includes(query);
     const matchesType = options.typeFilter === 'all' || transaction.type === options.typeFilter;
     const matchesRange = isDateWithinRange(transaction.effectiveDate, options.range);
 

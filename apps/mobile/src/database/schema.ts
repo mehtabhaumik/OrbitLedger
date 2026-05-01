@@ -69,6 +69,8 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
       type TEXT NOT NULL CHECK (type IN ('credit', 'payment')),
       amount REAL NOT NULL CHECK (amount > 0),
       note TEXT,
+      payment_mode TEXT,
+      payment_details_json TEXT,
       effective_date TEXT NOT NULL,
       created_at TEXT NOT NULL,
       sync_id TEXT NOT NULL DEFAULT '',
@@ -503,6 +505,8 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
   await ensureColumn(db, 'invoices', 'version_number', 'INTEGER NOT NULL DEFAULT 0');
   await ensureColumn(db, 'invoices', 'latest_version_id', 'TEXT');
   await ensureColumn(db, 'invoices', 'latest_snapshot_hash', 'TEXT');
+  await ensureColumn(db, 'transactions', 'payment_mode', 'TEXT');
+  await ensureColumn(db, 'transactions', 'payment_details_json', 'TEXT');
   await ensureColumn(db, 'invoice_items', 'product_id', 'TEXT');
   await ensureColumn(db, 'invoice_items', 'description', 'TEXT');
   await ensureColumn(

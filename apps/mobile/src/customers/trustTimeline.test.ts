@@ -27,6 +27,8 @@ function transaction(overrides: Partial<LedgerTransaction> = {}): LedgerTransact
     type: 'credit',
     amount: 2500,
     note: 'Festival order',
+    paymentMode: null,
+    paymentDetails: null,
     effectiveDate: '2026-04-20',
     createdAt: '2026-04-20T09:00:00.000Z',
     ...overrides,

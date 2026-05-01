@@ -16,6 +16,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
+import {
+  getPaymentModeConfig,
+  PAYMENT_MODE_CONFIGS,
+  type PaymentMode,
+  type PaymentModeDetails,
+} from '@orbit-ledger/core';
 
 import { recordUsageAnalyticsEvent } from '../analytics';
 import { recordLedgerDataChangedForBackupNudge } from '../backup';
@@ -85,6 +91,8 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
   const [openPromises, setOpenPromises] = useState<PaymentPromise[]>([]);
   const [openInvoices, setOpenInvoices] = useState<Invoice[]>([]);
   const [selectedPromiseId, setSelectedPromiseId] = useState(initialPromiseId ?? '');
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
+  const [paymentDetails, setPaymentDetails] = useState<PaymentModeDetails>({});
   const [allocationStrategy, setAllocationStrategy] = useState<'ledger_only' | 'oldest_invoice' | 'selected_invoice'>(
     initialInvoiceId ? 'selected_invoice' : 'ledger_only'
   );
@@ -155,6 +163,8 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
             }
 
             setLoadedTransaction(transaction);
+            setPaymentMode(transaction.paymentMode ?? 'cash');
+            setPaymentDetails(transaction.paymentDetails ?? {});
             reset({
               customerId: transaction.customerId,
               type: transaction.type,
@@ -288,6 +298,8 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
           type: input.type,
           amount: Number(input.amount),
           note: input.note,
+          paymentMode: input.type === 'payment' ? paymentMode : null,
+          paymentDetails: input.type === 'payment' ? paymentDetails : null,
           effectiveDate: input.effectiveDate,
         });
         await recordLedgerDataChangedForBackupNudge('transaction');
@@ -302,6 +314,8 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
         amount: Number(input.amount),
         note: input.note,
         effectiveDate: input.effectiveDate,
+        paymentMode: input.type === 'payment' ? paymentMode : null,
+        paymentDetails: input.type === 'payment' ? paymentDetails : null,
         allocationStrategy: input.type === 'payment' ? allocationStrategy : 'ledger_only',
         invoiceId: allocationStrategy === 'selected_invoice' ? selectedInvoiceId : null,
       });
@@ -528,6 +542,39 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
             </View>
           </Section>
 
+          {selectedType === 'payment' ? (
+            <Section title="Payment mode" subtitle="Save how the confirmed payment was received.">
+              <View style={styles.paymentModeGrid}>
+                {PAYMENT_MODE_CONFIGS.map((config) => {
+                  const selected = paymentMode === config.mode;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      hitSlop={touch.hitSlop}
+                      key={config.mode}
+                      onPress={() => {
+                        setPaymentMode(config.mode);
+                        setPaymentDetails({});
+                      }}
+                      pressRetentionOffset={touch.pressRetentionOffset}
+                      style={[styles.paymentModeChoice, selected ? styles.promiseChoiceSelected : null]}
+                    >
+                      <Text style={[styles.choiceText, selected ? styles.choiceTextSelected : null]}>
+                        {config.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.choiceMeta}>{getPaymentModeConfig(paymentMode).helper}</Text>
+              <PaymentModeFields
+                details={paymentDetails}
+                mode={paymentMode}
+                onChange={setPaymentDetails}
+              />
+            </Section>
+          ) : null}
+
           {!isEditing && selectedType === 'payment' && selectedCustomerId && openPromises.length > 0 ? (
             <Section title="Payment promise" subtitle="Match this payment to a customer commitment.">
               <View style={styles.promiseChoices}>
@@ -721,6 +768,95 @@ function formatAmountInput(amount: number): string {
   return Number.isInteger(amount) ? String(amount) : amount.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 }
 
+function PaymentModeFields({
+  details,
+  mode,
+  onChange,
+}: {
+  details: PaymentModeDetails;
+  mode: PaymentMode;
+  onChange: (details: PaymentModeDetails) => void;
+}) {
+  const update = (field: keyof PaymentModeDetails, value: string) => {
+    onChange({ ...details, [field]: value });
+  };
+
+  if (mode === 'cash') {
+    return null;
+  }
+
+  return (
+    <View style={styles.paymentDetailFields}>
+      {['cheque', 'demand_draft', 'bank_transfer', 'upi', 'wallet'].includes(mode) ? (
+        <TextField
+          label="Reference"
+          value={details.referenceNumber ?? ''}
+          onChangeText={(value) => update('referenceNumber', value)}
+          placeholder="Transaction or instrument number"
+        />
+      ) : null}
+      {['cheque', 'demand_draft', 'bank_transfer'].includes(mode) ? (
+        <TextField
+          label="Bank"
+          value={details.bankName ?? ''}
+          onChangeText={(value) => update('bankName', value)}
+          placeholder="Bank name"
+        />
+      ) : null}
+      {['cheque', 'demand_draft'].includes(mode) ? (
+        <>
+          <TextField
+            label="Branch"
+            value={details.branchName ?? ''}
+            onChangeText={(value) => update('branchName', value)}
+            placeholder="Branch name"
+          />
+          <DateInput
+            label="Instrument date"
+            value={details.instrumentDate ?? ''}
+            onChange={(value) => update('instrumentDate', value)}
+            maximumDate={new Date()}
+          />
+        </>
+      ) : null}
+      {mode === 'upi' ? (
+        <TextField
+          label="UPI ID"
+          value={details.upiId ?? ''}
+          onChangeText={(value) => update('upiId', value)}
+          placeholder="payer@upi"
+        />
+      ) : null}
+      {mode === 'card' ? (
+        <TextField
+          label="Card last 4"
+          value={details.cardLastFour ?? ''}
+          onChangeText={(value) => update('cardLastFour', value.replace(/\D/g, '').slice(0, 4))}
+          keyboardType="number-pad"
+          inputMode="numeric"
+          placeholder="1234"
+        />
+      ) : null}
+      {mode === 'wallet' ? (
+        <TextField
+          label="Provider"
+          value={details.provider ?? ''}
+          onChangeText={(value) => update('provider', value)}
+          placeholder="Provider name"
+        />
+      ) : null}
+      {mode === 'other' ? (
+        <TextField
+          label="Payment detail"
+          value={details.note ?? ''}
+          onChangeText={(value) => update('note', value)}
+          placeholder="How was this paid?"
+        />
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -871,6 +1007,24 @@ const styles = StyleSheet.create({
   },
   typeRow: {
     flexDirection: 'row',
+    gap: spacing.md,
+  },
+  paymentModeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  paymentModeChoice: {
+    minHeight: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  paymentDetailFields: {
     gap: spacing.md,
   },
   typeButton: {
