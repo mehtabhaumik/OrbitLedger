@@ -6,7 +6,7 @@ import { AppShell } from '@/components/app-shell';
 import {
   buildPaymentRequestMessage,
   buildStatementWebDocument,
-  downloadDocumentHtml,
+  downloadStatementPdf,
   getWebDocumentTemplates,
   openPrintableDocument,
 } from '@/lib/web-documents';
@@ -82,12 +82,16 @@ export default function DocumentsPage() {
     }
   }
 
-  function downloadStatement() {
+  async function downloadStatement() {
     if (!statement) {
       return;
     }
-    downloadDocumentHtml(statement.fileName, statement.html);
-    showToast('Statement document downloaded.', 'success');
+    try {
+      await downloadStatementPdf(statement);
+      showToast('Statement PDF downloaded.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Statement PDF could not be downloaded.', 'danger');
+    }
   }
 
   async function copyPaymentMessage() {
@@ -156,8 +160,8 @@ export default function DocumentsPage() {
           <button className="ol-button" type="button" disabled={!statement || isLoading} onClick={viewPdf}>
             View / save PDF
           </button>
-          <button className="ol-button-secondary" type="button" disabled={!statement || isLoading} onClick={downloadStatement}>
-            Download document
+          <button className="ol-button-secondary" type="button" disabled={!statement || isLoading} onClick={() => void downloadStatement()}>
+            Download PDF
           </button>
           <button className="ol-button-secondary" type="button" disabled={!customer || customer.balance <= 0} onClick={() => void copyPaymentMessage()}>
             Copy payment message

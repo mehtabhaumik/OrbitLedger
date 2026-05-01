@@ -67,6 +67,7 @@ describe('web document parity', () => {
       dueDate: '2026-05-08',
       totalAmount: 1180,
       status: 'issued',
+      serverRevision: 3,
       notes: null,
       items: [
         {
@@ -84,8 +85,11 @@ describe('web document parity', () => {
     };
 
     const document = buildInvoiceWebDocument({ workspace, invoice, customer });
-    expect(document.fileName).toBe('OrbitLedger_City_Mart_Invoice_INV-100.pdf');
+    expect(document.fileName).toBe('City_Mart_INV-100_2026-05-01_3_IN.pdf');
+    expect(document.csvFileName).toBe('City_Mart_INV-100_2026-05-01_3_IN.csv');
     expect(document.html).toContain('Tax Invoice');
+    expect(document.html).toContain('Amount in words:</strong> One thousand one hundred eighty only');
+    expect(document.html).toContain('Generated using Orbit Ledger');
     expect(document.html).toContain('GST');
     expect(document.html).toContain('CGST');
     expect(document.html).toContain('SGST');

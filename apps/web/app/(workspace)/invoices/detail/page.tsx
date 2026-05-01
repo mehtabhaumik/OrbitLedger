@@ -15,7 +15,8 @@ import {
 import {
   buildInvoiceWebDocument,
   buildPaymentRequestMessage,
-  downloadDocumentHtml,
+  downloadInvoiceCsv,
+  downloadInvoicePdf,
   getWebDocumentTemplates,
   openPrintableDocument,
 } from '@/lib/web-documents';
@@ -247,12 +248,24 @@ function InvoiceEditorContent() {
     }
   }
 
-  function downloadInvoiceDocument() {
+  async function downloadInvoiceDocument() {
     if (!currentInvoiceDocument) {
       return;
     }
-    downloadDocumentHtml(currentInvoiceDocument.fileName, currentInvoiceDocument.html);
-    showToast('Invoice document downloaded.', 'success');
+    try {
+      await downloadInvoicePdf(currentInvoiceDocument);
+      showToast('Invoice PDF downloaded.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Invoice PDF could not be downloaded.', 'danger');
+    }
+  }
+
+  function downloadInvoiceCsvFile() {
+    if (!currentInvoiceDocument) {
+      return;
+    }
+    downloadInvoiceCsv(currentInvoiceDocument);
+    showToast('Invoice CSV downloaded.', 'success');
   }
 
   async function copyPaymentMessage() {
@@ -280,8 +293,11 @@ function InvoiceEditorContent() {
         <button className="ol-button-secondary" type="button" onClick={viewPdf} disabled={!currentInvoiceDocument}>
           View / save PDF
         </button>
-        <button className="ol-button-secondary" type="button" onClick={downloadInvoiceDocument} disabled={!currentInvoiceDocument}>
-          Download document
+        <button className="ol-button-secondary" type="button" onClick={() => void downloadInvoiceDocument()} disabled={!currentInvoiceDocument}>
+          Download PDF
+        </button>
+        <button className="ol-button-secondary" type="button" onClick={downloadInvoiceCsvFile} disabled={!currentInvoiceDocument}>
+          Download CSV
         </button>
         <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentMessage()} disabled={!currentInvoiceDocument || total <= 0}>
           Copy payment message

@@ -6,6 +6,7 @@ import type {
   WorkspaceInvoiceDetail,
   WorkspaceTransaction,
 } from './workspace-data';
+import { buildCsv, downloadTextFile } from './workspace-power';
 import {
   getDefaultWebSubscriptionStatus,
   getWebProBrandTheme,
@@ -52,6 +53,72 @@ type BuildStatementDocumentInput = {
   templateKey?: string | null;
   proTheme?: WebProBrandTheme | null;
 };
+
+type InvoiceDocumentLine = {
+  name: string;
+  description: string | null;
+  quantity: number;
+  priceAmount: number;
+  taxRate: number;
+  taxableValueAmount: number;
+  taxAmount: number;
+  cgstAmount: number | null;
+  sgstAmount: number | null;
+  igstAmount: number | null;
+  totalAmount: number;
+};
+
+type InvoiceDocumentData = {
+  title: string;
+  businessName: string;
+  businessAddress: string;
+  businessContact: string;
+  customerName: string;
+  customerPhone: string | null;
+  customerAddress: string | null;
+  invoiceNumber: string;
+  issueDate: string;
+  dueDate: string | null;
+  status: string;
+  countryCode: string;
+  revisionNumber: number;
+  taxLabel: string;
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  amountWords: string;
+  notes: string | null;
+  rows: InvoiceDocumentLine[];
+};
+
+type StatementDocumentLine = {
+  date: string;
+  description: string;
+  creditAmount: number;
+  paymentAmount: number;
+  runningBalance: number;
+};
+
+type StatementDocumentData = {
+  title: string;
+  businessName: string;
+  businessAddress: string;
+  businessContact: string;
+  customerName: string;
+  customerPhone: string | null;
+  customerAddress: string | null;
+  from: string;
+  to: string;
+  amountDue: number;
+  dueMessage: string;
+  openingBalance: number;
+  totalCredit: number;
+  totalPayment: number;
+  closingBalance: number;
+  rows: StatementDocumentLine[];
+};
+
+type JsPdfDocument = InstanceType<typeof import('jspdf').jsPDF>;
 
 const invoiceTemplates: WebDocumentTemplate[] = [
   invoiceTemplate('IN_GST_STANDARD_FREE', 'IN', 'free', 'India GST Standard', 'Classic India invoice wording with GSTIN, HSN/SAC, CGST/SGST/IGST and amount in words.', 'classic_tax', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
@@ -185,28 +252,74 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
   const taxAmount = input.invoice.items.reduce((total, item) => total + item.quantity * item.price * (item.taxRate / 100), 0);
   const total = subtotal + taxAmount;
   const taxMode = taxModeForTemplate(template);
-  const rows = input.invoice.items.map((item) => {
+  const rawRows: InvoiceDocumentLine[] = input.invoice.items.map((item) => {
     const taxableValue = roundCurrency(item.quantity * item.price);
     const rowTaxAmount = roundCurrency(taxableValue * (item.taxRate / 100));
     const split = splitTax(rowTaxAmount, taxMode);
     return {
-      id: item.id,
       name: item.name,
       description: item.description,
       quantity: item.quantity,
-      price: money(item.price, input.workspace.currency, template.locale),
+      priceAmount: item.price,
+      taxRate: item.taxRate,
+      taxableValueAmount: taxableValue,
+      taxAmount: rowTaxAmount,
+      cgstAmount: split.cgst,
+      sgstAmount: split.sgst,
+      igstAmount: split.igst,
+      totalAmount: item.total,
+    };
+  });
+  const rows = rawRows.map((item) => {
+    return {
+      name: item.name,
+      description: item.description,
+      quantity: item.quantity,
+      price: money(item.priceAmount, input.workspace.currency, template.locale),
       taxRate: `${item.taxRate}%`,
       hsnSac: taxMode.startsWith('india') ? 'HSN/SAC' : '-',
-      taxableValue: money(taxableValue, input.workspace.currency, template.locale),
-      taxAmount: money(rowTaxAmount, input.workspace.currency, template.locale),
-      cgst: split.cgst === null ? '-' : money(split.cgst, input.workspace.currency, template.locale),
-      sgst: split.sgst === null ? '-' : money(split.sgst, input.workspace.currency, template.locale),
-      igst: split.igst === null ? '-' : money(split.igst, input.workspace.currency, template.locale),
-      total: money(item.total, input.workspace.currency, template.locale),
+      taxableValue: money(item.taxableValueAmount, input.workspace.currency, template.locale),
+      taxAmount: money(item.taxAmount, input.workspace.currency, template.locale),
+      cgst: item.cgstAmount === null ? '-' : money(item.cgstAmount, input.workspace.currency, template.locale),
+      sgst: item.sgstAmount === null ? '-' : money(item.sgstAmount, input.workspace.currency, template.locale),
+      igst: item.igstAmount === null ? '-' : money(item.igstAmount, input.workspace.currency, template.locale),
+      total: money(item.totalAmount, input.workspace.currency, template.locale),
     };
   });
   const taxBreakdown = buildTaxBreakdown(taxAmount, taxMode, input.workspace.currency, template.locale);
-  const fileName = buildInvoicePdfFileName(input.customer?.name ?? 'Customer', input.invoice.invoiceNumber);
+  const customerName = input.customer?.name ?? 'Customer';
+  const revisionNumber = getInvoiceRevisionNumber(input.invoice);
+  const countryCode = normalizeSupportedCountry(input.workspace.countryCode);
+  const fileName = buildInvoicePdfFileName(
+    customerName,
+    input.invoice.invoiceNumber,
+    input.invoice.issueDate,
+    revisionNumber,
+    countryCode
+  );
+  const amountWords = amountInWords(total, input.workspace.currency);
+  const invoiceData: InvoiceDocumentData = {
+    title: pack.documents.invoiceTitle,
+    businessName: input.workspace.businessName,
+    businessAddress: input.workspace.address,
+    businessContact: `${input.workspace.phone} | ${input.workspace.email}`,
+    customerName,
+    customerPhone: input.customer?.phone ?? null,
+    customerAddress: input.customer?.address ?? null,
+    invoiceNumber: input.invoice.invoiceNumber,
+    issueDate: input.invoice.issueDate,
+    dueDate: input.invoice.dueDate,
+    status: input.invoice.status,
+    countryCode,
+    revisionNumber,
+    taxLabel: template.taxLabel,
+    subtotal,
+    taxAmount,
+    total,
+    amountWords,
+    notes: input.invoice.notes,
+    rows: rawRows,
+  };
   const html = documentShell({
     title: `Invoice - ${input.invoice.invoiceNumber}`,
     bodyClass: `document-invoice style-${pdfStyle} template-${template.visualStyle} template-${template.countryFormat}`,
@@ -245,7 +358,7 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
           ${summaryLine('Subtotal', money(subtotal, input.workspace.currency, template.locale))}
           ${summaryLine(template.taxLabel, money(taxAmount, input.workspace.currency, template.locale))}
           ${summaryLine('Total', money(total, input.workspace.currency, template.locale), true)}
-          <p class="amount-words"><strong>Amount in words:</strong> ${escapeHtml(amountInWords(total, input.workspace.currency))}</p>
+          <p class="amount-words"><strong>Amount in words:</strong> ${escapeHtml(amountWords)} only</p>
         </div>
         ${signatureBlock(input.workspace, includeBranding)}
       </section>
@@ -255,10 +368,19 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
         ${taxBreakdownList(taxBreakdown)}
         <p>${escapeHtml(pack.compliance.disclaimer)}</p>
       </section>
-      ${pdfStyle === 'advanced' ? proFooter('Prepared with custom invoice branding') : ''}
+      ${pdfStyle === 'advanced' ? proFooter('Prepared with custom invoice branding') : freeFooter()}
     `,
   });
-  return { kind: 'invoice' as const, html, fileName, template, pdfStyle, subscription };
+  return {
+    kind: 'invoice' as const,
+    html,
+    fileName,
+    csvFileName: fileName.replace(/\.pdf$/i, '.csv'),
+    template,
+    pdfStyle,
+    subscription,
+    invoiceData,
+  };
 }
 
 export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
@@ -284,6 +406,7 @@ export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
   let runningBalance = openingBalance;
   let totalCredit = 0;
   let totalPayment = 0;
+  const rawRows: StatementDocumentLine[] = [];
   const rows = sortedTransactions
     .filter((transaction) => normalizeDate(transaction.effectiveDate) >= from && normalizeDate(transaction.effectiveDate) <= to)
     .map((transaction) => {
@@ -294,6 +417,13 @@ export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
         totalPayment += transaction.amount;
         runningBalance -= transaction.amount;
       }
+      rawRows.push({
+        date: normalizeDate(transaction.effectiveDate),
+        description: transaction.note || (transaction.type === 'credit' ? 'Credit entry' : 'Payment received'),
+        creditAmount: transaction.type === 'credit' ? transaction.amount : 0,
+        paymentAmount: transaction.type === 'payment' ? transaction.amount : 0,
+        runningBalance,
+      });
       return {
         date: normalizeDate(transaction.effectiveDate),
         description: transaction.note || (transaction.type === 'credit' ? 'Credit entry' : 'Payment received'),
@@ -314,6 +444,24 @@ export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
       : runningBalance < 0
         ? `You owe ${input.customer.name} ${money(amountDue, input.workspace.currency, template.locale)}.`
         : 'This account is settled for the selected statement period.';
+  const statementData: StatementDocumentData = {
+    title: pack.documents.statementTitle,
+    businessName: input.workspace.businessName,
+    businessAddress: input.workspace.address,
+    businessContact: `${input.workspace.phone} | ${input.workspace.email}`,
+    customerName: input.customer.name,
+    customerPhone: input.customer.phone,
+    customerAddress: input.customer.address,
+    from,
+    to,
+    amountDue,
+    dueMessage,
+    openingBalance,
+    totalCredit,
+    totalPayment,
+    closingBalance: runningBalance,
+    rows: rawRows,
+  };
   const html = documentShell({
     title: `Statement - ${input.customer.name}`,
     bodyClass: `document-statement style-${pdfStyle} template-${template.visualStyle}`,
@@ -364,11 +512,14 @@ export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
         <p>Customer statements summarize ledger dues and payments. Invoice tax totals are handled in invoice documents and reports.</p>
         <p>Please review this statement and contact us if anything looks incorrect.</p>
       </section>
-      ${pdfStyle === 'advanced' ? proFooter('Prepared with custom document branding') : ''}
+      ${pdfStyle === 'advanced' ? proFooter('Prepared with custom document branding') : freeFooter()}
     `,
   });
-  return { kind: 'statement' as const, html, fileName, template, pdfStyle, subscription };
+  return { kind: 'statement' as const, html, fileName, template, pdfStyle, subscription, statementData };
 }
+
+export type WebInvoiceDocument = ReturnType<typeof buildInvoiceWebDocument>;
+export type WebStatementDocument = ReturnType<typeof buildStatementWebDocument>;
 
 export function openPrintableDocument(html: string) {
   const target = window.open('', '_blank', 'width=960,height=720');
@@ -387,15 +538,286 @@ export function openPrintableDocument(html: string) {
   }
 }
 
-export function downloadDocumentHtml(fileName: string, html: string) {
-  const htmlFileName = fileName.replace(/\.pdf$/i, '.html');
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const href = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = href;
-  link.download = htmlFileName;
-  link.click();
-  URL.revokeObjectURL(href);
+export async function downloadInvoicePdf(document: WebInvoiceDocument) {
+  const { jsPDF } = await import('jspdf');
+  const pdf = new jsPDF({ format: 'a4', unit: 'pt' });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 40;
+  const data = document.invoiceData;
+  let y = margin;
+
+  const addText = (
+    text: string,
+    x: number,
+    currentY: number,
+    options: { size?: number; style?: 'normal' | 'bold'; maxWidth?: number; align?: 'left' | 'right' | 'center' } = {}
+  ) => {
+    pdf.setFont('helvetica', options.style ?? 'normal');
+    pdf.setFontSize(options.size ?? 10);
+    const lines = pdf.splitTextToSize(text, options.maxWidth ?? pageWidth - margin * 2) as string[];
+    pdf.text(lines, x, currentY, { align: options.align ?? 'left' });
+    return currentY + lines.length * ((options.size ?? 10) + 4);
+  };
+
+  const ensureSpace = (height: number) => {
+    if (y + height <= pageHeight - margin - 34) {
+      return;
+    }
+    addPdfFooter(pdf, document);
+    pdf.addPage();
+    y = margin;
+  };
+
+  pdf.setDrawColor(214, 226, 242);
+  pdf.setFillColor(247, 250, 255);
+  pdf.roundedRect(margin, y, pageWidth - margin * 2, 74, 8, 8, 'FD');
+  y = addText(data.businessName, margin + 16, y + 24, { size: 16, style: 'bold', maxWidth: 260 });
+  y = addText(data.businessAddress, margin + 16, y + 2, { size: 9, maxWidth: 260 });
+  addText(data.businessContact, margin + 16, y + 2, { size: 9, maxWidth: 260 });
+  addText(data.title, pageWidth - margin - 16, margin + 24, { size: 10, style: 'bold', align: 'right', maxWidth: 230 });
+  addText(data.invoiceNumber, pageWidth - margin - 16, margin + 44, { size: 16, style: 'bold', align: 'right', maxWidth: 230 });
+  addText(`${document.template.label} · ${data.status}`, pageWidth - margin - 16, margin + 62, { size: 9, align: 'right', maxWidth: 230 });
+  y = margin + 98;
+
+  ensureSpace(96);
+  const halfWidth = (pageWidth - margin * 2 - 14) / 2;
+  pdf.setFillColor(251, 253, 255);
+  pdf.roundedRect(margin, y, halfWidth, 90, 8, 8, 'FD');
+  pdf.roundedRect(margin + halfWidth + 14, y, halfWidth, 90, 8, 8, 'FD');
+  addText('Customer', margin + 14, y + 20, { size: 8, style: 'bold' });
+  addText(data.customerName, margin + 14, y + 40, { size: 13, style: 'bold', maxWidth: halfWidth - 28 });
+  addText([data.customerPhone, data.customerAddress].filter(Boolean).join(' · ') || 'No customer contact saved', margin + 14, y + 58, { size: 9, maxWidth: halfWidth - 28 });
+  addText('Invoice details', margin + halfWidth + 28, y + 20, { size: 8, style: 'bold' });
+  addText(`Issue date: ${data.issueDate}`, margin + halfWidth + 28, y + 40, { size: 9, maxWidth: halfWidth - 28 });
+  addText(`Due date: ${data.dueDate ?? '-'}`, margin + halfWidth + 28, y + 56, { size: 9, maxWidth: halfWidth - 28 });
+  addText(`Country: ${data.countryCode} · Revision: ${data.revisionNumber}`, margin + halfWidth + 28, y + 72, { size: 9, maxWidth: halfWidth - 28 });
+  y += 114;
+
+  ensureSpace(90);
+  y = addText('Line items', margin, y, { size: 12, style: 'bold' }) + 8;
+  const columns = [
+    { label: 'Item', width: 150, align: 'left' as const },
+    { label: 'Qty', width: 42, align: 'right' as const },
+    { label: 'Rate', width: 70, align: 'right' as const },
+    { label: data.taxLabel, width: 56, align: 'right' as const },
+    { label: 'Tax', width: 70, align: 'right' as const },
+    { label: 'Total', width: 84, align: 'right' as const },
+  ];
+  const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
+  pdf.setFillColor(244, 248, 252);
+  pdf.rect(margin, y, tableWidth, 26, 'F');
+  let x = margin;
+  for (const column of columns) {
+    addText(column.label, column.align === 'right' ? x + column.width - 6 : x + 6, y + 17, { size: 8, style: 'bold', align: column.align, maxWidth: column.width - 10 });
+    x += column.width;
+  }
+  y += 28;
+
+  for (const row of data.rows) {
+    ensureSpace(42);
+    const rowHeight = Math.max(34, (pdf.splitTextToSize(row.name, columns[0].width - 12) as string[]).length * 12 + 14);
+    pdf.setDrawColor(228, 236, 246);
+    pdf.line(margin, y + rowHeight, margin + tableWidth, y + rowHeight);
+    x = margin;
+    const values = [
+      row.name,
+      formatQuantity(row.quantity),
+      formatPlainAmount(row.priceAmount),
+      `${formatQuantity(row.taxRate)}%`,
+      formatPlainAmount(row.taxAmount),
+      formatPlainAmount(row.totalAmount),
+    ];
+    values.forEach((value, index) => {
+      const column = columns[index];
+      addText(value, column.align === 'right' ? x + column.width - 6 : x + 6, y + 16, { size: 9, align: column.align, maxWidth: column.width - 12 });
+      x += column.width;
+    });
+    y += rowHeight;
+  }
+
+  ensureSpace(138);
+  const summaryX = pageWidth - margin - 230;
+  y += 14;
+  pdf.setFillColor(251, 253, 255);
+  pdf.roundedRect(summaryX, y, 230, 112, 8, 8, 'FD');
+  addText('Totals', summaryX + 14, y + 22, { size: 12, style: 'bold' });
+  addSummaryLine(pdf, 'Subtotal', formatPlainAmount(data.subtotal), summaryX + 14, y + 44, 202);
+  addSummaryLine(pdf, data.taxLabel, formatPlainAmount(data.taxAmount), summaryX + 14, y + 62, 202);
+  addSummaryLine(pdf, 'Total', formatPlainAmount(data.total), summaryX + 14, y + 84, 202, true);
+  y += 130;
+  y = addText(`Amount in words: ${data.amountWords} only`, margin, y, { size: 10, style: 'bold', maxWidth: pageWidth - margin * 2 });
+
+  if (data.notes) {
+    ensureSpace(42);
+    y = addText(`Notes: ${data.notes}`, margin, y + 12, { size: 9, maxWidth: pageWidth - margin * 2 });
+  }
+
+  addPdfFooter(pdf, document);
+  pdf.save(document.fileName);
+}
+
+export function downloadInvoiceCsv(document: WebInvoiceDocument) {
+  const data = document.invoiceData;
+  const csv = buildCsv(
+    [
+      'Customer Name',
+      'Invoice Number',
+      'Issue Date',
+      'Due Date',
+      'Revision',
+      'Country Code',
+      'Status',
+      'Item',
+      'Description',
+      'Quantity',
+      'Rate',
+      'Tax Rate %',
+      'Taxable Value',
+      'Tax Amount',
+      'CGST',
+      'SGST',
+      'IGST',
+      'Line Total',
+      'Invoice Total',
+      'Amount In Words',
+    ],
+    data.rows.map((row) => [
+      data.customerName,
+      data.invoiceNumber,
+      data.issueDate,
+      data.dueDate ?? '',
+      data.revisionNumber,
+      data.countryCode,
+      data.status,
+      row.name,
+      row.description ?? '',
+      row.quantity,
+      row.priceAmount,
+      row.taxRate,
+      row.taxableValueAmount,
+      row.taxAmount,
+      row.cgstAmount ?? '',
+      row.sgstAmount ?? '',
+      row.igstAmount ?? '',
+      row.totalAmount,
+      data.total,
+      `${data.amountWords} only`,
+    ])
+  );
+  downloadTextFile(document.csvFileName, csv);
+}
+
+export async function downloadStatementPdf(document: WebStatementDocument) {
+  const { jsPDF } = await import('jspdf');
+  const pdf = new jsPDF({ format: 'a4', unit: 'pt' });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 40;
+  const data = document.statementData;
+  let y = margin;
+
+  const addText = (
+    text: string,
+    x: number,
+    currentY: number,
+    options: { size?: number; style?: 'normal' | 'bold'; maxWidth?: number; align?: 'left' | 'right' | 'center' } = {}
+  ) => {
+    pdf.setFont('helvetica', options.style ?? 'normal');
+    pdf.setFontSize(options.size ?? 10);
+    const lines = pdf.splitTextToSize(text, options.maxWidth ?? pageWidth - margin * 2) as string[];
+    pdf.text(lines, x, currentY, { align: options.align ?? 'left' });
+    return currentY + lines.length * ((options.size ?? 10) + 4);
+  };
+
+  const ensureSpace = (height: number) => {
+    if (y + height <= pageHeight - margin - 34) {
+      return;
+    }
+    addDocumentFooter(pdf, document.pdfStyle === 'advanced' ? 'Prepared with Orbit Ledger Pro' : 'Generated using Orbit Ledger', `${data.from} to ${data.to}`);
+    pdf.addPage();
+    y = margin;
+  };
+
+  pdf.setDrawColor(214, 226, 242);
+  pdf.setFillColor(247, 250, 255);
+  pdf.roundedRect(margin, y, pageWidth - margin * 2, 76, 8, 8, 'FD');
+  y = addText(data.businessName, margin + 16, y + 24, { size: 16, style: 'bold', maxWidth: 270 });
+  y = addText(data.businessAddress, margin + 16, y + 2, { size: 9, maxWidth: 270 });
+  addText(data.businessContact, margin + 16, y + 2, { size: 9, maxWidth: 270 });
+  addText(data.title, pageWidth - margin - 16, margin + 24, { size: 10, style: 'bold', align: 'right', maxWidth: 230 });
+  addText(`${data.from} to ${data.to}`, pageWidth - margin - 16, margin + 46, { size: 14, style: 'bold', align: 'right', maxWidth: 230 });
+  addText(document.template.label, pageWidth - margin - 16, margin + 64, { size: 9, align: 'right', maxWidth: 230 });
+  y = margin + 100;
+
+  ensureSpace(112);
+  const halfWidth = (pageWidth - margin * 2 - 14) / 2;
+  pdf.setFillColor(251, 253, 255);
+  pdf.roundedRect(margin, y, halfWidth, 94, 8, 8, 'FD');
+  pdf.roundedRect(margin + halfWidth + 14, y, halfWidth, 94, 8, 8, 'FD');
+  addText('Customer', margin + 14, y + 20, { size: 8, style: 'bold' });
+  addText(data.customerName, margin + 14, y + 40, { size: 13, style: 'bold', maxWidth: halfWidth - 28 });
+  addText([data.customerPhone, data.customerAddress].filter(Boolean).join(' · ') || 'No customer contact saved', margin + 14, y + 58, { size: 9, maxWidth: halfWidth - 28 });
+  addText('Account summary', margin + halfWidth + 28, y + 20, { size: 8, style: 'bold' });
+  addText(`Amount due: ${formatPlainAmount(data.amountDue)}`, margin + halfWidth + 28, y + 42, { size: 12, style: 'bold', maxWidth: halfWidth - 28 });
+  addText(data.dueMessage, margin + halfWidth + 28, y + 62, { size: 9, maxWidth: halfWidth - 28 });
+  y += 118;
+
+  ensureSpace(108);
+  const summaryX = margin;
+  pdf.setFillColor(251, 253, 255);
+  pdf.roundedRect(summaryX, y, pageWidth - margin * 2, 82, 8, 8, 'FD');
+  addSummaryLine(pdf, 'Opening balance', formatPlainAmount(data.openingBalance), summaryX + 14, y + 26, pageWidth - margin * 2 - 28);
+  addSummaryLine(pdf, 'Credit / charges', formatPlainAmount(data.totalCredit), summaryX + 14, y + 44, pageWidth - margin * 2 - 28);
+  addSummaryLine(pdf, 'Payments received', formatPlainAmount(data.totalPayment), summaryX + 14, y + 62, pageWidth - margin * 2 - 28);
+  addSummaryLine(pdf, 'Closing balance', formatPlainAmount(data.closingBalance), summaryX + 14, y + 80, pageWidth - margin * 2 - 28, true);
+  y += 110;
+
+  y = addText('Activity', margin, y, { size: 12, style: 'bold' }) + 8;
+  const columns = [
+    { label: 'Date', width: 76, align: 'left' as const },
+    { label: 'Details', width: 190, align: 'left' as const },
+    { label: 'Credit', width: 78, align: 'right' as const },
+    { label: 'Payment', width: 78, align: 'right' as const },
+    { label: 'Balance', width: 82, align: 'right' as const },
+  ];
+  const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
+  pdf.setFillColor(244, 248, 252);
+  pdf.rect(margin, y, tableWidth, 26, 'F');
+  let x = margin;
+  for (const column of columns) {
+    addText(column.label, column.align === 'right' ? x + column.width - 6 : x + 6, y + 17, { size: 8, style: 'bold', align: column.align, maxWidth: column.width - 10 });
+    x += column.width;
+  }
+  y += 28;
+
+  for (const row of data.rows) {
+    ensureSpace(40);
+    const rowHeight = Math.max(32, (pdf.splitTextToSize(row.description, columns[1].width - 12) as string[]).length * 12 + 12);
+    pdf.setDrawColor(228, 236, 246);
+    pdf.line(margin, y + rowHeight, margin + tableWidth, y + rowHeight);
+    x = margin;
+    const values = [
+      row.date,
+      row.description,
+      row.creditAmount ? formatPlainAmount(row.creditAmount) : '-',
+      row.paymentAmount ? formatPlainAmount(row.paymentAmount) : '-',
+      formatPlainAmount(row.runningBalance),
+    ];
+    values.forEach((value, index) => {
+      const column = columns[index];
+      addText(value, column.align === 'right' ? x + column.width - 6 : x + 6, y + 16, { size: 9, align: column.align, maxWidth: column.width - 12 });
+      x += column.width;
+    });
+    y += rowHeight;
+  }
+
+  if (!data.rows.length) {
+    addText('No transactions in this statement period.', margin + 8, y + 18, { size: 9 });
+  }
+
+  addDocumentFooter(pdf, document.pdfStyle === 'advanced' ? 'Prepared with Orbit Ledger Pro' : 'Generated using Orbit Ledger', `${data.from} to ${data.to}`);
+  pdf.save(document.fileName);
 }
 
 export function buildPaymentRequestMessage(input: {
@@ -590,6 +1012,47 @@ function proFooter(message: string) {
   return `<section class="brand-footer"><span>Orbit Ledger Pro</span><span>${escapeHtml(message)}</span></section>`;
 }
 
+function freeFooter() {
+  return '<section class="brand-footer brand-footer--free"><span>Generated using Orbit Ledger</span><span>Clear records for serious small businesses</span></section>';
+}
+
+function addSummaryLine(
+  pdf: JsPdfDocument,
+  label: string,
+  value: string,
+  x: number,
+  y: number,
+  width: number,
+  emphasized = false
+) {
+  pdf.setFont('helvetica', emphasized ? 'bold' : 'normal');
+  pdf.setFontSize(emphasized ? 11 : 9);
+  pdf.text(label, x, y);
+  pdf.text(value, x + width, y, { align: 'right' });
+}
+
+function addPdfFooter(pdf: JsPdfDocument, document: WebInvoiceDocument) {
+  addDocumentFooter(
+    pdf,
+    document.pdfStyle === 'advanced' ? 'Prepared with Orbit Ledger Pro' : 'Generated using Orbit Ledger',
+    `${document.invoiceData.invoiceNumber} · ${document.invoiceData.countryCode}`
+  );
+}
+
+function addDocumentFooter(pdf: JsPdfDocument, footerText: string, rightText: string) {
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  pdf.setDrawColor(214, 226, 242);
+  pdf.line(40, pageHeight - 36, pageWidth - 40, pageHeight - 36);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(8);
+  pdf.setTextColor(70, 84, 103);
+  pdf.text(footerText, 40, pageHeight - 20);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text(rightText, pageWidth - 40, pageHeight - 20, { align: 'right' });
+  pdf.setTextColor(24, 35, 31);
+}
+
 function proThemeStyle(theme: WebProBrandTheme | null) {
   if (!theme) {
     return '';
@@ -597,8 +1060,14 @@ function proThemeStyle(theme: WebProBrandTheme | null) {
   return ` style="--pro-accent:${escapeAttribute(theme.accentColor)};--pro-surface:${escapeAttribute(theme.surfaceColor)};--pro-line:${escapeAttribute(theme.lineColor)};--pro-text:${escapeAttribute(theme.textColor)}"`;
 }
 
-function buildInvoicePdfFileName(customerName: string, invoiceNumber: string) {
-  return `OrbitLedger_${fileNamePart(customerName, 'Customer')}_Invoice_${fileNamePart(invoiceNumber, 'Invoice')}.pdf`;
+function buildInvoicePdfFileName(
+  customerName: string,
+  invoiceNumber: string,
+  issueDate: string,
+  revisionNumber: number,
+  countryCode: string
+) {
+  return `${fileNamePart(customerName, 'Customer')}_${fileNamePart(invoiceNumber, 'Invoice')}_${fileNamePart(issueDate, today())}_${fileNamePart(String(revisionNumber), '1')}_${fileNamePart(countryCode, 'GENERIC')}.pdf`;
 }
 
 function buildStatementPdfFileName(customerName: string, from: string, to: string) {
@@ -619,7 +1088,101 @@ function money(amount: number, currency: string, locale?: string) {
 }
 
 function amountInWords(amount: number, currency: string) {
-  return `${money(amount, currency)} only`;
+  const safeAmount = Math.abs(roundCurrency(amount));
+  const whole = Math.floor(safeAmount);
+  const fraction = Math.round((safeAmount - whole) * 100);
+  const wholeWords = numberToWords(whole);
+  if (!fraction) {
+    return wholeWords;
+  }
+
+  const minorUnit = currency.toUpperCase() === 'INR' ? 'paise' : 'cents';
+  return `${wholeWords} and ${numberToWords(fraction)} ${minorUnit}`;
+}
+
+function numberToWords(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return 'Zero';
+  }
+
+  const ones = [
+    '',
+    'one',
+    'two',
+    'three',
+    'four',
+    'five',
+    'six',
+    'seven',
+    'eight',
+    'nine',
+    'ten',
+    'eleven',
+    'twelve',
+    'thirteen',
+    'fourteen',
+    'fifteen',
+    'sixteen',
+    'seventeen',
+    'eighteen',
+    'nineteen',
+  ];
+  const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+  function underThousand(input: number): string {
+    const parts: string[] = [];
+    const hundreds = Math.floor(input / 100);
+    const rest = input % 100;
+    if (hundreds) {
+      parts.push(`${ones[hundreds]} hundred`);
+    }
+    if (rest) {
+      if (rest < 20) {
+        parts.push(ones[rest]);
+      } else {
+        const ten = Math.floor(rest / 10);
+        const one = rest % 10;
+        parts.push(one ? `${tens[ten]} ${ones[one]}` : tens[ten]);
+      }
+    }
+    return parts.join(' ');
+  }
+
+  const scales = [
+    { value: 1_000_000_000, label: 'billion' },
+    { value: 1_000_000, label: 'million' },
+    { value: 1_000, label: 'thousand' },
+    { value: 1, label: '' },
+  ];
+  let remaining = Math.floor(value);
+  const parts: string[] = [];
+  for (const scale of scales) {
+    const chunk = Math.floor(remaining / scale.value);
+    if (!chunk) {
+      continue;
+    }
+    parts.push(`${underThousand(chunk)}${scale.label ? ` ${scale.label}` : ''}`);
+    remaining %= scale.value;
+  }
+
+  return sentenceCase(parts.join(' '));
+}
+
+function sentenceCase(value: string) {
+  return value ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : value;
+}
+
+function formatPlainAmount(value: number): string {
+  return roundCurrency(value).toFixed(2);
+}
+
+function formatQuantity(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function getInvoiceRevisionNumber(invoice: WorkspaceInvoiceDetail): number {
+  const revision = Number((invoice as WorkspaceInvoiceDetail & { serverRevision?: number }).serverRevision ?? 1);
+  return Number.isFinite(revision) && revision > 0 ? Math.floor(revision) : 1;
 }
 
 function roundCurrency(value: number) {
@@ -666,5 +1229,6 @@ const pdfStyles = `
   .tax-note{font-size:11px;color:#516173;line-height:1.55}.tax-breakdown{margin:8px 0}.account-summary-panel h2{font-size:26px;color:#b56a18}
   .style-advanced .page{border-top:8px solid var(--pro-accent)}.style-advanced .logo-fallback,.style-advanced .style-badge{background:var(--pro-surface);color:var(--pro-accent);border-color:var(--pro-line)}.style-advanced .statement-title strong,.style-advanced .summary-line.emphasized{color:var(--pro-accent)}
   .brand-footer{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid var(--pro-line);font-size:10px;font-weight:800;color:var(--pro-accent)}
+  .brand-footer--free{border:1px solid #dce6f2;border-radius:999px;padding:9px 12px;background:#f7faff;color:#516173}
   @media print{body{background:#fff}.page{width:auto;min-height:auto;margin:0;box-shadow:none;padding:12mm}@page{size:A4;margin:10mm}}
 `;

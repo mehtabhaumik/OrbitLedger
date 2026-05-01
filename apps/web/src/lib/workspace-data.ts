@@ -51,6 +51,7 @@ export type WorkspaceInvoice = {
   issueDate: string;
   totalAmount: number;
   status: string;
+  serverRevision?: number;
 };
 
 export type WorkspaceInvoiceItem = {
@@ -372,6 +373,7 @@ export async function listWorkspaceInvoices(workspaceId: string): Promise<Worksp
         issue_date?: string;
         total_amount?: number;
         status?: string;
+        server_revision?: number;
       };
 
       return {
@@ -381,6 +383,7 @@ export async function listWorkspaceInvoices(workspaceId: string): Promise<Worksp
         issueDate: data.issue_date ?? '',
         totalAmount: data.total_amount ?? 0,
         status: data.status ?? 'draft',
+        serverRevision: data.server_revision ?? 1,
       } satisfies WorkspaceInvoice;
     });
 }
@@ -412,6 +415,7 @@ export async function getWorkspaceInvoiceDetail(
     total_amount?: number;
     status?: string;
     notes?: string | null;
+    server_revision?: number;
   };
 
   return {
@@ -422,6 +426,7 @@ export async function getWorkspaceInvoiceDetail(
     dueDate: data.due_date ?? null,
     totalAmount: data.total_amount ?? 0,
     status: data.status ?? 'draft',
+    serverRevision: data.server_revision ?? 1,
     notes: data.notes ?? null,
     items: itemSnapshot.docs.map(mapInvoiceItem).sort((left, right) => left.name.localeCompare(right.name)),
   };
@@ -475,6 +480,7 @@ export async function saveWorkspaceInvoiceDetail(
     total_amount: totalAmount,
     status: input.status,
     notes: input.notes?.trim() || null,
+    server_revision: increment(1),
     last_modified: now,
   });
 
@@ -584,6 +590,7 @@ export async function createDraftWorkspaceInvoice(workspaceId: string): Promise<
     issueDate: payload.issue_date,
     totalAmount: 0,
     status: 'draft',
+    serverRevision: payload.server_revision,
   };
 }
 
