@@ -70,6 +70,23 @@ Example shape, with placeholder values only:
 13. Run the smoke tests below.
 14. Turn provider test mode off only after all smoke tests pass.
 
+## Backend Access Checklist
+
+The deployed webhook runs as the project compute service account. That service account must have enough access to read and write payment events, invoices, customers, allocations, transactions, and reversal records.
+
+Required production access:
+
+- Secret Manager access to `ORBIT_LEDGER_PROVIDER_WEBHOOK_SECRET`.
+- Firestore read/write access for payment automation.
+- Logging access so failed provider events can be diagnosed.
+- Artifact Registry and source bucket access for function deploys.
+
+Current production note:
+
+- During the sandbox transaction test, the webhook initially returned `500` because the function service account did not have Firestore read/write access.
+- The missing Firestore access was corrected by granting the function service account `roles/datastore.user`.
+- The sandbox transaction test passed after that permission was applied.
+
 ## Production Smoke Tests
 
 These tests should be run every time the webhook code, payment page, provider dashboard setup, or Firebase project configuration changes.
@@ -211,6 +228,7 @@ Payments are ready for live provider traffic only when all items are true:
 - Function is deployed in `asia-south1`.
 - Function runtime shows `nodejs24`.
 - Provider secret is stored in Firebase Secret Manager.
+- Function service account has Firestore read/write access.
 - Public calls without the secret return `401`.
 - `GET` returns `405`.
 - Hosted payment page returns `200`.
@@ -226,3 +244,30 @@ Payments are ready for live provider traffic only when all items are true:
 - Keep the provider in test mode when changing payload mappings.
 - Preserve original payment entries even after refunds; use reversals for audit history.
 - Review unmatched payments daily until provider matching is fully proven.
+
+## Latest Sandbox Transaction Result
+
+Last verified: `2026-05-02`
+
+Sandbox workspace:
+
+- `sandbox_payment_smoke_1777666574025`
+
+Result:
+
+- Sandbox workspace created.
+- Successful payment event returned HTTP `200`.
+- Invoice paid amount changed from `0` to `1770`.
+- Invoice payment status changed to `paid`.
+- Customer balance changed from `1770` to `0`.
+- One payment transaction was created.
+- One payment allocation was created.
+- Duplicate payment event was detected and did not duplicate ledger records.
+- Refund event returned HTTP `200`.
+- Refund created one reversal transaction.
+- Refund created one `payment_reversals` record.
+- Invoice paid amount returned to `0`.
+- Invoice payment status returned to `unpaid`.
+- Customer balance returned to `1770`.
+- Duplicate refund was detected as `already_reversed`.
+- Sandbox workspace cleanup completed.
