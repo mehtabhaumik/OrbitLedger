@@ -133,6 +133,12 @@ export type {
   ManualPaymentVerificationPlan,
 } from './manualPaymentVerification';
 export {
+  buildManualPaymentFollowUpMessage,
+} from './manualPaymentFollowUp';
+export type {
+  ManualPaymentFollowUpInput,
+} from './manualPaymentFollowUp';
+export {
   buildRazorpayNotes,
   buildRazorpayPaymentLinkDraft,
 } from './paymentProviderSetup';

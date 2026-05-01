@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
   buildInvoicePaymentReference,
+  buildManualPaymentFollowUpMessage,
   buildRazorpayPaymentLinkDraft,
   getManualPaymentVerificationPlan,
   getPaymentClearanceStatusLabel,
@@ -351,6 +352,22 @@ export default function PaymentsPage() {
     }
   }
 
+  async function copyManualPaymentFollowUp(payment: WorkspaceManualPaymentReviewItem) {
+    if (!activeWorkspace) {
+      return;
+    }
+    const message = buildManualPaymentFollowUpMessage({
+      businessName: activeWorkspace.businessName,
+      customerName: payment.customerName,
+      amountLabel: formatCurrency(payment.amount, activeWorkspace.currency),
+      clearanceStatus: payment.paymentClearanceStatus,
+      invoiceNumber: payment.invoiceNumber,
+      paymentModeLabel: summarizePaymentMode(payment.paymentMode, payment.paymentDetails),
+    });
+    await navigator.clipboard.writeText(message);
+    showToast('Follow-up message copied.', 'success');
+  }
+
   return (
     <AppShell title="Payments" subtitle="Collect manually today, and connect online checkout when a provider is ready.">
       <section className="ol-metric-grid">
@@ -558,6 +575,14 @@ export default function PaymentsPage() {
                   onClick={() => void updateManualPayment(payment, 'bounced')}
                 >
                   Mark bounced
+                </button>
+                <button
+                  className="ol-button-secondary"
+                  disabled={busyManualPaymentId === payment.transactionId}
+                  type="button"
+                  onClick={() => void copyManualPaymentFollowUp(payment)}
+                >
+                  Copy follow-up
                 </button>
               </span>
             </div>
