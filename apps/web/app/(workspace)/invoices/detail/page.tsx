@@ -273,7 +273,7 @@ function InvoiceEditorContent() {
 
   return (
     <AppShell title="Invoice Editor" subtitle="Edit invoice details, line items, tax, and download a clean copy.">
-      <div className="ol-actions">
+      <div className="ol-actions ol-actions--sticky">
         <Link className="ol-button-secondary" href="/invoices">
           Back to invoices
         </Link>

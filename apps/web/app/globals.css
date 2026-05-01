@@ -1789,6 +1789,21 @@ a:focus-visible {
   flex: 0 0 auto;
 }
 
+.ol-actions--sticky {
+  position: sticky;
+  top: calc(var(--topbar-height) + 12px);
+  z-index: 18;
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px;
+  border: 1px solid rgba(190, 204, 225, 0.72);
+  border-radius: 14px;
+  background: rgba(247, 250, 255, 0.88);
+  box-shadow: 0 16px 38px rgba(20, 32, 51, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
 .ol-actions--compact {
   gap: 8px;
 }
@@ -1923,6 +1938,11 @@ a:focus-visible {
     width: 100%;
     min-width: 0;
     max-width: 100%;
+  }
+
+  .ol-actions--sticky {
+    top: 12px;
+    width: 100%;
   }
 
   .ol-page-content,

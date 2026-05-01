@@ -371,15 +371,20 @@ export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
 }
 
 export function openPrintableDocument(html: string) {
-  const target = window.open('', '_blank', 'noopener,noreferrer,width=960,height=720');
+  const target = window.open('', '_blank', 'width=960,height=720');
   if (!target) {
     throw new Error('Allow popups to view or save this PDF.');
   }
-  target.document.open();
-  target.document.write(html);
-  target.document.close();
-  target.focus();
-  window.setTimeout(() => target.print(), 350);
+  try {
+    target.document.open();
+    target.document.write(html);
+    target.document.close();
+    target.focus();
+    window.setTimeout(() => target.print(), 450);
+  } catch {
+    target.close();
+    throw new Error('Invoice preview could not open. Try downloading the document instead.');
+  }
 }
 
 export function downloadDocumentHtml(fileName: string, html: string) {

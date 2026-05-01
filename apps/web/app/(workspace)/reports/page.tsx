@@ -49,7 +49,7 @@ export default function ReportsPage() {
 
   return (
     <AppShell title="Reports" subtitle="Business summaries with calm, readable signal instead of dashboard noise.">
-      <div className="ol-actions">
+      <div className="ol-actions ol-actions--sticky">
         <button className="ol-button" type="button" onClick={exportReportCsv} disabled={!dashboardSnapshot}>
           Export summary
         </button>

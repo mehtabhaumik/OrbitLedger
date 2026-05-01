@@ -148,7 +148,7 @@ function CustomerDetailContent() {
 
   return (
     <AppShell title="Customer Detail" subtitle="Activity, balance, and follow-up context.">
-      <div className="ol-actions">
+      <div className="ol-actions ol-actions--sticky">
         <Link className="ol-button-secondary" href="/customers">
           Back to customers
         </Link>
