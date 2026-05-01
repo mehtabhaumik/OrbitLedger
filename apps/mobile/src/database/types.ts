@@ -348,6 +348,11 @@ export type PaymentAllocation = SyncMetadata & {
   createdAt: string;
 };
 
+export type InvoicePaymentAllocation = PaymentAllocation & {
+  transactionEffectiveDate: string;
+  transactionNote: string | null;
+};
+
 export type AddInvoiceItemInput = {
   productId?: string | null;
   name: string;

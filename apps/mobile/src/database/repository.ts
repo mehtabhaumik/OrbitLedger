@@ -26,6 +26,7 @@ import {
   mapInvoice,
   mapInvoiceItem,
   mapInvoiceVersion,
+  mapPaymentAllocation,
   mapPaymentReminder,
   mapPaymentPromise,
   mapPaymentPromiseWithCustomer,
@@ -91,6 +92,7 @@ import type {
   DashboardSummary,
   Invoice,
   InstallCountryPackageInput,
+  InvoicePaymentAllocation,
   InvoiceItemRow,
   InvoiceListOptions,
   InvoiceRow,
@@ -108,6 +110,7 @@ import type {
   PaymentPromise,
   PaymentPromiseRow,
   PaymentPromiseStatus,
+  PaymentAllocationRow,
   Product,
   ProductListOptions,
   ProductRow,
@@ -2373,6 +2376,36 @@ export async function listInvoiceVersions(invoiceId: string): Promise<InvoiceVer
     return rows.map(mapInvoiceVersion);
   } catch (error) {
     return throwDatabaseError('listInvoiceVersions', error);
+  }
+}
+
+export async function listInvoicePaymentAllocations(invoiceId: string): Promise<InvoicePaymentAllocation[]> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<
+      PaymentAllocationRow & {
+        transaction_effective_date: string | null;
+        transaction_note: string | null;
+      }
+    >(
+      `SELECT
+        pa.*,
+        t.effective_date AS transaction_effective_date,
+        t.note AS transaction_note
+       FROM payment_allocations pa
+       LEFT JOIN transactions t ON t.id = pa.transaction_id
+       WHERE pa.invoice_id = ?
+       ORDER BY pa.created_at DESC`,
+      invoiceId
+    );
+
+    return rows.map((row) => ({
+      ...mapPaymentAllocation(row),
+      transactionEffectiveDate: row.transaction_effective_date ?? row.created_at.slice(0, 10),
+      transactionNote: row.transaction_note,
+    }));
+  } catch (error) {
+    return throwDatabaseError('listInvoicePaymentAllocations', error);
   }
 }
 

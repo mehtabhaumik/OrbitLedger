@@ -25,10 +25,11 @@ import {
   getBusinessSettings,
   getCustomerLedger,
   getInvoice,
+  listInvoicePaymentAllocations,
   updateInvoicePaymentStatus,
   updateInvoiceStatus,
 } from '../database';
-import type { BusinessSettings, Customer, InvoiceWithItems } from '../database';
+import type { BusinessSettings, Customer, InvoicePaymentAllocation, InvoiceWithItems } from '../database';
 import {
   buildInvoiceDocument,
   buildInvoicePdfFileName,
@@ -57,7 +58,7 @@ import type {
   StructuredDocument,
 } from '../documents';
 import { recordRatingPositiveMoment } from '../engagement';
-import { formatShortDate } from '../lib/format';
+import { formatCurrency, formatShortDate } from '../lib/format';
 import {
   getActiveProBrandTheme,
   getSubscriptionStatus,
@@ -109,6 +110,7 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
   const [viewedPdf, setViewedPdf] = useState<GeneratedPdf | null>(null);
   const [isPdfViewerVisible, setIsPdfViewerVisible] = useState(false);
   const [documentHistory, setDocumentHistory] = useState<GeneratedDocumentHistoryEntry[]>([]);
+  const [paymentAllocations, setPaymentAllocations] = useState<InvoicePaymentAllocation[]>([]);
   const [paymentDetails, setPaymentDetails] = useState<PaymentShareDetails>({});
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -174,11 +176,12 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
           throw new Error('Invoice not found.');
         }
 
-        const [customer, documentTemplate, invoiceTaxProfile, selectedTemplateKey] = await Promise.all([
+        const [customer, documentTemplate, invoiceTaxProfile, selectedTemplateKey, allocations] = await Promise.all([
           loadInvoiceCustomer(invoice),
           loadDocumentTemplateForBusiness(businessProfile, 'invoice'),
           getInvoiceTaxProfile(businessProfile),
           getPreferredDocumentTemplateKey(businessProfile, 'invoice', subscriptionStatus.isPro),
+          listInvoicePaymentAllocations(invoiceId),
         ]);
 
         if (canUpdate()) {
@@ -193,6 +196,7 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
             invoiceTaxProfile,
           });
           setDocumentHistory(getInvoiceDocumentHistory());
+          setPaymentAllocations(allocations);
           setPaymentDetails(savedPaymentDetails);
         }
       } catch {
@@ -271,6 +275,24 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
     } catch {
       Alert.alert('Invoice could not update', 'Please try again.');
     }
+  }
+
+  function recordInvoicePayment() {
+    if (!sourceInvoice?.customerId) {
+      Alert.alert('Customer required', 'Choose a customer on this invoice before recording payment.');
+      return;
+    }
+    const dueAmount = Math.max(sourceInvoice.totalAmount - sourceInvoice.paidAmount, 0);
+    if (dueAmount <= 0) {
+      Alert.alert('Invoice is paid', 'No payment is due on this invoice.');
+      return;
+    }
+    navigation.navigate('TransactionForm', {
+      customerId: sourceInvoice.customerId,
+      type: 'payment',
+      invoiceId,
+      amount: dueAmount,
+    });
   }
 
   function cancelInvoice() {
@@ -621,22 +643,62 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
         <View style={styles.lifecycleActions}>
           <PrimaryButton
             variant="secondary"
-            onPress={() => void markPaymentStatus('paid')}
+            onPress={recordInvoicePayment}
           >
-            Mark Paid
+            Record Payment
           </PrimaryButton>
-          <PrimaryButton
-            variant="ghost"
-            onPress={() => void markPaymentStatus('unpaid')}
-          >
-            Mark Unpaid
-          </PrimaryButton>
+          {sourceInvoice.paidAmount <= 0 ? (
+            <PrimaryButton
+              variant="ghost"
+              onPress={() => void markPaymentStatus('unpaid')}
+            >
+              Mark Unpaid
+            </PrimaryButton>
+          ) : null}
           <PrimaryButton
             variant="ghost"
             onPress={cancelInvoice}
           >
             Cancel Invoice
           </PrimaryButton>
+        </View>
+
+        <View style={styles.reviewCard}>
+          <View style={styles.reviewHeader}>
+            <View style={styles.reviewHeaderText}>
+              <Text style={styles.reviewLabel}>Payment allocation</Text>
+              <Text style={styles.sectionTitle}>Money applied to this invoice</Text>
+            </View>
+            <View style={styles.reviewStatusPill}>
+              <Text style={styles.reviewStatusText}>
+                {formatCurrency(Math.max(sourceInvoice.totalAmount - sourceInvoice.paidAmount, 0), data.metadata.currency)} due
+              </Text>
+            </View>
+          </View>
+          <View style={styles.reviewLines}>
+            <ReviewLine label="Invoice total" value={formatCurrency(sourceInvoice.totalAmount, data.metadata.currency)} />
+            <ReviewLine label="Allocated payments" value={formatCurrency(sourceInvoice.paidAmount, data.metadata.currency)} />
+            <ReviewLine label="Still due" value={formatCurrency(Math.max(sourceInvoice.totalAmount - sourceInvoice.paidAmount, 0), data.metadata.currency)} emphasized />
+          </View>
+          {paymentAllocations.length ? (
+            <View style={styles.allocationList}>
+              {paymentAllocations.map((allocation) => (
+                <View key={allocation.id} style={styles.allocationItem}>
+                  <View style={styles.allocationText}>
+                    <Text style={styles.allocationTitle}>
+                      {formatCurrency(allocation.amount, data.metadata.currency)}
+                    </Text>
+                    <Text style={styles.muted}>
+                      {formatShortDate(allocation.transactionEffectiveDate)}
+                      {allocation.transactionNote ? ` - ${allocation.transactionNote}` : ''}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.muted}>No payments are allocated to this invoice yet.</Text>
+          )}
         </View>
 
         {documentGates?.upgradeMessage && !isUpgradePromptDismissed ? (
@@ -1257,6 +1319,24 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: typography.caption,
     lineHeight: 18,
+  },
+  allocationList: {
+    gap: spacing.sm,
+  },
+  allocationItem: {
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    backgroundColor: colors.surfaceMuted,
+    padding: spacing.md,
+  },
+  allocationText: {
+    gap: spacing.xs,
+  },
+  allocationTitle: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '900',
   },
   previewSheet: {
     backgroundColor: colors.surface,

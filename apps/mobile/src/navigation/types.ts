@@ -26,7 +26,14 @@ export type RootStackParamList = {
   CustomerForm: { customerId?: string } | undefined;
   CustomerDetail: { customerId: string };
   TransactionForm:
-    | { customerId?: string; type?: 'credit' | 'payment'; transactionId?: string; promiseId?: string }
+    | {
+        customerId?: string;
+        type?: 'credit' | 'payment';
+        transactionId?: string;
+        promiseId?: string;
+        invoiceId?: string;
+        amount?: number;
+      }
     | undefined;
   InvoiceForm: { customerId?: string; invoiceId?: string } | undefined;
   InvoicePreview: { invoiceId: string };

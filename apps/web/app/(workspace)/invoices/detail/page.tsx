@@ -12,11 +12,14 @@ import {
 
 import { AppShell } from '@/components/app-shell';
 import {
+  createWorkspaceInvoicePayment,
   getWorkspaceInvoiceDetail,
+  listWorkspaceInvoicePaymentAllocations,
   listWorkspaceCustomers,
   saveWorkspaceInvoiceDetail,
   type WorkspaceCustomer,
   type WorkspaceInvoiceDetail,
+  type WorkspaceInvoicePaymentAllocation,
 } from '@/lib/workspace-data';
 import {
   buildInvoiceWebDocument,
@@ -58,10 +61,15 @@ function InvoiceEditorContent() {
   const [issueDate, setIssueDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<InvoicePaymentStatus>('unpaid');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paymentNote, setPaymentNote] = useState('');
+  const [allocations, setAllocations] = useState<WorkspaceInvoicePaymentAllocation[]>([]);
   const [revisionReason, setRevisionReason] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<EditableItem[]>([emptyItem()]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [templateKey, setTemplateKey] = useState('');
   const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
@@ -81,14 +89,20 @@ function InvoiceEditorContent() {
     void Promise.all([
       getWorkspaceInvoiceDetail(activeWorkspace.workspaceId, invoiceId),
       listWorkspaceCustomers(activeWorkspace.workspaceId),
+      listWorkspaceInvoicePaymentAllocations(activeWorkspace.workspaceId, invoiceId),
     ])
-      .then(([nextInvoice, nextCustomers]) => {
+      .then(([nextInvoice, nextCustomers, nextAllocations]) => {
         setCustomers(nextCustomers);
+        setAllocations(nextAllocations);
         if (!nextInvoice) {
           setMessage('Invoice could not be found.');
           return;
         }
         setInvoice(nextInvoice);
+        const nextDueAmount = Math.max(nextInvoice.totalAmount - nextInvoice.paidAmount, 0);
+        setPaymentAmount(nextDueAmount > 0 ? formatAmountInput(nextDueAmount) : '');
+        setPaymentDate(new Date().toISOString().slice(0, 10));
+        setPaymentNote(`Payment for invoice ${nextInvoice.invoiceNumber}`);
         setCustomerId(nextInvoice.customerId ?? '');
         setInvoiceNumber(nextInvoice.invoiceNumber);
         setIssueDate(nextInvoice.issueDate);
@@ -132,6 +146,7 @@ function InvoiceEditorContent() {
   const total = totals.subtotal + totals.tax;
   const currency = activeWorkspace?.currency ?? 'INR';
   const selectedCustomer = customers.find((customer) => customer.id === customerId) ?? null;
+  const dueAmount = invoice ? Math.max(total - invoice.paidAmount, 0) : 0;
   const currentInvoiceDocument = useMemo(() => {
     if (!activeWorkspace || !invoice) {
       return null;
@@ -311,6 +326,42 @@ function InvoiceEditorContent() {
     );
   }
 
+  async function recordInvoicePayment(amountOverride?: number) {
+    if (!activeWorkspace || !invoice) {
+      return;
+    }
+    const amountToSave = amountOverride ?? parseMoney(paymentAmount);
+    if (!invoice.customerId && !customerId) {
+      showToast('Choose a customer before recording payment.', 'danger');
+      return;
+    }
+    if (amountToSave <= 0) {
+      showToast('Enter a payment amount before saving.', 'danger');
+      return;
+    }
+
+    setIsRecordingPayment(true);
+    try {
+      const updated = await createWorkspaceInvoicePayment(activeWorkspace.workspaceId, invoice.id, {
+        amount: amountToSave,
+        effectiveDate: paymentDate,
+        note: paymentNote,
+      });
+      const nextAllocations = await listWorkspaceInvoicePaymentAllocations(activeWorkspace.workspaceId, invoice.id);
+      setInvoice(updated);
+      setPaymentStatus(updated.paymentStatus);
+      setAllocations(nextAllocations);
+      const nextDueAmount = Math.max(updated.totalAmount - updated.paidAmount, 0);
+      setPaymentAmount(nextDueAmount > 0 ? formatAmountInput(nextDueAmount) : '');
+      setPaymentNote(`Payment for invoice ${updated.invoiceNumber}`);
+      showToast('Payment recorded and applied to this invoice.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Payment could not be recorded.', 'danger');
+    } finally {
+      setIsRecordingPayment(false);
+    }
+  }
+
   async function cancelInvoice() {
     if (!window.confirm('Cancel this invoice? This keeps the history but marks the document as cancelled.')) {
       return;
@@ -337,11 +388,8 @@ function InvoiceEditorContent() {
         <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentMessage()} disabled={!currentInvoiceDocument || total <= 0}>
           Copy payment message
         </button>
-        <button className="ol-button-secondary" type="button" onClick={() => void markPaymentStatus('paid')} disabled={isSaving || !invoice || total <= 0}>
-          Mark paid
-        </button>
-        <button className="ol-button-secondary" type="button" onClick={() => void markPaymentStatus('unpaid')} disabled={isSaving || !invoice}>
-          Mark unpaid
+        <button className="ol-button-secondary" type="button" onClick={() => void recordInvoicePayment(dueAmount)} disabled={isRecordingPayment || !invoice || dueAmount <= 0}>
+          Record full payment
         </button>
         <button className="ol-button-secondary" type="button" onClick={() => void cancelInvoice()} disabled={isSaving || !invoice || invoice.documentState === 'cancelled'}>
           Cancel invoice
@@ -480,6 +528,69 @@ function InvoiceEditorContent() {
             <Metric label="Subtotal" value={formatCurrency(totals.subtotal, currency)} tone="primary" />
             <Metric label="Tax" value={formatCurrency(totals.tax, currency)} tone="warning" />
             <Metric label="Total" value={formatCurrency(total, currency)} tone="success" />
+            <Metric label="Paid" value={formatCurrency(invoice.paidAmount, currency)} tone="success" />
+            <Metric label="Amount due" value={formatCurrency(Math.max(total - invoice.paidAmount, 0), currency)} tone="warning" />
+          </section>
+
+          <section className="ol-panel">
+            <div className="ol-panel-header">
+              <div>
+                <div className="ol-panel-title">Payment allocation</div>
+                <p className="ol-panel-copy">
+                  Record a confirmed payment here so invoice status follows real allocated money.
+                </p>
+              </div>
+              <span className={`ol-chip ol-chip--${paymentStatus === 'paid' ? 'success' : paymentStatus === 'overdue' ? 'warning' : 'primary'}`}>
+                {getInvoicePaymentStatusLabel(paymentStatus)}
+              </span>
+            </div>
+            <div className="ol-form-row ol-form-row--4">
+              <label className="ol-field">
+                <span className="ol-field-label">Payment amount</span>
+                <input
+                  className="ol-input ol-amount"
+                  inputMode="decimal"
+                  value={paymentAmount}
+                  onChange={(event) => setPaymentAmount(event.target.value)}
+                />
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">Payment date</span>
+                <input className="ol-input" type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">Payment note</span>
+                <input className="ol-input" value={paymentNote} onChange={(event) => setPaymentNote(event.target.value)} />
+              </label>
+              <div className="ol-field ol-field--action">
+                <span className="ol-field-label">Action</span>
+                <button className="ol-button" type="button" disabled={isRecordingPayment || dueAmount <= 0} onClick={() => void recordInvoicePayment()}>
+                  {isRecordingPayment ? 'Recording...' : 'Record payment'}
+                </button>
+              </div>
+            </div>
+            <div className="ol-review-grid" style={{ marginTop: 16 }}>
+              <Review label="Allocated" value={formatCurrency(invoice.paidAmount, currency)} />
+              <Review label="Still due" value={formatCurrency(Math.max(invoice.totalAmount - invoice.paidAmount, 0), currency)} />
+              <Review label="Payment records" value={`${allocations.length}`} />
+            </div>
+            <div className="ol-list" style={{ marginTop: 16 }}>
+              {allocations.map((allocation) => (
+                <div className="ol-list-item" key={allocation.id}>
+                  <div className="ol-list-icon">Pay</div>
+                  <div className="ol-list-copy">
+                    <div className="ol-list-title">{formatCurrency(allocation.amount, currency)}</div>
+                    <div className="ol-list-text">
+                      {allocation.transactionEffectiveDate || allocation.createdAt.slice(0, 10)}
+                      {allocation.transactionNote ? ` · ${allocation.transactionNote}` : ''}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {!allocations.length ? (
+                <div className="ol-empty">No payments are allocated to this invoice yet.</div>
+              ) : null}
+            </div>
           </section>
 
           <section className="ol-panel-glass">
@@ -570,6 +681,10 @@ function getDefaultInvoiceTaxRate(countryCode?: string | null, countryFormat?: s
 
 function formatTaxRateInput(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function formatAmountInput(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone: 'primary' | 'warning' | 'success' }) {

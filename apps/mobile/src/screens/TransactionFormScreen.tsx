@@ -73,6 +73,8 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
   const initialType = route.params?.type ?? rememberedTransactionType;
   const transactionId = route.params?.transactionId;
   const initialPromiseId = route.params?.promiseId;
+  const initialInvoiceId = route.params?.invoiceId;
+  const initialAmount = route.params?.amount;
   const isEditing = Boolean(transactionId);
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [customerQuery, setCustomerQuery] = useState('');
@@ -83,8 +85,10 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
   const [openPromises, setOpenPromises] = useState<PaymentPromise[]>([]);
   const [openInvoices, setOpenInvoices] = useState<Invoice[]>([]);
   const [selectedPromiseId, setSelectedPromiseId] = useState(initialPromiseId ?? '');
-  const [allocationStrategy, setAllocationStrategy] = useState<'ledger_only' | 'oldest_invoice' | 'selected_invoice'>('ledger_only');
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
+  const [allocationStrategy, setAllocationStrategy] = useState<'ledger_only' | 'oldest_invoice' | 'selected_invoice'>(
+    initialInvoiceId ? 'selected_invoice' : 'ledger_only'
+  );
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState(initialInvoiceId ?? '');
   const amountInputRef = useRef<TextInput>(null);
   const {
     control,
@@ -98,7 +102,7 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
     defaultValues: {
       customerId: initialCustomerId ?? '',
       type: initialType,
-      amount: '',
+      amount: initialAmount ? formatAmountInput(initialAmount) : '',
       note: '',
       effectiveDate: getTodayDateInput(),
     },

@@ -123,6 +123,17 @@ export type WorkspacePaymentAllocation = {
   createdAt: string;
 };
 
+export type WorkspaceInvoicePaymentAllocation = WorkspacePaymentAllocation & {
+  transactionEffectiveDate: string;
+  transactionNote: string | null;
+};
+
+export type CreateWorkspaceInvoicePaymentInput = {
+  amount: number;
+  effectiveDate?: string;
+  note?: string | null;
+};
+
 export type SaveWorkspaceInvoiceInput = {
   customerId: string | null;
   invoiceNumber: string;
@@ -500,6 +511,84 @@ export async function listWorkspaceInvoicesForCustomer(
   }));
 }
 
+export async function listWorkspaceInvoicePaymentAllocations(
+  workspaceId: string,
+  invoiceId: string
+): Promise<WorkspaceInvoicePaymentAllocation[]> {
+  const firestore = getWebFirestore();
+  const allocationSnapshot = await getDocs(
+    query(
+      collection(firestore, 'workspaces', workspaceId, 'payment_allocations'),
+      where('invoice_id', '==', invoiceId)
+    )
+  );
+  const transactionIds = allocationSnapshot.docs
+    .map((entry) => String((entry.data() as { transaction_id?: string }).transaction_id ?? ''))
+    .filter(Boolean);
+  const transactions = await loadTransactionsByIds(firestore, workspaceId, transactionIds);
+
+  return allocationSnapshot.docs
+    .map((entry) => {
+      const data = entry.data() as {
+        transaction_id?: string;
+        invoice_id?: string;
+        customer_id?: string;
+        amount?: number;
+        created_at?: string;
+      };
+      const transaction = data.transaction_id ? transactions.get(data.transaction_id) : undefined;
+      return {
+        id: entry.id,
+        transactionId: data.transaction_id ?? '',
+        invoiceId: data.invoice_id ?? invoiceId,
+        customerId: data.customer_id ?? '',
+        amount: data.amount ?? 0,
+        createdAt: data.created_at ?? '',
+        transactionEffectiveDate: transaction?.effectiveDate ?? data.created_at?.slice(0, 10) ?? '',
+        transactionNote: transaction?.note ?? null,
+      };
+    })
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+export async function createWorkspaceInvoicePayment(
+  workspaceId: string,
+  invoiceId: string,
+  input: CreateWorkspaceInvoicePaymentInput
+): Promise<WorkspaceInvoiceDetail> {
+  const invoice = await getWorkspaceInvoiceDetail(workspaceId, invoiceId);
+  if (!invoice) {
+    throw new Error('Invoice could not be found.');
+  }
+  if (!invoice.customerId) {
+    throw new Error('Choose a customer before recording payment for this invoice.');
+  }
+  const dueAmount = roundMoney(Math.max(invoice.totalAmount - invoice.paidAmount, 0));
+  if (dueAmount <= 0) {
+    throw new Error('This invoice is already paid.');
+  }
+  const amount = roundMoney(Math.min(input.amount, dueAmount));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Enter a valid payment amount.');
+  }
+
+  await createWorkspaceTransaction(workspaceId, {
+    customerId: invoice.customerId,
+    type: 'payment',
+    amount,
+    effectiveDate: input.effectiveDate,
+    note: input.note?.trim() || `Payment for invoice ${invoice.invoiceNumber}`,
+    allocationStrategy: 'selected_invoice',
+    invoiceId,
+  });
+
+  const updated = await getWorkspaceInvoiceDetail(workspaceId, invoiceId);
+  if (!updated) {
+    throw new Error('Invoice could not be loaded after payment.');
+  }
+  return updated;
+}
+
 export async function getWorkspaceInvoiceDetail(
   workspaceId: string,
   invoiceId: string
@@ -808,6 +897,50 @@ async function loadCustomerNamesForTransactions(
     names.set(entry.id, String((entry.data() as { name?: string }).name ?? 'Customer'));
   }
   return names;
+}
+
+async function loadTransactionsByIds(
+  firestore: Firestore,
+  workspaceId: string,
+  transactionIds: string[]
+): Promise<Map<string, WorkspaceTransaction>> {
+  const uniqueIds = Array.from(new Set(transactionIds.filter(Boolean)));
+  if (!uniqueIds.length) {
+    return new Map();
+  }
+
+  const snapshots = await Promise.all(
+    chunk(uniqueIds, FIRESTORE_IN_QUERY_LIMIT).map((ids) =>
+      getDocs(
+        query(
+          collection(firestore, 'workspaces', workspaceId, 'transactions'),
+          where(documentId(), 'in', ids)
+        )
+      )
+    )
+  );
+  const transactions = new Map<string, WorkspaceTransaction>();
+  for (const entry of snapshots.flatMap((snapshot) => snapshot.docs)) {
+    const data = entry.data() as {
+      customer_id?: string;
+      type?: 'credit' | 'payment';
+      amount?: number;
+      note?: string | null;
+      effective_date?: string;
+      created_at?: string;
+    };
+    transactions.set(entry.id, {
+      id: entry.id,
+      customerId: data.customer_id ?? '',
+      customerName: 'Customer',
+      type: data.type ?? 'payment',
+      amount: data.amount ?? 0,
+      note: data.note ?? null,
+      effectiveDate: data.effective_date ?? '',
+      createdAt: data.created_at ?? '',
+    });
+  }
+  return transactions;
 }
 
 function chunk<T>(values: T[], size: number): T[][] {
