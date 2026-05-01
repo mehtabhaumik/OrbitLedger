@@ -1150,34 +1150,50 @@ a:focus-visible {
   place-items: center;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(244, 248, 255, 0.82) 100%);
   border: 1px solid rgba(182, 199, 223, 0.82);
+  isolation: isolate;
+  overflow: hidden;
 }
 
-.ol-loader-ring,
+.ol-loader-ring {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 999px;
+  border: 2px solid rgba(47, 131, 247, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(47, 131, 247, 0.06);
+}
+
 .ol-loader-ring::before,
 .ol-loader-ring::after {
   position: absolute;
-  inset: 0;
   border-radius: inherit;
   content: "";
 }
 
-.ol-loader-ring {
-  border: 2px solid rgba(47, 131, 247, 0.18);
-}
-
 .ol-loader-ring::before {
-  inset: 8px;
-  border: 3px solid transparent;
-  border-top-color: var(--primary);
-  border-right-color: rgba(47, 131, 247, 0.36);
+  inset: 10px;
+  background: conic-gradient(
+    from 22deg,
+    transparent 0deg 30deg,
+    var(--primary) 30deg 142deg,
+    transparent 142deg 360deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
   animation: orbit-spin 1.55s linear infinite;
 }
 
 .ol-loader-ring::after {
-  inset: 18px;
-  border: 3px solid transparent;
-  border-bottom-color: var(--premium);
-  border-left-color: rgba(111, 74, 248, 0.34);
+  inset: 24px;
+  background: conic-gradient(
+    from 190deg,
+    transparent 0deg 34deg,
+    rgba(111, 74, 248, 0.44) 34deg 112deg,
+    var(--premium) 112deg 168deg,
+    transparent 168deg 360deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
   animation: orbit-spin-reverse 2.1s linear infinite;
 }
 
@@ -1187,6 +1203,8 @@ a:focus-visible {
   border-radius: 999px;
   background: linear-gradient(180deg, #79b6ff 0%, var(--primary) 100%);
   box-shadow: 0 0 24px rgba(47, 131, 247, 0.36);
+  position: relative;
+  z-index: 1;
 }
 
 .ol-loading-progress {

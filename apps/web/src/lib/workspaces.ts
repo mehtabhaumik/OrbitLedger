@@ -10,6 +10,7 @@ import {
   getAggregateFromServer,
   getDoc,
   getDocs,
+  limit as limitQuery,
   query,
   runTransaction,
   serverTimestamp,
@@ -54,7 +55,7 @@ type FirestoreWorkspaceDoc = {
 
 export async function listWorkspacesForUser(userId: string): Promise<OrbitWorkspaceSummary[]> {
   const snapshot = await getDocs(
-    query(collection(getWebFirestore(), 'workspaces'), where('owner_uid', '==', userId))
+    query(collection(getWebFirestore(), 'workspaces'), where('owner_uid', '==', userId), limitQuery(10))
   );
 
   return snapshot.docs
