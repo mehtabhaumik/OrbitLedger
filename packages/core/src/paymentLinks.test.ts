@@ -29,6 +29,27 @@ describe('payment links', () => {
     expect(normalizePaymentPageUrl('https://example.com/pay')).toBe('https://example.com/pay');
   });
 
+  it('can prefer the hosted payment page over direct UPI', () => {
+    const link = buildInvoicePaymentLink({
+      amount: 1770,
+      businessName: 'Rudraix PVT',
+      countryCode: 'IN',
+      currency: 'INR',
+      customerName: 'Sonali Traders',
+      invoiceNumber: 'WEB-641090',
+      details: {
+        upiId: 'owner@upi',
+        hostedPaymentPageUrl: 'https://pay.orbitledger.app/pay/',
+        preferHostedPaymentPage: true,
+      },
+    });
+
+    expect(link?.provider).toBe('payment_page');
+    expect(link?.url).toContain('/pay/');
+    expect(link?.url).toContain('upi=owner%40upi');
+    expect(link?.url).toContain('business=Rudraix+PVT');
+  });
+
   it('validates UPI IDs and appends links to messages', () => {
     expect(normalizeUpiId('Owner@UPI')).toBe('owner@upi');
     expect(normalizeUpiId('bad')).toBeNull();

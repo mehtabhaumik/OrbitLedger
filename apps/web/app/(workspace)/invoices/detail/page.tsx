@@ -199,6 +199,8 @@ function InvoiceEditorContent() {
   const dueAmount = invoice ? Math.max(total - invoice.paidAmount, 0) : 0;
   const documentInstrumentAttachment =
     paymentAttachments[0] ?? allocations.flatMap((allocation) => allocation.paymentAttachments)[0] ?? null;
+  const hostedPaymentPageUrl =
+    typeof window !== 'undefined' ? `${window.location.origin}/pay/` : undefined;
   const invoicePaymentLink = useMemo(
     () =>
       activeWorkspace
@@ -210,10 +212,14 @@ function InvoiceEditorContent() {
             customerName: selectedCustomer?.name ?? null,
             dueDate,
             invoiceNumber,
-            details: paymentLinkDetails,
+            details: {
+              ...paymentLinkDetails,
+              hostedPaymentPageUrl,
+              preferHostedPaymentPage: true,
+            },
           })
         : null,
-    [activeWorkspace, currency, dueAmount, dueDate, invoiceNumber, paymentLinkDetails, selectedCustomer?.name, total]
+    [activeWorkspace, currency, dueAmount, dueDate, hostedPaymentPageUrl, invoiceNumber, paymentLinkDetails, selectedCustomer?.name, total]
   );
   const currentInvoiceDocument = useMemo(() => {
     if (!activeWorkspace || !invoice) {

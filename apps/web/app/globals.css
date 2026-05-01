@@ -233,6 +233,127 @@ a:focus-visible {
   box-shadow: 0 0 18px rgba(47, 131, 247, 0.42);
 }
 
+.ol-pay-page {
+  min-height: 100vh;
+  padding: clamp(20px, 4vw, 48px);
+  display: grid;
+  place-items: center;
+}
+
+.ol-pay-shell {
+  width: min(980px, 100%);
+  display: grid;
+  gap: 18px;
+}
+
+.ol-pay-brand img {
+  display: block;
+  height: 34px;
+  width: auto;
+  max-width: 220px;
+}
+
+.ol-pay-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.ol-pay-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  box-shadow: var(--shadow);
+  padding: clamp(20px, 4vw, 34px);
+  display: grid;
+  gap: 16px;
+}
+
+.ol-pay-card--hero {
+  border-left: 5px solid var(--primary);
+}
+
+.ol-pay-kicker {
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ol-pay-card h1,
+.ol-pay-card h2,
+.ol-pay-card p {
+  margin: 0;
+}
+
+.ol-pay-card h1 {
+  font-size: clamp(38px, 8vw, 72px);
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.ol-pay-card h2 {
+  font-size: 24px;
+}
+
+.ol-pay-card p,
+.ol-pay-footer {
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.ol-pay-reference {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.ol-pay-reference span,
+.ol-pay-detail span {
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ol-pay-reference strong {
+  overflow-wrap: anywhere;
+  font-size: 20px;
+}
+
+.ol-pay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ol-pay-detail-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ol-pay-detail {
+  border-bottom: 1px solid rgba(185, 197, 216, 0.45);
+  padding: 0 0 12px;
+  display: grid;
+  gap: 5px;
+}
+
+.ol-pay-detail strong {
+  overflow-wrap: anywhere;
+}
+
+.ol-pay-footer {
+  max-width: 760px;
+}
+
 .ol-sidebar-footer {
   margin-top: auto;
   display: grid;

@@ -150,7 +150,11 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
           customerName: source.customer?.name ?? null,
           dueDate: source.invoice.dueDate,
           invoiceNumber: source.invoice.invoiceNumber,
-          details: paymentDetails,
+          details: {
+            ...paymentDetails,
+            hostedPaymentPageUrl: process.env.EXPO_PUBLIC_ORBIT_LEDGER_PAYMENT_PAGE_URL,
+            preferHostedPaymentPage: Boolean(process.env.EXPO_PUBLIC_ORBIT_LEDGER_PAYMENT_PAGE_URL),
+          },
         }),
         ...getInvoiceTaxDocumentLabels(source.invoiceTaxProfile),
       },

@@ -1,6 +1,8 @@
 export type PaymentLinkDetails = {
   upiId?: string | null;
   paymentPageUrl?: string | null;
+  hostedPaymentPageUrl?: string | null;
+  preferHostedPaymentPage?: boolean | null;
   paymentNote?: string | null;
 };
 
@@ -56,6 +58,12 @@ export function buildInvoicePaymentLink(input: InvoicePaymentLinkInput): Invoice
   const currency = (input.currency || 'INR').trim().toUpperCase();
   const isIndia = (input.countryCode ?? '').trim().toUpperCase() === 'IN';
   const upiId = normalizeUpiId(details.upiId);
+  const hostedPaymentPageUrl = normalizePaymentPageUrl(details.hostedPaymentPageUrl);
+  const paymentPageUrl = normalizePaymentPageUrl(details.paymentPageUrl) ?? hostedPaymentPageUrl;
+
+  if (details.preferHostedPaymentPage && paymentPageUrl) {
+    return buildPaymentPageLink(input, paymentPageUrl, reference, amount, currency, upiId);
+  }
 
   if (isIndia && upiId && currency === 'INR' && amount > 0) {
     const url = new URL('upi://pay');
@@ -73,23 +81,8 @@ export function buildInvoicePaymentLink(input: InvoicePaymentLinkInput): Invoice
     };
   }
 
-  const paymentPageUrl = normalizePaymentPageUrl(details.paymentPageUrl);
   if (paymentPageUrl) {
-    const url = new URL(paymentPageUrl);
-    url.searchParams.set('invoice', input.invoiceNumber ?? reference);
-    url.searchParams.set('amount', roundAmount(amount));
-    url.searchParams.set('currency', currency);
-    url.searchParams.set('reference', reference);
-    if (input.customerName) {
-      url.searchParams.set('customer', input.customerName);
-    }
-    return {
-      url: url.toString(),
-      label: 'Pay now',
-      instruction: `Use payment reference ${reference}.`,
-      reference,
-      provider: 'payment_page',
-    };
+    return buildPaymentPageLink(input, paymentPageUrl, reference, amount, currency, upiId);
   }
 
   return null;
@@ -109,6 +102,42 @@ function buildPaymentNote(input: InvoicePaymentLinkInput, reference: string): st
     return explicitNote;
   }
   return input.invoiceNumber ? `Invoice ${input.invoiceNumber} ${reference}` : reference;
+}
+
+function buildPaymentPageLink(
+  input: InvoicePaymentLinkInput,
+  paymentPageUrl: string,
+  reference: string,
+  amount: number,
+  currency: string,
+  upiId: string | null
+): InvoicePaymentLink {
+  const url = new URL(paymentPageUrl);
+  url.searchParams.set('invoice', input.invoiceNumber ?? reference);
+  url.searchParams.set('amount', roundAmount(amount));
+  url.searchParams.set('currency', currency);
+  url.searchParams.set('reference', reference);
+  url.searchParams.set('business', input.businessName.trim() || 'Orbit Ledger business');
+  if (input.customerName) {
+    url.searchParams.set('customer', input.customerName);
+  }
+  if (input.dueDate) {
+    url.searchParams.set('due', input.dueDate);
+  }
+  if (upiId) {
+    url.searchParams.set('upi', upiId);
+  }
+  const note = input.details?.paymentNote?.trim();
+  if (note) {
+    url.searchParams.set('note', note);
+  }
+  return {
+    url: url.toString(),
+    label: 'Pay now',
+    instruction: `Use payment reference ${reference}.`,
+    reference,
+    provider: 'payment_page',
+  };
 }
 
 function roundAmount(value: number): string {

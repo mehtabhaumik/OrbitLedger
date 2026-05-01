@@ -12,6 +12,7 @@ apps/mobile/.expo/
 apps/web/.next/
 apps/web/out/
 dist/
+apps/functions/lib/
 apps/mobile/dist/
 web-build/
 expo-env.d.ts

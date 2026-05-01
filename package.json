@@ -7,6 +7,7 @@
     "npm": ">=10.0.0"
   },
   "workspaces": [
+    "apps/functions",
     "apps/mobile",
     "apps/web",
     "packages/*"
@@ -25,7 +26,7 @@
     "mobile:web": "npm run web --workspace @orbit-ledger/mobile",
     "doctor": "npm run doctor --workspace @orbit-ledger/mobile",
     "brand:assets": "npm run brand:assets --workspace @orbit-ledger/mobile",
-    "typecheck": "npm run typecheck --workspace @orbit-ledger/contracts && npm run typecheck --workspace @orbit-ledger/core && npm run typecheck --workspace @orbit-ledger/ui && npm run typecheck --workspace @orbit-ledger/sync && npm run typecheck --workspace @orbit-ledger/mobile && npm run typecheck --workspace @orbit-ledger/web",
+    "typecheck": "npm run typecheck --workspace @orbit-ledger/contracts && npm run typecheck --workspace @orbit-ledger/core && npm run typecheck --workspace @orbit-ledger/ui && npm run typecheck --workspace @orbit-ledger/sync && npm run typecheck --workspace @orbit-ledger/mobile && npm run typecheck --workspace @orbit-ledger/web && npm run typecheck --workspace @orbit-ledger/functions",
     "test": "vitest run apps packages",
     "test:rules": "vitest run firebase/rules.test.ts",
     "audit:ci": "npm audit --audit-level=high"
