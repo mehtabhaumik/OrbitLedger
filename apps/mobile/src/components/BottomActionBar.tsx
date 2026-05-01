@@ -11,7 +11,7 @@ type BottomActionBarProps = {
 export function BottomActionBar({ children }: BottomActionBarProps) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom + spacing.sm, spacing.lg) }]}>
       {children}
     </View>
   );
@@ -24,7 +24,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    gap: spacing.sm,
+    paddingTop: spacing.lg,
+    gap: spacing.md,
   },
 });

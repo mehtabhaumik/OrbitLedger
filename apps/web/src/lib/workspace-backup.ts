@@ -12,6 +12,7 @@ import {
 import { getWebFirestore } from './firebase';
 
 export const WEB_WORKSPACE_BACKUP_VERSION = 1;
+export const WEB_WORKSPACE_BACKUP_MAX_RECORDS = 50000;
 
 type BackupCollectionName =
   | 'customers'
@@ -30,6 +31,19 @@ export type WebWorkspaceBackup = {
   notes: {
     browser_lock_included: false;
   };
+};
+
+export type WebWorkspaceBackupSummary = {
+  businessName: string;
+  exportedAt: string;
+  totalRecords: number;
+  counts: Record<BackupCollectionName, number>;
+  browserLockIncluded: false;
+};
+
+export type RestoreWorkspaceBackupOptions = {
+  expectedOwnerId?: string;
+  onProgress?: (message: string) => void;
 };
 
 const COLLECTIONS: BackupCollectionName[] = [
@@ -112,18 +126,55 @@ export function parseWorkspaceBackup(raw: string): WebWorkspaceBackup {
     }
   }
 
+  const totalRecords = countWorkspaceBackupRecords(backup as WebWorkspaceBackup);
+  if (totalRecords > WEB_WORKSPACE_BACKUP_MAX_RECORDS) {
+    throw new Error('This backup is too large to restore safely from the browser.');
+  }
+
   return backup as WebWorkspaceBackup;
+}
+
+export function summarizeWorkspaceBackup(backup: WebWorkspaceBackup): WebWorkspaceBackupSummary {
+  return {
+    businessName: getWorkspaceBackupBusinessName(backup),
+    exportedAt: backup.exported_at,
+    totalRecords: countWorkspaceBackupRecords(backup),
+    counts: {
+      customers: backup.entities.customers.length,
+      transactions: backup.entities.transactions.length,
+      products: backup.entities.products.length,
+      invoices: backup.entities.invoices.length,
+      invoice_items: backup.entities.invoice_items.length,
+    },
+    browserLockIncluded: backup.notes.browser_lock_included,
+  };
+}
+
+export function validateWorkspaceBackupOwner(
+  backup: WebWorkspaceBackup,
+  expectedOwnerId?: string
+): void {
+  const backupOwnerId = String(backup.workspace.profile.owner_uid ?? '');
+  if (expectedOwnerId && backupOwnerId && backupOwnerId !== expectedOwnerId) {
+    throw new Error('This backup belongs to a different account.');
+  }
 }
 
 export async function restoreWorkspaceBackup(
   workspaceId: string,
-  backup: WebWorkspaceBackup
+  backup: WebWorkspaceBackup,
+  options: RestoreWorkspaceBackupOptions = {}
 ): Promise<void> {
   const firestore = getWebFirestore();
   const currentWorkspace = await getDoc(doc(firestore, 'workspaces', workspaceId));
   if (!currentWorkspace.exists()) {
     throw new Error('Current workspace could not be loaded before restore.');
   }
+  const currentOwnerId = String(currentWorkspace.data().owner_uid ?? '');
+  if (options.expectedOwnerId && currentOwnerId !== options.expectedOwnerId) {
+    throw new Error('This account does not own the current workspace.');
+  }
+  validateWorkspaceBackupOwner(backup, options.expectedOwnerId);
 
   const batches: WriteBatch[] = [];
   let batch = writeBatch(firestore);
@@ -140,6 +191,7 @@ export async function restoreWorkspaceBackup(
   }
 
   for (const collectionName of COLLECTIONS) {
+    options.onProgress?.(`Clearing ${formatCollectionName(collectionName)}...`);
     const snapshot = await getDocs(collection(firestore, 'workspaces', workspaceId, collectionName));
     for (const entry of snapshot.docs) {
       pushOperation((target) => target.delete(entry.ref));
@@ -152,6 +204,7 @@ export async function restoreWorkspaceBackup(
       {
         ...currentWorkspace.data(),
         ...backup.workspace.profile,
+        owner_uid: currentOwnerId,
         updated_at: new Date().toISOString(),
       },
       { merge: true }
@@ -159,6 +212,7 @@ export async function restoreWorkspaceBackup(
   );
 
   for (const collectionName of COLLECTIONS) {
+    options.onProgress?.(`Restoring ${formatCollectionName(collectionName)}...`);
     for (const record of backup.entities[collectionName] ?? []) {
       const { id, ...payload } = record;
       pushOperation((target) =>
@@ -172,8 +226,10 @@ export async function restoreWorkspaceBackup(
   }
 
   for (const targetBatch of batches) {
+    options.onProgress?.('Saving restored records...');
     await targetBatch.commit();
   }
+  options.onProgress?.('Restore complete.');
 }
 
 function mapEntry(entry: { id: string; data(): Record<string, unknown> }) {
@@ -181,4 +237,23 @@ function mapEntry(entry: { id: string; data(): Record<string, unknown> }) {
     id: entry.id,
     ...entry.data(),
   };
+}
+
+function formatCollectionName(name: BackupCollectionName) {
+  return name.replace(/_/g, ' ');
+}
+
+function getWorkspaceBackupBusinessName(backup: WebWorkspaceBackup): string {
+  const profile = backup.workspace.profile;
+  const businessName = profile.business_name ?? profile.businessName ?? profile.name;
+  return typeof businessName === 'string' && businessName.trim()
+    ? businessName.trim()
+    : 'Business name not saved';
+}
+
+function countWorkspaceBackupRecords(backup: WebWorkspaceBackup): number {
+  return COLLECTIONS.reduce(
+    (total, collectionName) => total + backup.entities[collectionName].length,
+    0
+  );
 }

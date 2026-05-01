@@ -116,6 +116,23 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
         ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS customer_timeline_notes (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'note'
+        CHECK (kind IN ('note', 'dispute')),
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      sync_id TEXT NOT NULL DEFAULT '',
+      last_modified TEXT NOT NULL DEFAULT '',
+      sync_status TEXT NOT NULL DEFAULT 'pending',
+      server_revision INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (customer_id) REFERENCES customers(id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+    );
+
 	    CREATE TABLE IF NOT EXISTS tax_profiles (
 	      id TEXT PRIMARY KEY,
 	      country_code TEXT NOT NULL,
@@ -329,6 +346,8 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
       ON payment_promises(customer_id, promised_date ASC, status);
     CREATE INDEX IF NOT EXISTS idx_payment_promises_status_date
       ON payment_promises(status, promised_date ASC);
+    CREATE INDEX IF NOT EXISTS idx_customer_timeline_notes_customer_created
+      ON customer_timeline_notes(customer_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_tax_profiles_region_type
       ON tax_profiles(country_code, state_code, tax_type);
 	    CREATE INDEX IF NOT EXISTS idx_tax_profiles_last_updated

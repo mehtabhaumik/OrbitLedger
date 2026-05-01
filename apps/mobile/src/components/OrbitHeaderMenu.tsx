@@ -53,7 +53,7 @@ const menuItems: MenuItem[] = [
   {
     key: 'founder-note',
     label: "Founder's Note",
-    helper: 'Vision, product direction, and future plan.',
+    helper: 'Vision, product direction, and what comes next.',
     screen: 'FounderNote',
   },
   {

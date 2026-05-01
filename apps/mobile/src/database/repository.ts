@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { calculateLedgerBalance } from './balance';
 import { getDatabase } from './client';
 import { buildCustomerPaymentInsight } from './customerInsights';
 import { throwDatabaseError } from './errors';
@@ -10,6 +11,7 @@ import {
   mapComplianceReport,
   mapCountryPackage,
   mapCustomer,
+  mapCustomerTimelineNote,
   mapDocumentTemplate,
   mapInvoice,
   mapInvoiceItem,
@@ -41,6 +43,7 @@ import { mapInvoiceItemToTaxEngineInput } from '../mapping';
 import { measurePerformance } from '../performance';
 import type {
   AddCustomerInput,
+  AddCustomerTimelineNoteInput,
   AddInvoiceInput,
   AddPaymentReminderInput,
   AddPaymentPromiseInput,
@@ -65,6 +68,8 @@ import type {
   Customer,
   CustomerLedger,
   CustomerRow,
+  CustomerTimelineNote,
+  CustomerTimelineNoteRow,
   CustomerSummary,
   CustomerSummaryFilter,
   CollectionCustomer,
@@ -1606,6 +1611,90 @@ export async function listPaymentRemindersForCustomer(
   }
 }
 
+export async function addCustomerTimelineNote(
+  input: AddCustomerTimelineNoteInput
+): Promise<CustomerTimelineNote> {
+  try {
+    const customer = await getCustomerById(input.customerId);
+    if (!customer || customer.isArchived) {
+      throw new Error(`Active customer not found: ${input.customerId}`);
+    }
+
+    const body = requiredText(input.body);
+    const db = await getDatabase();
+    const id = createEntityId(input.kind === 'dispute' ? 'dis' : 'note');
+    const now = new Date().toISOString();
+
+    await db.runAsync(
+      `INSERT INTO customer_timeline_notes (
+        id,
+        customer_id,
+        kind,
+        body,
+        created_at,
+        updated_at,
+        sync_id,
+        last_modified,
+        sync_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id,
+      input.customerId,
+      input.kind,
+      body,
+      now,
+      now,
+      id,
+      now,
+      'pending'
+    );
+
+    const note = await getCustomerTimelineNote(id);
+    if (!note) {
+      throw new Error('Customer note was not saved.');
+    }
+
+    return note;
+  } catch (error) {
+    return throwDatabaseError('addCustomerTimelineNote', error);
+  }
+}
+
+export async function getCustomerTimelineNote(id: string): Promise<CustomerTimelineNote | null> {
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<CustomerTimelineNoteRow>(
+      'SELECT * FROM customer_timeline_notes WHERE id = ? LIMIT 1',
+      id
+    );
+
+    return row ? mapCustomerTimelineNote(row) : null;
+  } catch (error) {
+    return throwDatabaseError('getCustomerTimelineNote', error);
+  }
+}
+
+export async function listCustomerTimelineNotes(
+  customerId: string,
+  limit = 20
+): Promise<CustomerTimelineNote[]> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<CustomerTimelineNoteRow>(
+      `SELECT *
+       FROM customer_timeline_notes
+       WHERE customer_id = ?
+       ORDER BY created_at DESC, id ASC
+       LIMIT ?`,
+      customerId,
+      limit
+    );
+
+    return rows.map(mapCustomerTimelineNote);
+  } catch (error) {
+    return throwDatabaseError('listCustomerTimelineNotes', error);
+  }
+}
+
 export async function addPaymentPromise(input: AddPaymentPromiseInput): Promise<PaymentPromise> {
   try {
     assertPositiveAmount(input.promisedAmount);
@@ -2124,7 +2213,7 @@ export async function getCustomerLedger(customerId: string): Promise<CustomerLed
         );
 
         const transactions = rows.map(mapTransaction);
-        const balance = calculateBalance(customer.openingBalance, transactions);
+        const balance = calculateLedgerBalance(customer.openingBalance, transactions);
 
         return {
           customer,
@@ -2307,6 +2396,7 @@ export async function getTopDueCustomers(limit = 3): Promise<TopDueCustomer[]> {
       return {
         id: customer.id,
         name: customer.name,
+        phone: customer.phone,
         balance: customer.balance,
         latestActivityAt: customer.latestActivityAt,
         lastPaymentAt: row.last_payment_at,
@@ -2467,11 +2557,66 @@ export async function listUpcomingPaymentPromises(
   }
 }
 
+export async function listPaymentPromiseFollowUps(
+  limit = 30,
+  fromDate = new Date()
+): Promise<PaymentPromiseWithCustomer[]> {
+  try {
+    const db = await getDatabase();
+    const today = toDateOnlyIso(fromDate);
+    const rows = await db.getAllAsync<PaymentPromiseWithCustomerRow>(
+      `WITH balances AS (
+        SELECT
+          c.id,
+          c.opening_balance
+            + COALESCE(SUM(
+              CASE
+                WHEN t.type = 'credit' THEN t.amount
+                WHEN t.type = 'payment' THEN -t.amount
+                ELSE 0
+              END
+            ), 0) AS current_balance
+        FROM customers c
+        LEFT JOIN transactions t ON t.customer_id = c.id
+        WHERE c.is_archived = 0
+        GROUP BY c.id
+      )
+      SELECT
+        pp.*,
+        c.name AS customer_name,
+        c.phone AS customer_phone,
+        COALESCE(b.current_balance, 0) AS current_balance
+      FROM payment_promises pp
+      INNER JOIN customers c ON c.id = pp.customer_id
+      LEFT JOIN balances b ON b.id = pp.customer_id
+      WHERE pp.status IN ('open', 'missed')
+      ORDER BY
+        CASE
+          WHEN pp.status = 'missed' THEN 0
+          WHEN pp.promised_date < ? THEN 1
+          WHEN pp.promised_date = ? THEN 2
+          ELSE 3
+        END ASC,
+        pp.promised_date ASC,
+        pp.created_at ASC
+      LIMIT ?`,
+      today,
+      today,
+      limit
+    );
+
+    return rows.map(mapPaymentPromiseWithCustomer);
+  } catch (error) {
+    return throwDatabaseError('listPaymentPromiseFollowUps', error);
+  }
+}
+
 function mapCollectionCustomerRow(row: CollectionCustomerRow): CollectionCustomer {
   const customer = mapCustomerSummary(row);
   return {
     id: customer.id,
     name: customer.name,
+    phone: customer.phone,
     balance: customer.balance,
     latestActivityAt: customer.latestActivityAt,
     lastPaymentAt: row.last_payment_at,
@@ -3512,10 +3657,4 @@ async function getCustomerById(id: string): Promise<Customer | null> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<CustomerRow>('SELECT * FROM customers WHERE id = ? LIMIT 1', id);
   return row ? mapCustomer(row) : null;
-}
-
-function calculateBalance(openingBalance: number, transactions: LedgerTransaction[]): number {
-  return transactions.reduce((balance, transaction) => {
-    return balance + (transaction.type === 'credit' ? transaction.amount : -transaction.amount);
-  }, openingBalance);
 }

@@ -39,9 +39,14 @@ import {
   getFeatureToggles,
   getRecentTransactions,
   getTopDueCustomers,
-  listUpcomingPaymentPromises,
+  listPaymentPromiseFollowUps,
   listProducts,
 } from '../database';
+import {
+  buildDailyCommandCenter,
+  type DailyCommandCard as DailyCommandCardModel,
+  type DailyCommandTarget,
+} from '../dashboard/commandCenter';
 import type {
   AppFeatureToggles,
   BusinessSettings,
@@ -61,6 +66,7 @@ import {
 import type { RatingPrompt, RetentionNudgeId } from '../engagement';
 import type { UpgradeNudge } from '../monetization';
 import type { RootStackParamList } from '../navigation/types';
+import { getBusinessPaymentDetails, type BusinessPaymentDetails } from '../payments/businessPaymentDetails';
 import { colors, shadows, spacing, touch, typography } from '../theme/theme';
 
 const headerIcon = require('../../assets/branding/orbit-ledger-logo-transparent.png');
@@ -92,6 +98,7 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
   const [upgradeNudge, setUpgradeNudge] = useState<UpgradeNudge | null>(null);
   const [ratingPrompt, setRatingPrompt] = useState<RatingPrompt | null>(null);
   const [reminderTarget, setReminderTarget] = useState<TopDueCustomer | null>(null);
+  const [paymentDetails, setPaymentDetails] = useState<BusinessPaymentDetails>({});
   const [isSendingReminder, setIsSendingReminder] = useState(false);
   const [dismissedRetentionNudges, setDismissedRetentionNudges] = useState<RetentionNudgeId[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -106,10 +113,14 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
       return;
     }
 
-    const dashboardSummary = await getDashboardSummary();
+    const [dashboardSummary, savedPaymentDetails] = await Promise.all([
+      getDashboardSummary(),
+      getBusinessPaymentDetails(),
+    ]);
 
     setBusiness(settings);
     setSummary(dashboardSummary);
+    setPaymentDetails(savedPaymentDetails);
   }, [navigation]);
 
   const loadSecondaryDashboard = useCallback(async () => {
@@ -134,7 +145,7 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
         getDismissedRetentionNudgeIds()
       ),
       listProducts({ limit: 100 }).catch(() => []),
-      listUpcomingPaymentPromises(3).catch(() => []),
+      listPaymentPromiseFollowUps(5).catch(() => []),
     ]);
 
     setRecentTransactions(recent);
@@ -312,9 +323,24 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
   });
   const invoicesEnabled = featureToggles?.invoices ?? true;
   const productsEnabled = invoicesEnabled && (featureToggles?.inventory ?? true);
+  const dailyCommandCards = buildDailyCommandCenter({
+    currency,
+    lowStockProducts,
+    productsEnabled,
+    recentTransactions,
+    summary,
+    topDueCustomers,
+    upcomingPromises,
+  });
   const receivableTone = (summary?.totalReceivable ?? 0) > 0 ? 'warning' : 'success';
   const todayInput = new Date().toISOString().slice(0, 10);
-  const duePromiseCount = upcomingPromises.filter((promise) => promise.promisedDate <= todayInput).length;
+  const duePromiseRows = upcomingPromises.filter(
+    (promise) => promise.status === 'missed' || promise.promisedDate <= todayInput
+  );
+  const missedPromiseCount = duePromiseRows.filter(
+    (promise) => promise.status === 'missed' || promise.promisedDate < todayInput
+  ).length;
+  const duePromiseCount = duePromiseRows.length;
   const secondaryHasData =
     recentTransactions.length > 0 ||
     topDueCustomers.length > 0 ||
@@ -341,15 +367,14 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
       tone: (summary?.followUpCustomerCount ?? 0) > 0 ? 'warning' : 'success',
     },
     {
-      label: 'Promised today',
+      label: missedPromiseCount > 0 ? 'Missed promises' : 'Promises due',
       value: `${duePromiseCount}`,
       helper:
-        duePromiseCount > 0
-          ? upcomingPromises
-              .filter((promise) => promise.promisedDate <= todayInput)
-              .map((promise) => promise.customerName)
-              .join(', ')
-          : 'No payment promises due today.',
+        missedPromiseCount > 0
+          ? duePromiseRows.map((promise) => promise.customerName).join(', ')
+          : duePromiseCount > 0
+            ? duePromiseRows.map((promise) => promise.customerName).join(', ')
+            : 'No payment promises need action today.',
       tone: duePromiseCount > 0 ? 'warning' : 'success',
     },
     {
@@ -372,6 +397,34 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
         ]
       : []),
   ];
+
+  function openDailyCommandTarget(target: DailyCommandTarget) {
+    switch (target) {
+      case 'get_paid':
+        navigation.navigate('GetPaid');
+        return;
+      case 'add_payment':
+        navigation.navigate('TransactionForm', { type: 'payment' });
+        return;
+      case 'add_credit':
+        navigation.navigate('TransactionForm', { type: 'credit' });
+        return;
+      case 'products':
+        navigation.navigate('Products');
+        return;
+      case 'statement_batch':
+        navigation.navigate('StatementBatch');
+        return;
+      case 'daily_closing':
+        navigation.navigate('DailyClosingReport');
+        return;
+      case 'business_health':
+        navigation.navigate('BusinessHealthSnapshot');
+        return;
+      default:
+        navigation.navigate('Dashboard');
+    }
+  }
 
   if (isLoading && !business) {
     return (
@@ -412,10 +465,33 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
             </View>
             <View style={styles.headerMeta}>
               <OrbitHeaderMenu />
-              <StatusChip label="On-device" tone="neutral" />
+              <StatusChip label="Private" tone="neutral" />
               <Text style={styles.date}>{new Date().toLocaleDateString()}</Text>
             </View>
           </View>
+
+        <Section
+          title="Today's money plan"
+          subtitle={
+            isLoadingSecondary && !secondaryHasData
+              ? 'Checking what needs your attention now.'
+              : 'Collect, record, restock, send, and close the day from here.'
+          }
+        >
+          {isLoadingSecondary && !secondaryHasData ? (
+            <SkeletonCard lines={4} />
+          ) : (
+            <View style={styles.commandGrid}>
+              {dailyCommandCards.map((command) => (
+                <DailyCommandCard
+                  command={command}
+                  key={command.id}
+                  onPress={() => openDailyCommandTarget(command.target)}
+                />
+              ))}
+            </View>
+          )}
+        </Section>
 
         <Card accent={receivableTone} elevated glass style={styles.heroMoneyCard}>
           <View style={styles.heroMoneyTop}>
@@ -447,7 +523,7 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
           </View>
         </Card>
 
-        <Section title="Fast counter actions" subtitle="Record the most common work in a few taps.">
+        <Section title="Quick entries" subtitle="Record the most common work in a few taps.">
           <QuickActionGrid>
             <PrimaryButton style={styles.quickActionButton} onPress={() => navigation.navigate('TransactionForm', { type: 'payment' })}>
               Add Payment
@@ -641,13 +717,13 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
           )}
         </Section>
 
-        <Section title="Recent activity" subtitle="Latest ledger entries saved on this device.">
+        <Section title="Recent activity" subtitle="Latest credit and payment entries.">
           {isLoadingSecondary && recentTransactions.length === 0 ? (
             <SkeletonCard lines={3} />
           ) : recentTransactions.length === 0 ? (
             <EmptyState
               title="No transactions yet"
-              message="Add your first credit or payment entry to start tracking balances offline."
+              message="Add your first credit or payment entry to start tracking balances."
               action={
                 <PrimaryButton onPress={() => navigation.navigate('TransactionForm')}>
                   Add Transaction
@@ -717,7 +793,7 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
             ) : null}
             <ModuleLink
               label="Reports"
-              description="Sales, dues, and compliance summaries."
+              description="Sales, dues, and local tax summaries."
               tone="primary"
               onPress={() => navigation.navigate('Reports')}
             />
@@ -753,14 +829,14 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
             />
             <ModuleLink
               label="Orbit Helper"
-              description="Offline help for payments, invoices, backups, tax, and PIN."
+              description="Help for payments, invoices, backups, tax, and PIN."
               tone="primary"
               helperOnline
               onPress={() => navigation.navigate('OrbitHelper', { screenContext: 'Dashboard' })}
             />
             <ModuleLink
               label="Tax & country"
-              description="Tax packs, templates, and country packages."
+              description="Local labels, templates, and region settings."
               tone="tax"
               onPress={() => navigation.navigate('CountryPackageStore')}
             />
@@ -769,8 +845,8 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
 
         <View style={styles.taxNote}>
           <Text style={styles.taxNoteText}>
-            Tax-ready tools use validated local packs. You can check online updates from settings,
-            and installed packs keep working offline.
+            Local tax labels use checked packages. You can check online updates from settings, and
+            installed packages keep working without internet.
           </Text>
         </View>
         <FounderFooterLink />
@@ -785,11 +861,14 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
         <PaymentReminderModal
           balance={reminderTarget.balance}
           businessName={business.businessName}
+          countryCode={business.countryCode}
           currency={currency}
           customerName={reminderTarget.name}
           isSending={isSendingReminder}
           lastPaymentDate={reminderTarget.lastPaymentAt}
           lastReminderDate={reminderTarget.lastReminderAt}
+          paymentDetails={paymentDetails}
+          regionCode={business.stateCode}
           visible={Boolean(reminderTarget)}
           onClose={() => setReminderTarget(null)}
           onSend={shareReminder}
@@ -879,6 +958,67 @@ function getActivityTrend(summary: DashboardSummary | null): {
     helper: `${recent} entries in the last 7 days.`,
     isUp: false,
   };
+}
+
+function DailyCommandCard({
+  command,
+  onPress,
+}: {
+  command: DailyCommandCardModel;
+  onPress: () => void;
+}) {
+  return (
+    <Card compact accent={command.tone} style={styles.commandCard}>
+      <View style={styles.commandCardTop}>
+        <View style={styles.commandCopy}>
+          <Text style={styles.commandLabel}>{formatCommandLabel(command.id)}</Text>
+          <Text style={styles.commandTitle}>{command.title}</Text>
+          <Text style={styles.commandMessage}>{command.message}</Text>
+        </View>
+        <Text
+          adjustsFontSizeToFit
+          minimumFontScale={0.78}
+          numberOfLines={2}
+          style={[
+            styles.commandValue,
+            command.tone === 'warning'
+              ? styles.commandValueWarning
+              : command.tone === 'success'
+                ? styles.commandValueSuccess
+                : styles.commandValuePrimary,
+          ]}
+        >
+          {command.value}
+        </Text>
+      </View>
+      <PrimaryButton
+        style={styles.commandButton}
+        variant={command.tone === 'warning' ? 'primary' : 'secondary'}
+        onPress={onPress}
+      >
+        {command.actionLabel}
+      </PrimaryButton>
+    </Card>
+  );
+}
+
+function formatCommandLabel(id: DailyCommandCardModel['id']) {
+  switch (id) {
+    case 'collect_today':
+      return 'Collect';
+    case 'paid_today':
+      return 'Paid today';
+    case 'follow_up':
+      return 'Follow-up';
+    case 'stock_risk':
+      return 'Stock';
+    case 'documents_to_send':
+      return 'Documents';
+    case 'business_health':
+      return 'Health';
+    default:
+      return 'Today';
+  }
 }
 
 function ModuleLink({
@@ -1029,6 +1169,59 @@ const styles = StyleSheet.create({
     columnGap: spacing.md,
     rowGap: spacing.lg,
     marginBottom: spacing.xs,
+  },
+  commandGrid: {
+    gap: spacing.md,
+  },
+  commandCard: {
+    minHeight: 172,
+  },
+  commandCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  commandCopy: {
+    flex: 1,
+    gap: spacing.xs,
+    minWidth: 0,
+  },
+  commandLabel: {
+    color: colors.primary,
+    fontSize: typography.caption,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textTransform: 'uppercase',
+  },
+  commandTitle: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '900',
+    lineHeight: 22,
+  },
+  commandMessage: {
+    color: colors.textMuted,
+    fontSize: typography.label,
+    lineHeight: 20,
+  },
+  commandValue: {
+    maxWidth: 132,
+    textAlign: 'right',
+    fontSize: typography.cardTitle,
+    fontWeight: '900',
+  },
+  commandValueWarning: {
+    color: colors.accent,
+  },
+  commandValueSuccess: {
+    color: colors.success,
+  },
+  commandValuePrimary: {
+    color: colors.primary,
+  },
+  commandButton: {
+    alignSelf: 'stretch',
   },
   insightList: {
     gap: spacing.md,

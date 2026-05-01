@@ -39,8 +39,8 @@ export default function DashboardPage() {
             </div>
             <p className="ol-panel-copy" style={{ maxWidth: 620 }}>
               Current receivable balance for {activeWorkspace?.businessName ?? 'this workspace'}.
-              Orbit Ledger keeps this front and center so the dashboard feels like a business
-              command surface, not a generic starter template.
+              Start here, then move to customers, transactions, invoices, or backup when the day
+              needs review.
             </p>
           </div>
           <div className="ol-actions">
@@ -65,19 +65,19 @@ export default function DashboardPage() {
           {
             label: 'Customers',
             value: String(dashboardSnapshot?.customerCount ?? 0),
-            helper: 'Active customer records in this workspace.',
+            helper: 'Customers in this workspace.',
             tone: 'primary',
           },
           {
             label: 'Invoices',
             value: String(dashboardSnapshot?.invoiceCount ?? 0),
-            helper: 'Issued and draft invoices linked to this workspace.',
+            helper: 'Issued and draft invoices.',
             tone: 'premium',
           },
           {
             label: 'Payments',
             value: formatCurrency(dashboardSnapshot?.recentPayments ?? 0, currency),
-            helper: 'Payment entries currently cached for this workspace.',
+            helper: 'Recent payments recorded here.',
             tone: 'success',
           },
         ]}
@@ -121,7 +121,7 @@ export default function DashboardPage() {
               <div className="ol-list-copy">
                 <div className="ol-list-title">Synced workspace only</div>
                 <div className="ol-list-text">
-                  Local mobile-only businesses need to be linked before they can appear on web.
+                  Link a business from mobile before reviewing it on web.
                 </div>
               </div>
             </div>

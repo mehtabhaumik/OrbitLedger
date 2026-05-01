@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -20,13 +21,25 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { ProductivityNudge } from '../components/ProductivityNudge';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { StatusChip } from '../components/StatusChip';
+import { TextField } from '../components/TextField';
 import { sharePaymentReminderMessage } from '../collections';
+import type { GeneratedDocumentHistoryEntry } from '../documents';
+import { getGeneratedDocumentHistory } from '../documents';
 import {
+  buildCustomerTrustTimeline,
+  filterCustomerTrustTimeline,
+  type CustomerTrustTimelineEvent,
+  type CustomerTrustTimelineFilter,
+} from '../customers/trustTimeline';
+import {
+  addCustomerTimelineNote,
   addPaymentPromise,
   addPaymentReminder,
   getBusinessSettings,
   getCustomerLedger,
   getFeatureToggles,
+  listCustomerTimelineNotes,
+  listInvoicesForCustomer,
   listPaymentPromisesForCustomer,
   listPaymentRemindersForCustomer,
   updatePaymentPromiseStatus,
@@ -36,6 +49,9 @@ import type {
   AppFeatureToggles,
   CustomerLedger,
   CustomerPaymentInsight,
+  CustomerTimelineNote,
+  CustomerTimelineNoteKind,
+  Invoice,
   LedgerTransaction,
   PaymentPromise,
   PaymentReminder,
@@ -51,6 +67,7 @@ import {
   formatTransactionType,
 } from '../lib/format';
 import type { RootStackParamList } from '../navigation/types';
+import { getBusinessPaymentDetails, type BusinessPaymentDetails } from '../payments/businessPaymentDetails';
 import { colors, shadows, spacing, touch, typography } from '../theme/theme';
 
 type CustomerDetailScreenProps = NativeStackScreenProps<RootStackParamList, 'CustomerDetail'>;
@@ -82,19 +99,38 @@ type LedgerView = {
 };
 const INITIAL_LEDGER_GROUP_COUNT = 8;
 const LEDGER_GROUP_BATCH_SIZE = 8;
+const timelineFilters: Array<{ key: CustomerTrustTimelineFilter; label: string }> = [
+  { key: 'all', label: 'All' },
+  { key: 'money', label: 'Money' },
+  { key: 'documents', label: 'Documents' },
+  { key: 'reminders', label: 'Reminders' },
+  { key: 'promises', label: 'Promises' },
+  { key: 'notes', label: 'Notes' },
+];
 
 export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreenProps) {
   const { customerId } = route.params;
   const [ledger, setLedger] = useState<CustomerLedger | null>(null);
   const [businessName, setBusinessName] = useState('Orbit Ledger');
   const [currency, setCurrency] = useState('INR');
+  const [countryCode, setCountryCode] = useState('IN');
+  const [regionCode, setRegionCode] = useState('');
+  const [paymentDetails, setPaymentDetails] = useState<BusinessPaymentDetails>({});
   const [featureToggles, setFeatureToggles] = useState<AppFeatureToggles | null>(null);
   const [reminders, setReminders] = useState<PaymentReminder[]>([]);
   const [promises, setPromises] = useState<PaymentPromise[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [timelineNotes, setTimelineNotes] = useState<CustomerTimelineNote[]>([]);
+  const [timelineDocuments, setTimelineDocuments] = useState<GeneratedDocumentHistoryEntry[]>([]);
+  const [timelineFilter, setTimelineFilter] = useState<CustomerTrustTimelineFilter>('all');
   const [isReminderModalVisible, setIsReminderModalVisible] = useState(false);
   const [isPromiseModalVisible, setIsPromiseModalVisible] = useState(false);
+  const [isTimelineNoteModalVisible, setIsTimelineNoteModalVisible] = useState(false);
+  const [timelineNoteKind, setTimelineNoteKind] = useState<CustomerTimelineNoteKind>('note');
+  const [timelineNoteText, setTimelineNoteText] = useState('');
   const [isSendingReminder, setIsSendingReminder] = useState(false);
   const [isSavingPromise, setIsSavingPromise] = useState(false);
+  const [isSavingTimelineNote, setIsSavingTimelineNote] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [visibleLedgerGroupCount, setVisibleLedgerGroupCount] = useState(INITIAL_LEDGER_GROUP_COUNT);
@@ -173,21 +209,61 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
     .slice(visibleLedgerGroupCount)
     .reduce((count, group) => count + group.entries.length, 0);
   const insights = ledgerView.insights;
+  const timelineEvents = useMemo(() => {
+    if (!ledger) {
+      return [];
+    }
+
+    return buildCustomerTrustTimeline({
+      currency,
+      customerName: ledger.customer.name,
+      documents: timelineDocuments,
+      invoices,
+      notes: timelineNotes,
+      promises,
+      reminders,
+      transactions: ledger.transactions,
+    });
+  }, [currency, invoices, ledger, promises, reminders, timelineDocuments, timelineNotes]);
+  const visibleTimelineEvents = useMemo(
+    () => filterCustomerTrustTimeline(timelineEvents, timelineFilter),
+    [timelineEvents, timelineFilter]
+  );
 
   const loadLedger = useCallback(async () => {
-    const [settings, customerLedger, toggles, reminderHistory, promiseHistory] = await Promise.all([
+    const [
+      settings,
+      customerLedger,
+      toggles,
+      reminderHistory,
+      promiseHistory,
+      invoiceHistory,
+      noteHistory,
+      documentHistory,
+      savedPaymentDetails,
+    ] = await Promise.all([
       getBusinessSettings(),
       getCustomerLedger(customerId),
       getFeatureToggles(),
-      listPaymentRemindersForCustomer(customerId, 5),
-      listPaymentPromisesForCustomer(customerId, 8),
+      listPaymentRemindersForCustomer(customerId, 20),
+      listPaymentPromisesForCustomer(customerId, 20),
+      listInvoicesForCustomer(customerId, 20),
+      listCustomerTimelineNotes(customerId, 20),
+      Promise.resolve(getGeneratedDocumentHistory()),
+      getBusinessPaymentDetails(),
     ]);
     setBusinessName(settings?.businessName ?? 'Orbit Ledger');
     setCurrency(settings?.currency ?? 'INR');
+    setCountryCode(settings?.countryCode ?? 'IN');
+    setRegionCode(settings?.stateCode ?? '');
+    setPaymentDetails(savedPaymentDetails);
     setLedger(customerLedger);
     setFeatureToggles(toggles);
     setReminders(reminderHistory);
     setPromises(promiseHistory);
+    setInvoices(invoiceHistory);
+    setTimelineNotes(noteHistory);
+    setTimelineDocuments(documentHistory);
     setVisibleLedgerGroupCount(INITIAL_LEDGER_GROUP_COUNT);
   }, [customerId]);
 
@@ -298,6 +374,44 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
     }
   }
 
+  function openTimelineNote(kind: CustomerTimelineNoteKind) {
+    setTimelineNoteKind(kind);
+    setTimelineNoteText('');
+    setIsTimelineNoteModalVisible(true);
+  }
+
+  async function saveTimelineNote() {
+    if (!ledger) {
+      return;
+    }
+
+    const body = timelineNoteText.trim();
+    if (!body) {
+      Alert.alert('Add a note first', 'Write the detail you want to remember.');
+      return;
+    }
+
+    try {
+      setIsSavingTimelineNote(true);
+      await addCustomerTimelineNote({
+        body,
+        customerId: ledger.customer.id,
+        kind: timelineNoteKind,
+      });
+      await loadLedger();
+      setIsTimelineNoteModalVisible(false);
+      setTimelineNoteText('');
+      Alert.alert(
+        timelineNoteKind === 'dispute' ? 'Dispute saved' : 'Note saved',
+        'This memory was added to the customer timeline.'
+      );
+    } catch {
+      Alert.alert('Note could not be saved', 'Please try again.');
+    } finally {
+      setIsSavingTimelineNote(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.root}>
       <ScrollView
@@ -392,12 +506,21 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
                   Create Invoice
                 </PrimaryButton>
               ) : null}
+              {invoices[0] ? (
+                <PrimaryButton
+                  style={styles.quickActionButton}
+                  variant="secondary"
+                  onPress={() => navigation.navigate('InvoicePreview', { invoiceId: invoices[0].id })}
+                >
+                  Share Latest Invoice
+                </PrimaryButton>
+              ) : null}
               <PrimaryButton
                 style={styles.quickActionButton}
                 variant="secondary"
                 onPress={() => navigation.navigate('StatementPreview', { customerId })}
               >
-                Generate Statement
+                Share Statement
               </PrimaryButton>
               {ledger.balance > 0 ? (
                 <PrimaryButton
@@ -423,6 +546,20 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
                 onPress={() => navigation.navigate('CustomerForm', { customerId })}
               >
                 Edit Customer
+              </PrimaryButton>
+              <PrimaryButton
+                style={styles.quickActionButton}
+                variant="ghost"
+                onPress={() => openTimelineNote('note')}
+              >
+                Add Note
+              </PrimaryButton>
+              <PrimaryButton
+                style={styles.quickActionButton}
+                variant="ghost"
+                onPress={() => openTimelineNote('dispute')}
+              >
+                Add Dispute
               </PrimaryButton>
             </View>
 
@@ -532,6 +669,45 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
             </View>
 
             <View style={styles.infoCard}>
+              <View style={styles.timelineHeader}>
+                <View style={styles.timelineTitleBlock}>
+                  <Text style={styles.sectionTitle}>Trust Timeline</Text>
+                  <Text style={styles.muted}>
+                    Money, documents, reminders, promises, and important notes in one place.
+                  </Text>
+                </View>
+                <PrimaryButton variant="secondary" onPress={() => openTimelineNote('note')}>
+                  Add Note
+                </PrimaryButton>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.timelineFilters}
+              >
+                {timelineFilters.map((filter) => (
+                  <TimelineFilterChip
+                    key={filter.key}
+                    label={filter.label}
+                    selected={timelineFilter === filter.key}
+                    onPress={() => setTimelineFilter(filter.key)}
+                  />
+                ))}
+              </ScrollView>
+              {visibleTimelineEvents.length === 0 ? (
+                <Text style={styles.muted}>
+                  No timeline items for this view yet. Add a note or record activity to build the story.
+                </Text>
+              ) : (
+                <View style={styles.timelineList}>
+                  {visibleTimelineEvents.map((event) => (
+                    <TrustTimelineItem key={event.id} event={event} />
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.infoCard}>
               <Text style={styles.sectionTitle}>Payment Promises</Text>
               {promises.length === 0 ? (
                 <Text style={styles.muted}>
@@ -572,6 +748,51 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
                             }
                           >
                             Record Payment
+                          </PrimaryButton>
+                          <PrimaryButton
+                            style={styles.promiseActionButton}
+                            variant="ghost"
+                            onPress={() => void changePromiseStatus(promise.id, 'fulfilled')}
+                          >
+                            Mark Fulfilled
+                          </PrimaryButton>
+                          <PrimaryButton
+                            style={styles.promiseActionButton}
+                            variant="ghost"
+                            onPress={() => void changePromiseStatus(promise.id, 'missed')}
+                          >
+                            Mark Missed
+                          </PrimaryButton>
+                          <PrimaryButton
+                            style={styles.promiseActionButton}
+                            variant="ghost"
+                            onPress={() => void changePromiseStatus(promise.id, 'cancelled')}
+                          >
+                            Cancel Promise
+                          </PrimaryButton>
+                        </View>
+                      ) : null}
+                      {promise.status === 'missed' ? (
+                        <View style={styles.promiseActions}>
+                          <PrimaryButton
+                            style={styles.promiseActionButton}
+                            variant="secondary"
+                            onPress={() =>
+                              navigation.navigate('TransactionForm', {
+                                customerId,
+                                type: 'payment',
+                                promiseId: promise.id,
+                              })
+                            }
+                          >
+                            Record Payment
+                          </PrimaryButton>
+                          <PrimaryButton
+                            style={styles.promiseActionButton}
+                            variant="ghost"
+                            onPress={() => void changePromiseStatus(promise.id, 'fulfilled')}
+                          >
+                            Mark Fulfilled
                           </PrimaryButton>
                           <PrimaryButton
                             style={styles.promiseActionButton}
@@ -757,17 +978,151 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
         <PaymentReminderModal
           balance={ledger.balance}
           businessName={businessName}
+          countryCode={countryCode}
           currency={currency}
           customerName={ledger.customer.name}
           isSending={isSendingReminder}
           lastPaymentDate={insights.lastPaymentDate}
           lastReminderDate={reminders[0]?.createdAt ?? null}
+          paymentDetails={paymentDetails}
+          regionCode={regionCode}
           visible={isReminderModalVisible}
           onClose={() => setIsReminderModalVisible(false)}
           onSend={shareReminder}
         />
       ) : null}
+      {ledger ? (
+        <TimelineNoteModal
+          body={timelineNoteText}
+          isSaving={isSavingTimelineNote}
+          kind={timelineNoteKind}
+          visible={isTimelineNoteModalVisible}
+          onChangeBody={setTimelineNoteText}
+          onChangeKind={setTimelineNoteKind}
+          onClose={() => setIsTimelineNoteModalVisible(false)}
+          onSave={() => void saveTimelineNote()}
+        />
+      ) : null}
     </SafeAreaView>
+  );
+}
+
+function TimelineFilterChip({
+  label,
+  onPress,
+  selected,
+}: {
+  label: string;
+  onPress: () => void;
+  selected: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      hitSlop={touch.hitSlop}
+      onPress={onPress}
+      pressRetentionOffset={touch.pressRetentionOffset}
+      style={({ pressed }) => [
+        styles.timelineFilterChip,
+        selected ? styles.timelineFilterChipSelected : null,
+        pressed ? styles.timelineFilterChipPressed : null,
+      ]}
+    >
+      <Text
+        style={[
+          styles.timelineFilterChipText,
+          selected ? styles.timelineFilterChipTextSelected : null,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function TrustTimelineItem({ event }: { event: CustomerTrustTimelineEvent }) {
+  return (
+    <View style={styles.timelineItem}>
+      <View style={[styles.timelineRail, timelineRailStyle(event.tone)]} />
+      <View style={styles.timelineContent}>
+        <View style={styles.timelineItemHeader}>
+          <View style={styles.timelineItemTitleBlock}>
+            <Text style={styles.timelineItemTitle}>{event.title}</Text>
+            <Text style={styles.timelineItemMeta}>{formatShortDate(event.occurredAt)}</Text>
+          </View>
+          <StatusChip label={event.meta} tone={statusToneForTimeline(event.tone)} />
+        </View>
+        <Text style={styles.timelineItemDetail}>{event.detail}</Text>
+      </View>
+    </View>
+  );
+}
+
+function TimelineNoteModal({
+  body,
+  isSaving,
+  kind,
+  onChangeBody,
+  onChangeKind,
+  onClose,
+  onSave,
+  visible,
+}: {
+  body: string;
+  isSaving: boolean;
+  kind: CustomerTimelineNoteKind;
+  onChangeBody: (value: string) => void;
+  onChangeKind: (kind: CustomerTimelineNoteKind) => void;
+  onClose: () => void;
+  onSave: () => void;
+  visible: boolean;
+}) {
+  return (
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+      <View style={styles.noteModalBackdrop}>
+        <View style={styles.noteModalSheet}>
+          <View style={styles.noteModalHeader}>
+            <View style={styles.noteModalTitleBlock}>
+              <Text style={styles.noteModalEyebrow}>Customer memory</Text>
+              <Text style={styles.noteModalTitle}>
+                {kind === 'dispute' ? 'Add dispute' : 'Add note'}
+              </Text>
+            </View>
+            <PrimaryButton variant="ghost" disabled={isSaving} onPress={onClose}>
+              Close
+            </PrimaryButton>
+          </View>
+          <View style={styles.noteKindRow}>
+            <TimelineFilterChip
+              label="Note"
+              selected={kind === 'note'}
+              onPress={() => onChangeKind('note')}
+            />
+            <TimelineFilterChip
+              label="Dispute"
+              selected={kind === 'dispute'}
+              onPress={() => onChangeKind('dispute')}
+            />
+          </View>
+          <TextField
+            label={kind === 'dispute' ? 'What is disputed?' : 'What should be remembered?'}
+            value={body}
+            onChangeText={onChangeBody}
+            placeholder="Write the important detail"
+            multiline
+            helperText="This appears in the customer timeline."
+          />
+          <View style={styles.noteModalActions}>
+            <PrimaryButton disabled={!body.trim() || isSaving} loading={isSaving} onPress={onSave}>
+              Save
+            </PrimaryButton>
+            <PrimaryButton variant="ghost" disabled={isSaving} onPress={onClose}>
+              Not now
+            </PrimaryButton>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -984,6 +1339,32 @@ function getPromiseStatusTone(
   return 'warning';
 }
 
+function statusToneForTimeline(
+  tone: CustomerTrustTimelineEvent['tone']
+): 'primary' | 'success' | 'warning' | 'danger' | 'neutral' {
+  return tone;
+}
+
+function timelineRailStyle(tone: CustomerTrustTimelineEvent['tone']) {
+  if (tone === 'success') {
+    return styles.timelineRailSuccess;
+  }
+
+  if (tone === 'warning') {
+    return styles.timelineRailWarning;
+  }
+
+  if (tone === 'danger') {
+    return styles.timelineRailDanger;
+  }
+
+  if (tone === 'primary') {
+    return styles.timelineRailPrimary;
+  }
+
+  return styles.timelineRailNeutral;
+}
+
 function InsightCard({
   label,
   value,
@@ -1140,6 +1521,148 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
+  },
+  timelineHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  timelineTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xs,
+  },
+  timelineFilters: {
+    gap: spacing.sm,
+    paddingRight: spacing.lg,
+  },
+  timelineFilterChip: {
+    minHeight: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  timelineFilterChipSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  timelineFilterChipPressed: {
+    opacity: 0.82,
+  },
+  timelineFilterChipText: {
+    color: colors.text,
+    fontSize: typography.caption,
+    fontWeight: '900',
+  },
+  timelineFilterChipTextSelected: {
+    color: colors.surface,
+  },
+  timelineList: {
+    gap: spacing.md,
+  },
+  timelineItem: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
+    overflow: 'hidden',
+  },
+  timelineRail: {
+    width: 5,
+  },
+  timelineRailSuccess: {
+    backgroundColor: colors.success,
+  },
+  timelineRailWarning: {
+    backgroundColor: colors.warning,
+  },
+  timelineRailDanger: {
+    backgroundColor: colors.danger,
+  },
+  timelineRailPrimary: {
+    backgroundColor: colors.primary,
+  },
+  timelineRailNeutral: {
+    backgroundColor: colors.textMuted,
+  },
+  timelineContent: {
+    flex: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  timelineItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  timelineItemTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  timelineItemTitle: {
+    color: colors.text,
+    fontSize: typography.label,
+    fontWeight: '900',
+  },
+  timelineItemMeta: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 17,
+  },
+  timelineItemDetail: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 18,
+  },
+  noteModalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: colors.backdrop,
+  },
+  noteModalSheet: {
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    backgroundColor: colors.background,
+    padding: spacing.lg,
+    gap: spacing.lg,
+  },
+  noteModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  noteModalTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  noteModalEyebrow: {
+    color: colors.primary,
+    fontSize: typography.caption,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+  },
+  noteModalTitle: {
+    color: colors.text,
+    fontSize: typography.sectionTitle,
+    fontWeight: '900',
+  },
+  noteKindRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  noteModalActions: {
+    gap: spacing.sm,
   },
   promiseList: {
     gap: spacing.md,

@@ -30,7 +30,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 
 const styles = StyleSheet.create({
   container: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   label: {
     color: colors.text,
@@ -38,13 +38,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   input: {
-    minHeight: 56,
+    minHeight: 58,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
     color: colors.text,
     fontSize: typography.body,
     lineHeight: 20,

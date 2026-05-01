@@ -1,5 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { canBootstrapWorkspaceLocally, getBusinessModeDescription } from '@orbit-ledger/core';
+import {
+  ORBIT_LEDGER_POSITIONING,
+  canBootstrapWorkspaceLocally,
+  getBusinessModeDescription,
+} from '@orbit-ledger/core';
 import type { OrbitBusinessStorageMode, OrbitCloudUser, OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
@@ -208,8 +212,8 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
     } catch (error) {
       console.warn('[cloud-workspaces] Workspace list could not load', error);
       Alert.alert(
-        'Cloud workspace list could not load',
-        'Your local setup is still safe. Check your connection and try again.'
+        'Businesses could not load',
+        'Your setup is still safe. Check your connection and try again.'
       );
     } finally {
       setIsLoadingCloudWorkspaces(false);
@@ -268,7 +272,7 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
     }
 
     if (!cloudUser) {
-      Alert.alert('Sign in required', 'Sign in first to continue with a synced workspace.');
+      Alert.alert('Sign in required', 'Sign in first to use this business online.');
       return;
     }
 
@@ -307,9 +311,9 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
 
   const workspaceOptions = [
     {
-      label: 'Create a new synced business',
+      label: 'Create a new online business',
       value: NEW_SYNCED_WORKSPACE_VALUE,
-      description: 'Use the details below to create a fresh cloud workspace.',
+      description: 'Use the details below to create it.',
     },
     ...eligibleWorkspaces.map((workspace) => ({
       label: workspace.businessName,
@@ -342,12 +346,12 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
               </View>
               <View style={styles.brandTextBlock}>
                 <Text style={styles.eyebrow}>{brand.fullName}</Text>
-                <Text style={styles.brandPromise}>Serious ledger control for daily business work</Text>
+                <Text style={styles.brandPromise}>{ORBIT_LEDGER_POSITIONING.promise}</Text>
               </View>
             </View>
             <View style={styles.trustRow}>
               <View style={styles.trustPill}>
-                <Text style={styles.trustPillText}>Offline first</Text>
+                <Text style={styles.trustPillText}>Works anywhere</Text>
               </View>
               <View style={styles.trustPill}>
                 <Text style={styles.trustPillText}>Backup ready</Text>
@@ -356,15 +360,14 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
                 <Text style={styles.trustPillText}>Documents included</Text>
               </View>
             </View>
-            <Text style={styles.title}>Set Up Business</Text>
+            <Text style={styles.title}>Set up your business control room</Text>
             <Text style={styles.subtitle}>
-              Choose whether this business should stay only on this device or be linked to a
-              signed-in workspace.
+              Start with the details that keep customers, collections, documents, and backups clear.
             </Text>
           </View>
 
           <Card elevated glass accent={storageMode === 'synced' ? 'premium' : 'primary'}>
-            <Text style={styles.sectionTitle}>How do you want to use Orbit Ledger?</Text>
+            <Text style={styles.sectionTitle}>Where should this business be available?</Text>
             <View style={styles.modeGrid}>
               <Pressable
                 accessibilityRole="button"
@@ -375,7 +378,7 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
                 ]}
               >
                 <View style={styles.modeHeader}>
-                  <Text style={styles.modeTitle}>Start offline</Text>
+                  <Text style={styles.modeTitle}>Start on this device</Text>
                   {storageMode === 'local_only' ? <StatusChip label="Selected" tone="primary" /> : null}
                 </View>
                 <Text style={styles.modeBody}>{getBusinessModeDescription('local_only')}</Text>
@@ -386,7 +389,7 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
                 style={[styles.modeCard, storageMode === 'synced' ? styles.modeCardSelected : null]}
               >
                 <View style={styles.modeHeader}>
-                  <Text style={styles.modeTitle}>Sign in to sync</Text>
+                  <Text style={styles.modeTitle}>Use after sign-in</Text>
                   {storageMode === 'synced' ? <StatusChip label="Selected" tone="premium" /> : null}
                 </View>
                 <Text style={styles.modeBody}>{getBusinessModeDescription('synced')}</Text>
@@ -398,11 +401,10 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
             <Card elevated accent="premium">
               <View style={styles.syncHeaderRow}>
                 <View style={styles.syncHeaderText}>
-                  <Text style={styles.sectionTitle}>Cloud workspace</Text>
+                  <Text style={styles.sectionTitle}>Online access</Text>
                   <Text style={styles.syncBody}>
-                    Sign in to create a synced business or pull an existing workspace onto this
-                    device. Local records stay available, and workspace data is brought down after
-                    linking.
+                    Sign in to create a business you can use on web or another device. Your records
+                    stay available here too.
                   </Text>
                 </View>
                 {cloudUser ? <StatusChip label="Signed in" tone="premium" /> : <StatusChip label="Sign-in required" tone="warning" />}
@@ -411,28 +413,28 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
               {cloudUser ? (
                 <>
                   <Text style={styles.cloudIdentityText}>
-                    {cloudUser.displayName?.trim() || cloudUser.email || 'Signed-in owner'}
+                    {cloudUser.displayName?.trim() || cloudUser.email || 'Owner'}
                   </Text>
                   <Text style={styles.cloudIdentityHelper}>
-                    {cloudUser.email || 'Your workspace account is active on this device.'}
+                    {cloudUser.email || 'Your account is active here.'}
                   </Text>
 
                   <SelectField
-                    label="Synced workspace"
+                    label="Business"
                     value={selectedWorkspaceId}
                     options={workspaceOptions}
                     onChange={handleWorkspaceSelection}
                     helperText={
                       isLoadingCloudWorkspaces
-                        ? 'Checking your cloud workspaces...'
-                        : 'Choose an existing synced workspace or create a new one.'
+                        ? 'Checking your businesses...'
+                        : 'Choose an existing business or create a new one.'
                     }
                     disabled={isLoadingCloudWorkspaces}
                   />
                 </>
               ) : (
                 <PrimaryButton onPress={() => navigation.navigate('CloudAuth', { returnTo: 'Setup' })}>
-                  Sign in to sync
+                  Sign in for online access
                 </PrimaryButton>
               )}
             </Card>
@@ -613,7 +615,7 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
                       }
                     }}
                     error={getVisibleError(errors.countryCode?.message, touchedFields.countryCode, isSubmitted)}
-                    helperText="Used for tax packs, reports, and documents."
+                    helperText="Used for local labels, reports, and documents."
                   />
                 )}
               />
@@ -632,17 +634,17 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
                   }))}
                   onChange={onChange}
                   error={getVisibleError(errors.stateCode?.message, touchedFields.stateCode, isSubmitted)}
-                  helperText="Stored for local tax profiles and country package matching."
+                    helperText="Helps prepare local labels and cleaner reports."
                 />
               )}
             />
           </View>
 
           <View style={styles.formCard}>
-            <Text style={styles.sectionTitle}>Identity Assets</Text>
+            <Text style={styles.sectionTitle}>Document identity</Text>
             <ImagePickerField
               label="Company logo"
-              helperText="Optional. If skipped, documents will use a clean text fallback."
+              helperText="Optional. Documents still look clean if you skip this."
               value={values.logoUri}
               fallbackLabel="Logo"
               assetName="logo"
@@ -687,7 +689,7 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
             />
             <ImagePickerField
               label="Signature image"
-              helperText="Optional. Future documents will still work with a typed-name fallback."
+              helperText="Optional. Documents can still use the typed name."
               value={values.signatureUri}
               fallbackLabel="Signature"
               assetName="signature"
@@ -699,15 +701,14 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
           </View>
 
           <View style={styles.notice}>
-            <Text style={styles.noticeTitle}>Tax profile note</Text>
+            <Text style={styles.noticeTitle}>Local label note</Text>
             <Text style={styles.noticeText}>
-              Orbit Ledger can check online tax packs and country packages when you choose, then
-              save the validated data locally for offline use.
+              Orbit Ledger can prepare local tax labels when you choose, without slowing down setup.
             </Text>
           </View>
 
           <View style={styles.previewSection}>
-            <Text style={styles.sectionTitle}>Document Identity Preview</Text>
+            <Text style={styles.sectionTitle}>Document identity preview</Text>
             <IdentityPreviewCard
               businessName={values.businessName}
               ownerName={values.ownerName}

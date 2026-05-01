@@ -1,38 +1,6 @@
 'use client';
 
-type PhoneFormatRule = {
-  dialCode: string;
-  nationalLength: number;
-  displayExample: string;
-  formatNational(digits: string): string;
-};
-
-const PHONE_RULES: Record<string, PhoneFormatRule> = {
-  IN: {
-    dialCode: '+91',
-    nationalLength: 10,
-    displayExample: '+91 98765 43210',
-    formatNational(digits) {
-      return `${digits.slice(0, 5)} ${digits.slice(5)}`;
-    },
-  },
-  US: {
-    dialCode: '+1',
-    nationalLength: 10,
-    displayExample: '+1 415 555 0123',
-    formatNational(digits) {
-      return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
-    },
-  },
-  UK: {
-    dialCode: '+44',
-    nationalLength: 10,
-    displayExample: '+44 7400 123456',
-    formatNational(digits) {
-      return `${digits.slice(0, 4)} ${digits.slice(4)}`;
-    },
-  },
-};
+import { formatPhoneForLocalBusinessPack, getLocalPhoneExample } from '@orbit-ledger/core';
 
 export function sanitizeDigits(value: string) {
   return value.replace(/\D/g, '');
@@ -73,29 +41,12 @@ export function validateEmail(value: string, required = false) {
   return null;
 }
 
-function getPhoneRule(countryCode: string) {
-  const normalizedCode = countryCode.trim().toUpperCase();
-  return PHONE_RULES[normalizedCode] ?? PHONE_RULES.IN;
+function getPhoneCountry(countryCode: string) {
+  return countryCode.trim().toUpperCase() || 'IN';
 }
 
 export function normalizePhoneForCountry(countryCode: string, value: string) {
-  const rule = getPhoneRule(countryCode);
-  let digits = sanitizeDigits(value);
-
-  const dialDigits = sanitizeDigits(rule.dialCode);
-  if (digits.startsWith(dialDigits)) {
-    digits = digits.slice(dialDigits.length);
-  }
-
-  if (digits.length > rule.nationalLength) {
-    digits = digits.slice(-rule.nationalLength);
-  }
-
-  if (digits.length !== rule.nationalLength) {
-    return null;
-  }
-
-  return `${rule.dialCode} ${rule.formatNational(digits)}`;
+  return formatPhoneForLocalBusinessPack(getPhoneCountry(countryCode), value);
 }
 
 export function isValidPhoneForCountry(countryCode: string, value: string) {
@@ -109,8 +60,7 @@ export function validatePhone(value: string, countryCode: string, required = fal
   }
 
   if (!isValidPhoneForCountry(countryCode, normalized)) {
-    const rule = getPhoneRule(countryCode);
-    return `Use a valid phone number (${rule.displayExample}).`;
+    return `Use a valid phone number (${getLocalPhoneExample(getPhoneCountry(countryCode))}).`;
   }
 
   return null;

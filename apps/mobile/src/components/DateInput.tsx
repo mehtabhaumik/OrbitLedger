@@ -65,7 +65,7 @@ export function DateInput({
         <Text style={[styles.value, !value ? styles.placeholder : null]}>
           {value || 'Choose date'}
         </Text>
-        <Text style={styles.actionText}>Pick</Text>
+        <Text style={styles.actionText}>Change</Text>
       </Pressable>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {!error && helperText ? <Text style={styles.helper}>{helperText}</Text> : null}
@@ -116,7 +116,7 @@ export function DateInput({
 
 const styles = StyleSheet.create({
   container: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   label: {
     color: colors.text,
@@ -124,13 +124,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   field: {
-    minHeight: 56,
+    minHeight: 58,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

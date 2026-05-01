@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -14,9 +15,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   buildDailyClosingReport,
+  buildDailyClosingRitualSummary,
+  getDailyClosingRitualSummary,
+  listDailyClosingRitualSummaries,
+  saveDailyClosingRitualSummary,
   shareDailyClosingReportExport,
+  type DailyClosingAction,
+  type DailyClosingConfirmationKey,
   type DailyClosingExportFormat,
   type DailyClosingReport,
+  type DailyClosingRitualSummary,
 } from '../closing';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Card } from '../components/Card';
@@ -30,7 +38,8 @@ import { Section } from '../components/Section';
 import { SkeletonCard } from '../components/SkeletonCard';
 import { StatusChip } from '../components/StatusChip';
 import { SummaryCard } from '../components/SummaryCard';
-import { getTodayDateInput } from '../forms/validation';
+import { TextField } from '../components/TextField';
+import { getTodayDateInput, normalizeDecimalInput } from '../forms/validation';
 import { formatCurrency, formatShortDate, formatTransactionType } from '../lib/format';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, spacing, typography } from '../theme/theme';
@@ -45,12 +54,37 @@ export function DailyClosingReportScreen({ navigation }: DailyClosingReportScree
   const [report, setReport] = useState<DailyClosingReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [savedClosing, setSavedClosing] = useState<DailyClosingRitualSummary | null>(null);
+  const [closingHistory, setClosingHistory] = useState<DailyClosingRitualSummary[]>([]);
+  const [confirmations, setConfirmations] = useState<Record<DailyClosingConfirmationKey, boolean>>(
+    createDefaultConfirmations
+  );
+  const [countedCashInput, setCountedCashInput] = useState('');
+  const [mismatchNote, setMismatchNote] = useState('');
+  const [isSavingClosing, setIsSavingClosing] = useState(false);
   const [sharingFormat, setSharingFormat] = useState<DailyClosingExportFormat | null>(null);
   const currency = report?.business.currency ?? 'INR';
 
   const loadReport = useCallback(async (date: string) => {
-    const nextReport = await buildDailyClosingReport(date);
+    const [nextReport, nextSavedClosing, nextHistory] = await Promise.all([
+      buildDailyClosingReport(date),
+      getDailyClosingRitualSummary(date),
+      listDailyClosingRitualSummaries(),
+    ]);
     setReport(nextReport);
+    setSavedClosing(nextSavedClosing);
+    setClosingHistory(nextHistory);
+    if (nextSavedClosing) {
+      setConfirmations(confirmationsFromSummary(nextSavedClosing));
+      setCountedCashInput(
+        nextSavedClosing.mismatch.countedCash === null ? '' : formatAmountInput(nextSavedClosing.mismatch.countedCash)
+      );
+      setMismatchNote(nextSavedClosing.mismatch.note ?? '');
+    } else {
+      setConfirmations(createDefaultConfirmations());
+      setCountedCashInput(formatAmountInput(nextReport.totals.paymentReceived));
+      setMismatchNote('');
+    }
   }, []);
 
   useFocusEffect(
@@ -60,13 +94,32 @@ export function DailyClosingReportScreen({ navigation }: DailyClosingReportScree
       async function load() {
         try {
           setIsLoading(true);
-          const nextReport = await buildDailyClosingReport(reportDate);
+          const [nextReport, nextSavedClosing, nextHistory] = await Promise.all([
+            buildDailyClosingReport(reportDate),
+            getDailyClosingRitualSummary(reportDate),
+            listDailyClosingRitualSummaries(),
+          ]);
           if (isActive) {
             setReport(nextReport);
+            setSavedClosing(nextSavedClosing);
+            setClosingHistory(nextHistory);
+            if (nextSavedClosing) {
+              setConfirmations(confirmationsFromSummary(nextSavedClosing));
+              setCountedCashInput(
+                nextSavedClosing.mismatch.countedCash === null
+                  ? ''
+                  : formatAmountInput(nextSavedClosing.mismatch.countedCash)
+              );
+              setMismatchNote(nextSavedClosing.mismatch.note ?? '');
+            } else {
+              setConfirmations(createDefaultConfirmations());
+              setCountedCashInput(formatAmountInput(nextReport.totals.paymentReceived));
+              setMismatchNote('');
+            }
           }
         } catch {
           if (isActive) {
-            Alert.alert('Closing report could not load', 'Please check your local data and try again.');
+            Alert.alert('Closing report could not load', 'Please check your saved data and try again.');
           }
         } finally {
           if (isActive) {
@@ -114,7 +167,7 @@ export function DailyClosingReportScreen({ navigation }: DailyClosingReportScree
     try {
       setSharingFormat(format);
       const exported = await shareDailyClosingReportExport({ format, report });
-      Alert.alert('Closing report shared', `${exported.fileName} was saved locally and opened for sharing.`);
+      Alert.alert('Closing report shared', `${exported.fileName} was saved and opened for sharing.`);
     } catch {
       Alert.alert(
         'Closing report could not be shared',
@@ -122,6 +175,65 @@ export function DailyClosingReportScreen({ navigation }: DailyClosingReportScree
       );
     } finally {
       setSharingFormat(null);
+    }
+  }
+
+  function toggleConfirmation(key: DailyClosingConfirmationKey) {
+    setConfirmations((current) => ({
+      ...current,
+      [key]: !current[key],
+    }));
+  }
+
+  async function saveClosingRitual() {
+    if (!report) {
+      return;
+    }
+
+    const countedCash = countedCashInput.trim() ? Number(countedCashInput) : null;
+    if (countedCashInput.trim() && !Number.isFinite(countedCash)) {
+      Alert.alert('Cash count needs a number', 'Enter the cash counted today.');
+      return;
+    }
+
+    try {
+      setIsSavingClosing(true);
+      const summary = buildDailyClosingRitualSummary(report, {
+        confirmations,
+        countedCash,
+        mismatchNote,
+      });
+      const nextHistory = await saveDailyClosingRitualSummary(summary);
+      setSavedClosing(summary);
+      setClosingHistory(nextHistory);
+      Alert.alert('Daily closing saved', 'Tomorrow actions are ready.');
+    } catch {
+      Alert.alert('Closing could not be saved', 'Please check the details and try again.');
+    } finally {
+      setIsSavingClosing(false);
+    }
+  }
+
+  function openActionTarget(target: DailyClosingAction['target']) {
+    switch (target) {
+      case 'get_paid':
+        navigation.navigate('GetPaid');
+        return;
+      case 'add_payment':
+        navigation.navigate('TransactionForm', { type: 'payment' });
+        return;
+      case 'add_credit':
+        navigation.navigate('TransactionForm', { type: 'credit' });
+        return;
+      case 'products':
+        navigation.navigate('Products');
+        return;
+      case 'customers':
+        navigation.navigate('Customers');
+        return;
+      case 'reports':
+      default:
+        navigation.navigate('Reports');
     }
   }
 
@@ -139,6 +251,12 @@ export function DailyClosingReportScreen({ navigation }: DailyClosingReportScree
   }
 
   const closingDifference = (report?.totals.closingReceivable ?? 0) - (report?.totals.openingReceivable ?? 0);
+  const countedCash = countedCashInput.trim() ? Number(countedCashInput) : null;
+  const cashDifference =
+    report && countedCash !== null && Number.isFinite(countedCash)
+      ? countedCash - report.totals.paymentReceived
+      : 0;
+  const hasCashMismatch = Math.abs(cashDifference) >= 0.01;
   const reportIsEmpty =
     report &&
     report.totals.transactionCount === 0 &&
@@ -158,7 +276,7 @@ export function DailyClosingReportScreen({ navigation }: DailyClosingReportScree
       >
         <ScreenHeader
           title="Daily Closing"
-          subtitle="End-of-day totals from saved local ledger data."
+          subtitle="End-of-day totals from your saved ledger data."
           backLabel="Reports"
           onBack={() => navigation.goBack()}
         />
@@ -169,7 +287,7 @@ export function DailyClosingReportScreen({ navigation }: DailyClosingReportScree
               <Text style={styles.eyebrow}>Closing date</Text>
               <Text style={styles.heroTitle}>{formatShortDate(reportDate)}</Text>
             </View>
-            <StatusChip label="Offline" tone="success" />
+            <StatusChip label="Ready" tone="success" />
           </View>
           <DateInput
             label="Select closing date"
@@ -226,6 +344,89 @@ export function DailyClosingReportScreen({ navigation }: DailyClosingReportScree
                 tone={report.totals.outstandingCustomersAtClose > 0 ? 'due' : 'payment'}
               />
             </View>
+
+            <Section title="3-minute closing" subtitle="Confirm the day before you leave.">
+              <Card accent={hasCashMismatch ? 'danger' : savedClosing ? 'success' : 'primary'}>
+                <View style={styles.ritualHeader}>
+                  <View style={styles.ritualHeaderText}>
+                    <Text style={styles.ritualTitle}>
+                      {savedClosing ? 'Closing saved' : 'Close today'}
+                    </Text>
+                    <Text style={styles.ritualCopy}>
+                      {savedClosing
+                        ? `Saved ${formatShortDate(savedClosing.closedAt)}. You can update it anytime.`
+                        : 'Count cash, confirm entries, and prepare tomorrow.'}
+                    </Text>
+                  </View>
+                  <StatusChip
+                    label={hasCashMismatch ? 'Check cash' : savedClosing ? 'Saved' : 'Open'}
+                    tone={hasCashMismatch ? 'danger' : savedClosing ? 'success' : 'primary'}
+                  />
+                </View>
+
+                <View style={styles.confirmationList}>
+                  {closingConfirmationLabels.map((item) => (
+                    <ClosingCheckRow
+                      key={item.key}
+                      checked={confirmations[item.key]}
+                      label={item.label}
+                      onPress={() => toggleConfirmation(item.key)}
+                    />
+                  ))}
+                </View>
+
+                <View style={styles.cashBox}>
+                  <Text style={styles.cashBoxTitle}>Cash check</Text>
+                  <Text style={styles.cashBoxCopy}>
+                    Payments recorded: {formatCurrency(report.totals.paymentReceived, currency)}
+                  </Text>
+                  <TextField
+                    label="Cash counted"
+                    value={countedCashInput}
+                    onChangeText={(value) => setCountedCashInput(normalizeDecimalInput(value))}
+                    keyboardType="decimal-pad"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    helperText={
+                      countedCash === null
+                        ? 'Enter counted cash to catch mismatches.'
+                        : hasCashMismatch
+                          ? `Difference ${formatCurrency(Math.abs(cashDifference), currency)}.`
+                          : 'Cash matches recorded payments.'
+                    }
+                  />
+                  {hasCashMismatch ? (
+                    <TextField
+                      label="Mismatch note"
+                      value={mismatchNote}
+                      onChangeText={setMismatchNote}
+                      placeholder="Example: bank transfer not entered yet"
+                      multiline
+                    />
+                  ) : null}
+                </View>
+
+                <PrimaryButton loading={isSavingClosing} disabled={isSavingClosing} onPress={saveClosingRitual}>
+                  Save Daily Closing
+                </PrimaryButton>
+              </Card>
+            </Section>
+
+            {savedClosing ? (
+              <Section title="Tomorrow actions" subtitle="What to do next after closing.">
+                <View style={styles.listShell}>
+                  {savedClosing.nextDayActions.map((action) => (
+                    <ListRow
+                      key={action.id}
+                      accent={action.tone}
+                      title={action.label}
+                      subtitle={action.helper}
+                      onPress={() => openActionTarget(action.target)}
+                    />
+                  ))}
+                </View>
+              </Section>
+            ) : null}
 
             {reportIsEmpty ? (
               <EmptyState
@@ -372,11 +573,37 @@ export function DailyClosingReportScreen({ navigation }: DailyClosingReportScree
               )}
             </Section>
 
+            <Section title="Closing history" subtitle="Recent saved closing summaries.">
+              {closingHistory.length === 0 ? (
+                <EmptyState
+                  title="No saved closings yet"
+                  message="Saved daily closings will appear here."
+                />
+              ) : (
+                <View style={styles.listShell}>
+                  {closingHistory.slice(0, 5).map((closing) => (
+                    <ListRow
+                      key={closing.id}
+                      accent={closing.mismatch.hasMismatch ? 'danger' : 'success'}
+                      title={formatShortDate(closing.reportDate)}
+                      subtitle={
+                        closing.mismatch.hasMismatch
+                          ? `Mismatch ${formatCurrency(Math.abs(closing.mismatch.difference), currency)}`
+                          : 'Closed cleanly'
+                      }
+                      meta={`${closing.nextDayActions.length} next action${closing.nextDayActions.length === 1 ? '' : 's'}`}
+                      onPress={() => void changeDate(closing.reportDate)}
+                    />
+                  ))}
+                </View>
+              )}
+            </Section>
+
             <Card accent="primary">
               <View style={styles.exportCopy}>
                 <Text style={styles.exportTitle}>Save or share closing report</Text>
                 <Text style={styles.exportText}>
-                  Export this day-end snapshot as JSON for systems or CSV for spreadsheets. Files are saved locally first.
+                  Export this day-end snapshot as JSON for systems or CSV for spreadsheets.
                 </Text>
               </View>
               <View style={styles.exportActions}>
@@ -410,6 +637,70 @@ export function DailyClosingReportScreen({ navigation }: DailyClosingReportScree
         onSettings={() => navigation.navigate('BusinessProfileSettings')}
       />
     </SafeAreaView>
+  );
+}
+
+const closingConfirmationLabels: Array<{ key: DailyClosingConfirmationKey; label: string }> = [
+  { key: 'cash_collected', label: 'Cash collected is counted' },
+  { key: 'payments_recorded', label: 'Payments are recorded' },
+  { key: 'credit_recorded', label: 'New credit is recorded' },
+  { key: 'stock_checked', label: 'Stock changes are checked' },
+  { key: 'followups_ready', label: 'Tomorrow follow-ups are ready' },
+];
+
+function createDefaultConfirmations(): Record<DailyClosingConfirmationKey, boolean> {
+  return {
+    cash_collected: false,
+    payments_recorded: false,
+    credit_recorded: false,
+    stock_checked: false,
+    followups_ready: false,
+  };
+}
+
+function confirmationsFromSummary(
+  summary: DailyClosingRitualSummary
+): Record<DailyClosingConfirmationKey, boolean> {
+  return summary.confirmations.reduce(
+    (next, confirmation) => ({
+      ...next,
+      [confirmation.key]: confirmation.confirmed,
+    }),
+    createDefaultConfirmations()
+  );
+}
+
+function formatAmountInput(amount: number): string {
+  return Number.isInteger(amount) ? String(amount) : amount.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function ClosingCheckRow({
+  checked,
+  label,
+  onPress,
+}: {
+  checked: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.confirmationRow,
+        checked ? styles.confirmationRowChecked : null,
+        pressed ? styles.confirmationRowPressed : null,
+      ]}
+    >
+      <View style={[styles.checkbox, checked ? styles.checkboxChecked : null]}>
+        <Text style={[styles.checkboxMark, checked ? styles.checkboxMarkChecked : null]}>
+          OK
+        </Text>
+      </View>
+      <Text style={styles.confirmationText}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -454,7 +745,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.lg,
-    paddingBottom: 112,
+    paddingBottom: 144,
     gap: spacing.xl,
   },
   dateHeader: {
@@ -511,6 +802,96 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: typography.label,
     fontWeight: '900',
+  },
+  ritualHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  ritualHeaderText: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xs,
+  },
+  ritualTitle: {
+    color: colors.text,
+    fontSize: typography.sectionTitle,
+    fontWeight: '900',
+  },
+  ritualCopy: {
+    color: colors.textMuted,
+    fontSize: typography.label,
+    lineHeight: 20,
+  },
+  confirmationList: {
+    gap: spacing.sm,
+  },
+  confirmationRow: {
+    minHeight: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  confirmationRowChecked: {
+    borderColor: colors.success,
+    backgroundColor: colors.successSurface,
+  },
+  confirmationRowPressed: {
+    opacity: 0.84,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceRaised,
+  },
+  checkboxChecked: {
+    borderColor: colors.success,
+    backgroundColor: colors.success,
+  },
+  checkboxMark: {
+    color: 'transparent',
+    fontSize: typography.caption,
+    fontWeight: '900',
+  },
+  checkboxMarkChecked: {
+    color: colors.surface,
+  },
+  confirmationText: {
+    flex: 1,
+    color: colors.text,
+    fontSize: typography.label,
+    fontWeight: '800',
+    lineHeight: 20,
+  },
+  cashBox: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  cashBoxTitle: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '900',
+  },
+  cashBoxCopy: {
+    color: colors.textMuted,
+    fontSize: typography.label,
+    lineHeight: 20,
   },
   listShell: {
     borderRadius: 8,

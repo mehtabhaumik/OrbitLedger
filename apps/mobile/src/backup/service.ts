@@ -9,6 +9,7 @@ import {
   mapComplianceReport,
   mapCountryPackage,
   mapCustomer,
+  mapCustomerTimelineNote,
   mapDocumentTemplate,
   mapInvoice,
   mapInvoiceItem,
@@ -36,6 +37,8 @@ import type {
   CountryPackageTemplateRow,
   Customer,
   CustomerRow,
+  CustomerTimelineNote,
+  CustomerTimelineNoteRow,
   DocumentTemplate,
   DocumentTemplateRow,
   Invoice,
@@ -115,6 +118,7 @@ export async function extractOrbitLedgerBackup(): Promise<OrbitLedgerBackup> {
   const [
     businessSettings,
     customers,
+    customerTimelineNotes,
     transactions,
     paymentReminders,
     paymentPromises,
@@ -133,6 +137,7 @@ export async function extractOrbitLedgerBackup(): Promise<OrbitLedgerBackup> {
   ] = await Promise.all([
     readBusinessSettings(db),
     readCustomers(db),
+    readCustomerTimelineNotes(db),
     readTransactions(db),
     readPaymentReminders(db),
     readPaymentPromises(db),
@@ -190,7 +195,9 @@ export async function extractOrbitLedgerBackup(): Promise<OrbitLedgerBackup> {
       appPreferences,
       documentHistory,
       appSecurity,
-      extensions: {},
+      extensions: {
+        customerTimelineNotes,
+      },
     },
   };
 }
@@ -333,6 +340,12 @@ async function executeFullReplaceRestore(
   }
   logRestoreAudit('customers_restore_complete', plan);
 
+  logRestoreAudit('customer_timeline_notes_restore_start', plan);
+  for (const note of getCustomerTimelineNotesFromBackup(backup)) {
+    await upsertCustomerTimelineNote(db, note);
+  }
+  logRestoreAudit('customer_timeline_notes_restore_complete', plan);
+
   logRestoreAudit('transactions_restore_start', plan);
   for (const transaction of backup.data.transactions) {
     await upsertTransaction(db, transaction);
@@ -438,6 +451,15 @@ async function readCustomers(db: SQLiteDatabase): Promise<Customer[]> {
   );
 
   return rows.map(mapCustomer);
+}
+
+async function readCustomerTimelineNotes(db: SQLiteDatabase): Promise<CustomerTimelineNote[]> {
+  const rows = await db.getAllAsync<CustomerTimelineNoteRow>(
+    `SELECT * FROM customer_timeline_notes
+     ORDER BY created_at ASC, id ASC`
+  );
+
+  return rows.map(mapCustomerTimelineNote);
 }
 
 async function readTransactions(db: SQLiteDatabase): Promise<LedgerTransaction[]> {
@@ -724,6 +746,36 @@ async function upsertCustomer(db: DatabaseWriter, customer: Customer): Promise<v
     customer.syncId,
     customer.lastModified,
     customer.syncStatus
+  );
+}
+
+async function upsertCustomerTimelineNote(
+  db: DatabaseWriter,
+  note: CustomerTimelineNote
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO customer_timeline_notes (
+      id, customer_id, kind, body, created_at, updated_at,
+      sync_id, last_modified, sync_status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      customer_id = excluded.customer_id,
+      kind = excluded.kind,
+      body = excluded.body,
+      created_at = excluded.created_at,
+      updated_at = excluded.updated_at,
+      sync_id = excluded.sync_id,
+      last_modified = excluded.last_modified,
+      sync_status = excluded.sync_status`,
+    note.id,
+    note.customerId,
+    note.kind,
+    note.body,
+    note.createdAt,
+    note.updatedAt,
+    note.syncId,
+    note.lastModified,
+    note.syncStatus
   );
 }
 
@@ -1039,6 +1091,34 @@ function defaultAppSecurity(): AppSecurity {
     pinHash: null,
     updatedAt: new Date().toISOString(),
   };
+}
+
+function getCustomerTimelineNotesFromBackup(backup: OrbitLedgerBackup): CustomerTimelineNote[] {
+  const notes = backup.data.extensions?.customerTimelineNotes;
+  if (!Array.isArray(notes)) {
+    return [];
+  }
+
+  return notes.filter(isCustomerTimelineNote);
+}
+
+function isCustomerTimelineNote(value: unknown): value is CustomerTimelineNote {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const note = value as Partial<CustomerTimelineNote>;
+  return (
+    typeof note.id === 'string' &&
+    typeof note.customerId === 'string' &&
+    (note.kind === 'note' || note.kind === 'dispute') &&
+    typeof note.body === 'string' &&
+    typeof note.createdAt === 'string' &&
+    typeof note.updatedAt === 'string' &&
+    typeof note.syncId === 'string' &&
+    typeof note.lastModified === 'string' &&
+    typeof note.syncStatus === 'string'
+  );
 }
 
 function buildRecordCounts(input: {

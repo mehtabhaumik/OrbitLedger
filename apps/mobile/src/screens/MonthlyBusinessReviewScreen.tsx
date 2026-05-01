@@ -121,7 +121,7 @@ export function MonthlyBusinessReviewScreen({ navigation }: MonthlyBusinessRevie
     try {
       setSharingFormat(format);
       const exported = await shareMonthlyReviewExport({ format, review });
-      Alert.alert('Monthly review shared', `${exported.fileName} was saved locally and opened for sharing.`);
+      Alert.alert('Monthly review shared', `${exported.fileName} was saved and opened for sharing.`);
     } catch {
       Alert.alert(
         'Monthly review could not be shared',
@@ -183,7 +183,7 @@ export function MonthlyBusinessReviewScreen({ navigation }: MonthlyBusinessRevie
       >
         <ScreenHeader
           title="Monthly Review"
-          subtitle="Month-end business movement from local ledger, invoice, customer, and stock data."
+          subtitle="Month-end business movement from ledger, invoice, customer, and stock data."
           backLabel="Reports"
           onBack={() => navigation.goBack()}
         />
@@ -371,7 +371,7 @@ export function MonthlyBusinessReviewScreen({ navigation }: MonthlyBusinessRevie
               <View style={styles.exportCopy}>
                 <Text style={styles.exportTitle}>Export monthly review</Text>
                 <Text style={styles.exportText}>
-                  Save this review locally and share it as JSON for systems or CSV for spreadsheets.
+                  Save this review and share it as JSON for systems or CSV for spreadsheets.
                 </Text>
               </View>
               <View style={styles.exportActions}>
@@ -543,7 +543,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.lg,
-    paddingBottom: 112,
+    paddingBottom: 144,
     gap: spacing.xl,
   },
   monthHeader: {

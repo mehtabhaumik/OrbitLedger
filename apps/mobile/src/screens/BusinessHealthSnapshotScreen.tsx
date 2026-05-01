@@ -137,7 +137,7 @@ export function BusinessHealthSnapshotScreen({ navigation }: BusinessHealthSnaps
       >
         <ScreenHeader
           title="Business Health"
-          subtitle="A simple local snapshot of collections, sales, dues, and follow-up risk."
+          subtitle="A simple snapshot of collections, sales, dues, and follow-up risk."
           backLabel="Reports"
           onBack={() => navigation.goBack()}
         />
@@ -192,7 +192,7 @@ export function BusinessHealthSnapshotScreen({ navigation }: BusinessHealthSnaps
               />
             </View>
 
-            <Section title="Recommended actions" subtitle="Highest-value next steps from local data.">
+            <Section title="Recommended actions" subtitle="Highest-value next steps from your saved data.">
               <View style={styles.actionStack}>
                 {snapshot.actionItems.map((action) => (
                   <Card key={action.id} compact accent={getActionAccent(action.priority)}>
@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.lg,
-    paddingBottom: 112,
+    paddingBottom: 144,
     gap: spacing.xl,
   },
   scoreHeader: {

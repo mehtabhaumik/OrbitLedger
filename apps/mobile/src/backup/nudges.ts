@@ -8,6 +8,16 @@ export type BackupTrustNudge = {
   message: string;
 };
 
+export type BackupProtectionStatus = {
+  state: 'protected' | 'needs_backup' | 'not_protected';
+  title: string;
+  message: string;
+  lastProtectedAt: string | null;
+  recordsSinceBackup: number;
+  transactionsSinceBackup: number;
+  statementGeneratedSinceBackup: boolean;
+};
+
 type LedgerChangeKind = 'customer' | 'transaction';
 
 type AppPreferenceRow = {
@@ -145,6 +155,64 @@ export async function getBackupTrustNudge(): Promise<BackupTrustNudge | null> {
   } catch (error) {
     console.warn('[backup-nudge] Could not load backup nudge', error);
     return null;
+  }
+}
+
+export async function getBackupProtectionStatus(): Promise<BackupProtectionStatus> {
+  try {
+    const [lastBackupAt, recordsSinceBackup, transactionsSinceBackup, statementGenerated] =
+      await Promise.all([
+        getPreference(LAST_BACKUP_AT_KEY),
+        getNumericPreference(RECORDS_SINCE_BACKUP_KEY),
+        getNumericPreference(TRANSACTIONS_SINCE_BACKUP_KEY),
+        getPreference(STATEMENT_GENERATED_SINCE_BACKUP_KEY),
+      ]);
+
+    const hasChanges = recordsSinceBackup > 0 || transactionsSinceBackup > 0 || statementGenerated === 'true';
+    if (!lastBackupAt) {
+      return {
+        state: 'not_protected',
+        title: 'Backup not created yet',
+        message: 'Create your first backup so your business has a private copy saved outside the app.',
+        lastProtectedAt: null,
+        recordsSinceBackup,
+        transactionsSinceBackup,
+        statementGeneratedSinceBackup: statementGenerated === 'true',
+      };
+    }
+
+    if (hasChanges || isOlderThanDays(lastBackupAt, BACKUP_STALE_DAYS)) {
+      return {
+        state: 'needs_backup',
+        title: 'New work needs a backup',
+        message: 'You have added or changed records since the last backup. Save a fresh copy when you can.',
+        lastProtectedAt: lastBackupAt,
+        recordsSinceBackup,
+        transactionsSinceBackup,
+        statementGeneratedSinceBackup: statementGenerated === 'true',
+      };
+    }
+
+    return {
+      state: 'protected',
+      title: 'Your business has a backup',
+      message: 'No new ledger changes are waiting for a backup.',
+      lastProtectedAt: lastBackupAt,
+      recordsSinceBackup,
+      transactionsSinceBackup,
+      statementGeneratedSinceBackup: false,
+    };
+  } catch (error) {
+    console.warn('[backup-nudge] Could not load backup protection status', error);
+    return {
+      state: 'needs_backup',
+      title: 'Backup status needs a check',
+      message: 'Create a fresh backup if you are not sure when the last copy was saved.',
+      lastProtectedAt: null,
+      recordsSinceBackup: 0,
+      transactionsSinceBackup: 0,
+      statementGeneratedSinceBackup: false,
+    };
   }
 }
 

@@ -10,6 +10,8 @@ import type {
   CountryPackage,
   CountryPackageRow,
   Customer,
+  CustomerTimelineNote,
+  CustomerTimelineNoteRow,
   CustomerRow,
   DocumentTemplate,
   DocumentTemplateRow,
@@ -84,6 +86,18 @@ export function mapCustomer(row: CustomerRow): Customer {
     notes: row.notes,
     openingBalance: row.opening_balance,
     isArchived: row.is_archived === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function mapCustomerTimelineNote(row: CustomerTimelineNoteRow): CustomerTimelineNote {
+  return {
+    ...mapSyncMetadata(row),
+    id: row.id,
+    customerId: row.customer_id,
+    kind: row.kind,
+    body: row.body,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

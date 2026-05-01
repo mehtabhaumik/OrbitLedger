@@ -12,12 +12,13 @@ export {
 } from './format';
 export {
   dismissBackupTrustNudge,
+  getBackupProtectionStatus,
   getBackupTrustNudge,
   recordLedgerBackupCompletedForNudge,
   recordLedgerDataChangedForBackupNudge,
   recordStatementGeneratedForBackupNudge,
 } from './nudges';
-export type { BackupTrustNudge } from './nudges';
+export type { BackupProtectionStatus, BackupTrustNudge } from './nudges';
 export {
   createOrbitLedgerBackup,
   extractOrbitLedgerBackup,

@@ -118,7 +118,7 @@ export function InvoicesScreen({ navigation }: InvoicesScreenProps) {
       >
         <ScreenHeader
           title="Invoices"
-          subtitle="Simple invoices saved on this device."
+          subtitle="Simple invoices ready to review, edit, and share."
           backLabel="Dashboard"
           onBack={() => navigation.goBack()}
         />
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
   content: {
     gap: spacing.lg,
     padding: spacing.lg,
-    paddingBottom: 112,
+    paddingBottom: 144,
   },
   actionCard: {
     backgroundColor: colors.surface,

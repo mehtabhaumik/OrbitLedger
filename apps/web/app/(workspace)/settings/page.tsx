@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from 'react';
 
 import { AppShell } from '@/components/app-shell';
@@ -322,11 +323,43 @@ export default function SettingsPage() {
       </form>
 
       <section className="ol-note">
-        <strong>Trust note</strong>
+        <strong>Workspace note</strong>
         <span>
-          Web uses a signed-in workspace. Local mobile-only businesses must be linked from the
-          mobile app before they can appear here.
+          Link a business from mobile before reviewing it on web.
         </span>
+      </section>
+
+      <section className="ol-panel-glass">
+        <div className="ol-panel-header">
+          <div>
+            <div className="ol-panel-title">Launch checks</div>
+            <p className="ol-panel-copy">
+              Keep profile details, browser lock, backup, and reports ready before public use.
+            </p>
+          </div>
+        </div>
+        <div className="ol-review-grid">
+          <div className="ol-review-item">
+            <span className="ol-review-label">Profile</span>
+            <strong className="ol-review-value">{profile.businessName ? 'Ready' : 'Needs business name'}</strong>
+          </div>
+          <div className="ol-review-item">
+            <span className="ol-review-label">Browser lock</span>
+            <strong className="ol-review-value">{isEnabled ? 'On' : 'Off'}</strong>
+          </div>
+          <div className="ol-review-item">
+            <span className="ol-review-label">Backup</span>
+            <Link className="ol-inline-link" href="/backup">
+              Open backup
+            </Link>
+          </div>
+          <div className="ol-review-item">
+            <span className="ol-review-label">Reports</span>
+            <Link className="ol-inline-link" href="/reports">
+              Open reports
+            </Link>
+          </div>
+        </div>
       </section>
 
       <section className="ol-panel">

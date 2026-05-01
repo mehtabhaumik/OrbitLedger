@@ -1,18 +1,21 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AppShell } from '@/components/app-shell';
 import {
   exportWorkspaceBackup,
   parseWorkspaceBackup,
   restoreWorkspaceBackup,
+  summarizeWorkspaceBackup,
   type WebWorkspaceBackup,
 } from '@/lib/workspace-backup';
+import { useAuth } from '@/providers/auth-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function BackupPage() {
   const { activeWorkspace, refresh } = useWorkspace();
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -21,6 +24,22 @@ export default function BackupPage() {
   const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
   const [selectedFileName, setSelectedFileName] = useState('');
   const [fileError, setFileError] = useState<string | null>(null);
+  const [restoreConfirmation, setRestoreConfirmation] = useState('');
+  const [restoreProgress, setRestoreProgress] = useState<string | null>(null);
+  const [lastProtectedAt, setLastProtectedAt] = useState<string | null>(null);
+  const backupSummary = useMemo(() => (preview ? summarizeWorkspaceBackup(preview) : null), [preview]);
+  const activeBackupKey = activeWorkspace
+    ? `orbit-ledger:last-web-backup:${activeWorkspace.workspaceId}`
+    : null;
+
+  useEffect(() => {
+    if (!activeBackupKey) {
+      setLastProtectedAt(null);
+      return;
+    }
+
+    setLastProtectedAt(window.localStorage.getItem(activeBackupKey));
+  }, [activeBackupKey]);
 
   async function handleExport() {
     if (!activeWorkspace) {
@@ -41,8 +60,13 @@ export default function BackupPage() {
         .replace(/[^a-z0-9]+/g, '-')}-workspace-backup.json`;
       link.click();
       URL.revokeObjectURL(href);
+      const protectedAt = backup.exported_at;
+      if (activeBackupKey) {
+        window.localStorage.setItem(activeBackupKey, protectedAt);
+      }
+      setLastProtectedAt(protectedAt);
       setMessageTone('success');
-      setMessage('Workspace backup exported.');
+      setMessage('Workspace backup exported. Keep this file somewhere private and easy to find.');
     } catch (error) {
       setMessageTone('danger');
       setMessage(error instanceof Error ? error.message : 'Workspace backup could not be exported.');
@@ -70,7 +94,7 @@ export default function BackupPage() {
       file.type === 'application/octet-stream' ||
       file.type === '';
     if (!isJsonName || !isJsonType) {
-      setFileError('Choose a valid JSON backup file.');
+      setFileError('Choose a valid backup file.');
       return;
     }
 
@@ -87,58 +111,121 @@ export default function BackupPage() {
   }
 
   async function handleRestore() {
-    if (!activeWorkspace || !preview) {
+    if (!activeWorkspace || !preview || !user) {
+      return;
+    }
+    if (restoreConfirmation.trim() !== activeWorkspace.businessName) {
+      setMessageTone('danger');
+      setMessage(`Type ${activeWorkspace.businessName} to confirm restore.`);
       return;
     }
 
     setIsRestoring(true);
     setMessage(null);
     setMessageTone('success');
+    setRestoreProgress('Preparing rollback copy...');
+    let rollbackBackup: WebWorkspaceBackup | null = null;
     try {
-      await restoreWorkspaceBackup(activeWorkspace.workspaceId, preview);
+      rollbackBackup = await exportWorkspaceBackup(activeWorkspace.workspaceId);
+      setRestoreProgress('Applying backup...');
+      await restoreWorkspaceBackup(activeWorkspace.workspaceId, preview, {
+        expectedOwnerId: user.uid,
+        onProgress: setRestoreProgress,
+      });
       await refresh();
+      const protectedAt = new Date().toISOString();
+      if (activeBackupKey) {
+        window.localStorage.setItem(activeBackupKey, protectedAt);
+      }
+      setLastProtectedAt(protectedAt);
       setPreview(null);
       setSelectedFileName('');
       setFileError(null);
+      setRestoreConfirmation('');
       setMessageTone('success');
-      setMessage('Workspace backup restored. Current workspace data was fully replaced.');
+      setMessage('Workspace backup restored. A rollback copy was prepared before changes were applied.');
     } catch (error) {
+      if (rollbackBackup) {
+        try {
+          setRestoreProgress('Restore failed. Rolling back current data...');
+          await restoreWorkspaceBackup(activeWorkspace.workspaceId, rollbackBackup, {
+            expectedOwnerId: user.uid,
+            onProgress: setRestoreProgress,
+          });
+        } catch {
+          setMessageTone('danger');
+          setMessage('Restore failed, and rollback could not complete. Review the workspace before continuing.');
+          setIsRestoring(false);
+          return;
+        }
+      }
       setMessageTone('danger');
       setMessage(error instanceof Error ? error.message : 'Backup restore could not be completed.');
     } finally {
+      setRestoreProgress(null);
       setIsRestoring(false);
     }
   }
 
   return (
-    <AppShell title="Backup" subtitle="Export a cloud workspace copy or restore a reviewed backup into the current workspace.">
+    <AppShell title="Backup" subtitle="Save a copy of this business or restore a reviewed backup.">
+      <section className="ol-panel">
+        <div className="ol-panel-title" style={{ marginBottom: 12 }}>
+          Protection status
+        </div>
+        <div className="ol-metric-grid">
+          <MetricCard
+            label="Status"
+            helper={
+              lastProtectedAt
+                ? 'This browser has exported a backup for this workspace.'
+                : 'Create a backup to protect this workspace.'
+            }
+            value={lastProtectedAt ? 'Protected' : 'No backup yet'}
+          />
+          <MetricCard
+            label="Last protected"
+            helper="Based on backups exported from this browser."
+            value={lastProtectedAt ? new Date(lastProtectedAt).toLocaleString() : 'Not saved yet'}
+          />
+          <MetricCard
+            label="Included"
+            helper="Customers, transactions, products, invoices, and invoice items."
+            value="Core records"
+          />
+          <MetricCard
+            label="Not included"
+            helper="Browser lock settings and files outside this workspace."
+            value="Local-only items"
+          />
+        </div>
+      </section>
+
       <section className="ol-page-grid ol-page-grid--2">
         <article className="ol-panel-dark">
           <div className="ol-panel-title" style={{ marginBottom: 12 }}>
-            Export workspace backup
+            Save backup
           </div>
           <p className="ol-panel-copy">
-            Export a JSON copy of the current cloud workspace. Browser-local PIN settings are not
-            included, and that limitation should stay explicit.
+            Download a backup of this business. Browser lock settings and files outside this workspace are not included.
           </p>
           <div className="ol-actions">
             <button className="ol-button" disabled={isExporting} type="button" onClick={() => void handleExport()}>
-              {isExporting ? 'Exporting...' : 'Export Backup'}
+              {isExporting ? 'Saving...' : 'Save Backup'}
             </button>
           </div>
         </article>
 
         <article className="ol-panel-glass">
           <div className="ol-panel-title" style={{ marginBottom: 12 }}>
-            Restore reviewed backup
+            Restore backup
           </div>
           <p className="ol-panel-copy">
-            Restoring replaces the current workspace records in cloud storage. Review the backup
-            first before confirming.
+            Restoring replaces the current business data. Orbit Ledger prepares a rollback copy first.
           </p>
           <div className="ol-actions">
             <button className="ol-button-secondary" type="button" onClick={() => fileInputRef.current?.click()}>
-              Choose backup file
+              Choose Backup File
             </button>
             <input
               hidden
@@ -158,7 +245,7 @@ export default function BackupPage() {
             </div>
             <button
               className="ol-button"
-              disabled={!preview || isRestoring}
+              disabled={!preview || isRestoring || restoreConfirmation.trim() !== activeWorkspace?.businessName}
               type="button"
               onClick={() => void handleRestore()}
             >
@@ -168,23 +255,39 @@ export default function BackupPage() {
         </article>
       </section>
 
-      {preview ? (
+      {preview && backupSummary ? (
         <section className="ol-panel">
           <div className="ol-panel-title" style={{ marginBottom: 14 }}>
-            Backup preview
-          </div>
-          <div className="ol-metric-grid">
-            <MetricCard label="Customers" value={preview.entities.customers.length} />
-            <MetricCard label="Transactions" value={preview.entities.transactions.length} />
-            <MetricCard label="Products" value={preview.entities.products.length} />
-            <MetricCard label="Invoices" value={preview.entities.invoices.length} />
-            <MetricCard label="Invoice items" value={preview.entities.invoice_items.length} />
+            Backup Preview
           </div>
           <p className="ol-panel-copy">
-            Exported at {new Date(preview.exported_at).toLocaleString()}.
+            This backup is for {backupSummary.businessName}. It was saved on{' '}
+            {new Date(backupSummary.exportedAt).toLocaleString()} and contains{' '}
+            {backupSummary.totalRecords} records.
           </p>
+          <div className="ol-metric-grid">
+            <MetricCard label="Customers" value={backupSummary.counts.customers} />
+            <MetricCard label="Transactions" value={backupSummary.counts.transactions} />
+            <MetricCard label="Products" value={backupSummary.counts.products} />
+            <MetricCard label="Invoices" value={backupSummary.counts.invoices} />
+            <MetricCard label="Invoice items" value={backupSummary.counts.invoice_items} />
+          </div>
+          <p className="ol-panel-copy">
+            Restoring this backup will replace the current workspace after you type the business name.
+          </p>
+          <label className="ol-field" style={{ marginTop: 16 }}>
+            <span className="ol-field-label">Type business name to confirm</span>
+            <input
+              className="ol-input"
+              value={restoreConfirmation}
+              placeholder={activeWorkspace?.businessName ?? 'Business name'}
+              onChange={(event) => setRestoreConfirmation(event.target.value)}
+            />
+          </label>
         </section>
       ) : null}
+
+      {restoreProgress ? <div className="ol-message ol-message--success">{restoreProgress}</div> : null}
 
       {message ? (
         <div className={`ol-message${messageTone === 'danger' ? ' ol-message--danger' : ' ol-message--success'}`}>
@@ -195,12 +298,12 @@ export default function BackupPage() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: number }) {
+function MetricCard({ label, value, helper }: { label: string; value: number | string; helper?: string }) {
   return (
     <article className="ol-metric-card" data-tone="primary" style={{ minHeight: 128 }}>
       <div className="ol-metric-label">{label}</div>
       <div className="ol-metric-value">{value}</div>
-      <div className="ol-metric-helper">Included in this backup preview.</div>
+      <div className="ol-metric-helper">{helper ?? 'Included in this backup preview.'}</div>
     </article>
   );
 }

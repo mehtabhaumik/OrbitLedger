@@ -23,11 +23,24 @@ import { Section } from '../components/Section';
 import { StatusChip } from '../components/StatusChip';
 import { TextField } from '../components/TextField';
 import {
+  getBusinessSettings,
+  getDashboardSummary,
+  getRecentTransactions,
+  getTopDueCustomers,
+  listPaymentPromiseFollowUps,
+} from '../database';
+import {
+  buildPracticalHelperCards,
   checkOrbitHelperUpdatesSilently,
   getSuggestedOrbitHelperArticles,
   searchOrbitHelper,
 } from '../orbitHelper';
-import type { OrbitHelperArticle, OrbitHelperStatus as OrbitHelperStatusData } from '../orbitHelper';
+import type {
+  OrbitHelperArticle,
+  OrbitHelperStatus as OrbitHelperStatusData,
+  PracticalHelperCard,
+  PracticalHelperTarget,
+} from '../orbitHelper';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, layout, radii, spacing, touch, typography } from '../theme/theme';
 
@@ -41,6 +54,7 @@ export function OrbitHelperScreen({ navigation, route }: OrbitHelperScreenProps)
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const [results, setResults] = useState<OrbitHelperArticle[]>([]);
   const [selectedArticle, setSelectedArticle] = useState<OrbitHelperArticle | null>(null);
+  const [practicalHelpers, setPracticalHelpers] = useState<PracticalHelperCard[]>([]);
 
   const suggestions = useMemo(
     () => getSuggestedOrbitHelperArticles(screenContext),
@@ -52,13 +66,38 @@ export function OrbitHelperScreen({ navigation, route }: OrbitHelperScreenProps)
 
     async function load() {
       try {
-        const updateResult = await checkOrbitHelperUpdatesSilently();
+        const [
+          updateResult,
+          helperResults,
+          businessSettings,
+          dashboardSummary,
+          topDueCustomers,
+          recentTransactions,
+          promises,
+        ] = await Promise.all([
+          checkOrbitHelperUpdatesSilently(),
+          searchOrbitHelper('', screenContext),
+          getBusinessSettings(),
+          getDashboardSummary().catch(() => null),
+          getTopDueCustomers(5).catch(() => []),
+          getRecentTransactions(12).catch(() => []),
+          listPaymentPromiseFollowUps(8).catch(() => []),
+        ]);
         const helperStatus = updateResult.status;
-        const helperResults = await searchOrbitHelper('', screenContext);
         if (isMounted) {
           setStatus(helperStatus);
           setResults(helperResults.map((result) => result.article));
           setSelectedArticle(helperResults[0]?.article ?? null);
+          setPracticalHelpers(
+            buildPracticalHelperCards({
+              businessName: businessSettings?.businessName ?? 'Orbit Ledger',
+              currency: businessSettings?.currency ?? 'INR',
+              promises,
+              recentTransactions,
+              summary: dashboardSummary,
+              topDueCustomers,
+            })
+          );
         }
       } catch {
         if (isMounted) {
@@ -112,10 +151,10 @@ export function OrbitHelperScreen({ navigation, route }: OrbitHelperScreenProps)
         result.updated ? 'Orbit Helper updated' : 'Orbit Helper is current',
         result.updated
           ? `Updated to ${result.status.packName} ${result.status.version}.`
-          : 'The bundled offline help content is already current.'
+          : 'Your help content is already current.'
       );
     } catch {
-      Alert.alert('Update check failed', 'Orbit Helper kept the last working offline content.');
+      Alert.alert('Update check failed', 'Orbit Helper kept the last working help content.');
     } finally {
       setIsCheckingUpdates(false);
     }
@@ -142,12 +181,32 @@ export function OrbitHelperScreen({ navigation, route }: OrbitHelperScreenProps)
     }
   }
 
+  function openPracticalHelper(target: PracticalHelperTarget) {
+    switch (target) {
+      case 'get_paid':
+        navigation.navigate('GetPaid');
+        break;
+      case 'monthly_review':
+        navigation.navigate('MonthlyBusinessReview');
+        break;
+      case 'business_health':
+        navigation.navigate('BusinessHealthSnapshot');
+        break;
+      case 'daily_closing':
+        navigation.navigate('DailyClosingReport');
+        break;
+      case 'customers':
+        navigation.navigate('Customers');
+        break;
+    }
+  }
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.loadingRoot}>
         <ActivityIndicator color={colors.primary} size="large" />
         <OrbitHelperStatus />
-        <Text style={styles.muted}>Preparing offline help</Text>
+        <Text style={styles.muted}>Preparing help</Text>
       </SafeAreaView>
     );
   }
@@ -165,7 +224,7 @@ export function OrbitHelperScreen({ navigation, route }: OrbitHelperScreenProps)
         >
           <ScreenHeader
             title="Orbit Helper"
-            subtitle="Offline help for using your ledger, invoices, backups, tax packs, and security."
+            subtitle="Help for your ledger, invoices, backups, tax setup, and security."
             onBack={() => navigation.goBack()}
           />
 
@@ -175,13 +234,40 @@ export function OrbitHelperScreen({ navigation, route }: OrbitHelperScreenProps)
                 <Text style={styles.eyebrow}>Quiet assistant</Text>
                 <Text style={styles.heroTitle}>Ask without leaving your workflow.</Text>
                 <Text style={styles.heroCopy}>
-                  Orbit Helper uses local guidance first. It does not change your records,
-                  interrupt your ledger work, or require internet for core help.
+                  Orbit Helper keeps guidance close by. It does not change your records,
+                  interrupt your ledger work, or require internet for everyday help.
                 </Text>
               </View>
               <OrbitHelperStatus compact />
             </View>
           </Card>
+
+          <Section title="Practical helpers" subtitle="Local tasks that prepare your next move.">
+            <View style={styles.helperCardGrid}>
+              {practicalHelpers.map((helper) => (
+                <Card key={helper.id} compact accent={helper.priority === 'high' ? 'warning' : 'primary'}>
+                  <View style={styles.helperCardHeader}>
+                    <View style={styles.helperCardTitleBlock}>
+                      <Text style={styles.helperCardTitle}>{helper.title}</Text>
+                      <Text style={styles.helperCardSubtitle}>{helper.subtitle}</Text>
+                    </View>
+                    <StatusChip
+                      label={helper.priority === 'high' ? 'Today' : helper.priority === 'medium' ? 'Next' : 'Ready'}
+                      tone={helper.priority === 'high' ? 'warning' : 'primary'}
+                    />
+                  </View>
+                  <Text style={styles.helperCardResult}>{helper.result}</Text>
+                  <Text style={styles.helperPrivacy}>{helper.privacyNote}</Text>
+                  <PrimaryButton
+                    variant="secondary"
+                    onPress={() => openPracticalHelper(helper.target)}
+                  >
+                    {helper.actionLabel}
+                  </PrimaryButton>
+                </Card>
+              ))}
+            </View>
+          </Section>
 
           <TextField
             autoCapitalize="none"
@@ -190,7 +276,7 @@ export function OrbitHelperScreen({ navigation, route }: OrbitHelperScreenProps)
             value={query}
             onChangeText={setQuery}
             placeholder="Ask about payments, invoices, backups, tax, or PIN"
-            helperText="Short answers with action buttons. Works offline."
+            helperText="Short answers with action buttons."
             returnKeyType="search"
           />
 
@@ -233,7 +319,7 @@ export function OrbitHelperScreen({ navigation, route }: OrbitHelperScreenProps)
                     <Text style={styles.answerTitle}>{selectedArticle.title}</Text>
                     <Text style={styles.answerSummary}>{selectedArticle.summary}</Text>
                   </View>
-                  <StatusChip label="Offline" tone="tax" />
+                  <StatusChip label="Ready" tone="tax" />
                 </View>
                 <View style={styles.answerSteps}>
                   {selectedArticle.body.map((paragraph, index) => (
@@ -284,11 +370,11 @@ export function OrbitHelperScreen({ navigation, route }: OrbitHelperScreenProps)
             </Card>
           </Section>
 
-          <Section title="Helper content" subtitle="Local guidance that can refresh safely.">
+          <Section title="Helper content" subtitle="Guidance that can refresh safely.">
             <Card compact accent="success">
               <View style={styles.statusHeader}>
-                <OrbitHelperStatus label="Orbit Helper online and available" />
-                <StatusChip label="Offline first" tone="success" />
+                <OrbitHelperStatus label="Orbit Helper is ready" />
+                <StatusChip label="Ready" tone="success" />
               </View>
               <InfoRow label="Pack" value={status?.packName ?? 'Orbit Helper Core'} />
               <InfoRow label="Version" value={status?.version ?? 'Bundled'} />
@@ -296,7 +382,7 @@ export function OrbitHelperScreen({ navigation, route }: OrbitHelperScreenProps)
               <InfoRow label="Last checked" value={formatOptionalDate(status?.lastCheckedAt)} />
               <Text style={styles.statusCopy}>
                 Updates run quietly through validated help packs. If an update fails, Orbit Helper
-                keeps the last working offline content.
+                keeps the last working help content.
               </Text>
               <PrimaryButton
                 variant="secondary"
@@ -483,6 +569,42 @@ const styles = StyleSheet.create({
   },
   answerActions: {
     gap: spacing.sm,
+  },
+  helperCardGrid: {
+    gap: spacing.md,
+  },
+  helperCardHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.md,
+    justifyContent: 'space-between',
+  },
+  helperCardTitleBlock: {
+    flex: 1,
+    gap: spacing.xs,
+    minWidth: 0,
+  },
+  helperCardTitle: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '900',
+    lineHeight: 22,
+  },
+  helperCardSubtitle: {
+    color: colors.textMuted,
+    fontSize: typography.label,
+    lineHeight: 20,
+  },
+  helperCardResult: {
+    color: colors.text,
+    fontSize: typography.label,
+    lineHeight: 20,
+  },
+  helperPrivacy: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    fontWeight: '800',
+    lineHeight: 17,
   },
   resultCard: {
     overflow: 'hidden',

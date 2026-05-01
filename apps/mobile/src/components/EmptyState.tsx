@@ -36,6 +36,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   action: {
-    marginTop: spacing.xs,
+    marginTop: spacing.md,
   },
 });

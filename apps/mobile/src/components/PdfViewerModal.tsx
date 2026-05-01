@@ -45,11 +45,10 @@ export function PdfViewerModal({
     >
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
-          <Text style={styles.eyebrow}>PDF view</Text>
+          <Text style={styles.eyebrow}>Document view</Text>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.message}>
-            Open the actual PDF in your device viewer, or use the actions below to save,
-            share, or print it.
+            Open the document, or use the actions below to save, share, or print it.
           </Text>
           {pdf ? (
             <View style={styles.fileCard}>
@@ -57,7 +56,7 @@ export function PdfViewerModal({
                 {pdf.fileName}
               </Text>
               <Text style={styles.fileMeta}>
-                {pageLabel} · {pdf.isTemporary ? 'Not saved yet' : 'Saved locally'}
+                {pageLabel} · {pdf.isTemporary ? 'Not saved yet' : 'Saved'}
               </Text>
             </View>
           ) : null}
@@ -66,7 +65,7 @@ export function PdfViewerModal({
             disabled={!pdf || (isBusy && !isOpening)}
             onPress={onOpen}
           >
-            Open PDF
+            Open Document
           </PrimaryButton>
           <PrimaryButton
             variant="secondary"
@@ -74,7 +73,7 @@ export function PdfViewerModal({
             disabled={!pdf || (isBusy && !isSaving)}
             onPress={onSave}
           >
-            Save / Download
+            Save
           </PrimaryButton>
           <PrimaryButton
             variant="secondary"
@@ -82,7 +81,7 @@ export function PdfViewerModal({
             disabled={!pdf || (isBusy && !isSharing)}
             onPress={onShare}
           >
-            Share PDF
+            Share
           </PrimaryButton>
           <PrimaryButton
             variant="ghost"
@@ -90,7 +89,7 @@ export function PdfViewerModal({
             disabled={!pdf || (isBusy && !isPrinting)}
             onPress={onPrint}
           >
-            Print PDF
+            Print
           </PrimaryButton>
           <PrimaryButton variant="ghost" disabled={isBusy} onPress={onClose}>
             Done

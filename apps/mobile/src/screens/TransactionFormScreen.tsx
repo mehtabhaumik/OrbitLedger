@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.lg,
-    paddingBottom: 132,
+    paddingBottom: 184,
     gap: spacing.lg,
   },
   section: {
@@ -664,7 +664,7 @@ const styles = StyleSheet.create({
     paddingRight: spacing.lg,
   },
   quickPick: {
-    minHeight: 44,
+    minHeight: 48,
     maxWidth: 168,
     borderRadius: 8,
     borderWidth: 1,
@@ -672,6 +672,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   quickPickText: {
     color: colors.text,

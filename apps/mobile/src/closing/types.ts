@@ -32,6 +32,64 @@ export type DailyClosingReport = {
   lowStockProducts: DailyClosingLowStockProduct[];
 };
 
+export type DailyClosingConfirmationKey =
+  | 'cash_collected'
+  | 'payments_recorded'
+  | 'credit_recorded'
+  | 'stock_checked'
+  | 'followups_ready';
+
+export type DailyClosingConfirmation = {
+  key: DailyClosingConfirmationKey;
+  label: string;
+  confirmed: boolean;
+};
+
+export type DailyClosingMismatch = {
+  hasMismatch: boolean;
+  expectedCash: number;
+  countedCash: number | null;
+  difference: number;
+  note: string | null;
+};
+
+export type DailyClosingAction = {
+  id: string;
+  label: string;
+  helper: string;
+  target:
+    | 'get_paid'
+    | 'add_payment'
+    | 'add_credit'
+    | 'products'
+    | 'customers'
+    | 'reports';
+  tone: 'primary' | 'success' | 'warning' | 'danger' | 'neutral';
+};
+
+export type DailyClosingRitualSummary = {
+  id: string;
+  reportDate: string;
+  closedAt: string;
+  confirmations: DailyClosingConfirmation[];
+  mismatch: DailyClosingMismatch;
+  nextDayActions: DailyClosingAction[];
+  totals: {
+    paymentReceived: number;
+    creditGiven: number;
+    invoiceSales: number;
+    promisesDue: number;
+    promisesMissed: number;
+    lowStockProducts: number;
+  };
+};
+
+export type DailyClosingRitualInput = {
+  confirmations: Record<DailyClosingConfirmationKey, boolean>;
+  countedCash: number | null;
+  mismatchNote?: string | null;
+};
+
 export type DailyClosingLedgerEntry = {
   id: string;
   customerId: string;

@@ -14,8 +14,8 @@ type FounderNoteScreenProps = NativeStackScreenProps<RootStackParamList, 'Founde
 const points = {
   different: [
     'It is built around daily jobs: collect money, record activity, trust documents, protect records.',
-    'Offline use is not a side mode. Core work stays local, fast, and reliable on the device.',
-    'Tax packs, country packages, reports, and security are layered on top without making the ledger feel heavy.',
+    'Core work stays fast and reliable, even when the internet is unavailable.',
+    'Local labels, reports, and security stay available without making the daily ledger feel heavy.',
   ],
   issues: [
     'Small businesses often track dues in chats, notebooks, or spreadsheets that break down under daily pressure.',
@@ -24,8 +24,8 @@ const points = {
   ],
   future: [
     'Sharper collections workflows and payment-promise follow-up.',
-    'Stronger country-aware invoicing, templates, and compliance exports.',
-    'Faster native-grade runtime quality across Android, iPhone, tablet, and desktop.',
+    'Stronger local document labels, templates, and review exports.',
+    'Faster, smoother quality across Android, iPhone, tablet, and desktop.',
   ],
 };
 
@@ -51,7 +51,7 @@ export function FounderNoteScreen({ navigation }: FounderNoteScreenProps) {
 
         <Section
           title="Why this app is different"
-          subtitle="The product is shaped around real daily work instead of generic CRUD screens."
+          subtitle="The product is shaped around real daily money control, not a broad feature checklist."
         >
           <Card glass>
             {points.different.map((point) => (
@@ -79,7 +79,7 @@ export function FounderNoteScreen({ navigation }: FounderNoteScreenProps) {
 
         <Section
           title="Future plan"
-          subtitle="The roadmap stays practical: faster actions, stronger trust, and smarter local workflows."
+          subtitle="The roadmap stays practical: faster actions, stronger trust, and smarter daily workflows."
         >
           <Card glass>
             {points.future.map((point) => (

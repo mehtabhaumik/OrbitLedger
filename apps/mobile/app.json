@@ -2,6 +2,7 @@
   "expo": {
     "name": "Orbit Ledger by Rudraix",
     "slug": "orbit-ledger",
+    "description": "Collect faster, close each day with confidence, and never lose track of who owes what.",
     "scheme": "orbitledger",
     "version": "1.0.0",
     "platforms": [

@@ -4,13 +4,16 @@ import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
 import {
   addDoc,
   collection,
+  count,
   doc,
   type FieldValue,
+  getAggregateFromServer,
   getDoc,
   getDocs,
   query,
   runTransaction,
   serverTimestamp,
+  sum,
   Timestamp,
   where,
 } from 'firebase/firestore';
@@ -135,43 +138,39 @@ type DashboardSnapshot = {
 
 export async function loadWorkspaceDashboardSnapshot(workspaceId: string): Promise<DashboardSnapshot> {
   const firestore = getWebFirestore();
-  const [customersSnapshot, invoicesSnapshot, transactionsSnapshot] = await Promise.all([
-    getDocs(collection(firestore, 'workspaces', workspaceId, 'customers')),
-    getDocs(collection(firestore, 'workspaces', workspaceId, 'invoices')),
-    getDocs(collection(firestore, 'workspaces', workspaceId, 'transactions')),
+  const customersRef = collection(firestore, 'workspaces', workspaceId, 'customers');
+  const invoicesRef = collection(firestore, 'workspaces', workspaceId, 'invoices');
+  const transactionsRef = collection(firestore, 'workspaces', workspaceId, 'transactions');
+
+  const [customersAggregate, invoicesAggregate, paymentAggregate] = await Promise.all([
+    getAggregateFromServer(customersRef, {
+      customerCount: count(),
+      receivableTotal: sum('current_balance'),
+    }),
+    getAggregateFromServer(invoicesRef, {
+      invoiceCount: count(),
+    }),
+    getAggregateFromServer(query(transactionsRef, where('type', '==', 'payment')), {
+      total: sum('amount'),
+    }),
   ]);
 
-  const balanceByCustomer = new Map<string, number>();
-  for (const customer of customersSnapshot.docs) {
-    const data = customer.data() as { opening_balance?: number };
-    balanceByCustomer.set(customer.id, typeof data.opening_balance === 'number' ? data.opening_balance : 0);
-  }
-
-  const recentPayments = transactionsSnapshot.docs.reduce((total, entry) => {
-    const data = entry.data() as { customer_id?: string; type?: string; amount?: number };
-    if (data.customer_id && typeof data.amount === 'number') {
-      const current = balanceByCustomer.get(data.customer_id) ?? 0;
-      balanceByCustomer.set(
-        data.customer_id,
-        current + (data.type === 'credit' ? data.amount : data.type === 'payment' ? -data.amount : 0)
-      );
-    }
-
-    if (data.type !== 'payment') {
-      return total;
-    }
-
-    return total + (typeof data.amount === 'number' ? data.amount : 0);
-  }, 0);
-
-  const receivableTotal = Array.from(balanceByCustomer.values()).reduce((total, balance) => total + balance, 0);
+  const customerData = customersAggregate.data();
+  const invoiceData = invoicesAggregate.data();
+  const paymentData = paymentAggregate.data();
+  const receivableTotal = safeAggregateNumber(customerData.receivableTotal);
+  const totalPayments = safeAggregateNumber(paymentData.total);
 
   return {
     receivableTotal,
-    customerCount: customersSnapshot.size,
-    invoiceCount: invoicesSnapshot.size,
-    recentPayments,
+    customerCount: safeAggregateNumber(customerData.customerCount),
+    invoiceCount: safeAggregateNumber(invoiceData.invoiceCount),
+    recentPayments: totalPayments,
   };
+}
+
+function safeAggregateNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
 function mapWorkspace(id: string, data: FirestoreWorkspaceDoc): OrbitWorkspaceSummary {

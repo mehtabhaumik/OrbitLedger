@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { AppShell } from '@/components/app-shell';
 import { parseAmount, validatePositiveAmount } from '@/lib/form-validation';
@@ -11,6 +11,15 @@ import {
   type WorkspaceCustomer,
   type WorkspaceTransaction,
 } from '@/lib/workspace-data';
+import {
+  buildCsv,
+  downloadTextFile,
+  filterWorkspaceTransactions,
+  makeExportFileName,
+  pickSelectedRows,
+  sumTransactionAmounts,
+  type TransactionTypeFilter,
+} from '@/lib/workspace-power';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function TransactionsPage() {
@@ -21,6 +30,7 @@ export default function TransactionsPage() {
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'credit' | 'payment'>('payment');
   const [note, setNote] = useState('');
+  const [effectiveDate, setEffectiveDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [errors, setErrors] = useState<{
     customerId: string | null;
     amount: string | null;
@@ -35,6 +45,11 @@ export default function TransactionsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<TransactionTypeFilter>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -48,6 +63,7 @@ export default function TransactionsPage() {
       setTransactions(nextTransactions);
       setCustomerId((current) => current || nextCustomers[0]?.id || '');
     });
+    setSelectedTransactionIds(new Set());
   }, [activeWorkspace]);
 
   async function addTransaction() {
@@ -76,10 +92,12 @@ export default function TransactionsPage() {
         type,
         amount: parseAmount(amount) ?? 0,
         note,
+        effectiveDate,
       });
       setTransactions((current) => [transaction, ...current]);
       setAmount('');
       setNote('');
+      setEffectiveDate(new Date().toISOString().slice(0, 10));
       setTouched({ customerId: false, amount: false });
       setErrors({ customerId: null, amount: null });
       setMessageTone('success');
@@ -101,6 +119,78 @@ export default function TransactionsPage() {
     setErrors((current) => ({ ...current, amount: validatePositiveAmount(value, 'Amount') }));
   }
 
+  const filteredTransactions = useMemo(
+    () =>
+      filterWorkspaceTransactions(transactions, {
+        query: search,
+        typeFilter,
+        range: { from: dateFrom, to: dateTo },
+      }),
+    [dateFrom, dateTo, search, transactions, typeFilter]
+  );
+  const selectedTransactions = useMemo(
+    () => pickSelectedRows(filteredTransactions, selectedTransactionIds),
+    [filteredTransactions, selectedTransactionIds]
+  );
+  const transactionSummary = useMemo(
+    () => sumTransactionAmounts(filteredTransactions),
+    [filteredTransactions]
+  );
+  const allVisibleSelected =
+    filteredTransactions.length > 0 &&
+    filteredTransactions.every((transaction) => selectedTransactionIds.has(transaction.id));
+
+  function toggleTransactionSelection(transactionId: string) {
+    setSelectedTransactionIds((current) => {
+      const next = new Set(current);
+      if (next.has(transactionId)) {
+        next.delete(transactionId);
+      } else {
+        next.add(transactionId);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllVisibleTransactions() {
+    setSelectedTransactionIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        filteredTransactions.forEach((transaction) => next.delete(transaction.id));
+      } else {
+        filteredTransactions.forEach((transaction) => next.add(transaction.id));
+      }
+      return next;
+    });
+  }
+
+  function exportTransactions() {
+    if (!activeWorkspace) {
+      return;
+    }
+
+    const rows = selectedTransactions.map((transaction) => [
+      transaction.effectiveDate,
+      transaction.type === 'payment' ? 'Payment' : 'Credit',
+      transaction.customerName,
+      transaction.note ?? '',
+      transaction.amount,
+    ]);
+    const csv = buildCsv(['Date', 'Type', 'Customer', 'Note', 'Amount'], rows);
+    downloadTextFile(
+      makeExportFileName([
+        activeWorkspace.businessName,
+        'transactions',
+        selectedTransactionIds.size ? 'selected' : 'current-view',
+      ]),
+      csv
+    );
+    setMessageTone('success');
+    setMessage(
+      `${selectedTransactions.length} transaction${selectedTransactions.length === 1 ? '' : 's'} exported.`
+    );
+  }
+
   return (
     <AppShell title="Transactions" subtitle="Quick payment and credit entry with a clean audit trail.">
       <section className="ol-panel-dark">
@@ -109,7 +199,7 @@ export default function TransactionsPage() {
             <div className="ol-panel-title">Fast entry</div>
             <p className="ol-panel-copy" style={{ maxWidth: 620 }}>
               Use the wider web layout to log payments and credits without losing context. This is
-              where the product should feel faster and more deliberate than a flat form sheet.
+              Review, filter, and export the entries that need attention.
             </p>
           </div>
           <div className="ol-chip-row">
@@ -174,6 +264,15 @@ export default function TransactionsPage() {
             {errors.amount ? <span className="ol-field-error">{errors.amount}</span> : null}
           </label>
           <label className="ol-field">
+            <span className="ol-field-label">Date</span>
+            <input
+              className="ol-input"
+              type="date"
+              value={effectiveDate}
+              onChange={(event) => setEffectiveDate(event.target.value)}
+            />
+          </label>
+          <label className="ol-field">
             <span className="ol-field-label">Note</span>
             <input className="ol-input" value={note} onChange={(event) => setNote(event.target.value)} />
           </label>
@@ -191,14 +290,99 @@ export default function TransactionsPage() {
         ) : null}
       </section>
 
+      <section className="ol-metric-grid">
+        <Metric label="Showing" value={String(filteredTransactions.length)} helper="Entries in this view." tone="primary" />
+        <Metric
+          label="Payments"
+          value={formatCurrency(transactionSummary.payments, activeWorkspace?.currency ?? 'INR')}
+          helper="Money received in this view."
+          tone="success"
+        />
+        <Metric
+          label="Credits"
+          value={formatCurrency(transactionSummary.credits, activeWorkspace?.currency ?? 'INR')}
+          helper="New credit in this view."
+          tone="warning"
+        />
+      </section>
+
       <section className="ol-table">
-        <div className="ol-table-head" style={{ gridTemplateColumns: '0.7fr 1.4fr 0.7fr' }}>
+        <div className="ol-table-tools">
+          <label className="ol-field">
+            <span className="ol-field-label">Search transactions</span>
+            <input
+              className="ol-input"
+              placeholder="Customer or note"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <label className="ol-field">
+            <span className="ol-field-label">Type</span>
+            <select
+              className="ol-select"
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)}
+            >
+              <option value="all">All entries</option>
+              <option value="payment">Payments</option>
+              <option value="credit">Credits</option>
+            </select>
+          </label>
+          <label className="ol-field">
+            <span className="ol-field-label">From</span>
+            <input className="ol-input" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+          </label>
+          <label className="ol-field">
+            <span className="ol-field-label">To</span>
+            <input className="ol-input" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+          </label>
+          <div className="ol-table-actions">
+            <button className="ol-button-secondary" type="button" onClick={() => {
+              setSearch('');
+              setTypeFilter('all');
+              setDateFrom('');
+              setDateTo('');
+              setSelectedTransactionIds(new Set());
+            }}>
+              Clear view
+            </button>
+            <button className="ol-button" type="button" disabled={!selectedTransactions.length} onClick={exportTransactions}>
+              Export {selectedTransactionIds.size ? 'selected' : 'view'}
+            </button>
+          </div>
+        </div>
+        <div className="ol-table-summary">
+          {selectedTransactionIds.size
+            ? `${selectedTransactions.length} selected from this view.`
+            : 'Select rows for a focused export, or export the current view.'}
+        </div>
+        <div className="ol-table-head" style={{ gridTemplateColumns: '44px 0.65fr 1.35fr 0.65fr 0.7fr' }}>
+          <span>
+            <input
+              aria-label="Select all visible transactions"
+              checked={allVisibleSelected}
+              className="ol-checkbox"
+              type="checkbox"
+              onChange={toggleAllVisibleTransactions}
+            />
+          </span>
           <span>Type</span>
           <span>Customer and note</span>
+          <span>Date</span>
           <span style={{ textAlign: 'right' }}>Amount</span>
         </div>
-        {transactions.map((transaction) => (
-          <div className="ol-table-row" key={transaction.id} style={{ gridTemplateColumns: '0.7fr 1.4fr 0.7fr' }}>
+        {filteredTransactions.map((transaction) => (
+          <div className="ol-table-row" key={transaction.id} style={{ gridTemplateColumns: '44px 0.65fr 1.35fr 0.65fr 0.7fr' }}>
+            <span>
+              <input
+                aria-label={`Select ${transaction.customerName} transaction`}
+                checked={selectedTransactionIds.has(transaction.id)}
+                className="ol-checkbox"
+                type="checkbox"
+                onChange={() => toggleTransactionSelection(transaction.id)}
+              />
+            </span>
             <span className="ol-status-text" data-tone={transaction.type === 'payment' ? 'success' : 'warning'} style={{ fontWeight: 800 }}>
               {transaction.type === 'payment' ? 'Payment' : 'Credit'}
             </span>
@@ -209,18 +393,39 @@ export default function TransactionsPage() {
                 {transaction.note || 'No note'}
               </span>
             </span>
+            <span>{transaction.effectiveDate || '—'}</span>
             <span className="ol-amount" style={{ textAlign: 'right', fontWeight: 800 }}>
               {formatCurrency(transaction.amount, activeWorkspace?.currency ?? 'INR')}
             </span>
           </div>
         ))}
-        {!transactions.length ? (
+        {!filteredTransactions.length ? (
           <div className="ol-empty">
-            No transactions yet. Add the first payment or credit entry.
+            No transactions match this view.
           </div>
         ) : null}
       </section>
     </AppShell>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  helper,
+  tone,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  tone: 'primary' | 'warning' | 'success';
+}) {
+  return (
+    <article className="ol-metric-card" data-tone={tone}>
+      <div className="ol-metric-label">{label}</div>
+      <div className="ol-metric-value">{value}</div>
+      <div className="ol-metric-helper">{helper}</div>
+    </article>
   );
 }
 

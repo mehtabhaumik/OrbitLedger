@@ -27,6 +27,8 @@ export type PaymentPromiseStatus = 'open' | 'fulfilled' | 'missed' | 'cancelled'
 
 export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'overdue' | 'cancelled';
 
+export type CustomerTimelineNoteKind = 'note' | 'dispute';
+
 export type SyncStatus = OrbitSyncStatus;
 
 export type SyncMetadata = OrbitSyncMetadata;
@@ -184,6 +186,21 @@ export type CustomerLedger = {
   balance: number;
 };
 
+export type CustomerTimelineNote = SyncMetadata & {
+  id: string;
+  customerId: string;
+  kind: CustomerTimelineNoteKind;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AddCustomerTimelineNoteInput = {
+  customerId: string;
+  kind: CustomerTimelineNoteKind;
+  body: string;
+};
+
 export type PaymentReminder = SyncMetadata & {
   id: string;
   customerId: string;
@@ -245,6 +262,7 @@ export type DashboardSummary = {
 };
 
 export type TopDueCustomer = Pick<CustomerSummary, 'id' | 'name' | 'balance' | 'latestActivityAt'> & {
+  phone?: string | null;
   lastPaymentAt: string | null;
   lastReminderAt: string | null;
   insight: CustomerPaymentInsight;
@@ -712,6 +730,19 @@ export type PaymentReminderRow = {
   balance_at_send: number;
   shared_via: string;
   created_at: string;
+  sync_id: string;
+  last_modified: string;
+  sync_status: SyncStatus;
+  server_revision?: number;
+};
+
+export type CustomerTimelineNoteRow = {
+  id: string;
+  customer_id: string;
+  kind: CustomerTimelineNoteKind;
+  body: string;
+  created_at: string;
+  updated_at: string;
   sync_id: string;
   last_modified: string;
   sync_status: SyncStatus;

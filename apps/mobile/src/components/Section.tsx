@@ -35,6 +35,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: spacing.md,

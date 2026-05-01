@@ -35,10 +35,10 @@ export function AppShell({
   const [isOnline, setIsOnline] = useState(true);
   const syncBadge = useMemo(() => {
     if (!activeWorkspace) {
-      return 'No workspace';
+      return 'No business selected';
     }
 
-    return isOnline ? 'Cloud workspace' : 'Offline cache';
+    return isOnline ? 'Online' : 'Offline';
   }, [activeWorkspace, isOnline]);
 
   useEffect(() => {
@@ -67,7 +67,7 @@ export function AppShell({
               src="/branding/orbit-ledger-logo-transparent.png"
             />
           </div>
-          <span className="ol-sidebar-badge">SaaS</span>
+          <span className="ol-sidebar-badge">Web</span>
         </div>
 
         <div className="ol-sidebar-group">
@@ -104,10 +104,9 @@ export function AppShell({
           </Link>
 
           <div className="ol-panel-glass" style={{ padding: 16, display: 'grid', gap: 8 }}>
-            <strong style={{ fontSize: 14 }}>Workspace design</strong>
+            <strong style={{ fontSize: 14 }}>Quick guide</strong>
             <span className="ol-muted" style={{ lineHeight: 1.6, fontSize: 13 }}>
-              This shell keeps business actions, documents, backup trust, and sync state visible
-              without making the product feel cluttered.
+              Use web for cleanup, reports, invoices, backups, and careful review.
             </span>
           </div>
         </div>
@@ -135,7 +134,7 @@ export function AppShell({
               </select>
             ) : null}
             <span className="ol-chip ol-chip--primary">
-              {user?.displayName || user?.email || 'Signed-in owner'}
+              {user?.displayName || user?.email || 'Owner'}
             </span>
             <button
               onClick={() => {

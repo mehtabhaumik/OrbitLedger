@@ -60,11 +60,13 @@ export function PrimaryButton({
           />
         ) : (
           <Text
+            adjustsFontSizeToFit
+            minimumFontScale={0.82}
             numberOfLines={2}
             style={[
               styles.label,
-          variant === 'secondary' || variant === 'ghost' ? styles.secondaryLabel : null,
-          variant === 'danger' ? styles.dangerLabel : null,
+              variant === 'secondary' || variant === 'ghost' ? styles.secondaryLabel : null,
+              variant === 'danger' ? styles.dangerLabel : null,
             ]}
           >
             {children}
@@ -80,12 +82,12 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
   },
   button: {
-    minHeight: 52,
+    minHeight: 54,
     borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
   },
   primary: {
     backgroundColor: colors.primary,
@@ -117,6 +119,7 @@ const styles = StyleSheet.create({
     fontSize: typography.body,
     fontWeight: '800',
     lineHeight: 20,
+    textAlign: 'center',
   },
   secondaryLabel: {
     color: colors.primary,

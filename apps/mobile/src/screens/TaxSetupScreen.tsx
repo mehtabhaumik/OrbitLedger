@@ -339,7 +339,7 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
         taxSetupRequired: false,
       });
 
-      Alert.alert('Invoice tax profile saved', 'The invoice tax setup was saved on this device.', [
+      Alert.alert('Invoice tax setup saved', 'Your invoice tax setup is ready.', [
         { text: 'Done', onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
@@ -400,8 +400,8 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
 
       if (result.updateAvailable) {
         Alert.alert(
-          'Tax pack update available',
-          'An online tax pack can be downloaded, validated, and stored locally for offline use.',
+          'Tax update available',
+          'A newer tax setup can be checked and applied now.',
           [
             { text: 'Not now' },
             {
@@ -417,10 +417,10 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
         return;
       }
 
-      Alert.alert('No tax pack update available', result.message);
+      Alert.alert('No tax update available', result.message);
     } catch {
-      setTaxPackUpdateError('Update check failed. Your current local tax setup was not changed.');
-      Alert.alert('Update check failed', 'Your current local tax setup was not changed.');
+      setTaxPackUpdateError('Update check failed. Your current tax setup was not changed.');
+      Alert.alert('Update check failed', 'Your current tax setup was not changed.');
     } finally {
       setIsCheckingTaxPack(false);
     }
@@ -433,7 +433,7 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
 
     const taxType = taxTypeValue.trim().toUpperCase();
     if (!taxType) {
-      Alert.alert('Enter tax type first', 'Add a tax type such as GST or VAT before applying a tax pack.');
+      Alert.alert('Enter tax type first', 'Add a tax type such as GST or VAT before applying tax details.');
       return;
     }
 
@@ -519,7 +519,7 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
           taxRate: readFirstRate(result.taxPack.rulesJson),
           version: result.taxPack.version,
         });
-        Alert.alert('Tax pack applied', result.message);
+        Alert.alert('Tax setup applied', result.message);
         return;
       }
 
@@ -527,10 +527,10 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
         taxPack: result.taxPack,
         source: result.taxPack ? 'fallback' : 'missing',
       });
-      Alert.alert('Tax pack not applied', result.message);
+      Alert.alert('Tax setup not applied', result.message);
     } catch {
-      setTaxPackUpdateError('Tax pack could not be applied. Your current local tax setup was not changed.');
-      Alert.alert('Tax pack could not be applied', 'Your current local tax setup was not changed.');
+      setTaxPackUpdateError('Tax setup could not be applied. Your current tax setup was not changed.');
+      Alert.alert('Tax setup could not be applied', 'Your current tax setup was not changed.');
     } finally {
       setIsApplyingTaxPack(false);
     }
@@ -559,7 +559,7 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
           />
           <EmptyState
             title="Tax module is turned off"
-            message="Enable tax in business profile settings when you want to set up a local tax profile."
+            message="Enable tax in business profile settings when you want to set up invoice tax."
             action={
               <PrimaryButton variant="secondary" onPress={() => navigation.navigate('BusinessProfileSettings')}>
                 Open Settings
@@ -584,17 +584,17 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
         >
           <ScreenHeader
             title="Tax Setup"
-            subtitle="Set a basic local tax profile without changing daily ledger access."
+            subtitle="Set basic invoice tax details without changing daily ledger access."
             onBack={() => navigation.goBack()}
           />
 
           <Card glass elevated accent="tax">
-            <Text style={styles.noticeTitle}>Online tax pack updates</Text>
+            <Text style={styles.noticeTitle}>Online tax updates</Text>
             <Text style={styles.noticeText}>
-              You can check for the latest tax pack, apply it after validation, and keep using the
-              installed version offline.
+              You can check for newer tax setup details and keep using the last working setup when
+              you do not have internet.
             </Text>
-            <StatusChip label="Works offline after install" tone="tax" />
+            <StatusChip label="Works without internet" tone="tax" />
           </Card>
 
           <Card compact accent="primary">
@@ -763,7 +763,7 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
                       onChangeText={onChange}
                       editable={invoiceTaxEnabled === 'yes'}
                       placeholder="CA, TX, NY"
-                      helperText="Use comma-separated state codes. Exact local rates should be verified."
+                      helperText="Use comma-separated state codes. Exact rates should be verified."
                       error={errors.usaRegisteredStates?.message}
                     />
                   )}
@@ -823,13 +823,13 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
           </FormSection>
 
           <FormSection
-            title="Tax Pack Updates"
-            subtitle="Validated packs are saved locally and can be used offline after they are applied."
+            title="Tax Updates"
+            subtitle="Checked packages stay ready after they are applied."
             accent="tax"
           >
             <Text style={styles.muted}>
-              Download a tax pack for this region when you choose. It is validated, saved on this
-              device, and remains available offline after it is applied.
+              Download tax details for this region when you choose. They are checked before use and
+              remain available after they are applied.
             </Text>
             <StatusInfoRow
               label="Applied version"
@@ -884,7 +884,7 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
 
           <FormSection
             title="Default Invoice Tax Rate"
-            subtitle="Rates are auto-filled from the active tax pack when available. Use this only when you need to override locally."
+            subtitle="Rates are auto-filled from the active setup when available. Use this only when you need to adjust them."
             accent="primary"
           >
             <Controller
@@ -916,7 +916,7 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
                   inputMode="decimal"
                   placeholder="18"
                   error={errors.taxRate?.message}
-                  helperText="Tax packs fill this automatically. Change it only for a manual override."
+                  helperText="Your saved region setup can fill this automatically. Change it only when needed."
                 />
               )}
             />
@@ -932,7 +932,7 @@ export function TaxSetupScreen({ navigation }: TaxSetupScreenProps) {
                   autoCapitalize="none"
                   placeholder="manual-1"
                   error={errors.version?.message}
-                  helperText="A simple label so this local profile can be replaced later."
+                  helperText="A simple label so this setup can be replaced later."
                 />
               )}
             />
@@ -978,7 +978,7 @@ function readFirstRate(taxRulesJson: string): string {
 }
 
 function formatTaxPackVersion(taxPack: TaxPack | null | undefined): string {
-  return taxPack ? `${taxPack.taxType} v${taxPack.version}` : 'No tax pack applied';
+  return taxPack ? `${taxPack.taxType} v${taxPack.version}` : 'No tax setup applied';
 }
 
 function formatTaxPackLastUpdated(taxPack: TaxPack | null | undefined): string {

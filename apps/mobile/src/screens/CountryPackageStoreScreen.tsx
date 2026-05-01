@@ -59,27 +59,27 @@ const starterCatalog: CountryPackageCatalogEntry[] = [
     countryCode: 'IN',
     regionCode: '',
     name: 'India Starter Package',
-    description: 'Starter GST-ready tax labels, invoice templates, and compliance summaries.',
+    description: 'Starter GST labels, India invoice wording, statements, and practical summaries.',
     requiredTier: 'free',
-    highlights: ['Tax pack', 'Invoice and statement templates', 'Compliance summaries'],
+    highlights: ['GST labels', 'Invoice and statement wording', 'Starter summaries'],
   },
   {
     id: 'US:',
     countryCode: 'US',
     regionCode: '',
     name: 'United States Starter Package',
-    description: 'Starter package for sales-tax-ready documents and local reporting structure.',
+    description: 'Starter sales tax labels, document wording, and review summaries.',
     requiredTier: 'pro',
-    highlights: ['Tax pack', 'Document templates', 'Accountant-ready summaries'],
+    highlights: ['Sales tax labels', 'Document wording', 'Review summaries'],
   },
   {
     id: 'GB:',
     countryCode: 'GB',
     regionCode: '',
     name: 'United Kingdom Starter Package',
-    description: 'Starter VAT-ready labels, statement templates, and compliance report structure.',
+    description: 'Starter VAT labels, statement wording, and review summaries.',
     requiredTier: 'pro',
-    highlights: ['Tax pack', 'VAT-ready templates', 'Compliance summaries'],
+    highlights: ['VAT labels', 'Document wording', 'Review summaries'],
   },
 ];
 
@@ -136,7 +136,7 @@ export function CountryPackageStoreScreen({ navigation }: CountryPackageStorePro
       setCountryPackProducts(products.countryPacks);
       await refreshPackages(entries);
     } catch {
-      setErrorMessage('Country packages could not load. Please try again.');
+      setErrorMessage('Region settings could not load. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -171,7 +171,7 @@ export function CountryPackageStoreScreen({ navigation }: CountryPackageStorePro
 
     Alert.alert(
       `Buy ${entry.name}?`,
-      'Orbit Ledger will open the app store purchase flow. The package can be installed and used offline after the store confirms purchase.',
+      'Orbit Ledger will open the app store purchase flow. The package is ready to use after the store confirms purchase.',
       [
         { text: 'Not now', style: 'cancel' },
         {
@@ -218,7 +218,7 @@ export function CountryPackageStoreScreen({ navigation }: CountryPackageStorePro
       if (result.updateAvailable) {
         Alert.alert(
           'Package update available',
-          `${entry.name} v${result.latestVersion} can be installed and used offline after it is applied.`
+          `${entry.name} v${result.latestVersion} can be installed and used after it is applied.`
         );
         return;
       }
@@ -313,7 +313,7 @@ export function CountryPackageStoreScreen({ navigation }: CountryPackageStorePro
 
     Alert.alert(
       'Country package active',
-      `${entry.name} is installed locally and now controls the active country setup.`
+      `${entry.name} is installed and now controls the active country setup.`
     );
   }
 
@@ -355,7 +355,7 @@ export function CountryPackageStoreScreen({ navigation }: CountryPackageStorePro
       <SafeAreaView style={styles.root}>
         <View style={styles.centered}>
           <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={styles.centeredText}>Loading country packages</Text>
+          <Text style={styles.centeredText}>Loading region settings</Text>
         </View>
       </SafeAreaView>
     );
@@ -369,8 +369,8 @@ export function CountryPackageStoreScreen({ navigation }: CountryPackageStorePro
         keyboardShouldPersistTaps="handled"
       >
         <ScreenHeader
-          title="Country Packages"
-          subtitle="Install a complete local bundle for tax packs, document templates, and compliance summaries."
+          title="Region Settings"
+          subtitle="Install local labels, document wording, and starter summaries for your market."
           backLabel="Back"
           onBack={() => navigation.goBack()}
         />
@@ -383,7 +383,7 @@ export function CountryPackageStoreScreen({ navigation }: CountryPackageStorePro
               : 'No business profile loaded'}
           </Text>
           <Text style={styles.infoFootnote}>
-            Switching countries here installs the package first, then updates the business profile to use that package.
+            Switching countries here checks the setup first, then updates the business profile.
           </Text>
         </Card>
 
@@ -399,8 +399,8 @@ export function CountryPackageStoreScreen({ navigation }: CountryPackageStorePro
               <Text style={styles.planTitle}>Package access</Text>
               <Text style={styles.planText}>
                 {subscriptionStatus.isPro
-                  ? 'Pro document features are active. Paid country packs are still unlocked by their own store purchase.'
-                  : 'Included packages are available now. Paid country packs unlock richer local tax, template, and compliance bundles without blocking your ledger.'}
+                  ? 'Pro document features are active. Paid region packs are still unlocked by their own store purchase.'
+                  : 'Included region settings are available now. Paid packs add richer labels, templates, and summaries without blocking your ledger.'}
               </Text>
             </View>
             <StatusChip label={subscriptionStatus.tierLabel} tone={subscriptionStatus.isPro ? 'premium' : 'neutral'} />
@@ -415,7 +415,7 @@ export function CountryPackageStoreScreen({ navigation }: CountryPackageStorePro
           </Card>
         ) : null}
 
-        <Section title="Available packages" subtitle="Install once, then use tax, template, and compliance logic offline.">
+        <Section title="Available packages" subtitle="Install once, then use local labels, documents, and report setup when needed.">
           {catalog.map((entry) => {
             const installedPackage = installedPackages[entry.id] ?? null;
             const updateStatus = updateStatuses[entry.id] ?? null;
@@ -523,7 +523,7 @@ function CountryPackageCard({
       <View style={styles.packageMeta}>
         <MetaRow label="Installed version" value={installedPackage ? `v${installedPackage.version}` : 'Not installed'} />
         <MetaRow
-          label="Tax pack"
+          label="Tax setup"
           value={installedPackage ? `${installedPackage.taxPack.taxType} v${installedPackage.taxPack.version}` : 'Included after install'}
         />
         <MetaRow
@@ -599,7 +599,7 @@ function buildCountryPackageCatalog(
     name: `${currentCountryCode}${currentRegionCode ? `-${currentRegionCode}` : ''} Current Region Package`,
     description: 'An online package matched to your current business country and region.',
     requiredTier: isIncludedCountryPackage(currentCountryCode) ? 'free' : 'pro',
-    highlights: ['Tax pack', 'Local document templates', 'Compliance report structure'],
+    highlights: ['Tax setup', 'Local document templates', 'Review summary structure'],
   };
 
   const entries = [currentPackage, ...starterCatalog];

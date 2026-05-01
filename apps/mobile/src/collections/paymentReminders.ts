@@ -1,7 +1,9 @@
+import { getLocalBusinessPack, getLocalReminderToneDescriptions } from '@orbit-ledger/core';
 import { Share } from 'react-native';
 
 import type { PaymentReminderTone } from '../database';
 import { formatCurrency, formatShortDate } from '../lib/format';
+import { formatPaymentDetailsLine, type PaymentShareDetails } from './paymentRequests';
 
 export type PaymentReminderMessageInput = {
   businessName: string;
@@ -9,6 +11,9 @@ export type PaymentReminderMessageInput = {
   balance: number;
   currency: string;
   tone: PaymentReminderTone;
+  countryCode?: string | null;
+  regionCode?: string | null;
+  paymentDetails?: PaymentShareDetails | null;
   lastPaymentDate?: string | null;
 };
 
@@ -24,13 +29,16 @@ export const paymentReminderToneLabels: Record<PaymentReminderTone, string> = {
 };
 
 export const paymentReminderToneDescriptions: Record<PaymentReminderTone, string> = {
-  polite: 'Friendly follow-up for regular customers.',
-  firm: 'Clear request when dues need attention.',
-  final: 'Strong but professional final reminder.',
+  ...getLocalReminderToneDescriptions({ countryCode: 'GENERIC' }),
 };
 
 export function buildPaymentReminderMessage(input: PaymentReminderMessageInput): string {
+  const localPack = getLocalBusinessPack({
+    countryCode: input.countryCode,
+    regionCode: input.regionCode,
+  });
   const amount = formatCurrency(Math.max(input.balance, 0), input.currency);
+  const paymentDetailsLine = formatPaymentDetailsLine(input.paymentDetails, input.countryCode);
   const lastPaymentLine = input.lastPaymentDate
     ? `Last payment recorded: ${formatShortDate(input.lastPaymentDate)}.\n`
     : '';
@@ -41,9 +49,11 @@ export function buildPaymentReminderMessage(input: PaymentReminderMessageInput):
       '',
       `This is a reminder from ${input.businessName}. Your pending balance is ${amount}.`,
       lastPaymentLine.trim(),
-      'Please arrange the payment at the earliest.',
+      localPack.reminders.firmAction,
+      paymentDetailsLine,
+      'Please reply after sending the payment. I will mark it received once I confirm it.',
       '',
-      `Thank you,\n${input.businessName}`,
+      `${localPack.reminders.signOff},\n${input.businessName}`,
     ]
       .filter(Boolean)
       .join('\n');
@@ -55,7 +65,9 @@ export function buildPaymentReminderMessage(input: PaymentReminderMessageInput):
       '',
       `Your pending balance with ${input.businessName} is ${amount}.`,
       lastPaymentLine.trim(),
-      'Please clear this amount as soon as possible so we can keep the account updated.',
+      localPack.reminders.finalAction,
+      paymentDetailsLine,
+      'Please reply after sending the payment. I will mark it received once I confirm it.',
       '',
       `Regards,\n${input.businessName}`,
     ]
@@ -69,9 +81,11 @@ export function buildPaymentReminderMessage(input: PaymentReminderMessageInput):
     `Hope you are doing well. This is a gentle reminder from ${input.businessName}.`,
     `Your pending balance is ${amount}.`,
     lastPaymentLine.trim(),
-    'Please send the payment when convenient.',
+    localPack.reminders.politeAction,
+    paymentDetailsLine,
+    'Please reply after sending the payment. I will mark it received once I confirm it.',
     '',
-    `Thank you,\n${input.businessName}`,
+    `${localPack.reminders.signOff},\n${input.businessName}`,
   ]
     .filter(Boolean)
     .join('\n');

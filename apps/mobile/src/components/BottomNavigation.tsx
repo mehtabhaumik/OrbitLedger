@@ -55,7 +55,7 @@ export function BottomNavigation({
   }
 
   return (
-    <View style={[styles.shell, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+    <View style={[styles.shell, { paddingBottom: Math.max(insets.bottom + spacing.xs, spacing.md) }]}>
       <View style={styles.content}>
         {tabs.map((tab) => {
           const isActive = active === tab.key;
@@ -75,7 +75,12 @@ export function BottomNavigation({
                 pressed ? styles.tabPressed : null,
               ]}
             >
-              <Text style={[styles.tabLabel, isActive ? styles.tabLabelActive : null]}>
+              <Text
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+                numberOfLines={1}
+                style={[styles.tabLabel, isActive ? styles.tabLabelActive : null]}
+              >
                 {tab.label}
               </Text>
             </Pressable>
@@ -97,14 +102,14 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     borderTopWidth: 1,
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
   },
   content: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
   tab: {
-    minHeight: layout.minTapTarget,
+    minHeight: Math.max(layout.minTapTarget, 52),
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -123,6 +128,8 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: typography.label,
     fontWeight: '800',
+    lineHeight: 18,
+    textAlign: 'center',
   },
   tabLabelActive: {
     color: colors.primary,

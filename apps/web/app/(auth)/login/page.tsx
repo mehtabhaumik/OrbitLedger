@@ -1,6 +1,7 @@
 'use client';
 
 import type { FormEvent } from 'react';
+import { ORBIT_LEDGER_POSITIONING } from '@orbit-ledger/core';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -10,15 +11,15 @@ import { useAuth } from '@/providers/auth-provider';
 const loginFeatures = [
   {
     title: 'Collections first',
-    copy: 'Track receivables, invoices, and reports from a signed-in business workspace.',
+    copy: 'Review who owes money, what was paid, and which documents need attention.',
   },
   {
-    title: 'Backup trust',
-    copy: 'Use the same workspace identity for exports, restores, and future shared access.',
+    title: 'Backup confidence',
+    copy: 'Save reviewed copies and restore only after checking what will change.',
   },
   {
-    title: 'India-ready formatting',
-    copy: 'Indian currency formatting, tax-aware direction, and a calmer ledger-focused shell.',
+    title: 'Local business fit',
+    copy: 'Use familiar money, document, and customer details for everyday business work.',
   },
 ] as const;
 
@@ -160,7 +161,7 @@ export default function LoginPage() {
     try {
       await sendPasswordReset(email);
       setNotice(
-        `If ${email} is linked to Orbit Ledger cloud sync, a password reset link has been sent.`
+        `If ${email} is linked to Orbit Ledger, a password reset link has been sent.`
       );
     } catch (nextError) {
       setError(getAuthErrorMessage(nextError));
@@ -178,23 +179,21 @@ export default function LoginPage() {
             alt="Orbit Ledger"
             src="/branding/orbit-ledger-logo-transparent.png"
           />
-          <span className="ol-brand-header-copy">Signed-in workspace</span>
+          <span className="ol-brand-header-copy">Business workspace</span>
         </div>
 
         <aside className="ol-auth-showcase">
           <div className="ol-chip-row">
             <span className="ol-chip ol-chip--success">
               <span className="ol-dot" />
-              Signed-in workspace
+              Business workspace
             </span>
-            <span className="ol-chip ol-chip--tax">Cloud sync access</span>
+            <span className="ol-chip ol-chip--tax">Ready for web review</span>
           </div>
 
-          <div className="ol-onboarding-headline">Business ledger workspace with real trust signals</div>
+          <div className="ol-onboarding-headline">Daily money control for small businesses</div>
           <p className="ol-auth-showcase-copy">
-            The web app is the synced Orbit Ledger workspace. Sign in to access customers,
-            receivables, invoices, reports, backup control, and a calmer SaaS shell than the old
-            flat placeholder UI.
+            {ORBIT_LEDGER_POSITIONING.promise}
           </p>
 
           <div className="ol-auth-feature-grid">
@@ -212,11 +211,11 @@ export default function LoginPage() {
         <section className="ol-auth-panel">
           <div>
             <div className="ol-panel-title">
-              {mode === 'sign_in' ? 'Sign in to your workspace' : 'Create a synced account'}
+              {mode === 'sign_in' ? 'Sign in to your workspace' : 'Create your account'}
             </div>
             <p className="ol-panel-copy">
-              Web access always uses a signed-in business workspace so the same ledger can stay
-              consistent across signed-in devices.
+              Use web when you want a wider screen for customer cleanup, invoice review, reports,
+              and backup confidence.
             </p>
           </div>
 
@@ -375,13 +374,13 @@ function getAuthErrorMessage(error: unknown) {
     return 'Google sign-in was cancelled.';
   }
   if (raw.includes('auth/popup-blocked')) {
-    return 'Popup access was blocked. Orbit Ledger will fall back to a redirect sign-in flow.';
+    return 'Google sign-in was blocked. Try again in this browser.';
   }
   if (raw.includes('auth/operation-not-supported-in-this-environment')) {
-    return 'This browser blocked popup sign-in. Orbit Ledger will fall back to a redirect sign-in flow.';
+    return 'This browser blocked Google sign-in. Try again in a full browser window.';
   }
   if (raw.includes('auth/unauthorized-domain')) {
-    return 'This domain is not authorized for Google sign-in in Firebase Authentication yet.';
+    return 'Google sign-in is not ready for this web address yet.';
   }
   if (raw.includes('auth/too-many-requests')) {
     return 'Too many attempts were made. Wait a moment and try again.';

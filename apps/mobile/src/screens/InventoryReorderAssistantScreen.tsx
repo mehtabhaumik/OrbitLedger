@@ -115,7 +115,7 @@ export function InventoryReorderAssistantScreen({
     try {
       setIsSharing(format);
       const saved = await shareInventoryReorderExport({ format, report });
-      Alert.alert('Reorder list shared', `${saved.fileName} was saved locally and opened for sharing.`);
+      Alert.alert('Reorder list shared', `${saved.fileName} was saved and opened for sharing.`);
     } catch (error) {
       Alert.alert(
         'Export failed',
@@ -315,7 +315,7 @@ export function InventoryReorderAssistantScreen({
             <Card accent="success">
               <Text style={styles.exportTitle}>Export reorder list</Text>
               <Text style={styles.exportText}>
-                Save this reorder assistant result locally and share it with purchasing or suppliers.
+                Save this reorder assistant result and share it with purchasing or suppliers.
               </Text>
               <View style={styles.exportActions}>
                 <PrimaryButton
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
   content: {
     gap: spacing.xl,
     padding: spacing.lg,
-    paddingBottom: 112,
+    paddingBottom: 144,
   },
   eyebrow: {
     color: colors.primary,

@@ -38,7 +38,7 @@ export async function generateComplianceReport(
 ): Promise<GeneratedComplianceReport> {
   const businessSettings = await getBusinessSettings();
   if (!businessSettings) {
-    throw new Error('Business settings are required before generating compliance summaries.');
+    throw new Error('Business settings are required before generating review summaries.');
   }
 
   const reportType = normalizeComplianceReportType(input.reportType);

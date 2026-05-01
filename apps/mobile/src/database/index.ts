@@ -4,6 +4,7 @@ export type { PerformanceSeedSize } from './seed';
 export {
   acknowledgeDocumentTaxNotice,
   addCustomer,
+  addCustomerTimelineNote,
   addInvoice,
   addPaymentReminder,
   addPaymentPromise,
@@ -19,6 +20,7 @@ export {
   getCountryPackageLastCheckedAt,
   getCustomerBalance,
   getCustomerLedger,
+  getCustomerTimelineNote,
   getDashboardSummary,
   getDocumentTemplate,
   getDocumentTaxNoticeAcknowledged,
@@ -37,6 +39,7 @@ export {
   getTopDueCustomers,
   installCountryPackage,
   listComplianceReports,
+  listCustomerTimelineNotes,
   listProducts,
   listDocumentTemplates,
   listTaxPacks,
@@ -45,6 +48,7 @@ export {
   listInvoicesForCustomer,
   listOpenPaymentPromisesForCustomer,
   listPaymentPromisesForCustomer,
+  listPaymentPromiseFollowUps,
   listPaymentRemindersForCustomer,
   listUpcomingPaymentPromises,
   saveBusinessSettings,
@@ -71,6 +75,7 @@ export {
 } from './repository';
 export type {
   AddCustomerInput,
+  AddCustomerTimelineNoteInput,
   AddInvoiceInput,
   AddInvoiceItemInput,
   AddPaymentReminderInput,
@@ -93,6 +98,8 @@ export type {
   CustomerBehaviorKind,
   CustomerInsightTone,
   CustomerLedger,
+  CustomerTimelineNote,
+  CustomerTimelineNoteKind,
   CustomerPaymentInsight,
   CustomerSummaryFilter,
   CustomerSummary,

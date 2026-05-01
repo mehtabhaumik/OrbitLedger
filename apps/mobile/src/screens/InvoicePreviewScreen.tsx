@@ -61,6 +61,12 @@ import {
 } from '../monetization';
 import type { DocumentFeatureGateState, ProBrandTheme, SubscriptionStatus } from '../monetization';
 import type { RootStackParamList } from '../navigation/types';
+import {
+  buildPaymentRequestMessage,
+  sharePaymentRequestMessage,
+  type PaymentShareDetails,
+} from '../collections';
+import { getBusinessPaymentDetails } from '../payments/businessPaymentDetails';
 import { getInvoiceTaxDocumentLabels, getInvoiceTaxProfile, type InvoiceTaxProfile } from '../tax';
 import { colors, spacing, typography } from '../theme/theme';
 
@@ -97,6 +103,7 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
   const [viewedPdf, setViewedPdf] = useState<GeneratedPdf | null>(null);
   const [isPdfViewerVisible, setIsPdfViewerVisible] = useState(false);
   const [documentHistory, setDocumentHistory] = useState<GeneratedDocumentHistoryEntry[]>([]);
+  const [paymentDetails, setPaymentDetails] = useState<PaymentShareDetails>({});
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -144,11 +151,12 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
       }
 
       try {
-        const [businessProfile, invoice, subscriptionStatus, proBrandTheme] = await Promise.all([
+        const [businessProfile, invoice, subscriptionStatus, proBrandTheme, savedPaymentDetails] = await Promise.all([
           getBusinessSettings(),
           getInvoice(invoiceId),
           getSubscriptionStatus(),
           getActiveProBrandTheme(),
+          getBusinessPaymentDetails(),
         ]);
 
         if (!businessProfile) {
@@ -179,6 +187,7 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
             invoiceTaxProfile,
           });
           setDocumentHistory(getInvoiceDocumentHistory());
+          setPaymentDetails(savedPaymentDetails);
         }
       } catch {
         if (canUpdate()) {
@@ -230,9 +239,9 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
       await recordUsageAnalyticsEvent('pdf_generated');
       setExportStatus({
         tone: 'success',
-        message: `Saved locally as ${savedPdf.fileName}.`,
+        message: `Saved as ${savedPdf.fileName}.`,
       });
-      Alert.alert('PDF saved', `${savedPdf.fileName} has been saved locally on this device.`);
+      Alert.alert('Invoice saved', `${savedPdf.fileName} has been saved.`);
     } catch {
       setExportStatus({
         tone: 'error',
@@ -264,18 +273,18 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
       } catch {
         setExportStatus({
           tone: 'warning',
-          message: `${savedPdf.fileName} was saved locally, but sharing is not available right now.`,
+          message: `${savedPdf.fileName} was saved, but sharing is not available right now.`,
         });
         Alert.alert(
-          'PDF saved locally',
-          'Sharing is not available right now. The PDF was still saved on this device.'
+          'Invoice saved',
+          'Sharing is not available right now. The invoice was still saved.'
         );
         return;
       }
 
       setExportStatus({
         tone: 'success',
-        message: `${savedPdf.fileName} is saved locally and ready for WhatsApp, email, or file apps.`,
+        message: `${savedPdf.fileName} is saved and ready for WhatsApp, email, or file apps.`,
       });
     } catch {
       setExportStatus({
@@ -283,6 +292,42 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
         message: 'Invoice PDF could not be shared. Please try again.',
       });
       Alert.alert('Invoice PDF could not be shared', 'Please try again.');
+    } finally {
+      setIsSharing(false);
+    }
+  }
+
+  async function sharePaymentMessage() {
+    if (!document || !source) {
+      return;
+    }
+
+    try {
+      setExportStatus(null);
+      setIsSharing(true);
+      const data = document.data;
+      const message = buildPaymentRequestMessage({
+        kind: 'invoice',
+        businessName: data.businessIdentity.businessName,
+        customerName: data.customerIdentity.name,
+        amount: source.invoice.totalAmount,
+        currency: data.metadata.currency,
+        countryCode: data.businessIdentity.countryCode,
+        dueDate: data.metadata.dueDate,
+        invoiceNumber: data.metadata.invoiceNumber,
+        paymentDetails,
+      });
+      await sharePaymentRequestMessage(message);
+      setExportStatus({
+        tone: 'success',
+        message: 'Payment message is ready to send. Record the payment only after you confirm it.',
+      });
+    } catch {
+      setExportStatus({
+        tone: 'error',
+        message: 'Payment message could not be shared. Please try again.',
+      });
+      Alert.alert('Message could not be shared', 'Please try again.');
     } finally {
       setIsSharing(false);
     }
@@ -309,11 +354,11 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
         setExportStatus({
           tone: 'warning',
           message:
-            'The PDF is ready, but your device could not open a PDF viewer. You can still save, share, or print it here.',
+            'The invoice is ready, but your device could not open it. You can still save, share, or print it here.',
         });
         Alert.alert(
-          'PDF is ready',
-          'Your device could not open a PDF viewer. You can still save, share, or print it from this screen.'
+          'Invoice is ready',
+          'Your device could not open it. You can still save, share, or print it from this screen.'
         );
         return;
       }
@@ -349,7 +394,7 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
     }
 
     if (!viewedPdf.isTemporary) {
-      Alert.alert('PDF already saved', `${viewedPdf.fileName} is already saved locally.`);
+      Alert.alert('Invoice already saved', `${viewedPdf.fileName} is already saved.`);
       return;
     }
 
@@ -365,9 +410,9 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
       await recordUsageAnalyticsEvent('pdf_generated');
       setExportStatus({
         tone: 'success',
-        message: `Saved locally as ${savedPdf.fileName}.`,
+        message: `Saved as ${savedPdf.fileName}.`,
       });
-      Alert.alert('PDF saved', `${savedPdf.fileName} has been saved locally on this device.`);
+      Alert.alert('Invoice saved', `${savedPdf.fileName} has been saved.`);
     } catch {
       Alert.alert('Invoice PDF could not be saved', 'Please try again.');
     } finally {
@@ -432,7 +477,7 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
       setLastSavedPdf(null);
       setExportStatus({
         tone: 'success',
-        message: 'Preview refreshed with the latest local invoice data.',
+        message: 'Preview refreshed with the latest invoice data.',
       });
     } catch {
       setExportStatus({
@@ -750,11 +795,11 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
             <Text style={styles.fileNameText}>{invoiceFileName}</Text>
           </View>
           <Text style={styles.muted}>
-            Save keeps a local PDF copy. Share opens the device sheet for WhatsApp, email, or file
-            apps when available.
+            Save keeps a copy you can find later. Share lets you send it through WhatsApp, email,
+            or file apps when available.
           </Text>
           {lastSavedPdf ? (
-            <Text style={styles.muted}>Last saved locally as {lastSavedPdf.fileName}</Text>
+            <Text style={styles.muted}>Last saved as {lastSavedPdf.fileName}</Text>
           ) : null}
           {documentHistory.length > 0 ? (
             <View style={styles.historyList}>
@@ -769,7 +814,7 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
           ) : (
             <View style={styles.inlineEmptyState}>
               <Text style={styles.inlineEmptyTitle}>No invoices exported yet</Text>
-              <Text style={styles.muted}>Save or share this invoice to keep a local PDF copy.</Text>
+              <Text style={styles.muted}>Save or share this invoice to keep a copy.</Text>
             </View>
           )}
           {exportStatus ? (
@@ -795,6 +840,14 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
               </Text>
             </View>
           ) : null}
+          <PrimaryButton
+            variant="secondary"
+            loading={isSharing}
+            disabled={exportInProgress && !isSharing}
+            onPress={sharePaymentMessage}
+          >
+            Share Payment Message
+          </PrimaryButton>
           <PrimaryButton
             loading={isOpeningPdf}
             disabled={exportInProgress && !isOpeningPdf}

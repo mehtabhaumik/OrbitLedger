@@ -30,16 +30,16 @@ type UpgradeScreenProps = NativeStackScreenProps<RootStackParamList, 'Upgrade'>;
 
 const proBenefits = [
   {
-    title: 'Polished statements',
-    detail: 'Cleaner statement layouts with stronger spacing, typography, and print formatting.',
+    title: 'Cleaner shared documents',
+    detail: 'Sharper statements and customer documents when you need to send polished copies.',
   },
   {
     title: 'Business branding',
-    detail: 'Use your logo, authorized signature, and a restrained Pro theme in customer documents.',
+    detail: 'Use your logo, signature, and business identity in customer-facing documents.',
   },
   {
-    title: 'Future premium tools',
-    detail: 'Prepared for tax-ready documents, templates, and other advanced business workflows.',
+    title: 'More document options',
+    detail: 'Prepared for local labels, templates, and review packs as the business grows.',
   },
 ];
 
@@ -155,7 +155,7 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
       >
         <ScreenHeader
           title="Upgrade to Pro"
-          subtitle="Premium document polish for businesses that share statements often."
+          subtitle="Optional document polish for businesses that share statements often."
           backLabel="Back"
           onBack={() => navigation.goBack()}
         />
@@ -164,9 +164,8 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
           <Text style={styles.eyebrow}>Orbit Ledger Pro</Text>
           <Text style={styles.heroTitle}>Sharper documents, with your business identity.</Text>
           <Text style={styles.heroText}>
-            Pro is for premium document presentation. Daily ledger tracking, customers,
-            transactions, basic PDF export, backups, restore, and PIN protection stay available
-            offline on Free.
+            Pro improves presentation. Daily dues, payments, customers, basic exports, backups,
+            restore, and app lock stay available on Free.
           </Text>
           {billingMessage ? <Text style={styles.storeMessage}>{billingMessage}</Text> : null}
           <StatusChip
@@ -181,7 +180,7 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
           />
         </Card>
 
-        <Section title="Pro benefits" subtitle="Helpful upgrades, not a trap for core ledger work.">
+        <Section title="Pro benefits" subtitle="Helpful upgrades, not a trap for core daily work.">
           {proBenefits.map((benefit) => (
             <Card key={benefit.title} compact accent="premium" style={styles.benefitRow}>
               <View style={styles.benefitDot} />
@@ -193,7 +192,7 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
           ))}
         </Section>
 
-        <Section title="Choose Pro plan" subtitle="Prices and availability are loaded from Google Play or App Store.">
+        <Section title="Choose Pro plan" subtitle="Prices come from your app store before you buy.">
           {PRO_PLAN_CATALOG.map((plan) => {
             const storeProduct = storeProducts.find((product) => product.productId === plan.productId);
             const displayPrice = storeProduct?.displayPrice || plan.price;
@@ -219,7 +218,7 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
                   <Text style={styles.price}>{displayPrice}</Text>
                   <Text style={styles.cadence}>{plan.cadence}</Text>
                 </View>
-                <Text style={styles.productIdText}>Store product ID: {plan.productId}</Text>
+                <Text style={styles.productIdText}>The app store confirms access before Pro turns on.</Text>
                 <PrimaryButton
                   disabled={
                     isLoadingSubscription ||
@@ -241,14 +240,13 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
         </Section>
 
         <Card compact accent="tax">
-          <Text style={styles.entitlementTitle}>Store entitlement</Text>
+          <Text style={styles.entitlementTitle}>Purchase access</Text>
           <Text style={styles.entitlementText}>
-            Purchases are confirmed by Google Play Billing on Android and App Store in-app
-            purchases on iOS. Orbit Ledger keeps a local derived cache so Pro features remain
+            Purchases are confirmed through your app store. Orbit Ledger keeps Pro features
             available after the store confirms access.
           </Text>
           <Text style={styles.productIdText}>
-            Last store refresh: {lastRefreshAt ? formatShortDateTime(lastRefreshAt) : 'Not refreshed yet'}
+            Last checked: {lastRefreshAt ? formatShortDateTime(lastRefreshAt) : 'Not checked yet'}
           </Text>
           <PrimaryButton
             disabled={isLoadingSubscription || Boolean(activatingPlanId) || isRestoring}
@@ -263,8 +261,8 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
         <Card compact accent="success">
           <Text style={styles.noteTitle}>Free stays useful</Text>
           <Text style={styles.noteText}>
-            Upgrading is optional. Orbit Ledger will not block basic dues, payments, customer
-            records, basic statement exports, backups, restore, or app lock features.
+            Upgrading is optional. Orbit Ledger will not block dues, payments, customer records,
+            basic statement exports, backups, restore, or app lock.
           </Text>
         </Card>
 

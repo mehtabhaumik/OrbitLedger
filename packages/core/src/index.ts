@@ -18,22 +18,41 @@ export function canUseBusinessOnWeb(link: OrbitWorkspaceLink): boolean {
 
 export function describeBusinessAvailability(link: OrbitWorkspaceLink): string {
   if (canUseBusinessOnWeb(link)) {
-    return 'Available across signed-in devices.';
+    return 'Available on web and signed-in devices.';
   }
 
-  return 'Stored only on this device until sync is enabled.';
+  return 'Available on this device. You can add online access later.';
 }
 
 export function getBusinessModeLabel(mode: OrbitBusinessStorageMode): string {
-  return mode === 'synced' ? 'Synced workspace' : 'Local-only business';
+  return mode === 'synced' ? 'Signed-in access' : 'This device';
 }
 
 export function getBusinessModeDescription(mode: OrbitBusinessStorageMode): string {
   return mode === 'synced'
-    ? 'This business is linked to a signed-in workspace and can be used across devices.'
-    : 'This business stays only on this device until sync is enabled.';
+    ? 'Use this business on this phone, web, and signed-in devices.'
+    : 'Use this business on this phone. You can add web access later.';
 }
 
 export function canBootstrapWorkspaceLocally(dataState: OrbitWorkspaceDataState): boolean {
   return dataState === 'profile_only' || dataState === 'full_dataset';
 }
+
+export {
+  formatPhoneForLocalBusinessPack,
+  getLocalBusinessPack,
+  getLocalPhoneExample,
+  getLocalReminderToneDescriptions,
+} from './localBusinessPacks';
+export type {
+  LocalBusinessPack,
+  LocalBusinessPackLookup,
+  LocalReminderTone,
+} from './localBusinessPacks';
+
+export {
+  ORBIT_LEDGER_APP_STORE_COPY,
+  ORBIT_LEDGER_LAUNCH_TRUST_CHECKS,
+  ORBIT_LEDGER_POSITIONING,
+  ORBIT_LEDGER_SCREENSHOT_STORIES,
+} from './marketLaunch';

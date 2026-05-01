@@ -106,7 +106,7 @@ export function prepareCustomerStatementData(input: CustomerStatementInput): Cus
       },
       taxBreakdown: {
         rows: [],
-        message: 'Country and region tax breakdown rows are available in invoice and compliance summaries when local tax data is configured.',
+        message: 'Country and region tax breakdown rows are available in invoice and local tax summaries when local tax data is configured.',
       },
       taxRegistrationNumber: null,
     },

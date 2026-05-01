@@ -7,6 +7,7 @@ import {
   paymentReminderToneDescriptions,
   paymentReminderToneLabels,
 } from '../collections';
+import type { PaymentShareDetails } from '../collections';
 import type { PaymentReminderTone } from '../database';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { colors, radii, shadows, spacing, touch, typography } from '../theme/theme';
@@ -19,6 +20,9 @@ type PaymentReminderModalProps = {
   customerName: string;
   balance: number;
   currency: string;
+  countryCode?: string | null;
+  regionCode?: string | null;
+  paymentDetails?: PaymentShareDetails | null;
   lastPaymentDate?: string | null;
   lastReminderDate?: string | null;
   isSending?: boolean;
@@ -34,6 +38,9 @@ export function PaymentReminderModal({
   customerName,
   balance,
   currency,
+  countryCode,
+  regionCode,
+  paymentDetails,
   lastPaymentDate,
   lastReminderDate,
   isSending = false,
@@ -46,7 +53,10 @@ export function PaymentReminderModal({
     businessName,
     currency,
     customerName,
+    countryCode,
     lastPaymentDate,
+    paymentDetails,
+    regionCode,
     tone: selectedTone,
   });
 

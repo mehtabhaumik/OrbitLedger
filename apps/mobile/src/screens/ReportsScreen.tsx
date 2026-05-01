@@ -117,7 +117,7 @@ export function ReportsScreen({ navigation }: ReportsScreenProps) {
       const exportFile = await shareAccountantExport({ format });
       Alert.alert(
         'Export shared',
-        `${exportFile.fileName} was saved locally and opened for sharing.`
+        `${exportFile.fileName} was saved and opened for sharing.`
       );
     } catch {
       Alert.alert('Export failed', 'Orbit Ledger could not prepare the accountant export. Please try again.');
@@ -151,7 +151,7 @@ export function ReportsScreen({ navigation }: ReportsScreenProps) {
       >
         <ScreenHeader
           title="Reports"
-          subtitle="Simple business summaries from local ledger data."
+          subtitle="Simple business summaries from your saved ledger data."
           backLabel="Dashboard"
           onBack={() => navigation.goBack()}
         />
@@ -316,7 +316,7 @@ export function ReportsScreen({ navigation }: ReportsScreenProps) {
           <View style={styles.accountantText}>
             <Text style={styles.accountantTitle}>Share with accountant</Text>
             <Text style={styles.accountantDescription}>
-              Export transactions, invoices, and compliance summaries as JSON or CSV. No direct
+              Export transactions, invoices, and local tax summaries as JSON or CSV. No direct
               integration is connected yet.
             </Text>
           </View>
@@ -347,7 +347,7 @@ export function ReportsScreen({ navigation }: ReportsScreenProps) {
 
         <Card compact>
           <Text style={styles.noteText}>
-            Reports are calculated fully offline from saved invoices and ledger entries.
+            Reports are calculated from your saved invoices and ledger entries.
           </Text>
         </Card>
 
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.lg,
-    paddingBottom: 112,
+    paddingBottom: 144,
     gap: spacing.xl,
   },
   summaryGrid: {

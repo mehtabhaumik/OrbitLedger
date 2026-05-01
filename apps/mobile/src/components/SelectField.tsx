@@ -68,7 +68,7 @@ export function SelectField({
             </Text>
           ) : null}
         </View>
-        <Text style={styles.chevron}>Select</Text>
+        <Text style={styles.chevron}>Change</Text>
       </Pressable>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {!error && helperText ? <Text style={styles.helper}>{helperText}</Text> : null}
@@ -79,7 +79,7 @@ export function SelectField({
             <View style={styles.sheetHeader}>
               <View>
                 <Text style={styles.sheetTitle}>{label}</Text>
-                <Text style={styles.sheetSubtitle}>Choose one option.</Text>
+                <Text style={styles.sheetSubtitle}>Choose what fits best.</Text>
               </View>
               <PrimaryButton variant="ghost" onPress={() => setIsOpen(false)}>
                 Close
@@ -123,7 +123,7 @@ export function SelectField({
 
 const styles = StyleSheet.create({
   container: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   label: {
     color: colors.text,
@@ -131,13 +131,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   button: {
-    minHeight: 56,
+    minHeight: 58,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   sheetHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing.md,
   },
   sheetTitle: {

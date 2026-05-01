@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const loadingSteps = [
-  'Checking your signed-in workspace',
+  'Checking your business',
   'Restoring the latest business profile',
   'Preparing invoices, customers, and reports',
-  'Warming the browser cache for faster sessions',
+  'Getting the workspace ready',
 ] as const;
 
 const capabilityCards = [
@@ -19,8 +19,8 @@ const capabilityCards = [
     copy: 'Generate invoices, statements, backups, and business records from the same workspace.',
   },
   {
-    title: 'Offline-aware workspace',
-    copy: 'Orbit Ledger keeps a local browser layer ready so this workspace feels closer to an app than a website.',
+    title: 'Ready when work starts',
+    copy: 'Orbit Ledger keeps important screens prepared so review work feels quick.',
   },
 ] as const;
 
@@ -49,6 +49,7 @@ export function WorkspaceLoadingScreen() {
               className="ol-brand-logo"
               alt="Orbit Ledger"
               src="/branding/orbit-ledger-logo-transparent.png"
+              style={{ height: 32, maxWidth: 'min(420px, 100%)', objectFit: 'contain' }}
             />
             <span className="ol-brand-header-copy">Workspace preparation</span>
           </div>
@@ -59,8 +60,8 @@ export function WorkspaceLoadingScreen() {
                 Preparing your workspace
               </div>
               <p className="ol-panel-copy" style={{ maxWidth: 520 }}>
-                Orbit Ledger is checking your signed-in business, restoring the latest workspace
-                snapshot, and getting the browser layer ready for smooth work.
+                Orbit Ledger is checking your business and preparing the latest details for smooth
+                work.
               </p>
             </div>
             <div className="ol-loader-cluster" aria-hidden="true">
@@ -99,11 +100,11 @@ export function WorkspaceLoadingScreen() {
           <div className="ol-chip-row">
             <span className="ol-chip ol-chip--tax">
               <span className="ol-dot" />
-              Cloud workspace
+              Web workspace
             </span>
             <span className="ol-chip ol-chip--success">
               <span className="ol-dot" />
-              Offline-aware
+              Works with saved data
             </span>
           </div>
 
@@ -111,8 +112,8 @@ export function WorkspaceLoadingScreen() {
             Built for serious small businesses
           </div>
           <p className="ol-auth-showcase-copy">
-            Orbit Ledger brings collections, invoices, reports, tax-aware workflows, and backup
-            trust into one calm workspace. This loading state should explain the work, not hide it.
+            Orbit Ledger brings collections, invoices, reports, and backup confidence into one
+            calm workspace while your business opens.
           </p>
 
           <div className="ol-showcase-stack">

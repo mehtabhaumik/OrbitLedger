@@ -61,6 +61,11 @@ import {
 } from '../monetization';
 import type { ProBrandTheme, ProBrandThemeKey, SubscriptionStatus } from '../monetization';
 import type { RootStackParamList } from '../navigation/types';
+import {
+  getBusinessPaymentDetails,
+  saveBusinessPaymentDetails,
+  type BusinessPaymentDetails,
+} from '../payments/businessPaymentDetails';
 import { composeAddress, parseAddress } from '../forms/address';
 import {
   businessNameSchema,
@@ -172,6 +177,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
   const [isSyncWorkspaceActionBusy, setIsSyncWorkspaceActionBusy] = useState(false);
   const [isRunningWorkspaceSync, setIsRunningWorkspaceSync] = useState(false);
   const [syncOverview, setSyncOverview] = useState<SyncOverview | null>(null);
+  const [paymentDetails, setPaymentDetails] = useState<BusinessPaymentDetails>({});
   const { pinEnabled, setPinInactivityTimeoutMs, timeoutMs } = useAppLock();
   const {
     control,
@@ -203,6 +209,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
           savedBiometricEnabled,
           signedInCloudUser,
           currentSyncOverview,
+          savedPaymentDetails,
         ] = await Promise.all([
           getBusinessSettings(),
           getSubscriptionStatus(),
@@ -212,6 +219,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
           isBiometricUnlockEnabled(),
           Promise.resolve(getCurrentCloudUser()),
           getSyncOverview(),
+          getBusinessPaymentDetails(),
         ]);
         if (!settings) {
           navigation.replace('Setup');
@@ -255,6 +263,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
           setCloudUser(signedInCloudUser);
           setCloudWorkspaces(workspaces);
           setSyncOverview(currentSyncOverview);
+          setPaymentDetails(savedPaymentDetails);
         }
       } catch {
         Alert.alert('Business profile could not load', 'Please try again.');
@@ -282,6 +291,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
         isBiometricUnlockEnabled(),
         Promise.resolve(getCurrentCloudUser()),
         getSyncOverview(),
+        getBusinessPaymentDetails(),
       ])
         .then(
           async ([
@@ -292,6 +302,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
             savedBiometricEnabled,
             signedInCloudUser,
             currentSyncOverview,
+            savedPaymentDetails,
           ]) => {
           setSettingsSnapshot(settings);
           setSubscriptionStatus(subscription);
@@ -300,6 +311,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
           setBiometricEnabled(savedBiometricEnabled);
           setCloudUser(signedInCloudUser);
           setSyncOverview(currentSyncOverview);
+          setPaymentDetails(savedPaymentDetails);
           if (signedInCloudUser) {
             const workspaces = await listCloudWorkspacesForUser(signedInCloudUser.uid);
             setCloudWorkspaces(workspaces);
@@ -337,7 +349,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
       setSyncOverview(await getSyncOverview());
     } catch (error) {
       console.warn('[cloud-workspaces] Business profile cloud state could not load', error);
-      Alert.alert('Cloud workspace state could not load', 'Your local business details remain unchanged.');
+      Alert.alert('Account details could not load', 'Your business details were not changed.');
     } finally {
       setIsLoadingCloudState(false);
     }
@@ -351,11 +363,11 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
       setCloudWorkspaces([]);
       setSyncOverview(await getSyncOverview());
       Alert.alert(
-        'Cloud account signed out',
-        'This device can still use its local business data. Sync will resume after you sign in again.'
+        'Signed out',
+        'You can keep using this business here. Online saving will resume after you sign in again.'
       );
     } catch {
-      Alert.alert('Cloud sign-out failed', 'Please try again.');
+      Alert.alert('Sign out failed', 'Please try again.');
     } finally {
       setIsLoadingCloudState(false);
     }
@@ -367,16 +379,16 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
       const result = await runWorkspaceSync();
       setSyncOverview(await getSyncOverview());
       Alert.alert(
-        'Workspace sync complete',
+        'Online save complete',
         result.conflicts.length
-          ? `${result.pushed} change${result.pushed === 1 ? '' : 's'} synced, ${result.pulled} remote update${result.pulled === 1 ? '' : 's'} applied, and ${result.conflicts.length} item${result.conflicts.length === 1 ? '' : 's'} need review.`
-          : `${result.pushed} change${result.pushed === 1 ? '' : 's'} synced and ${result.pulled} remote update${result.pulled === 1 ? '' : 's'} applied.`
+          ? `${result.pushed} change${result.pushed === 1 ? '' : 's'} saved, ${result.pulled} update${result.pulled === 1 ? '' : 's'} received, and ${result.conflicts.length} item${result.conflicts.length === 1 ? '' : 's'} need review.`
+          : `${result.pushed} change${result.pushed === 1 ? '' : 's'} saved and ${result.pulled} update${result.pulled === 1 ? '' : 's'} received.`
       );
     } catch (error) {
       console.warn('[workspace-sync] Manual workspace sync failed', error);
       Alert.alert(
-        'Workspace sync could not finish',
-        'Your local data was preserved. Check your connection and try again.'
+        'Online save could not finish',
+        'Your business data was kept safe. Check your connection and try again.'
       );
     } finally {
       setIsRunningWorkspaceSync(false);
@@ -417,14 +429,14 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
       await refreshCloudLifecycleState();
       await handleRunWorkspaceSync();
       Alert.alert(
-        'Sync enabled',
-        'This business is now linked to a signed-in workspace. Local records stay on this device and are now synced with the workspace.'
+        'Online access is on',
+        'This business is now available after sign-in. Your records stay here and can also be saved online.'
       );
     } catch (error) {
       console.warn('[cloud-workspace] Sync enable failed', error);
       Alert.alert(
-        'Sync could not be enabled',
-        'Your local business data was preserved. Please try again.'
+        'Online access could not be turned on',
+        'Your business data was kept safe. Please try again.'
       );
     } finally {
       setIsSyncWorkspaceActionBusy(false);
@@ -468,6 +480,8 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
         address: composeAddress(input),
       };
       const saved = await saveBusinessSettings(normalizedForSave);
+      const savedPaymentDetails = await saveBusinessPaymentDetails(paymentDetails);
+      setPaymentDetails(savedPaymentDetails);
 
       if (saved.storageMode === 'synced' && saved.workspaceId && getCurrentCloudUser()) {
         const updatedWorkspace = await updateCloudWorkspaceProfile(
@@ -504,7 +518,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
       reset(savedFormValues);
       await refreshCloudLifecycleState();
 
-      Alert.alert('Business profile saved', 'Your changes were saved on this device.', [
+      Alert.alert('Business profile saved', 'Your changes are ready.', [
         { text: 'Done', onPress: () => navigation.goBack() },
       ]);
     } catch {
@@ -714,7 +728,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
       if (result.updateAvailable) {
         Alert.alert(
           'Country package update available',
-          'An online business logic package can be downloaded, validated, and stored locally for offline use.',
+          'An online country package can be checked and applied for invoices and reports.',
           [
             { text: 'Not now' },
             {
@@ -733,9 +747,9 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
       Alert.alert('Country package is up to date', result.message);
     } catch {
       setCountryPackageUpdateError(
-        'Update check failed. Your current local country package was not changed.'
+        'Update check failed. Your current country package was not changed.'
       );
-      Alert.alert('Update check failed', 'Your current local country package was not changed.');
+      Alert.alert('Update check failed', 'Your current country package was not changed.');
     } finally {
       setIsCheckingCountryPackageUpdate(false);
     }
@@ -780,11 +794,11 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
       Alert.alert('Country package not applied', result.message);
     } catch {
       setCountryPackageUpdateError(
-        'Country package could not be applied. Your current local country package was not changed.'
+        'Country package could not be applied. Your current country package was not changed.'
       );
       Alert.alert(
         'Country package could not be applied',
-        'Your current local country package was not changed.'
+        'Your current country package was not changed.'
       );
     } finally {
       setIsApplyingCountryPackageUpdate(false);
@@ -816,15 +830,15 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
           >
             <View style={styles.syncCardHeader}>
               <View style={styles.syncCardText}>
-                <Text style={styles.sectionTitle}>Business mode</Text>
+                <Text style={styles.sectionTitle}>Access</Text>
                 <Text style={styles.syncCardBody}>
                   {settingsSnapshot?.storageMode === 'synced'
-                    ? 'This business is linked to a signed-in workspace. Profile changes are mirrored to the workspace when you are signed in.'
-                    : 'This business stays only on this device until you link it to a signed-in workspace.'}
+                    ? 'This business is available after sign-in. Changes are saved here and online when you are signed in.'
+                    : 'This business is available on this device. Sign in when you want to use it on web or another device.'}
                 </Text>
               </View>
               <StatusChip
-                label={settingsSnapshot?.storageMode === 'synced' ? 'Synced workspace' : 'Local only'}
+                label={settingsSnapshot?.storageMode === 'synced' ? 'Signed-in access' : 'This device'}
                 tone={settingsSnapshot?.storageMode === 'synced' ? 'premium' : 'primary'}
               />
             </View>
@@ -832,48 +846,48 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
             {settingsSnapshot?.storageMode === 'synced' ? (
               <>
                 <Text style={styles.syncMetaLabel}>
-                  Workspace ID: {settingsSnapshot.workspaceId ?? 'Not linked'}
+                  Online access is {settingsSnapshot.workspaceId ? 'ready' : 'not ready yet'}.
                 </Text>
                 <Text style={styles.syncMetaHelper}>
-                  Last linked update: {formatRelativeTimestamp(settingsSnapshot.lastSyncedAt)}
+                  Last online save: {formatRelativeTimestamp(settingsSnapshot.lastSyncedAt)}
                 </Text>
                 <Text style={styles.syncMetaHelper}>
                   {syncOverview?.pendingRecordCount
-                    ? 'Local changes are waiting to sync with the workspace.'
-                    : 'This device is aligned with the linked workspace.'}
+                    ? 'Some changes are waiting to be saved online.'
+                    : 'Everything is up to date.'}
                 </Text>
                 {syncOverview ? (
                   <View style={styles.syncMetricsRow}>
                     <View style={styles.syncMetricCard}>
                       <Text style={styles.syncMetricValue}>{syncOverview.pendingRecordCount}</Text>
-                      <Text style={styles.syncMetricLabel}>Pending records</Text>
+                      <Text style={styles.syncMetricLabel}>Waiting</Text>
                     </View>
                     <View style={styles.syncMetricCard}>
                       <Text style={styles.syncMetricValue}>{syncOverview.conflictCount}</Text>
-                      <Text style={styles.syncMetricLabel}>Conflicts</Text>
+                      <Text style={styles.syncMetricLabel}>Need review</Text>
                     </View>
                   </View>
                 ) : null}
               </>
             ) : (
               <Text style={styles.syncMetaHelper}>
-                Web access requires a signed-in workspace. Your current business stays local until
-                you enable sync.
+                Web access needs sign-in. Your current business stays here until you turn on online
+                access.
               </Text>
             )}
 
             {cloudUser ? (
               <View style={styles.cloudAccountBlock}>
                 <Text style={styles.cloudAccountTitle}>
-                  {cloudUser.displayName?.trim() || cloudUser.email || 'Signed-in cloud account'}
+                  {cloudUser.displayName?.trim() || cloudUser.email || 'Signed-in account'}
                 </Text>
                 <Text style={styles.cloudAccountHelper}>
-                  {cloudUser.email || 'Cloud account active on this device.'}
+                  {cloudUser.email || 'Account active on this device.'}
                 </Text>
                 {cloudWorkspaces.length ? (
                   <Text style={styles.syncMetaHelper}>
-                    {cloudWorkspaces.length} cloud workspace{cloudWorkspaces.length > 1 ? 's' : ''} linked
-                    to this account.
+                    {cloudWorkspaces.length} {cloudWorkspaces.length > 1 ? 'businesses are' : 'business is'} linked to this
+                    account.
                   </Text>
                 ) : null}
                 <View style={styles.syncActionRow}>
@@ -883,7 +897,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
                       onPress={enableSyncForCurrentBusiness}
                       style={styles.syncActionButton}
                     >
-                      Enable Sync For This Business
+                      Turn On Online Access
                     </PrimaryButton>
                   ) : null}
                   <PrimaryButton
@@ -891,7 +905,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
                     onPress={handleRunWorkspaceSync}
                     style={styles.syncActionButton}
                   >
-                    Sync Now
+                    Save Online Now
                   </PrimaryButton>
                   <PrimaryButton
                     variant="secondary"
@@ -899,7 +913,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
                     onPress={refreshCloudLifecycleState}
                     style={styles.syncActionButton}
                   >
-                    Refresh Cloud State
+                    Check Account
                   </PrimaryButton>
                   <PrimaryButton
                     variant="ghost"
@@ -915,7 +929,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
               <PrimaryButton
                 onPress={() => navigation.navigate('CloudAuth', { returnTo: 'BusinessProfileSettings' })}
               >
-                Sign In To Enable Sync
+                Sign In For Online Access
               </PrimaryButton>
             )}
           </Card>
@@ -1095,7 +1109,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
                     }
                   }}
                   error={errors.countryCode?.message}
-                  helperText="Used for tax packs, reports, and documents."
+                  helperText="Used for local labels, reports, and documents."
                 />
               )}
             />
@@ -1118,10 +1132,36 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
             />
           </View>
 
+          <View style={styles.formCard}>
+            <Text style={styles.sectionTitle}>Payment details</Text>
+            <Text style={styles.countryPackageText}>
+              These details appear in payment request messages. Orbit Ledger does not process the payment.
+            </Text>
+            <TextField
+              label="UPI ID"
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="yourname@bank"
+              value={paymentDetails.upiId ?? ''}
+              onChangeText={(upiId) => setPaymentDetails((current) => ({ ...current, upiId }))}
+              helperText="Used for India payment requests when saved."
+            />
+            <TextField
+              label="Payment note"
+              autoCapitalize="sentences"
+              placeholder="Please mention invoice number while paying."
+              value={paymentDetails.paymentNote ?? ''}
+              onChangeText={(paymentNote) =>
+                setPaymentDetails((current) => ({ ...current, paymentNote }))
+              }
+              helperText="Optional note added to shared payment messages."
+            />
+          </View>
+
           <View style={styles.notice}>
             <Text style={styles.noticeText}>
-              Tax packs and country packages can be downloaded, validated, and stored for offline
-              use. Your last valid installed package remains active if an update fails.
+              Local tax labels and document settings can be checked online and kept ready for later
+              use. Your last working setup stays active if an update fails.
             </Text>
           </View>
 
@@ -1130,8 +1170,8 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
               <View style={styles.countryPackageHeaderText}>
                 <Text style={styles.sectionTitle}>Country Management</Text>
                 <Text style={styles.countryPackageText}>
-                  Country packages keep tax rules, document templates, and compliance settings
-                  together for the selected region.
+                  Keep local tax labels, document templates, and review settings together for the
+                  selected region.
                 </Text>
               </View>
               <View style={countryPackage ? styles.statusPillEnabled : styles.statusPill}>
@@ -1161,13 +1201,13 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
                 }
               />
               <SettingsInfoRow
-                label="Tax pack status"
+                label="Tax setup status"
                 value={
                   countryPackage
                     ? `${countryPackage.taxPack.taxType} v${countryPackage.taxPack.version}`
                     : settingsSnapshot?.taxMode === 'manual'
                       ? `Manual profile ${settingsSnapshot.taxProfileVersion ?? 'saved'}`
-                      : 'No active tax pack'
+                      : 'No active tax setup'
                 }
               />
               <SettingsInfoRow
@@ -1179,7 +1219,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
                 value={
                   countryPackage
                     ? `v${countryPackage.complianceConfig.version}`
-                    : 'Default local rules'
+                    : 'Default rules'
                 }
               />
               <SettingsInfoRow
@@ -1223,8 +1263,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
               </View>
             ) : null}
             <Text style={styles.countryPackageFootnote}>
-              Country packages are validated, installed locally, and remain available offline after
-              they are applied.
+              Region settings are checked before use and remain available after they are applied.
             </Text>
             <PrimaryButton
               variant="secondary"
@@ -1284,7 +1323,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
                 onPress={() => void toggleModule('inventory')}
               />
               <ModuleToggleRow
-                description="Show tax setup and local manual tax profiles."
+                description="Show tax setup and manual tax profiles."
                 disabled={!featureToggles || isSavingFeatureToggles}
                 enabled={featureToggles?.tax ?? true}
                 label="Tax"
@@ -1304,8 +1343,8 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
                 <View style={styles.taxHeaderText}>
                   <Text style={styles.sectionTitle}>Tax Setup</Text>
                   <Text style={styles.taxText}>
-                    Tax is optional. You can check online tax packs, validate them, and store them
-                    locally for offline invoices and reports.
+                    Tax is optional. You can check online tax details and keep them ready for
+                    invoices and reports.
                   </Text>
                 </View>
                 <View
@@ -1329,13 +1368,13 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
               <View style={styles.taxInfoBox}>
                 <Text style={styles.taxInfoTitle}>
                   {settingsSnapshot?.taxMode === 'manual'
-                    ? 'Manual tax profile saved locally'
+                    ? 'Tax setup saved'
                     : 'One-time setup can be done later'}
                 </Text>
                 <Text style={styles.taxInfoText}>
                   {settingsSnapshot?.taxMode === 'manual'
-                    ? `Profile version ${settingsSnapshot.taxProfileVersion ?? 'manual'} is saved on this device.`
-                    : 'Manual entry and online tax pack checks are available now and do not block app usage.'}
+                    ? `Current tax setup: ${settingsSnapshot.taxProfileVersion ?? 'manual'}.`
+                    : 'Manual entry and online tax checks are available now and do not block app usage.'}
                 </Text>
               </View>
               <PrimaryButton variant="secondary" onPress={() => navigation.navigate('TaxSetup')}>
@@ -1520,8 +1559,8 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
               <View style={styles.helperSettingsText}>
                 <Text style={styles.sectionTitle}>Orbit Helper</Text>
                 <Text style={styles.helperSettingsCopy}>
-                  Offline help for payments, invoices, backups, tax packs, country packages,
-                  and PIN protection. It stays quiet unless you open it.
+                  Help for payments, invoices, backups, local labels, and PIN protection. It stays
+                  quiet unless you open it.
                 </Text>
               </View>
               <OrbitHelperStatus label="Online" compact />
@@ -1823,7 +1862,7 @@ function formatCountryPackageUpdateStatus(
 
   if (status.updateAvailable) {
     const componentLabels = [
-      status.componentUpdates.taxPack ? 'tax pack' : null,
+      status.componentUpdates.taxPack ? 'tax setup' : null,
       status.componentUpdates.complianceConfig ? 'compliance rules' : null,
       ...Object.entries(status.componentUpdates.templates)
         .filter(([, hasUpdate]) => hasUpdate)
@@ -1920,7 +1959,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.lg,
-    paddingBottom: 112,
+    paddingBottom: 144,
     gap: spacing.lg,
   },
   syncCard: {

@@ -2,6 +2,10 @@
   "name": "orbit-ledger-workspace",
   "private": true,
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.19.4",
+    "npm": ">=10.0.0"
+  },
   "workspaces": [
     "apps/mobile",
     "apps/web",
@@ -21,6 +25,17 @@
     "mobile:web": "npm run web --workspace @orbit-ledger/mobile",
     "doctor": "npm run doctor --workspace @orbit-ledger/mobile",
     "brand:assets": "npm run brand:assets --workspace @orbit-ledger/mobile",
-    "typecheck": "npm run typecheck --workspace @orbit-ledger/contracts && npm run typecheck --workspace @orbit-ledger/core && npm run typecheck --workspace @orbit-ledger/ui && npm run typecheck --workspace @orbit-ledger/sync && npm run typecheck --workspace @orbit-ledger/mobile && npm run typecheck --workspace @orbit-ledger/web"
+    "typecheck": "npm run typecheck --workspace @orbit-ledger/contracts && npm run typecheck --workspace @orbit-ledger/core && npm run typecheck --workspace @orbit-ledger/ui && npm run typecheck --workspace @orbit-ledger/sync && npm run typecheck --workspace @orbit-ledger/mobile && npm run typecheck --workspace @orbit-ledger/web",
+    "test": "vitest run apps packages",
+    "test:rules": "vitest run firebase/rules.test.ts",
+    "audit:ci": "npm audit --audit-level=high"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "expo": "~54.0.34",
+    "vitest": "^4.1.5"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "^0.8.13"
   }
 }

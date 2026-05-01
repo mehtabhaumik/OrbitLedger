@@ -172,9 +172,9 @@ export function ComplianceReportsScreen({ navigation }: ComplianceReportsScreenP
         setSelectedReportId(generated.savedReport.id);
       }
 
-      Alert.alert('Compliance report generated', 'The report was saved locally for review.');
+      Alert.alert('Compliance report generated', 'The report was saved for review.');
     } catch {
-      Alert.alert('Report could not be generated', 'Please check your local data and try again.');
+      Alert.alert('Report could not be generated', 'Please check your saved data and try again.');
     } finally {
       setGeneratingType(null);
     }
@@ -192,7 +192,7 @@ export function ComplianceReportsScreen({ navigation }: ComplianceReportsScreenP
         format,
         report: selectedReport.report,
       });
-      Alert.alert('Report shared', `${exported.fileName} was saved locally and opened for sharing.`);
+      Alert.alert('Report shared', `${exported.fileName} was saved and opened for sharing.`);
     } catch {
       Alert.alert(
         'Report could not be shared',
@@ -224,7 +224,7 @@ export function ComplianceReportsScreen({ navigation }: ComplianceReportsScreenP
       >
         <ScreenHeader
           title="Compliance Reports"
-          subtitle="Generate and share structured summaries from local business data."
+          subtitle="Generate and share structured summaries from your business data."
           backLabel="Reports"
           onBack={() => navigation.goBack()}
         />
@@ -283,11 +283,11 @@ export function ComplianceReportsScreen({ navigation }: ComplianceReportsScreenP
           )}
         </Section>
 
-        <Section title="Report History" subtitle="Saved locally on this device.">
+        <Section title="Report History" subtitle="Recently saved summaries.">
           {!reports.length ? (
             <EmptyState
               title="No saved report history"
-              message="Your generated compliance summaries will be saved locally on this device."
+              message="Your generated review summaries will appear here."
             />
           ) : (
             <View style={styles.historyList}>
@@ -341,11 +341,11 @@ function ReportReviewCard({
       <View style={styles.detailList}>
         <DetailRow label="Country / region" value={`${data.metadata.countryCode} / ${data.metadata.regionCode || 'All regions'}`} />
         <DetailRow
-          label="Tax pack"
+          label="Tax setup"
           value={
             data.metadata.taxPack
               ? `${data.metadata.taxPack.taxType} v${data.metadata.taxPack.version}`
-              : 'Default local context'
+              : 'Default setup'
           }
         />
         <DetailRow
@@ -353,7 +353,7 @@ function ReportReviewCard({
           value={
             data.metadata.complianceConfig
               ? `v${data.metadata.complianceConfig.version}`
-              : 'Default local rules'
+              : 'Default rules'
           }
         />
       </View>

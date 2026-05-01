@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function workspaceRef(workspaceId) {
+      return /databases/$(database)/documents/workspaces/$(workspaceId);
+    }
+
+    function ownsWorkspace(workspaceId) {
+      return signedIn() &&
+        exists(workspaceRef(workspaceId)) &&
+        get(workspaceRef(workspaceId)).data.owner_uid == request.auth.uid;
+    }
+
+    function createsOwnWorkspace() {
+      return signedIn() &&
+        request.resource.data.owner_uid == request.auth.uid &&
+        request.resource.data.owner_uid is string &&
+        request.resource.data.business_name is string &&
+        request.resource.data.currency is string &&
+        request.resource.data.country_code is string;
+    }
+
+    function keepsWorkspaceOwner() {
+      return signedIn() &&
+        resource.data.owner_uid == request.auth.uid &&
+        request.resource.data.owner_uid == resource.data.owner_uid;
+    }
+
+    match /workspaces/{workspaceId} {
+      allow create: if createsOwnWorkspace();
+      allow read: if signedIn() && resource.data.owner_uid == request.auth.uid;
+      allow update: if keepsWorkspaceOwner();
+      allow delete: if signedIn() && resource.data.owner_uid == request.auth.uid;
+
+      match /{collectionName}/{recordId} {
+        allow read, create, update, delete: if ownsWorkspace(workspaceId);
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

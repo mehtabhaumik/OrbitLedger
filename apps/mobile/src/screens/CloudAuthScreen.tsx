@@ -71,7 +71,7 @@ export function CloudAuthScreen({ navigation, route }: CloudAuthScreenProps) {
 
     try {
       await signInToCloud(input);
-      Alert.alert('Cloud sync is ready', 'You are signed in. Continue setting up your synced workspace.', [
+      Alert.alert('You are signed in', 'Continue setting up online access for this business.', [
         {
           text: 'Continue',
           onPress: () => {
@@ -99,7 +99,7 @@ export function CloudAuthScreen({ navigation, route }: CloudAuthScreenProps) {
         email: input.email,
         password: input.password,
       });
-      Alert.alert('Account created', 'Your cloud account is ready. Continue setting up your synced workspace.', [
+      Alert.alert('Account created', 'Continue setting up online access for this business.', [
         {
           text: 'Continue',
           onPress: () => {
@@ -130,7 +130,7 @@ export function CloudAuthScreen({ navigation, route }: CloudAuthScreenProps) {
       await sendCloudPasswordReset(email);
       Alert.alert(
         'Reset email sent',
-        `If ${email} is linked to Orbit Ledger cloud sync, a password reset link has been sent.`
+        `If ${email} is linked to Orbit Ledger, a password reset link has been sent.`
       );
     } catch (error) {
       Alert.alert('Reset email could not be sent', getAuthErrorMessage(error));
@@ -146,8 +146,8 @@ export function CloudAuthScreen({ navigation, route }: CloudAuthScreenProps) {
         style={styles.root}
       >
         <ScreenHeader
-          title="Cloud Sync Access"
-          subtitle="Sign in to use Orbit Ledger across signed-in devices."
+          title="Account access"
+          subtitle="Use the same business on web or another signed-in device."
           onBack={() => navigation.goBack()}
         />
         <ScrollView
@@ -158,8 +158,8 @@ export function CloudAuthScreen({ navigation, route }: CloudAuthScreenProps) {
           <Card accent="primary" glass elevated>
             <Text style={styles.cardTitle}>Why sign in?</Text>
             <Text style={styles.helper}>
-              Web access and future cross-device sync use a signed-in workspace. Your local ledger
-              stays on this device unless you link it.
+              Sign in when you want a wider web workspace for cleanup, invoices, reports, and
+              backup review. Daily work still stays available on this phone.
             </Text>
           </Card>
 
@@ -170,7 +170,7 @@ export function CloudAuthScreen({ navigation, route }: CloudAuthScreenProps) {
               style={[styles.segment, mode === 'sign_in' ? styles.segmentActive : null]}
             >
               <Text style={[styles.segmentText, mode === 'sign_in' ? styles.segmentTextActive : null]}>
-                Sign In
+                Sign in
               </Text>
             </Pressable>
             <Pressable
@@ -179,14 +179,14 @@ export function CloudAuthScreen({ navigation, route }: CloudAuthScreenProps) {
               style={[styles.segment, mode === 'register' ? styles.segmentActive : null]}
             >
               <Text style={[styles.segmentText, mode === 'register' ? styles.segmentTextActive : null]}>
-                Create Account
+                Create account
               </Text>
             </Pressable>
           </View>
 
           {mode === 'sign_in' ? (
             <Card elevated>
-              <Text style={styles.cardTitle}>Sign in to your workspace</Text>
+              <Text style={styles.cardTitle}>Sign in to your account</Text>
               <Controller
                 control={signInControl}
                 name="email"
@@ -239,7 +239,7 @@ export function CloudAuthScreen({ navigation, route }: CloudAuthScreenProps) {
             </Card>
           ) : (
             <Card elevated accent="premium">
-              <Text style={styles.cardTitle}>Create a cloud account</Text>
+              <Text style={styles.cardTitle}>Create an account</Text>
               <Controller
                 control={registerControl}
                 name="displayName"
@@ -356,7 +356,7 @@ function getAuthErrorMessage(error: unknown): string {
     return 'Too many attempts were made. Wait a moment and try again.';
   }
   if (raw.includes('auth/network-request-failed')) {
-    return 'A network connection is required to reach cloud sync right now.';
+    return 'A network connection is required to sign in right now.';
   }
 
   return raw;

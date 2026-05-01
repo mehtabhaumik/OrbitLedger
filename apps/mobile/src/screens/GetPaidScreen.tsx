@@ -1,9 +1,10 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,7 +14,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { sharePaymentReminderMessage } from '../collections';
+import {
+  buildCollectionRecommendations,
+  buildPromiseFollowUpCalendar,
+  buildPromiseFollowUpReminderMessage,
+  sharePaymentReminderMessage,
+  type CollectionRecommendation,
+  type PromiseFollowUpItem,
+} from '../collections';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
 import { ListRow } from '../components/ListRow';
@@ -32,7 +40,7 @@ import {
   getOldestDueCustomers,
   getStaleDueCustomers,
   getTopDueCustomers,
-  listUpcomingPaymentPromises,
+  listPaymentPromiseFollowUps,
   updatePaymentPromiseStatus,
 } from '../database';
 import type {
@@ -48,6 +56,7 @@ import type {
 } from '../database';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import type { RootStackParamList } from '../navigation/types';
+import { getBusinessPaymentDetails, type BusinessPaymentDetails } from '../payments/businessPaymentDetails';
 import { colors, spacing, touch, typography } from '../theme/theme';
 
 type GetPaidScreenProps = NativeStackScreenProps<RootStackParamList, 'GetPaid'>;
@@ -71,6 +80,7 @@ export function GetPaidScreen({ navigation }: GetPaidScreenProps) {
   const [promises, setPromises] = useState<PaymentPromiseWithCustomer[]>([]);
   const [reminderTarget, setReminderTarget] = useState<ReminderTarget | null>(null);
   const [promiseTarget, setPromiseTarget] = useState<ReminderTarget | null>(null);
+  const [paymentDetails, setPaymentDetails] = useState<BusinessPaymentDetails>({});
   const [isSendingReminder, setIsSendingReminder] = useState(false);
   const [isSavingPromise, setIsSavingPromise] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,13 +95,15 @@ export function GetPaidScreen({ navigation }: GetPaidScreenProps) {
       oldestDueRows,
       staleDueRows,
       upcomingPromises,
+      savedPaymentDetails,
     ] = await Promise.all([
       getBusinessSettings(),
       getDashboardSummary(),
       getTopDueCustomers(5),
       getOldestDueCustomers(5),
       getStaleDueCustomers(5),
-      listUpcomingPaymentPromises(5),
+      listPaymentPromiseFollowUps(30),
+      getBusinessPaymentDetails(),
     ]);
 
     if (!settings) {
@@ -105,6 +117,7 @@ export function GetPaidScreen({ navigation }: GetPaidScreenProps) {
     setOldestDues(oldestDueRows);
     setStaleDues(staleDueRows);
     setPromises(upcomingPromises);
+    setPaymentDetails(savedPaymentDetails);
   }, [navigation]);
 
   useFocusEffect(
@@ -206,6 +219,59 @@ export function GetPaidScreen({ navigation }: GetPaidScreenProps) {
     }
   }
 
+  async function sharePromiseFollowUp(promise: PromiseFollowUpItem) {
+    if (!business) {
+      return;
+    }
+
+    try {
+      setIsSendingReminder(true);
+      const message = buildPromiseFollowUpReminderMessage({
+        businessName: business.businessName,
+        currency,
+        promise,
+      });
+      const result = await sharePaymentReminderMessage(message);
+      if (!result.shared) {
+        return;
+      }
+
+      await addPaymentReminder({
+        balanceAtSend: promise.currentBalance,
+        customerId: promise.customerId,
+        message,
+        sharedVia: result.sharedVia ?? 'system_share_sheet',
+        tone: promise.groupKey === 'overdue' ? 'firm' : 'polite',
+      });
+      await loadCollections();
+      Alert.alert('Reminder shared', 'The promise reminder was saved in customer history.');
+    } catch {
+      Alert.alert('Reminder could not be shared', 'Please try again from this device.');
+    } finally {
+      setIsSendingReminder(false);
+    }
+  }
+
+  const recommendations = useMemo(
+    () =>
+      buildCollectionRecommendations({
+        highestDues,
+        oldestDues,
+        staleDues,
+        promises,
+        limit: 3,
+      }),
+    [highestDues, oldestDues, promises, staleDues]
+  );
+  const promiseGroups = useMemo(
+    () =>
+      buildPromiseFollowUpCalendar({
+        currency,
+        promises,
+      }),
+    [currency, promises]
+  );
+
   if (isLoading && !business) {
     return (
       <SafeAreaView style={styles.loadingRoot}>
@@ -261,6 +327,48 @@ export function GetPaidScreen({ navigation }: GetPaidScreenProps) {
             </PrimaryButton>
           </View>
         </Card>
+
+        <Section title="Collect first" subtitle="The most important follow-ups for today.">
+          {recommendations.length === 0 ? (
+            <EmptyState
+              title="Nothing urgent to collect"
+              message="Payment follow-ups will appear here when a customer needs attention."
+            />
+          ) : (
+            <View style={styles.recommendationList}>
+              {recommendations.map((recommendation) => (
+                <CollectionRecommendationCard
+                  key={recommendation.id}
+                  currency={currency}
+                  recommendation={recommendation}
+                  onCall={() => {
+                    if (!recommendation.customerPhone) {
+                      Alert.alert('No phone number', 'Add a phone number before calling this customer.');
+                      return;
+                    }
+
+                    void Linking.openURL(`tel:${recommendation.customerPhone}`);
+                  }}
+                  onMessage={() => openReminder(recommendation)}
+                  onOpen={() => navigation.navigate('CustomerDetail', { customerId: recommendation.id })}
+                  onPayment={() =>
+                    navigation.navigate('TransactionForm', {
+                      customerId: recommendation.id,
+                      promiseId: recommendation.promise?.id,
+                      type: 'payment',
+                    })
+                  }
+                  onPromise={() => openPromise(recommendation)}
+                  onStatement={() =>
+                    navigation.navigate('StatementPreview', {
+                      customerId: recommendation.id,
+                    })
+                  }
+                />
+              ))}
+            </View>
+          )}
+        </Section>
 
         <Section title="Highest dues" subtitle="Start with the largest balances first.">
           {highestDues.length === 0 ? (
@@ -366,54 +474,49 @@ export function GetPaidScreen({ navigation }: GetPaidScreenProps) {
           )}
         </Section>
 
-        <Section
-          title="Promised payments"
-          subtitle="Payment promises due soon will appear here."
-        >
-          {promises.length === 0 ? (
+        <Section title="Follow-up calendar" subtitle="Payment promises grouped by when to act.">
+          {promiseGroups.length === 0 ? (
             <EmptyState
-              title="No payment promises yet"
-              message="After promise tracking is enabled, promised payment dates will appear here so follow-up is easier."
+              title="No promises to follow up"
+              message="Record a payment promise when a customer commits to pay."
             />
           ) : (
-            <View style={styles.listShell}>
-              {promises.map((promise) => (
-                <ListRow
-                  key={promise.id}
-                  accent={promise.promisedDate <= new Date().toISOString().slice(0, 10) ? 'warning' : 'primary'}
-                  title={promise.customerName}
-                  subtitle={`Promised ${formatCurrency(promise.promisedAmount, currency)} on ${formatShortDate(
-                    promise.promisedDate
-                  )}`}
-                  meta={promise.note ?? `Current balance ${formatCurrency(promise.currentBalance, currency)}`}
-                  right={
-                    <View style={styles.rowActions}>
-                      <StatusChip
-                        label={formatPromiseStatus(promise.status, promise.promisedDate)}
-                        tone={getPromiseTone(promise)}
-                      />
-                      <View style={styles.inlineActions}>
-                        <MiniAction
-                          label="Payment"
-                          onPress={() =>
-                            navigation.navigate('TransactionForm', {
-                              customerId: promise.customerId,
-                              type: 'payment',
-                              promiseId: promise.id,
-                            })
-                          }
-                        />
-                        {promise.status === 'open' ? (
-                          <MiniAction
-                            label="Fulfilled"
-                            onPress={() => void changePromiseStatus(promise.id, 'fulfilled')}
-                          />
-                        ) : null}
-                      </View>
+            <View style={styles.promiseCalendar}>
+              {promiseGroups.map((group) => (
+                <View key={group.key} style={styles.promiseGroup}>
+                  <View style={styles.promiseGroupHeader}>
+                    <View style={styles.promiseGroupTitleBlock}>
+                      <Text style={styles.promiseGroupTitle}>{group.title}</Text>
+                      <Text style={styles.promiseGroupSubtitle}>{group.subtitle}</Text>
                     </View>
-                  }
-                  onPress={() => navigation.navigate('CustomerDetail', { customerId: promise.customerId })}
-                />
+                    <StatusChip
+                      label={`${group.items.length}`}
+                      tone={group.tone === 'danger' ? 'danger' : group.tone === 'warning' ? 'warning' : 'primary'}
+                    />
+                  </View>
+                  <View style={styles.listShell}>
+                    {group.items.map((promise) => (
+                      <PromiseFollowUpRow
+                        key={promise.id}
+                        currency={currency}
+                        promise={promise}
+                        onFulfilled={() => void changePromiseStatus(promise.id, 'fulfilled')}
+                        onMessage={() => void sharePromiseFollowUp(promise)}
+                        onMissed={() => void changePromiseStatus(promise.id, 'missed')}
+                        onOpen={() =>
+                          navigation.navigate('CustomerDetail', { customerId: promise.customerId })
+                        }
+                        onPayment={() =>
+                          navigation.navigate('TransactionForm', {
+                            customerId: promise.customerId,
+                            type: 'payment',
+                            promiseId: promise.id,
+                          })
+                        }
+                      />
+                    ))}
+                  </View>
+                </View>
               ))}
             </View>
           )}
@@ -424,11 +527,14 @@ export function GetPaidScreen({ navigation }: GetPaidScreenProps) {
         <PaymentReminderModal
           balance={reminderTarget.balance}
           businessName={business.businessName}
+          countryCode={business.countryCode}
           currency={currency}
           customerName={reminderTarget.name}
           isSending={isSendingReminder}
           lastPaymentDate={reminderTarget.lastPaymentAt}
           lastReminderDate={reminderTarget.lastReminderAt}
+          paymentDetails={paymentDetails}
+          regionCode={business.stateCode}
           visible={Boolean(reminderTarget)}
           onClose={() => setReminderTarget(null)}
           onSend={shareReminder}
@@ -497,6 +603,135 @@ function CollectionRow({
   );
 }
 
+function PromiseFollowUpRow({
+  currency,
+  onFulfilled,
+  onMessage,
+  onMissed,
+  onOpen,
+  onPayment,
+  promise,
+}: {
+  currency: string;
+  onFulfilled: () => void;
+  onMessage: () => void;
+  onMissed: () => void;
+  onOpen: () => void;
+  onPayment: () => void;
+  promise: PromiseFollowUpItem;
+}) {
+  return (
+    <ListRow
+      accent={promise.tone === 'danger' ? 'danger' : promise.tone === 'warning' ? 'warning' : 'primary'}
+      title={promise.customerName}
+      subtitle={promise.helper}
+      meta={promise.note ?? `Current balance ${formatCurrency(promise.currentBalance, currency)}`}
+      right={
+        <View style={styles.rowActions}>
+          <StatusChip
+            label={promise.statusLabel}
+            tone={promise.tone === 'danger' ? 'danger' : promise.tone === 'warning' ? 'warning' : 'primary'}
+          />
+          <View style={styles.inlineActions}>
+            <MiniAction label="Payment" onPress={onPayment} />
+            <MiniAction label="Message" onPress={onMessage} />
+            {promise.status !== 'fulfilled' ? (
+              <MiniAction label="Fulfilled" onPress={onFulfilled} />
+            ) : null}
+            {promise.status === 'open' ? <MiniAction label="Missed" onPress={onMissed} /> : null}
+          </View>
+        </View>
+      }
+      onPress={onOpen}
+    />
+  );
+}
+
+function CollectionRecommendationCard({
+  currency,
+  onCall,
+  onMessage,
+  onOpen,
+  onPayment,
+  onPromise,
+  onStatement,
+  recommendation,
+}: {
+  currency: string;
+  onCall: () => void;
+  onMessage: () => void;
+  onOpen: () => void;
+  onPayment: () => void;
+  onPromise: () => void;
+  onStatement: () => void;
+  recommendation: CollectionRecommendation;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onOpen}
+      style={({ pressed }) => [
+        styles.recommendationCard,
+        recommendation.tone === 'danger' ? styles.recommendationCardDanger : null,
+        pressed ? styles.recommendationCardPressed : null,
+      ]}
+    >
+      <View style={styles.recommendationHeader}>
+        <View style={styles.recommendationTitleBlock}>
+          <Text style={styles.recommendationTitle}>{recommendation.name}</Text>
+          <Text style={styles.recommendationReason}>{recommendation.reason}</Text>
+        </View>
+        <MoneyText size="sm" tone="due" align="right">
+          {formatCurrency(recommendation.balance, currency)}
+        </MoneyText>
+      </View>
+
+      <Text style={styles.recommendationHelper}>{recommendation.helper}</Text>
+
+      <View style={styles.recommendationFooter}>
+        <View style={styles.recommendationBadges}>
+          {recommendation.badges.map((badge) => (
+            <StatusChip
+              key={badge}
+              label={badge}
+              tone={recommendation.tone === 'danger' ? 'danger' : 'warning'}
+            />
+          ))}
+        </View>
+        <View style={styles.recommendationActions}>
+          {recommendation.customerPhone ? (
+            <MiniAction
+              label="Call"
+              emphasized={recommendation.recommendedAction === 'call'}
+              onPress={onCall}
+            />
+          ) : null}
+          <MiniAction
+            label="Message"
+            emphasized={recommendation.recommendedAction === 'message'}
+            onPress={onMessage}
+          />
+          <MiniAction
+            label="Statement"
+            emphasized={recommendation.recommendedAction === 'statement'}
+            onPress={onStatement}
+          />
+          <MiniAction
+            label="Payment"
+            emphasized={recommendation.recommendedAction === 'payment'}
+            onPress={onPayment}
+          />
+          <MiniAction
+            label="Promise"
+            emphasized={recommendation.recommendedAction === 'promise'}
+            onPress={onPromise}
+          />
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
 function formatPromiseStatus(status: PaymentPromiseStatus, promisedDate?: string): string {
   if (status === 'fulfilled') {
     return 'Fulfilled';
@@ -543,7 +778,15 @@ function getPromiseTone(
   return 'warning';
 }
 
-function MiniAction({ label, onPress }: { label: string; onPress: () => void }) {
+function MiniAction({
+  emphasized = false,
+  label,
+  onPress,
+}: {
+  emphasized?: boolean;
+  label: string;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -553,9 +796,15 @@ function MiniAction({ label, onPress }: { label: string; onPress: () => void }) 
         onPress();
       }}
       pressRetentionOffset={touch.pressRetentionOffset}
-      style={({ pressed }) => [styles.miniAction, pressed ? styles.miniActionPressed : null]}
+      style={({ pressed }) => [
+        styles.miniAction,
+        emphasized ? styles.miniActionEmphasized : null,
+        pressed ? styles.miniActionPressed : null,
+      ]}
     >
-      <Text style={styles.miniActionText}>{label}</Text>
+      <Text style={[styles.miniActionText, emphasized ? styles.miniActionTextEmphasized : null]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -616,6 +865,89 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     overflow: 'hidden',
   },
+  promiseCalendar: {
+    gap: spacing.lg,
+  },
+  promiseGroup: {
+    gap: spacing.sm,
+  },
+  promiseGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  promiseGroupTitleBlock: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  promiseGroupTitle: {
+    color: colors.text,
+    fontSize: typography.cardTitle,
+    fontWeight: '900',
+  },
+  promiseGroupSubtitle: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  recommendationList: {
+    gap: spacing.md,
+  },
+  recommendationCard: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  recommendationCardDanger: {
+    borderColor: colors.danger,
+  },
+  recommendationCardPressed: {
+    opacity: 0.9,
+  },
+  recommendationHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  recommendationTitleBlock: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  recommendationTitle: {
+    color: colors.text,
+    fontSize: typography.cardTitle,
+    fontWeight: '900',
+  },
+  recommendationReason: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+  recommendationHelper: {
+    color: colors.textMuted,
+    fontSize: typography.body,
+    lineHeight: 22,
+  },
+  recommendationFooter: {
+    gap: spacing.md,
+  },
+  recommendationBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  recommendationActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
   rowActions: {
     alignItems: 'flex-end',
     gap: spacing.sm,
@@ -625,21 +957,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'flex-end',
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   insightChips: {
     alignItems: 'flex-end',
     gap: spacing.xs,
   },
   miniAction: {
-    minHeight: 34,
+    minHeight: 44,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.primary,
     backgroundColor: colors.primarySurface,
     justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
+  },
+  miniActionEmphasized: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
   },
   miniActionPressed: {
     opacity: 0.82,
@@ -648,5 +984,8 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: typography.caption,
     fontWeight: '900',
+  },
+  miniActionTextEmphasized: {
+    color: colors.surface,
   },
 });

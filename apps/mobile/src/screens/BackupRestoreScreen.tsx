@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,11 +9,13 @@ import {
   BackupRestoreError,
   BackupValidationError,
   createAndSaveOrbitLedgerBackup,
+  getBackupProtectionStatus,
   pickAndValidateOrbitLedgerBackupFile,
   recordLedgerBackupCompletedForNudge,
   restoreOrbitLedgerBackup,
   shareOrbitLedgerBackupFile,
   type BackupRecordCounts,
+  type BackupProtectionStatus,
   type SelectedBackupForRestore,
   type SavedBackupFile,
 } from '../backup';
@@ -24,6 +26,7 @@ import { PinConfirmationModal } from '../components/PinConfirmationModal';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SummaryCard } from '../components/SummaryCard';
+import { TextField } from '../components/TextField';
 import { showSuccessFeedback } from '../lib/feedback';
 import type { RootStackParamList } from '../navigation/types';
 import { useAppLock } from '../security/AppLockContext';
@@ -59,19 +62,31 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null);
   const [restoreStatus, setRestoreStatus] = useState<ExportStatus | null>(null);
   const [progressStage, setProgressStage] = useState<string | null>(null);
+  const [backupProtectionStatus, setBackupProtectionStatus] =
+    useState<BackupProtectionStatus | null>(null);
+  const [restoreConfirmationText, setRestoreConfirmationText] = useState('');
+
+  useEffect(() => {
+    void refreshBackupProtectionStatus();
+  }, []);
+
+  async function refreshBackupProtectionStatus() {
+    setBackupProtectionStatus(await getBackupProtectionStatus());
+  }
 
   async function exportBackup() {
     try {
       setIsExporting(true);
       setExportStatus(null);
-      setProgressStage('Collecting local ledger records');
+      setProgressStage('Collecting your ledger records');
 
       await waitForProgressFrame();
-      setProgressStage('Writing encrypted-device-local backup file');
+      setProgressStage('Creating your backup file');
       const backupFile = await createAndSaveOrbitLedgerBackup();
       setProgressStage('Finalizing backup status');
       try {
         await recordLedgerBackupCompletedForNudge();
+        await refreshBackupProtectionStatus();
       } catch (nudgeError) {
         console.warn('[backup-export] Backup reminder state could not be updated', nudgeError);
       }
@@ -79,9 +94,9 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
       setExportStatus({
         tone: 'success',
         title: 'Backup copy saved',
-        message: `${backupFile.fileName} is saved on this device.`,
+        message: `${backupFile.fileName} is saved.`,
       });
-      showSuccessFeedback(`${backupFile.fileName} is saved on this device.`, 'Backup copy saved');
+      showSuccessFeedback(`${backupFile.fileName} is saved.`, 'Backup copy saved');
       await recordRatingPositiveMoment('backup_success');
       await recordUsageAnalyticsEvent('backup_created');
       await maybePromptForRating();
@@ -183,6 +198,7 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
 
       setProgressStage('Preparing restore preview');
       setSelectedRestoreBackup(selectedBackup);
+      setRestoreConfirmationText('');
       setRestoreStatus({
         tone: 'success',
         title: 'Backup ready to review',
@@ -216,7 +232,7 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
 
     Alert.alert(
       'Restore this backup?',
-      'This will replace your current local Orbit Ledger data with the selected backup. Please review before continuing.',
+      'This will replace your current Orbit Ledger data with the selected backup. Please review before continuing.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -238,6 +254,7 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
   function cancelRestorePreview() {
     setSelectedRestoreBackup(null);
     setRestoreStatus(null);
+    setRestoreConfirmationText('');
   }
 
   async function restoreSelectedBackup() {
@@ -249,11 +266,12 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
       setIsRestoring(true);
       setProgressStage('Validating backup before restore');
       await waitForProgressFrame();
-      setProgressStage('Replacing local data inside a safe transaction');
+      setProgressStage('Replacing current data safely');
       const summary = await restoreOrbitLedgerBackup(selectedRestoreBackup.backup);
       setProgressStage('Refreshing restored app state');
       try {
         await recordLedgerBackupCompletedForNudge();
+        await refreshBackupProtectionStatus();
       } catch (nudgeError) {
         console.warn('[backup-restore] Backup reminder state could not be updated', nudgeError);
       }
@@ -261,10 +279,11 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
       setRestoreStatus({
         tone: 'success',
         title: 'Backup restored',
-        message: `${summary.customersRestored} customers, ${summary.transactionsRestored} ledger entries, ${summary.invoicesRestored} invoices, ${summary.productsRestored} products, ${summary.taxPacksRestored} tax packs, ${summary.countryPackagesRestored} country packages, and ${summary.appPreferencesRestored} app preferences were restored.`,
+        message: `${summary.customersRestored} customers, ${summary.transactionsRestored} ledger entries, ${summary.invoicesRestored} invoices, ${summary.productsRestored} products, ${summary.taxPacksRestored} local tax setups, ${summary.countryPackagesRestored} region setups, and ${summary.appPreferencesRestored} app preferences were restored.`,
       });
       setSelectedRestoreBackup(null);
-      Alert.alert('Backup restored', 'Your local Orbit Ledger data was restored from the selected backup.');
+      setRestoreConfirmationText('');
+      Alert.alert('Backup restored', 'Your Orbit Ledger data was restored from the selected backup.');
     } catch (error) {
       console.warn('[backup-restore] Restore failed', error);
       const message = getRestoreFailureMessage(error);
@@ -302,12 +321,36 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
         />
 
         <Card glass elevated accent="success">
-          <Text style={styles.eyebrow}>Backup overview</Text>
-          <Text style={styles.heroTitle}>Keep a private copy of your ledger.</Text>
-          <Text style={styles.heroText}>
-            A backup exports your business records into a file you can keep somewhere safe, such
-            as phone storage, email, or a trusted drive you control.
+          <Text style={styles.eyebrow}>Protection status</Text>
+          <Text style={styles.heroTitle}>
+            {backupProtectionStatus?.title ?? 'Checking backup status'}
           </Text>
+          <Text style={styles.heroText}>
+            {backupProtectionStatus?.message ??
+              'Orbit Ledger is checking when your last backup was saved.'}
+          </Text>
+          <View style={styles.healthGrid}>
+            <SummaryPill
+              label="Status"
+              value={formatProtectionState(backupProtectionStatus?.state)}
+            />
+            <SummaryPill
+              label="Last protected"
+              value={
+                backupProtectionStatus?.lastProtectedAt
+                  ? formatTimestamp(backupProtectionStatus.lastProtectedAt)
+                  : 'No backup yet'
+              }
+            />
+            <SummaryPill
+              label="New records"
+              value={`${backupProtectionStatus?.recordsSinceBackup ?? 0}`}
+            />
+            <SummaryPill
+              label="New entries"
+              value={`${backupProtectionStatus?.transactionsSinceBackup ?? 0}`}
+            />
+          </View>
           <View style={styles.includedList}>
             <IncludedRow
               title="Business profile"
@@ -319,19 +362,23 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
             />
             <IncludedRow
               title="Documents and stock"
-              detail="Invoices, invoice items, products, document history, and generated document settings."
+              detail="Invoices, invoice lines, products, saved documents, and document choices."
             />
             <IncludedRow
               title="Country, tax, and compliance setup"
-              detail="Tax profiles, tax packs, document templates, compliance configs, and country packages."
+              detail="Tax setup, document layouts, report setup, and region choices."
             />
             <IncludedRow
-              title="App preferences"
-              detail="Feature toggles, subscription status, analytics counters, backup nudges, and other local app preferences."
+              title="App choices"
+              detail="Your saved app choices, plan status, reminders, and helpful prompts."
             />
             <IncludedRow
               title="PIN protection"
-              detail="PIN on/off status can be included. The PIN, biometric preference, and device-only unlock credentials are not exported or restored."
+              detail="Backup can remember whether PIN protection was on. It never includes your PIN or biometric unlock."
+            />
+            <IncludedRow
+              title="Not included"
+              detail="Files outside Orbit Ledger, phone-only security secrets, and unsaved drafts are not included."
             />
           </View>
         </Card>
@@ -472,7 +519,7 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
               value={`${selectedRestoreBackup.preview.taxProfiles}`}
             />
             <PreviewLine
-              label="Tax packs"
+              label="Tax setups"
               value={`${selectedRestoreBackup.preview.taxPacks}`}
             />
             <PreviewLine
@@ -484,11 +531,11 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
               value={`${selectedRestoreBackup.preview.complianceConfigs}`}
             />
             <PreviewLine
-              label="Country packages"
+              label="Region setups"
               value={`${selectedRestoreBackup.preview.countryPackages}`}
             />
             <PreviewLine
-              label="Country package templates"
+              label="Region templates"
               value={`${selectedRestoreBackup.preview.countryPackageTemplates}`}
             />
             <PreviewLine
@@ -519,9 +566,20 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
             />
             <View style={styles.warningBox}>
               <Text style={styles.warningText}>
-                Restoring this backup will replace your current local Orbit Ledger data.
+                Restoring this backup will replace your current Orbit Ledger data. A failed restore
+                will try to keep the current data in place.
               </Text>
             </View>
+            <TextField
+              autoCapitalize="none"
+              autoCorrect={false}
+              label="Type business name to confirm"
+              helperText={`Type ${
+                selectedRestoreBackup.preview.businessName ?? 'RESTORE'
+              } before restoring.`}
+              value={restoreConfirmationText}
+              onChangeText={setRestoreConfirmationText}
+            />
             <View style={styles.restoreActions}>
               <PrimaryButton
                 variant="secondary"
@@ -533,7 +591,12 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
               <PrimaryButton
                 variant="danger"
                 loading={isRestoring}
-                disabled={isExporting || isSharing || isPickingRestoreFile}
+                disabled={
+                  isExporting ||
+                  isSharing ||
+                  isPickingRestoreFile ||
+                  !canConfirmRestore(selectedRestoreBackup, restoreConfirmationText)
+                }
                 onPress={confirmRestoreBackup}
               >
                 Restore Now
@@ -548,8 +611,8 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
           <SafetyLine text="Export regularly, especially before changing phones or clearing app data." />
           <SafetyLine text="Store backup files somewhere you trust and can find later." />
           <SafetyLine text="Do not share backup files publicly. They contain business and customer records." />
-          <SafetyLine text="Backups may include whether PIN protection was on, but they do not include your PIN, biometric unlock setting, or device-only unlock credentials." />
-          <SafetyLine text="After restoring on this device, turn PIN and biometric unlock on again if you want the app to lock the same way." />
+          <SafetyLine text="Backups may include whether PIN protection was on, but they never include your PIN or biometric unlock." />
+          <SafetyLine text="After restoring, turn PIN and biometric unlock on again if you want the same protection." />
           <SafetyLine
             text="Restore only when you are sure you want this saved copy to become your current Orbit Ledger data."
           />
@@ -581,9 +644,9 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
                 <SummaryPill label="Invoice items" value={`${exportedCounts.invoiceItems}`} />
                 <SummaryPill label="Products" value={`${exportedCounts.products}`} />
                 <SummaryPill label="Tax profiles" value={`${exportedCounts.taxProfiles}`} />
-                <SummaryPill label="Tax packs" value={`${exportedCounts.taxPacks}`} />
+                <SummaryPill label="Tax setups" value={`${exportedCounts.taxPacks}`} />
                 <SummaryPill
-                  label="Country packages"
+                  label="Region setups"
                   value={`${exportedCounts.countryPackages}`}
                 />
                 <SummaryPill
@@ -642,7 +705,7 @@ export function BackupRestoreScreen({ navigation }: BackupRestoreScreenProps) {
         <PinConfirmationModal
           visible={isRestorePinConfirmationVisible}
           title="Confirm restore"
-          message="Enter your PIN to restore this backup. This will replace your current local Orbit Ledger data."
+          message="Enter your PIN to restore this backup. This will replace your current Orbit Ledger data."
           onCancel={() => setIsRestorePinConfirmationVisible(false)}
           onConfirmed={() => {
             setIsRestorePinConfirmationVisible(false);
@@ -773,6 +836,27 @@ function formatFileSize(value: number | null): string {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatProtectionState(state: BackupProtectionStatus['state'] | undefined): string {
+  if (state === 'protected') {
+    return 'Protected';
+  }
+  if (state === 'needs_backup') {
+    return 'Needs backup';
+  }
+  if (state === 'not_protected') {
+    return 'No backup yet';
+  }
+  return 'Checking';
+}
+
+function canConfirmRestore(
+  selectedBackup: SelectedBackupForRestore,
+  confirmationText: string
+): boolean {
+  const expected = selectedBackup.preview.businessName?.trim() || 'RESTORE';
+  return confirmationText.trim() === expected;
+}
+
 function waitForProgressFrame(): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, 0);
@@ -825,6 +909,11 @@ const styles = StyleSheet.create({
   },
   includedList: {
     gap: spacing.md,
+  },
+  healthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   sectionTitle: {
     color: colors.text,

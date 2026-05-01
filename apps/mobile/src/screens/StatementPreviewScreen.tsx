@@ -68,6 +68,12 @@ import {
 } from '../monetization';
 import type { DocumentFeatureGateState, ProBrandTheme, SubscriptionStatus } from '../monetization';
 import type { RootStackParamList } from '../navigation/types';
+import {
+  buildPaymentRequestMessage,
+  sharePaymentRequestMessage,
+  type PaymentShareDetails,
+} from '../collections';
+import { getBusinessPaymentDetails } from '../payments/businessPaymentDetails';
 import { colors, spacing, touch, typography } from '../theme/theme';
 
 type StatementPreviewScreenProps = NativeStackScreenProps<RootStackParamList, 'StatementPreview'>;
@@ -100,7 +106,7 @@ const quickFilters: Array<{ key: Exclude<StatementFilterKey, 'custom'>; label: s
   { key: 'all_time', label: 'All time' },
 ];
 const TAX_READY_DOCUMENT_NOTICE =
-  'Tax-ready documents can use local tax packs and country packages. You can continue with the current local setup or check for online updates from settings.';
+  'Local document labels can use your saved region setup. You can continue with the current setup or check for online updates from settings.';
 
 export function StatementPreviewScreen({ navigation, route }: StatementPreviewScreenProps) {
   const { customerId } = route.params;
@@ -121,6 +127,7 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
   const [viewedPdf, setViewedPdf] = useState<GeneratedPdf | null>(null);
   const [isPdfViewerVisible, setIsPdfViewerVisible] = useState(false);
   const [documentHistory, setDocumentHistory] = useState<GeneratedDocumentHistoryEntry[]>([]);
+  const [paymentDetails, setPaymentDetails] = useState<PaymentShareDetails>({});
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const documentGates = useMemo<DocumentFeatureGateState | null>(() => {
@@ -169,13 +176,21 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
       }
 
       try {
-        const [businessProfile, ledger, taxNoticeAcknowledged, subscriptionStatus, proBrandTheme] =
+        const [
+          businessProfile,
+          ledger,
+          taxNoticeAcknowledged,
+          subscriptionStatus,
+          proBrandTheme,
+          savedPaymentDetails,
+        ] =
           await Promise.all([
             getBusinessSettings(),
             getCustomerLedger(customerId),
             getDocumentTaxNoticeAcknowledged(),
             getSubscriptionStatus(),
             getActiveProBrandTheme(),
+            getBusinessPaymentDetails(),
           ]);
 
         if (!businessProfile) {
@@ -199,6 +214,7 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
           });
           setShowTaxNotice(!taxNoticeAcknowledged);
           setDocumentHistory(getGeneratedDocumentHistory());
+          setPaymentDetails(savedPaymentDetails);
         }
       } catch {
         if (canUpdate()) {
@@ -263,9 +279,9 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
       await recordUsageAnalyticsEvent('pdf_generated');
       setExportStatus({
         tone: 'success',
-        message: `Saved locally as ${savedPdf.fileName}.`,
+        message: `Saved as ${savedPdf.fileName}.`,
       });
-      Alert.alert('PDF saved', `${savedPdf.fileName} has been saved locally on this device.`);
+      Alert.alert('Statement saved', `${savedPdf.fileName} has been saved.`);
     } catch {
       setExportStatus({
         tone: 'error',
@@ -298,18 +314,18 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
       } catch {
         setExportStatus({
           tone: 'warning',
-          message: `${savedPdf.fileName} was saved locally, but sharing is not available right now.`,
+          message: `${savedPdf.fileName} was saved, but sharing is not available right now.`,
         });
         Alert.alert(
-          'PDF saved locally',
-          'Sharing is not available right now. The PDF was still saved on this device.'
+          'Statement saved',
+          'Sharing is not available right now. The statement was still saved.'
         );
         return;
       }
 
       setExportStatus({
         tone: 'success',
-        message: `${savedPdf.fileName} is saved locally and ready for WhatsApp, email, or file apps.`,
+        message: `${savedPdf.fileName} is saved and ready for WhatsApp, email, or file apps.`,
       });
     } catch {
       setExportStatus({
@@ -317,6 +333,41 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
         message: 'PDF could not be shared. Please try again.',
       });
       Alert.alert('PDF could not be shared', 'Please try again.');
+    } finally {
+      setIsSharing(false);
+    }
+  }
+
+  async function sharePaymentMessage() {
+    if (!document || !source) {
+      return;
+    }
+
+    try {
+      setExportStatus(null);
+      setIsSharing(true);
+      const data = document.data;
+      const message = buildPaymentRequestMessage({
+        kind: 'statement',
+        businessName: data.businessIdentity.businessName,
+        customerName: data.customerIdentity.name,
+        amount: source.ledger.balance,
+        currency: data.metadata.currency,
+        countryCode: data.businessIdentity.countryCode,
+        statementDate: data.metadata.statementDate,
+        paymentDetails,
+      });
+      await sharePaymentRequestMessage(message);
+      setExportStatus({
+        tone: 'success',
+        message: 'Statement message is ready to send. Record payment only after you confirm it.',
+      });
+    } catch {
+      setExportStatus({
+        tone: 'error',
+        message: 'Statement message could not be shared. Please try again.',
+      });
+      Alert.alert('Message could not be shared', 'Please try again.');
     } finally {
       setIsSharing(false);
     }
@@ -344,11 +395,11 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
         setExportStatus({
           tone: 'warning',
           message:
-            'The PDF is ready, but your device could not open a PDF viewer. You can still save, share, or print it here.',
+            'The statement is ready, but your device could not open it. You can still save, share, or print it here.',
         });
         Alert.alert(
-          'PDF is ready',
-          'Your device could not open a PDF viewer. You can still save, share, or print it from this screen.'
+          'Statement is ready',
+          'Your device could not open it. You can still save, share, or print it from this screen.'
         );
         return;
       }
@@ -384,7 +435,7 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
     }
 
     if (!viewedPdf.isTemporary) {
-      Alert.alert('PDF already saved', `${viewedPdf.fileName} is already saved locally.`);
+      Alert.alert('Statement already saved', `${viewedPdf.fileName} is already saved.`);
       return;
     }
 
@@ -401,9 +452,9 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
       await recordUsageAnalyticsEvent('pdf_generated');
       setExportStatus({
         tone: 'success',
-        message: `Saved locally as ${savedPdf.fileName}.`,
+        message: `Saved as ${savedPdf.fileName}.`,
       });
-      Alert.alert('PDF saved', `${savedPdf.fileName} has been saved locally on this device.`);
+      Alert.alert('Statement saved', `${savedPdf.fileName} has been saved.`);
     } catch {
       Alert.alert('PDF could not be saved', 'Please try again.');
     } finally {
@@ -494,7 +545,7 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
       setDocumentHistory(getGeneratedDocumentHistory());
       setExportStatus({
         tone: 'success',
-        message: 'Preview refreshed with the latest local ledger data.',
+        message: 'Preview refreshed with the latest ledger data.',
       });
     } catch {
       setExportStatus({
@@ -639,7 +690,7 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
 
         {showTaxNotice ? (
           <View style={styles.taxNoticeCard}>
-            <Text style={styles.taxNoticeLabel}>Tax-ready documents</Text>
+            <Text style={styles.taxNoticeLabel}>Local document labels</Text>
             <Text style={styles.taxNoticeText}>{TAX_READY_DOCUMENT_NOTICE}</Text>
             <PrimaryButton
               variant="secondary"
@@ -939,11 +990,11 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
             <Text style={styles.fileNameText}>{statementFileName}</Text>
           </View>
           <Text style={styles.muted}>
-            Save keeps a local PDF copy. Share opens the device sheet for WhatsApp, email, or file
-            apps when available.
+            Save keeps a copy you can find later. Share lets you send it through WhatsApp, email,
+            or file apps when available.
           </Text>
           {lastSavedPdf ? (
-            <Text style={styles.muted}>Last saved locally as {lastSavedPdf.fileName}</Text>
+            <Text style={styles.muted}>Last saved as {lastSavedPdf.fileName}</Text>
           ) : null}
           {documentHistory.length > 0 ? (
             <View style={styles.historyList}>
@@ -958,7 +1009,7 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
           ) : (
             <View style={styles.inlineEmptyState}>
               <Text style={styles.inlineEmptyTitle}>No statements exported yet</Text>
-              <Text style={styles.muted}>Save or share this statement to keep a local PDF copy.</Text>
+              <Text style={styles.muted}>Save or share this statement to keep a copy.</Text>
             </View>
           )}
           {exportStatus ? (
@@ -984,6 +1035,14 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
               </Text>
             </View>
           ) : null}
+          <PrimaryButton
+            variant="secondary"
+            loading={isSharing}
+            disabled={exportInProgress && !isSharing}
+            onPress={sharePaymentMessage}
+          >
+            Share Payment Message
+          </PrimaryButton>
           <PrimaryButton
             loading={isOpeningPdf}
             disabled={exportInProgress && !isOpeningPdf}

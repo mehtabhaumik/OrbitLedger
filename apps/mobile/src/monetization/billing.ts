@@ -162,7 +162,7 @@ export async function refreshBillingEntitlements(): Promise<BillingRefreshResult
     console.warn('[billing] Entitlement refresh failed', error);
     return {
       available: true,
-      message: 'Store entitlements could not be refreshed. Existing cached access was preserved.',
+      message: 'Store access could not be refreshed. Your current access was kept.',
       subscriptionStatus: currentStatus,
       countryPackEntitlements: currentCountryPacks,
     };

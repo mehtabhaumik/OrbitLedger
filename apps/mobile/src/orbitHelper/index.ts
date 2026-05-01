@@ -5,6 +5,13 @@ export {
   getSuggestedOrbitHelperArticles,
   searchOrbitHelper,
 } from './service';
+export {
+  buildPracticalHelperCards,
+  redactHelperText,
+  type BuildPracticalHelpersInput,
+  type PracticalHelperCard,
+  type PracticalHelperTarget,
+} from './practicalHelpers';
 export type {
   OrbitHelperAction,
   OrbitHelperActionTarget,

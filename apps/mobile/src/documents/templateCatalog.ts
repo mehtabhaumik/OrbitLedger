@@ -31,7 +31,7 @@ const invoiceCatalog: Record<InvoiceTemplateKey, DocumentTemplateCatalogItem> = 
     countryCode: 'IN',
     tier: 'free',
     label: 'India GST Standard',
-    description: 'Classic GST tax invoice with GSTIN, HSN/SAC, CGST/SGST/IGST and amount in words.',
+    description: 'Classic India invoice wording with GSTIN, HSN/SAC, CGST/SGST/IGST and amount in words.',
     visualStyle: 'classic_tax',
     countryFormat: 'india_gst',
     config: invoiceConfig({
@@ -64,7 +64,7 @@ const invoiceCatalog: Record<InvoiceTemplateKey, DocumentTemplateCatalogItem> = 
     countryCode: 'IN',
     tier: 'pro',
     label: 'India GST Letterhead',
-    description: 'Premium GST letterhead with branding, GSTIN focus, signature and polished totals.',
+    description: 'Premium India letterhead with branding, GSTIN focus, signature and polished totals.',
     visualStyle: 'premium_letterhead',
     countryFormat: 'india_gst',
     config: invoiceConfig({
@@ -153,7 +153,7 @@ const invoiceCatalog: Record<InvoiceTemplateKey, DocumentTemplateCatalogItem> = 
     countryCode: 'GB',
     tier: 'free',
     label: 'UK VAT Standard',
-    description: 'Full VAT invoice structure with VAT number, tax point and net/VAT/gross totals.',
+    description: 'UK VAT invoice wording with VAT number, tax point and net/VAT/gross totals.',
     visualStyle: 'classic_tax',
     countryFormat: 'uk_vat',
     config: invoiceConfig({
@@ -183,7 +183,7 @@ const invoiceCatalog: Record<InvoiceTemplateKey, DocumentTemplateCatalogItem> = 
     countryCode: 'GB',
     tier: 'pro',
     label: 'UK VAT Letterhead',
-    description: 'Premium UK VAT invoice with logo, VAT number highlight, signature and refined totals.',
+    description: 'Premium UK invoice wording with logo, VAT number highlight, signature and refined totals.',
     visualStyle: 'premium_letterhead',
     countryFormat: 'uk_vat',
     config: invoiceConfig({

@@ -367,7 +367,7 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
           })),
         });
 
-        showSuccessFeedback('Invoice updated locally.', 'Invoice updated');
+        showSuccessFeedback('Invoice updated.', 'Invoice updated');
         navigation.replace('InvoicePreview', { invoiceId: invoice.id });
         return;
       }
@@ -389,7 +389,7 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
         })),
       });
 
-      showSuccessFeedback('Invoice saved locally.', 'Invoice saved');
+      showSuccessFeedback('Invoice saved.', 'Invoice saved');
       navigation.replace('InvoicePreview', { invoiceId: invoice.id });
     } catch {
       Alert.alert(
@@ -728,7 +728,7 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
                         keyboardType="decimal-pad"
                         inputMode="decimal"
                         placeholder={formatTaxRateInput(resolvedTaxRate.rate)}
-                        helperText="Auto-filled from the active local tax pack when available. You can override it."
+                        helperText="Auto-filled from the active tax setup when available. You can change it."
                         error={errors.items?.[index]?.taxRate?.message}
                       />
                     )}
@@ -774,8 +774,8 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
             <SummaryLine label="Total" value={formatCurrency(totals.total, currency)} emphasized />
             <Text style={styles.muted}>
               {resolvedTaxRate.source === 'none'
-                ? 'No local tax rate is configured, so tax is kept at zero.'
-                : 'Tax is applied from the active local tax setup.'}
+                ? 'No tax rate is configured, so tax is kept at zero.'
+                : 'Tax is applied from the active tax setup.'}
             </Text>
           </View>
 

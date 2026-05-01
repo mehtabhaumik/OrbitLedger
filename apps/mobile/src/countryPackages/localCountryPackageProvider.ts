@@ -1,3 +1,5 @@
+import { getLocalBusinessPack } from '@orbit-ledger/core';
+
 import type { CountryPackageLookup, InstallCountryPackageInput } from '../database';
 import {
   buildBundledTaxPack,
@@ -46,6 +48,7 @@ export function buildBundledCountryPackage(
 ): InstallCountryPackageInput {
   const countryCode = normalizeCatalogCode(lookup.countryCode);
   const regionCode = normalizeCatalogCode(lookup.regionCode ?? '');
+  const localPack = getLocalBusinessPack({ countryCode, regionCode });
   const taxType = inferTaxTypeForCountry(countryCode);
   const invoiceTemplate = getBuiltInDocumentTemplate(getInvoiceTemplateKey(countryCode));
   const statementTemplate = getBuiltInDocumentTemplate(getStatementTemplateKey(countryCode));
@@ -53,7 +56,7 @@ export function buildBundledCountryPackage(
   return {
     countryCode,
     regionCode,
-    packageName: `${countryCode}${regionCode ? `-${regionCode}` : ''} Starter Business Logic`,
+    packageName: localPack.packageName,
     version: candidate.packageVersion,
     source: 'remote',
     taxPack: buildBundledTaxPack(
@@ -72,13 +75,14 @@ export function buildBundledCountryPackage(
         countryCode,
         templateType: 'invoice',
         version: candidate.templateVersions?.invoice ?? LOCAL_TEMPLATE_VERSION,
-        templateConfigJson: invoiceTemplate?.config ?? fallbackInvoiceTemplate(countryCode, taxType),
+        templateConfigJson:
+          invoiceTemplate?.config ?? fallbackInvoiceTemplate(countryCode, taxType, localPack),
       },
       {
         countryCode,
         templateType: 'statement',
         version: candidate.templateVersions?.statement ?? LOCAL_TEMPLATE_VERSION,
-        templateConfigJson: statementTemplate?.config ?? fallbackStatementTemplate(countryCode),
+        templateConfigJson: statementTemplate?.config ?? fallbackStatementTemplate(countryCode, localPack),
       },
     ],
     complianceConfig: {
@@ -93,13 +97,18 @@ export function buildBundledCountryPackage(
         countryCode,
         regionCode,
         reportTypes: ['tax_summary', 'sales_summary', 'dues_summary'],
-        taxLabel: taxType,
+        taxLabel: localPack.labels.taxName,
+        taxIdLabel: localPack.labels.taxId,
+        marketName: localPack.marketName,
+        documentLabels: localPack.documents,
+        reminderToneDescriptions: localPack.reminders.toneDescriptions,
+        localRhythms: localPack.rhythms,
         numberFormat: {
           currencyPosition: 'prefix',
           useGrouping: true,
+          locale: localPack.locale,
         },
-        legalDisclaimer:
-          'Starter compliance summary only. Confirm filing requirements with a qualified professional.',
+        legalDisclaimer: localPack.compliance.disclaimer,
       },
     },
   };
@@ -131,15 +140,20 @@ function getStatementTemplateKey(countryCode: string) {
   return 'GENERIC_STATEMENT_STANDARD_FREE';
 }
 
-function fallbackInvoiceTemplate(countryCode: string, taxType: string) {
+function fallbackInvoiceTemplate(
+  countryCode: string,
+  taxType: string,
+  localPack: ReturnType<typeof getLocalBusinessPack>
+) {
   return {
     layoutVersion: 2,
+    title: localPack.documents.invoiceTitle,
     provider: 'orbit_ledger_bundled_country_package',
     template: 'invoice',
     sectionTitles: {
-      customer_identity: 'Bill To',
-      invoice_metadata: 'Invoice Details',
-      invoice_item_table: 'Items',
+      customer_identity: localPack.documents.buyerLabel,
+      invoice_metadata: localPack.documents.invoiceDetailsLabel,
+      invoice_item_table: localPack.documents.itemTableLabel,
       invoice_summary: 'Totals',
       tax_placeholder: 'Tax Details',
     },
@@ -148,17 +162,18 @@ function fallbackInvoiceTemplate(countryCode: string, taxType: string) {
         { key: 'name', label: 'Item', align: 'left' },
         { key: 'quantity', label: 'Qty', align: 'right' },
         { key: 'price', label: 'Price', align: 'right' },
-        { key: 'taxRate', label: taxType, align: 'right' },
+        { key: 'taxRate', label: localPack.labels.taxName || taxType, align: 'right' },
         { key: 'total', label: 'Total', align: 'right' },
       ],
     },
     taxLabels: {
       taxSectionTitle: 'Tax Details',
-      taxColumnLabel: taxType,
-      taxSummaryLabel: taxType,
+      taxColumnLabel: localPack.labels.taxName || taxType,
+      taxSummaryLabel: localPack.labels.taxName || taxType,
+      taxRegistrationLabel: localPack.labels.taxId,
     },
     numberFormat: {
-      locale: countryCode === 'IN' ? 'en-IN' : undefined,
+      locale: localPack.locale ?? (countryCode === 'IN' ? 'en-IN' : undefined),
       currencyDisplay: 'symbol',
     },
     metadata: {
@@ -167,20 +182,24 @@ function fallbackInvoiceTemplate(countryCode: string, taxType: string) {
   };
 }
 
-function fallbackStatementTemplate(countryCode: string) {
+function fallbackStatementTemplate(
+  countryCode: string,
+  localPack: ReturnType<typeof getLocalBusinessPack>
+) {
   return {
     layoutVersion: 2,
+    title: localPack.documents.statementTitle,
     provider: 'orbit_ledger_bundled_country_package',
     template: 'statement',
     sectionTitles: {
-      customer_identity: 'Customer',
+      customer_identity: 'Statement For',
       statement_metadata: 'Statement Period',
-      transaction_table: 'Ledger History',
-      summary: 'Summary',
-      tax_placeholder: 'Tax Details',
+      transaction_table: localPack.documents.statementActivityLabel,
+      summary: localPack.documents.statementSummaryLabel,
+      tax_placeholder: localPack.compliance.summaryLabel,
     },
     numberFormat: {
-      locale: countryCode === 'IN' ? 'en-IN' : undefined,
+      locale: localPack.locale ?? (countryCode === 'IN' ? 'en-IN' : undefined),
       currencyDisplay: 'symbol',
     },
     metadata: {

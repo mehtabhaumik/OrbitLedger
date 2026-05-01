@@ -29,7 +29,7 @@ const stepMeta = [
     key: 'identity',
     label: 'Identity',
     title: 'Start with the business owner',
-    copy: 'This becomes the main identity of the synced workspace across web and signed-in devices.',
+    copy: 'This becomes the main identity for web review and signed-in devices.',
   },
   {
     key: 'location',
@@ -41,7 +41,7 @@ const stepMeta = [
     key: 'review',
     label: 'Review',
     title: 'Review before you create the workspace',
-    copy: 'Orbit Ledger will create the synced business profile and prepare the workspace shell around it.',
+    copy: 'Orbit Ledger will create the business profile and prepare web review around it.',
   },
 ] as const;
 
@@ -53,21 +53,21 @@ const capabilityHighlights = [
   },
   {
     tone: 'tax',
-    title: 'Tax and document ready',
-    copy: 'Use invoices, statements, reports, and tax-aware workflows from the same workspace.',
+    title: 'Local labels and documents',
+    copy: 'Use invoices, statements, reports, and local tax labels from the same workspace.',
   },
   {
     tone: 'success',
-    title: 'Cloud + local browser layer',
-    copy: 'Stay signed in for the synced workspace while keeping the browser layer warm for fast repeat use.',
+    title: 'Ready for repeat use',
+    copy: 'Stay signed in and return to customer, invoice, report, and backup work quickly.',
   },
 ] as const;
 
 const workspaceCreateSteps = [
   'Creating your workspace profile',
-  'Syncing customer and transaction modules',
-  'Preparing invoice and statement capabilities',
-  'Enabling backup, reports, and tax-ready setup',
+  'Preparing customer and transaction work',
+  'Preparing invoice and statement work',
+  'Enabling backup, reports, and local tax labels',
 ] as const;
 
 const workspaceCreateHighlights = [
@@ -84,8 +84,8 @@ const workspaceCreateHighlights = [
     copy: 'Export full workspace backups and restore safely with preview checks when needed.',
   },
   {
-    title: 'Tax, country, and compliance readiness',
-    copy: 'Keep your ledger ready for local tax packs, country settings, and practical reporting workflows.',
+    title: 'Tax, country, and report setup',
+    copy: 'Keep your ledger prepared for local tax labels, region settings, and practical reporting workflows.',
   },
 ] as const;
 
@@ -320,13 +320,12 @@ export function WorkspaceSetupCard() {
       <div className="ol-onboarding-grid">
         <aside className="ol-onboarding-showcase">
           <div className="ol-showcase-badge-row">
-            <span className="ol-showcase-badge ol-showcase-badge--premium">Synced workspace</span>
+            <span className="ol-showcase-badge ol-showcase-badge--premium">Web workspace</span>
             <span className="ol-showcase-badge ol-showcase-badge--success">India-first</span>
           </div>
-          <div className="ol-onboarding-headline">Create your synced business</div>
+          <div className="ol-onboarding-headline">Create your web business</div>
           <p className="ol-auth-showcase-copy">
-            This is the first-run workspace setup for the web app. It should feel guided,
-            trustworthy, and closer to a premium SaaS onboarding than a plain admin form.
+            Set up the business details that appear on reports, backups, and documents.
           </p>
 
           <div className="ol-showcase-stack">
@@ -400,11 +399,11 @@ export function WorkspaceSetupCard() {
               </div>
               <aside className="ol-onboarding-insights">
                 <InfoCard
-                  copy="The synced workspace identity is what later appears in the dashboard, reports, document headers, and settings."
+                  copy="This business identity appears in the dashboard, reports, document headers, and settings."
                   title="Why this step first?"
                 />
                 <InfoCard
-                  copy="Orbit Ledger uses this profile to prepare invoices, statements, backup naming, and workspace-level trust messaging."
+                  copy="Orbit Ledger uses this profile to prepare invoices, statements, backup names, and review screens."
                   title="What happens next?"
                 />
               </aside>
@@ -445,8 +444,8 @@ export function WorkspaceSetupCard() {
               <div className="ol-note">
                 <strong>India-first web workspace</strong>
                 <span>
-                  Country stays fixed for now so tax, currency, and business copy remain coherent.
-                  The state selection is still important for tax-aware setup and reporting context.
+                  Country stays fixed for now so money, documents, and business copy remain clear.
+                  State helps prepare cleaner reports.
                 </span>
               </div>
             </div>
@@ -465,8 +464,8 @@ export function WorkspaceSetupCard() {
               <div className="ol-panel-glass" style={{ padding: 18, display: 'grid', gap: 10 }}>
                 <strong style={{ fontSize: 14 }}>What this creates</strong>
                 <span className="ol-muted" style={{ lineHeight: 1.65 }}>
-                  A signed-in cloud workspace for customers, transactions, invoices, reports, and
-                  backup flows. This is the web-only synced path, not a local-only browser setup.
+                  A signed-in business workspace for customers, transactions, invoices, reports,
+                  and backups on web.
                 </span>
               </div>
             </div>
@@ -519,8 +518,8 @@ export function WorkspaceSetupCard() {
                   <div>
                     <div className="ol-panel-title">Creating your workspace</div>
                     <p className="ol-panel-copy" style={{ maxWidth: 520 }}>
-                      Orbit Ledger is setting up your business profile and enabling the core
-                      modules so you can start recording entries immediately.
+                      Orbit Ledger is setting up your business profile so you can start recording
+                      entries immediately.
                     </p>
                   </div>
                   <div className="ol-loader-cluster" aria-hidden="true">

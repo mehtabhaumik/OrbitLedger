@@ -158,7 +158,7 @@ export function ProductsScreen({ navigation }: ProductsScreenProps) {
       reset(defaultValues);
       setIsFormVisible(false);
       await loadProducts();
-      Alert.alert('Product saved', 'The product was saved on this device.');
+      Alert.alert('Product saved', 'The product is ready to use.');
     } catch {
       Alert.alert('Product could not be saved', 'Please check the product details and try again.');
     }
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
   content: {
     gap: spacing.lg,
     padding: spacing.lg,
-    paddingBottom: 112,
+    paddingBottom: 144,
   },
   actionCard: {
     backgroundColor: colors.surface,

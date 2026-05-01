@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import type { Route } from 'next';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AppShell } from '@/components/app-shell';
 import {
@@ -14,10 +16,21 @@ import {
   listWorkspaceCustomers,
   type WorkspaceCustomer,
 } from '@/lib/workspace-data';
+import {
+  buildCsv,
+  downloadTextFile,
+  filterWorkspaceCustomers,
+  makeExportFileName,
+  parseCustomerImportCsv,
+  pickSelectedRows,
+  sumCustomerBalances,
+  type CustomerBalanceFilter,
+} from '@/lib/workspace-power';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function CustomersPage() {
   const { activeWorkspace } = useWorkspace();
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
@@ -39,12 +52,17 @@ export default function CustomersPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
+  const [search, setSearch] = useState('');
+  const [balanceFilter, setBalanceFilter] = useState<CustomerBalanceFilter>('all');
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(new Set());
+  const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
     if (!activeWorkspace) {
       return;
     }
     void listWorkspaceCustomers(activeWorkspace.workspaceId).then(setCustomers);
+    setSelectedCustomerIds(new Set());
   }, [activeWorkspace]);
 
   async function addCustomer() {
@@ -137,6 +155,103 @@ export default function CustomersPage() {
     }));
   }
 
+  const filteredCustomers = useMemo(
+    () => filterWorkspaceCustomers(customers, { query: search, balanceFilter }),
+    [balanceFilter, customers, search]
+  );
+  const selectedCustomers = useMemo(
+    () => pickSelectedRows(filteredCustomers, selectedCustomerIds),
+    [filteredCustomers, selectedCustomerIds]
+  );
+  const customerSummary = useMemo(() => sumCustomerBalances(filteredCustomers), [filteredCustomers]);
+  const allVisibleSelected =
+    filteredCustomers.length > 0 && filteredCustomers.every((customer) => selectedCustomerIds.has(customer.id));
+
+  function toggleCustomerSelection(customerId: string) {
+    setSelectedCustomerIds((current) => {
+      const next = new Set(current);
+      if (next.has(customerId)) {
+        next.delete(customerId);
+      } else {
+        next.add(customerId);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllVisibleCustomers() {
+    setSelectedCustomerIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        filteredCustomers.forEach((customer) => next.delete(customer.id));
+      } else {
+        filteredCustomers.forEach((customer) => next.add(customer.id));
+      }
+      return next;
+    });
+  }
+
+  function exportCustomers() {
+    if (!activeWorkspace) {
+      return;
+    }
+
+    const rows = selectedCustomers.map((customer) => [
+      customer.name,
+      customer.phone ?? '',
+      customer.address ?? '',
+      customer.isArchived ? 'Archived' : 'Active',
+      customer.balance,
+      customer.openingBalance,
+      customer.updatedAt,
+    ]);
+    const csv = buildCsv(
+      ['Name', 'Phone', 'Address', 'Status', 'Balance', 'Opening balance', 'Last updated'],
+      rows
+    );
+    downloadTextFile(
+      makeExportFileName([activeWorkspace.businessName, 'customers', selectedCustomerIds.size ? 'selected' : 'current-view']),
+      csv
+    );
+    setMessageTone('success');
+    setMessage(`${selectedCustomers.length} customer${selectedCustomers.length === 1 ? '' : 's'} exported.`);
+  }
+
+  async function importCustomers(file: File | null) {
+    if (!activeWorkspace || !file) {
+      return;
+    }
+
+    setIsImporting(true);
+    setMessage(null);
+    try {
+      const rows = parseCustomerImportCsv(await file.text());
+      const importedCustomers: WorkspaceCustomer[] = [];
+      for (const row of rows) {
+        const phone = normalizePhoneForCountry(activeWorkspace.countryCode || 'IN', row.phone ?? '') ?? row.phone;
+        const customer = await createWorkspaceCustomer(activeWorkspace.workspaceId, {
+          name: row.name,
+          phone,
+          address: row.address,
+          openingBalance: row.openingBalance,
+        });
+        importedCustomers.push(customer);
+      }
+
+      setCustomers((current) => [...importedCustomers.reverse(), ...current]);
+      setMessageTone('success');
+      setMessage(`${rows.length} customer${rows.length === 1 ? '' : 's'} imported.`);
+    } catch (error) {
+      setMessageTone('danger');
+      setMessage(error instanceof Error ? error.message : 'Customers could not be imported.');
+    } finally {
+      setIsImporting(false);
+      if (importInputRef.current) {
+        importInputRef.current.value = '';
+      }
+    }
+  }
+
   return (
     <AppShell title="Customers" subtitle="Searchable customer records and outstanding balance review.">
       <section className="ol-split-grid">
@@ -212,7 +327,7 @@ export default function CustomersPage() {
 
         <article className="ol-panel">
           <div className="ol-panel-title" style={{ marginBottom: 12 }}>
-            Why this page matters
+            Customer cleanup
           </div>
           <div className="ol-list">
             <div className="ol-list-item">
@@ -220,51 +335,175 @@ export default function CustomersPage() {
               <div className="ol-list-copy">
                 <div className="ol-list-title">Outstanding balances stay visible</div>
                 <div className="ol-list-text">
-                  Customers are where receivables become actionable instead of staying buried in raw
-                  records.
+                  Filter customers, select the right rows, and export only the list you are reviewing.
                 </div>
               </div>
             </div>
             <div className="ol-list-item">
               <div className="ol-list-icon">A</div>
               <div className="ol-list-copy">
-                <div className="ol-list-title">Audit-friendly inputs</div>
+                <div className="ol-list-title">Cleaner office work</div>
                 <div className="ol-list-text">
-                  Opening balance, phone, and identity data feed the same workspace used for
-                  invoices and transaction history.
+                  Use web for wider review, cleanup, and export. Use mobile for daily field entry.
                 </div>
               </div>
             </div>
           </div>
+          <div className="ol-actions" style={{ marginTop: 16 }}>
+            <button
+              className="ol-button-secondary"
+              disabled={isImporting}
+              type="button"
+              onClick={() => importInputRef.current?.click()}
+            >
+              {isImporting ? 'Importing...' : 'Import customers'}
+            </button>
+            <button className="ol-button-secondary" type="button" onClick={() => {
+              const csv = buildCsv(
+                ['Name', 'Phone', 'Opening balance', 'Address'],
+                [['Asha Traders', '+91 98765 43210', 0, 'Market Road']]
+              );
+              downloadTextFile('orbit-ledger-customer-import-template.csv', csv);
+            }}>
+              Download template
+            </button>
+            <input
+              hidden
+              accept=".csv,text/csv"
+              ref={importInputRef}
+              type="file"
+              onChange={(event) => void importCustomers(event.target.files?.[0] ?? null)}
+            />
+          </div>
         </article>
       </section>
 
+      <section className="ol-metric-grid">
+        <Metric label="Showing" value={String(filteredCustomers.length)} helper="Customers in this view." tone="primary" />
+        <Metric
+          label="Outstanding"
+          value={formatCurrency(customerSummary.outstanding, activeWorkspace?.currency ?? 'INR')}
+          helper={`${customerSummary.outstandingCount} customer${customerSummary.outstandingCount === 1 ? '' : 's'} to collect from.`}
+          tone="warning"
+        />
+        <Metric
+          label="Advance"
+          value={formatCurrency(customerSummary.advance, activeWorkspace?.currency ?? 'INR')}
+          helper={`${customerSummary.advanceCount} customer${customerSummary.advanceCount === 1 ? '' : 's'} paid ahead.`}
+          tone="success"
+        />
+      </section>
+
       <section className="ol-table">
-        <div className="ol-table-head" style={{ gridTemplateColumns: '1.2fr 1fr 0.7fr' }}>
+        <div className="ol-table-tools">
+          <label className="ol-field">
+            <span className="ol-field-label">Search customers</span>
+            <input
+              className="ol-input"
+              placeholder="Name or phone"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <label className="ol-field">
+            <span className="ol-field-label">Balance view</span>
+            <select
+              className="ol-select"
+              value={balanceFilter}
+              onChange={(event) => setBalanceFilter(event.target.value as typeof balanceFilter)}
+            >
+              <option value="all">All customers</option>
+              <option value="outstanding">Outstanding only</option>
+              <option value="advance">Advance balances</option>
+              <option value="settled">Settled only</option>
+            </select>
+          </label>
+          <div className="ol-table-actions">
+            <button className="ol-button-secondary" type="button" onClick={() => {
+              setSearch('');
+              setBalanceFilter('all');
+              setSelectedCustomerIds(new Set());
+            }}>
+              Clear view
+            </button>
+            <button className="ol-button" type="button" disabled={!selectedCustomers.length} onClick={exportCustomers}>
+              Export {selectedCustomerIds.size ? 'selected' : 'view'}
+            </button>
+          </div>
+        </div>
+        <div className="ol-table-summary">
+          {selectedCustomerIds.size
+            ? `${selectedCustomers.length} selected from this view.`
+            : 'Select rows for a focused export, or export the current view.'}
+        </div>
+        <div className="ol-table-head" style={{ gridTemplateColumns: '44px 1.2fr 1fr 0.7fr' }}>
+          <span>
+            <input
+              aria-label="Select all visible customers"
+              checked={allVisibleSelected}
+              className="ol-checkbox"
+              type="checkbox"
+              onChange={toggleAllVisibleCustomers}
+            />
+          </span>
           <span>Name</span>
           <span>Phone</span>
           <span style={{ textAlign: 'right' }}>Balance</span>
         </div>
-        {customers.map((customer) => (
+        {filteredCustomers.map((customer) => (
           <div
             className="ol-table-row"
             key={customer.id}
-            style={{ gridTemplateColumns: '1.2fr 1fr 0.7fr' }}
+            style={{ gridTemplateColumns: '44px 1.2fr 1fr 0.7fr' }}
           >
-            <span style={{ fontWeight: 800 }}>{customer.name}</span>
+            <span>
+              <input
+                aria-label={`Select ${customer.name}`}
+                checked={selectedCustomerIds.has(customer.id)}
+                className="ol-checkbox"
+                type="checkbox"
+                onChange={() => toggleCustomerSelection(customer.id)}
+              />
+            </span>
+            <Link
+              href={`/customers/detail?customerId=${encodeURIComponent(customer.id)}` as Route}
+              style={{ fontWeight: 800 }}
+            >
+              {customer.name}
+            </Link>
             <span>{customer.phone || '—'}</span>
             <span className="ol-amount" style={{ textAlign: 'right', fontWeight: 800 }}>
               {formatCurrency(customer.balance, activeWorkspace?.currency ?? 'INR')}
             </span>
           </div>
         ))}
-        {!customers.length ? (
+        {!filteredCustomers.length ? (
           <div className="ol-empty">
-            No customers yet. Add the first customer to start tracking dues.
+            No customers match this view.
           </div>
         ) : null}
       </section>
     </AppShell>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  helper,
+  tone,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  tone: 'primary' | 'warning' | 'success';
+}) {
+  return (
+    <article className="ol-metric-card" data-tone={tone}>
+      <div className="ol-metric-label">{label}</div>
+      <div className="ol-metric-value">{value}</div>
+      <div className="ol-metric-helper">{helper}</div>
+    </article>
   );
 }
 

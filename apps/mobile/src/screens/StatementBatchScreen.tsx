@@ -367,7 +367,7 @@ export function StatementBatchScreen({ navigation }: StatementBatchScreenProps) 
         <Card accent="primary">
           <Text style={styles.previewTitle}>Batch preview</Text>
           <Text style={styles.previewText}>
-            Review the customer count and included receivable before generating PDFs.
+            Review the customer count and included receivable before creating statements.
           </Text>
           <PrimaryButton loading={isPreviewing} disabled={isGenerating} onPress={buildPreview}>
             Preview Batch
@@ -387,7 +387,7 @@ export function StatementBatchScreen({ navigation }: StatementBatchScreenProps) 
               />
             </View>
 
-            <Section title="Preview customers" subtitle="Only ready customers will generate PDFs.">
+            <Section title="Preview customers" subtitle="Only ready customers will get statements.">
               <View style={styles.listShell}>
                 {preview.candidates.length === 0 ? (
                   <EmptyState
@@ -416,9 +416,9 @@ export function StatementBatchScreen({ navigation }: StatementBatchScreenProps) 
             </Section>
 
             <Card accent="success">
-              <Text style={styles.previewTitle}>Generate PDFs</Text>
+              <Text style={styles.previewTitle}>Create statements</Text>
               <Text style={styles.previewText}>
-                Statement PDFs are saved locally one customer at a time. Failed customers stay visible.
+                Statements are saved one customer at a time. Any failed customers stay visible.
               </Text>
               <PrimaryButton
                 loading={isGenerating}
@@ -462,11 +462,11 @@ export function StatementBatchScreen({ navigation }: StatementBatchScreenProps) 
           </Section>
         ) : null}
 
-        <Section title="Recent statement files" subtitle="Recent saved customer statement PDFs on this device.">
+        <Section title="Recent statement files" subtitle="Recently saved customer statements.">
           {history.length === 0 ? (
             <EmptyState
               title="No statement batches yet"
-              message="Generated statement files will appear here after you save or batch-generate PDFs."
+              message="Statement files will appear here after you save or batch-generate them."
             />
           ) : (
             <View style={styles.listShell}>
@@ -586,7 +586,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.lg,
-    paddingBottom: 112,
+    paddingBottom: 144,
     gap: spacing.xl,
   },
   eyebrow: {

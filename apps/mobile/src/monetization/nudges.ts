@@ -178,7 +178,7 @@ function premiumFeatureTitle(feature: string | null): string {
     return 'Pro adds better statements';
   }
 
-  return 'Pro adds premium document tools';
+  return 'Pro adds more document polish';
 }
 
 function isWithinDays(value: string | null, days: number): boolean {

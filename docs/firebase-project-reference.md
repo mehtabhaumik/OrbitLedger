@@ -18,7 +18,7 @@ import { initializeApp } from 'firebase/app';
 import { getAnalytics } from 'firebase/analytics';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyDE11IwIDmLsI5bbXl6j5GWHEt5FhLK25w',
+  apiKey: '<redacted: use NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_API_KEY from your local or hosted environment>',
   authDomain: 'orbit-ledger-f41c2.firebaseapp.com',
   projectId: 'orbit-ledger-f41c2',
   storageBucket: 'orbit-ledger-f41c2.firebasestorage.app',

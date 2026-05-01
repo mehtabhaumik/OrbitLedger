@@ -1,7 +1,9 @@
 import { BackupValidationError } from './errors';
-import { measurePerformanceSync } from '../performance';
+import { measurePerformanceSync } from '../performance/timing';
 import type { BackupRecordCounts, OrbitLedgerBackup, RestoreBackupPlan } from './types';
 import { parseOrbitLedgerBackupJson, validateOrbitLedgerBackup } from './validation';
+
+const MAX_SAFE_RESTORE_RECORDS = 50000;
 
 export function prepareFullReplaceRestorePlan(source: string | OrbitLedgerBackup): RestoreBackupPlan {
   return measurePerformanceSync('restore_validation', 'Restore validation', () => {
@@ -12,6 +14,12 @@ export function prepareFullReplaceRestorePlan(source: string | OrbitLedgerBackup
       throw new BackupValidationError('This backup is missing the business profile needed to restore.');
     }
     const recordCounts = backup.metadata.recordCounts ?? buildBackupRecordCounts(backup);
+    const totalRecords = countRestoreRecords(recordCounts);
+    if (totalRecords > MAX_SAFE_RESTORE_RECORDS) {
+      throw new BackupValidationError(
+        'This backup is too large to restore safely on this device. Please contact support before restoring it.'
+      );
+    }
 
     return {
       mode: 'replace',
@@ -24,6 +32,10 @@ export function prepareFullReplaceRestorePlan(source: string | OrbitLedgerBackup
       appSecurityToRestore: backup.data.appSecurity !== null,
     };
   });
+}
+
+function countRestoreRecords(recordCounts: BackupRecordCounts): number {
+  return Object.values(recordCounts).reduce((total, value) => total + value, 0);
 }
 
 function buildBackupRecordCounts(backup: OrbitLedgerBackup): BackupRecordCounts {
