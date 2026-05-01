@@ -625,12 +625,13 @@ Main areas:
 
 Current Node pin:
 
-- `.nvmrc`: `20.19.4`
-- root/package workspace engines: `>=20.19.4`
+- `.nvmrc`: `24.14.0`
+- root/package workspace engines: `>=24.14.0`
+- Firebase Functions runtime: Node 24.
 
 Reason:
 
-- React Native/Metro dependencies require Node 20.19.4 or newer.
+- The workspace is aligned on Node 24.14.0 for local installs, web builds, mobile tooling, and Firebase Functions deployment.
 - Previous older Node versions blocked reliable builds and installs.
 
 Mobile key stack:
@@ -1086,7 +1087,7 @@ Areas that appear strong in the current repo:
 - Firebase rules and tests.
 - CI workflow.
 - Expo Doctor passing after SDK patch updates.
-- Node pin aligned to React Native/Metro requirements.
+- Node pin aligned to Node 24.14.0 across local, web, mobile, shared packages, and Firebase Functions.
 
 Areas to continue strengthening:
 

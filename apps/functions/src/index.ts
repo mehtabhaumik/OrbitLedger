@@ -1,8 +1,13 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import * as admin from 'firebase-admin';
 import { logger } from 'firebase-functions';
+import { defineSecret } from 'firebase-functions/params';
 import { onRequest } from 'firebase-functions/v2/https';
 
 admin.initializeApp();
+
+const providerWebhookSecret = defineSecret('ORBIT_LEDGER_PROVIDER_WEBHOOK_SECRET');
 
 type ProviderSource = 'upi' | 'payment_page' | 'bank_transfer' | 'card' | 'wallet' | 'other';
 type ProviderPaymentStatus = 'succeeded' | 'pending' | 'failed' | 'refunded';
@@ -30,6 +35,7 @@ export const providerWebhook = onRequest(
     region: 'asia-south1',
     cors: false,
     maxInstances: 20,
+    secrets: [providerWebhookSecret],
   },
   async (request, response) => {
     if (request.method !== 'POST') {
@@ -513,18 +519,36 @@ function buildEventPayload(
 
 function isAuthorizedWebhook(request: {
   header(name: string): string | undefined;
-  query: Record<string, unknown>;
 }) {
-  const expectedSecret = process.env.ORBIT_LEDGER_PROVIDER_WEBHOOK_SECRET?.trim();
+  const expectedSecret = getExpectedWebhookSecret();
   if (!expectedSecret) {
     return process.env.FUNCTIONS_EMULATOR === 'true';
   }
 
-  const providedSecret =
-    request.header('x-orbit-ledger-webhook-secret') ??
-    request.header('x-webhook-secret') ??
-    request.query.secret;
-  return typeof providedSecret === 'string' && providedSecret === expectedSecret;
+  const providedSecret = getProvidedWebhookSecret(request);
+  return Boolean(providedSecret) && secureEquals(providedSecret, expectedSecret);
+}
+
+function getExpectedWebhookSecret(): string {
+  try {
+    return providerWebhookSecret.value().trim();
+  } catch {
+    return process.env.ORBIT_LEDGER_PROVIDER_WEBHOOK_SECRET?.trim() ?? '';
+  }
+}
+
+function getProvidedWebhookSecret(request: { header(name: string): string | undefined }): string {
+  const authorization = request.header('authorization') ?? '';
+  if (authorization.toLowerCase().startsWith('bearer ')) {
+    return authorization.slice(7).trim();
+  }
+  return (request.header('x-orbit-ledger-webhook-secret') ?? request.header('x-webhook-secret') ?? '').trim();
+}
+
+function secureEquals(providedSecret: string, expectedSecret: string): boolean {
+  const provided = Buffer.from(providedSecret);
+  const expected = Buffer.from(expectedSecret);
+  return provided.length === expected.length && timingSafeEqual(provided, expected);
 }
 
 function normalizePayload(body: unknown): ProviderWebhookPayload {
