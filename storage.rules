@@ -6,10 +6,73 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    match /workspaces/{workspaceId}/{allPaths=**} {
-      allow read, write: if signedIn() &&
+    function ownsWorkspace(workspaceId) {
+      return signedIn() &&
         firestore.exists(/databases/(default)/documents/workspaces/$(workspaceId)) &&
         firestore.get(/databases/(default)/documents/workspaces/$(workspaceId)).data.owner_uid == request.auth.uid;
+    }
+
+    function isImageUpload(maxBytes) {
+      return request.resource.size <= maxBytes &&
+        request.resource.contentType.matches('image/(png|jpeg|webp)');
+    }
+
+    function isPdfUpload(maxBytes) {
+      return request.resource.size <= maxBytes &&
+        request.resource.contentType == 'application/pdf';
+    }
+
+    function isBackupUpload(maxBytes) {
+      return request.resource.size <= maxBytes &&
+        request.resource.contentType.matches('(application/json|application/octet-stream)');
+    }
+
+    function isImportUpload(maxBytes) {
+      return request.resource.size <= maxBytes &&
+        request.resource.contentType.matches('(text/csv|application/json|application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|application/octet-stream)');
+    }
+
+    match /workspaces/{workspaceId}/logos/{fileName} {
+      allow read: if ownsWorkspace(workspaceId);
+      allow create, update: if ownsWorkspace(workspaceId) && isImageUpload(2 * 1024 * 1024);
+      allow delete: if ownsWorkspace(workspaceId);
+    }
+
+    match /workspaces/{workspaceId}/signatures/{fileName} {
+      allow read: if ownsWorkspace(workspaceId);
+      allow create, update: if ownsWorkspace(workspaceId) && isImageUpload(2 * 1024 * 1024);
+      allow delete: if ownsWorkspace(workspaceId);
+    }
+
+    match /workspaces/{workspaceId}/documents/invoices/{fileName} {
+      allow read: if ownsWorkspace(workspaceId);
+      allow create, update: if ownsWorkspace(workspaceId) && isPdfUpload(10 * 1024 * 1024);
+      allow delete: if ownsWorkspace(workspaceId);
+    }
+
+    match /workspaces/{workspaceId}/documents/statements/{fileName} {
+      allow read: if ownsWorkspace(workspaceId);
+      allow create, update: if ownsWorkspace(workspaceId) && isPdfUpload(10 * 1024 * 1024);
+      allow delete: if ownsWorkspace(workspaceId);
+    }
+
+    match /workspaces/{workspaceId}/backups/{fileName} {
+      allow read: if ownsWorkspace(workspaceId);
+      allow create, update: if ownsWorkspace(workspaceId) && isBackupUpload(25 * 1024 * 1024);
+      allow delete: if ownsWorkspace(workspaceId);
+    }
+
+    match /workspaces/{workspaceId}/imports/{fileName} {
+      allow read: if ownsWorkspace(workspaceId);
+      allow create, update: if ownsWorkspace(workspaceId) && isImportUpload(15 * 1024 * 1024);
+      allow delete: if ownsWorkspace(workspaceId);
+    }
+
+    match /workspaces/{workspaceId}/attachments/{category}/{fileName} {
+      allow read: if ownsWorkspace(workspaceId);
+      allow create, update: if ownsWorkspace(workspaceId) &&
+        (isImageUpload(10 * 1024 * 1024) || isPdfUpload(10 * 1024 * 1024));
+      allow delete: if ownsWorkspace(workspaceId);
     }
 
     match /{allPaths=**} {

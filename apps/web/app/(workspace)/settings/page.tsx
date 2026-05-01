@@ -1,7 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type InputHTMLAttributes,
+  type RefObject,
+} from 'react';
 
 import { AppShell } from '@/components/app-shell';
 import {
@@ -11,6 +18,12 @@ import {
   validatePhone,
 } from '@/lib/form-validation';
 import { INDIA_COUNTRY, INDIAN_STATES } from '@/lib/india';
+import {
+  deleteWorkspaceStorageFile,
+  uploadWorkspaceIdentityImage,
+  validateWorkspaceIdentityImage,
+  type WorkspaceIdentityAssetKind,
+} from '@/lib/workspace-storage';
 import { updateWorkspaceProfile } from '@/lib/workspaces';
 import { useWebLock } from '@/providers/web-lock-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -22,13 +35,17 @@ type ProfileFormState = {
   email: string;
   address: string;
   stateCode: string;
+  logoUri: string | null;
+  signatureUri: string | null;
 };
 
-type ProfileFieldKey = keyof Omit<ProfileFormState, 'address'>;
+type ProfileFieldKey = keyof Omit<ProfileFormState, 'address' | 'logoUri' | 'signatureUri'>;
 
 export default function SettingsPage() {
   const { activeWorkspace, refresh } = useWorkspace();
   const { isEnabled, timeoutMs, enableLock, disableLock, setTimeoutMs } = useWebLock();
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
+  const signatureInputRef = useRef<HTMLInputElement | null>(null);
   const [profile, setProfile] = useState<ProfileFormState>({
     businessName: '',
     ownerName: '',
@@ -36,6 +53,8 @@ export default function SettingsPage() {
     email: '',
     address: '',
     stateCode: 'GJ',
+    logoUri: null,
+    signatureUri: null,
   });
   const [fieldErrors, setFieldErrors] = useState<Record<ProfileFieldKey, string | null>>({
     businessName: null,
@@ -54,6 +73,7 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
   const [isSaving, setIsSaving] = useState(false);
+  const [uploadingAsset, setUploadingAsset] = useState<WorkspaceIdentityAssetKind | null>(null);
   const [pinInput, setPinInput] = useState('');
   const [lockMessage, setLockMessage] = useState<string | null>(null);
   const [lockMessageTone, setLockMessageTone] = useState<'success' | 'danger'>('success');
@@ -71,6 +91,8 @@ export default function SettingsPage() {
       email: activeWorkspace.email,
       address: activeWorkspace.address,
       stateCode: activeWorkspace.stateCode || 'GJ',
+      logoUri: activeWorkspace.logoUri,
+      signatureUri: activeWorkspace.signatureUri,
     });
     setFieldErrors({
       businessName: null,
@@ -173,6 +195,10 @@ export default function SettingsPage() {
         currency: INDIA_COUNTRY.currency,
         countryCode: INDIA_COUNTRY.code,
         stateCode: profile.stateCode,
+        logoUri: profile.logoUri,
+        authorizedPersonName: workspace.authorizedPersonName,
+        authorizedPersonTitle: workspace.authorizedPersonTitle,
+        signatureUri: profile.signatureUri,
       });
       await refresh();
       setMessageTone('success');
@@ -183,6 +209,89 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function saveWorkspaceMedia(nextProfile: ProfileFormState, successMessage: string) {
+    setIsSaving(true);
+    setMessage(null);
+    try {
+      await updateWorkspaceProfile(workspace.workspaceId, workspace.serverRevision, {
+        businessName: nextProfile.businessName.trim(),
+        ownerName: nextProfile.ownerName.trim(),
+        phone: nextProfile.phone.trim(),
+        email: nextProfile.email.trim(),
+        address: nextProfile.address.trim(),
+        currency: INDIA_COUNTRY.currency,
+        countryCode: INDIA_COUNTRY.code,
+        stateCode: nextProfile.stateCode,
+        logoUri: nextProfile.logoUri,
+        authorizedPersonName: workspace.authorizedPersonName,
+        authorizedPersonTitle: workspace.authorizedPersonTitle,
+        signatureUri: nextProfile.signatureUri,
+      });
+      await refresh();
+      setMessageTone('success');
+      setMessage(successMessage);
+    } catch (error) {
+      setMessageTone('danger');
+      setMessage(error instanceof Error ? error.message : 'Business file could not be saved.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleAssetPicked(kind: WorkspaceIdentityAssetKind, file: File | null) {
+    if (!file) {
+      return;
+    }
+
+    const validationError = validateWorkspaceIdentityImage(file);
+    if (validationError) {
+      setMessageTone('danger');
+      setMessage(validationError);
+      return;
+    }
+
+    const previousUrl = kind === 'logo' ? profile.logoUri : profile.signatureUri;
+    setUploadingAsset(kind);
+    setMessage(null);
+
+    try {
+      const nextUrl = await uploadWorkspaceIdentityImage(workspace.workspaceId, kind, file);
+      const nextProfile =
+        kind === 'logo'
+          ? { ...profile, logoUri: nextUrl }
+          : { ...profile, signatureUri: nextUrl };
+      setProfile(nextProfile);
+      await saveWorkspaceMedia(
+        nextProfile,
+        kind === 'logo' ? 'Business logo saved.' : 'Authorized signature saved.'
+      );
+      void deleteWorkspaceStorageFile(previousUrl);
+    } catch (error) {
+      setMessageTone('danger');
+      setMessage(error instanceof Error ? error.message : 'Business file could not be uploaded.');
+    } finally {
+      setUploadingAsset(null);
+    }
+  }
+
+  async function removeAsset(kind: WorkspaceIdentityAssetKind) {
+    const previousUrl = kind === 'logo' ? profile.logoUri : profile.signatureUri;
+    if (!previousUrl) {
+      return;
+    }
+
+    const nextProfile =
+      kind === 'logo'
+        ? { ...profile, logoUri: null }
+        : { ...profile, signatureUri: null };
+    setProfile(nextProfile);
+    await saveWorkspaceMedia(
+      nextProfile,
+      kind === 'logo' ? 'Business logo removed.' : 'Authorized signature removed.'
+    );
+    void deleteWorkspaceStorageFile(previousUrl);
   }
 
   async function enableBrowserLock() {
@@ -321,6 +430,39 @@ export default function SettingsPage() {
           </button>
         </div>
       </form>
+
+      <section className="ol-panel-glass">
+        <div className="ol-panel-header">
+          <div>
+            <div className="ol-panel-title">Business files</div>
+            <p className="ol-panel-copy">
+              Keep the logo and signature ready for invoices, statements, and exported documents.
+            </p>
+          </div>
+        </div>
+        <div className="ol-asset-grid">
+          <IdentityAssetCard
+            accept="image/png,image/jpeg,image/webp"
+            fileInputRef={logoInputRef}
+            imageAlt="Business logo"
+            imageUrl={profile.logoUri}
+            isBusy={uploadingAsset === 'logo' || isSaving}
+            title="Logo"
+            onPick={(file) => void handleAssetPicked('logo', file)}
+            onRemove={() => void removeAsset('logo')}
+          />
+          <IdentityAssetCard
+            accept="image/png,image/jpeg,image/webp"
+            fileInputRef={signatureInputRef}
+            imageAlt="Authorized signature"
+            imageUrl={profile.signatureUri}
+            isBusy={uploadingAsset === 'signature' || isSaving}
+            title="Signature"
+            onPick={(file) => void handleAssetPicked('signature', file)}
+            onRemove={() => void removeAsset('signature')}
+          />
+        </div>
+      </section>
 
       <section className="ol-note">
         <strong>Workspace note</strong>
@@ -468,5 +610,68 @@ function ProfileField({
       />
       {error ? <span className="ol-field-error">{error}</span> : null}
     </label>
+  );
+}
+
+function IdentityAssetCard({
+  accept,
+  fileInputRef,
+  imageAlt,
+  imageUrl,
+  isBusy,
+  onPick,
+  onRemove,
+  title,
+}: {
+  accept: string;
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  imageAlt: string;
+  imageUrl: string | null;
+  isBusy: boolean;
+  title: string;
+  onPick(file: File | null): void;
+  onRemove(): void;
+}) {
+  return (
+    <article className="ol-asset-card">
+      <div className="ol-asset-preview">
+        {imageUrl ? (
+          <img alt={imageAlt} src={imageUrl} />
+        ) : (
+          <span>{title}</span>
+        )}
+      </div>
+      <div className="ol-asset-body">
+        <div>
+          <div className="ol-asset-title">{title}</div>
+          <div className="ol-asset-copy">PNG, JPG, or WebP up to 2 MB.</div>
+        </div>
+        <div className="ol-actions ol-actions--compact">
+          <button
+            className="ol-button-secondary"
+            disabled={isBusy}
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {imageUrl ? 'Replace' : 'Upload'}
+          </button>
+          {imageUrl ? (
+            <button className="ol-button-ghost" disabled={isBusy} type="button" onClick={onRemove}>
+              Remove
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <input
+        hidden
+        accept={accept}
+        ref={fileInputRef}
+        type="file"
+        onChange={(event) => {
+          onPick(event.target.files?.[0] ?? null);
+          event.currentTarget.value = '';
+        }}
+      />
+    </article>
   );
 }

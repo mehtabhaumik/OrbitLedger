@@ -1518,6 +1518,64 @@ a:focus-visible {
   background: rgba(255, 255, 255, 0.66);
 }
 
+.ol-asset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ol-asset-card {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(203, 214, 232, 0.84);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.ol-asset-preview {
+  width: 132px;
+  aspect-ratio: 1.45;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px dashed rgba(135, 159, 194, 0.82);
+  background: linear-gradient(180deg, rgba(246, 250, 255, 0.94) 0%, rgba(239, 246, 255, 0.84) 100%);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ol-asset-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: white;
+}
+
+.ol-asset-body {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.ol-asset-title {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.ol-asset-copy {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .ol-review-label {
   color: var(--text-soft);
   font-size: 12px;
@@ -1535,6 +1593,17 @@ a:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.ol-actions--compact {
+  gap: 8px;
+}
+
+.ol-actions--compact .ol-button,
+.ol-actions--compact .ol-button-secondary,
+.ol-actions--compact .ol-button-ghost {
+  min-height: 38px;
+  padding-inline: 12px;
 }
 
 .ol-inline-actions {
@@ -1670,8 +1739,14 @@ a:focus-visible {
   .ol-form-row--transaction-entry,
   .ol-form-row--lock,
   .ol-form-row--invoice-item,
-  .ol-table-tools {
+  .ol-table-tools,
+  .ol-asset-grid,
+  .ol-asset-card {
     grid-template-columns: 1fr;
+  }
+
+  .ol-asset-preview {
+    width: 100%;
   }
 
   .ol-field--action {

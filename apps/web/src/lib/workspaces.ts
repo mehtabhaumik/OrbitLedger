@@ -30,6 +30,10 @@ export type WorkspaceProfileInput = {
   currency: string;
   countryCode: string;
   stateCode: string;
+  logoUri?: string | null;
+  authorizedPersonName?: string | null;
+  authorizedPersonTitle?: string | null;
+  signatureUri?: string | null;
 };
 
 type FirestoreWorkspaceDoc = {
@@ -78,6 +82,10 @@ export async function createWorkspace(
     currency: input.currency.trim().toUpperCase(),
     country_code: input.countryCode.trim().toUpperCase(),
     state_code: input.stateCode.trim().toUpperCase(),
+    logo_uri: input.logoUri ?? null,
+    authorized_person_name: input.authorizedPersonName?.trim() ?? '',
+    authorized_person_title: input.authorizedPersonTitle?.trim() ?? '',
+    signature_uri: input.signatureUri ?? null,
     owner_uid: ownerId,
     owner_email: ownerEmail,
     data_state: 'profile_only',
@@ -121,6 +129,10 @@ export async function updateWorkspaceProfile(
       currency: input.currency.trim().toUpperCase(),
       country_code: input.countryCode.trim().toUpperCase(),
       state_code: input.stateCode.trim().toUpperCase(),
+      logo_uri: input.logoUri ?? null,
+      authorized_person_name: input.authorizedPersonName?.trim() ?? '',
+      authorized_person_title: input.authorizedPersonTitle?.trim() ?? '',
+      signature_uri: input.signatureUri ?? null,
       updated_at: serverTimestamp(),
       server_revision: currentRevision + 1,
     });

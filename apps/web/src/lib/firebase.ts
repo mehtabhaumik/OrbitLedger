@@ -13,6 +13,7 @@ import {
   enableIndexedDbPersistence,
   type Firestore,
 } from 'firebase/firestore';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 declare global {
   interface Window {
@@ -55,6 +56,7 @@ const firebaseConfig = {
 let persistenceInitialized = false;
 let firestorePersistenceInitialized = false;
 let firestoreInstance: Firestore | null = null;
+let storageInstance: FirebaseStorage | null = null;
 let appCheckInstance: AppCheck | null = null;
 
 function getFirebaseEnv(key: string, developmentFallback: string) {
@@ -98,6 +100,14 @@ export function getWebFirestore() {
     void enableIndexedDbPersistence(firestore).catch(() => undefined);
   }
   return firestore;
+}
+
+export function getWebStorage() {
+  if (!storageInstance) {
+    storageInstance = getStorage(getWebFirebaseApp());
+  }
+
+  return storageInstance;
 }
 
 export function createGoogleProvider() {
