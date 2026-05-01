@@ -7,6 +7,7 @@ import {
   buildRazorpayPaymentLinkDraft,
   getManualPaymentVerificationPlan,
   getPaymentClearanceStatusLabel,
+  summarizePaymentClearance,
   summarizePaymentMode,
   type PaymentClearanceStatus,
 } from '@orbit-ledger/core';
@@ -20,6 +21,7 @@ import {
   listWorkspaceInvoices,
   listWorkspaceManualPaymentReviewItems,
   listWorkspacePaymentProviderEvents,
+  listWorkspaceTransactions,
   markWorkspaceProviderEventReviewed,
   reverseWorkspaceProviderEventPayment,
   updateWorkspaceManualPaymentClearance,
@@ -27,6 +29,7 @@ import {
   type WorkspaceInvoice,
   type WorkspaceManualPaymentReviewItem,
   type WorkspacePaymentProviderEvent,
+  type WorkspaceTransaction,
 } from '@/lib/workspace-data';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -39,6 +42,7 @@ export default function PaymentsPage() {
   const { showToast } = useToast();
   const [events, setEvents] = useState<WorkspacePaymentProviderEvent[]>([]);
   const [manualPayments, setManualPayments] = useState<WorkspaceManualPaymentReviewItem[]>([]);
+  const [transactions, setTransactions] = useState<WorkspaceTransaction[]>([]);
   const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [filter, setFilter] = useState<EventFilter>('needs_review');
@@ -71,14 +75,16 @@ export default function PaymentsPage() {
     }
     setIsLoading(true);
     try {
-      const [nextEvents, nextManualPayments, nextInvoices, nextCustomers] = await Promise.all([
+      const [nextEvents, nextManualPayments, nextTransactions, nextInvoices, nextCustomers] = await Promise.all([
         listWorkspacePaymentProviderEvents(activeWorkspace.workspaceId),
         listWorkspaceManualPaymentReviewItems(activeWorkspace.workspaceId),
+        listWorkspaceTransactions(activeWorkspace.workspaceId),
         listWorkspaceInvoices(activeWorkspace.workspaceId),
         listWorkspaceCustomers(activeWorkspace.workspaceId),
       ]);
       setEvents(nextEvents);
       setManualPayments(nextManualPayments);
+      setTransactions(nextTransactions);
       setInvoices(nextInvoices);
       setCustomers(nextCustomers);
       setSelectedInvoices((current) => {
@@ -156,6 +162,34 @@ export default function PaymentsPage() {
       ),
     [invoices]
   );
+  const paymentActivity = useMemo(() => {
+    const providerItems = events.map((event) => ({
+      id: `provider-${event.id}`,
+      at: event.lastModified || event.createdAt,
+      title: event.reversed ? 'Provider payment reversed' : event.applied ? 'Provider payment applied' : 'Provider event received',
+      detail: `${providerLabel(event.source)} · ${event.reference ?? event.providerPaymentId ?? 'No reference'}`,
+      amount: event.amount,
+      currency: event.currency,
+      tone: event.reversed ? 'warning' : event.applied ? 'success' : 'primary',
+      invoiceId: event.invoiceId,
+    }));
+    const manualItems = transactions
+      .filter((transaction) => transaction.type === 'payment')
+      .map((transaction) => ({
+        id: `manual-${transaction.id}`,
+        at: transaction.createdAt,
+        title: 'Manual payment recorded',
+        detail: `${transaction.customerName} · ${summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails)} · ${summarizePaymentClearance(transaction.paymentClearanceStatus, transaction.paymentDetails)}`,
+        amount: transaction.amount,
+        currency: activeWorkspace?.currency ?? 'INR',
+        tone: transaction.paymentClearanceStatus === 'cleared' ? 'success' : 'warning',
+        invoiceId: null,
+      }));
+
+    return [...providerItems, ...manualItems]
+      .sort((left, right) => right.at.localeCompare(left.at))
+      .slice(0, 12);
+  }, [activeWorkspace?.currency, events, transactions]);
   const razorpayPaymentLinkDraft = useMemo(() => {
     if (!activeWorkspace) {
       return null;
@@ -368,6 +402,44 @@ export default function PaymentsPage() {
           <Link className="ol-button-secondary" href="/transactions">
             Record payment manually
           </Link>
+        </div>
+      </section>
+
+      <section className="ol-panel">
+        <div className="ol-panel-header">
+          <div>
+            <div className="ol-panel-title">Payment Activity Timeline</div>
+            <p className="ol-panel-copy" style={{ maxWidth: 720 }}>
+              Recent manual and provider payment activity in one audit-friendly view.
+            </p>
+          </div>
+          <span className="ol-chip ol-chip--premium">Audit trail</span>
+        </div>
+        <div className="ol-list">
+          {paymentActivity.map((item) => (
+            <article className="ol-list-item" key={item.id}>
+              <div>
+                <strong>{item.title}</strong>
+                <p className="ol-muted" style={{ margin: '4px 0 0' }}>
+                  {item.detail}
+                </p>
+                <p className="ol-muted" style={{ margin: '4px 0 0', fontSize: 13 }}>
+                  {formatDateTime(item.at)}
+                </p>
+              </div>
+              <div className="ol-inline-actions">
+                <span className={`ol-chip ol-chip--${item.tone}`}>{formatCurrency(item.amount, item.currency)}</span>
+                {item.invoiceId ? (
+                  <Link className="ol-link-button" href={`/invoices/detail?invoiceId=${encodeURIComponent(item.invoiceId)}`}>
+                    Open invoice
+                  </Link>
+                ) : null}
+              </div>
+            </article>
+          ))}
+          {!isLoading && !paymentActivity.length ? (
+            <div className="ol-empty">No payment activity has been recorded yet.</div>
+          ) : null}
         </div>
       </section>
 
