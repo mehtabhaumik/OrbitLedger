@@ -29,6 +29,7 @@ function HostedPaymentContent() {
     }),
     [searchParams]
   );
+  const hasAmount = payment.amount > 0;
   const upiUrl = payment.upi
     ? buildUpiUrl({
         upiId: payment.upi,
@@ -72,8 +73,11 @@ function HostedPaymentContent() {
               <span>Reference</span>
               <strong>{payment.reference}</strong>
             </div>
+            <div className="ol-pay-notice">
+              This page shows payment instructions from the business. Orbit Ledger does not process or confirm this payment.
+            </div>
             <div className="ol-pay-actions">
-              {upiUrl ? (
+              {upiUrl && hasAmount ? (
                 <a className="ol-button" href={upiUrl}>
                   Pay with UPI
                 </a>
@@ -92,7 +96,17 @@ function HostedPaymentContent() {
               <PaymentDetail label="Due date" value={payment.due ?? 'Not provided'} />
               <PaymentDetail label="Amount" value={formatCurrency(payment.amount, payment.currency)} />
               <PaymentDetail label="UPI" value={payment.upi ?? 'Not provided'} />
+              <PaymentDetail label="Note" value={payment.note ?? 'Keep the reference unchanged.'} />
             </div>
+          </article>
+
+          <article className="ol-pay-card ol-pay-card--steps">
+            <h2>After payment</h2>
+            <ol className="ol-pay-steps">
+              <li>Pay the exact amount shown here.</li>
+              <li>Keep the reference unchanged.</li>
+              <li>Share the payment confirmation with the business.</li>
+            </ol>
           </article>
         </div>
         <p className="ol-pay-footer">

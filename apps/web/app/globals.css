@@ -328,6 +328,17 @@ a:focus-visible {
   font-size: 20px;
 }
 
+.ol-pay-notice {
+  border: 1px solid rgba(47, 131, 247, 0.22);
+  border-radius: 8px;
+  background: rgba(47, 131, 247, 0.08);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  padding: 12px 14px;
+}
+
 .ol-pay-actions {
   display: flex;
   flex-wrap: wrap;
@@ -352,6 +363,39 @@ a:focus-visible {
 
 .ol-pay-footer {
   max-width: 760px;
+}
+
+.ol-pay-card--steps {
+  grid-column: 1 / -1;
+}
+
+.ol-pay-steps {
+  color: var(--text-muted);
+  display: grid;
+  gap: 8px;
+  line-height: 1.5;
+  margin: 0;
+  padding-left: 22px;
+}
+
+@media (max-width: 760px) {
+  .ol-pay-page {
+    padding: 18px;
+    place-items: stretch;
+  }
+
+  .ol-pay-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ol-pay-card h1 {
+    font-size: 42px;
+  }
+
+  .ol-pay-actions .ol-button,
+  .ol-pay-actions .ol-button-secondary {
+    width: 100%;
+  }
 }
 
 .ol-sidebar-footer {
