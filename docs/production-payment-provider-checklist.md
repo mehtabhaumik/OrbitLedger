@@ -19,6 +19,10 @@ The webhook also accepts `Authorization: Bearer <secret>` for providers that sup
 
 Every provider event should be sent as a `POST` request with JSON.
 
+Provider-specific mapping details are maintained in:
+
+- `docs/payment-provider-selection-and-mapping.md`
+
 Required fields:
 
 - `workspaceId`

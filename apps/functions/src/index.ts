@@ -13,22 +13,28 @@ type ProviderSource = 'upi' | 'payment_page' | 'bank_transfer' | 'card' | 'walle
 type ProviderPaymentStatus = 'succeeded' | 'pending' | 'failed' | 'refunded';
 
 type ProviderWebhookPayload = {
-  workspaceId?: string;
-  invoiceId?: string;
-  invoiceNumber?: string;
-  customerId?: string;
+  provider?: string | null;
+  workspaceId?: string | null;
+  invoiceId?: string | null;
+  invoiceNumber?: string | null;
+  customerId?: string | null;
   source?: ProviderSource;
-  status?: string;
+  status?: string | null;
   amount?: number | string;
-  currency?: string;
-  reference?: string;
-  providerPaymentId?: string;
-  payerName?: string;
-  payerContact?: string;
-  paidAt?: string;
+  currency?: string | null;
+  reference?: string | null;
+  providerPaymentId?: string | null;
+  payerName?: string | null;
+  payerContact?: string | null;
+  paidAt?: string | null;
+  rawPayload?: Record<string, unknown>;
 };
 
 const db = admin.firestore();
+
+export function normalizeProviderWebhookPayload(body: unknown): ProviderWebhookPayload {
+  return normalizePayload(body);
+}
 
 export const providerWebhook = onRequest(
   {
@@ -496,6 +502,7 @@ function buildEventPayload(
   }
 ) {
   return {
+    provider: clean(payload.provider) ?? 'orbit',
     source: payload.source ?? 'other',
     status: normalizeProviderStatus(payload.status),
     amount: input.amount,
@@ -513,7 +520,7 @@ function buildEventPayload(
     applied: input.applied,
     created_at: input.now,
     last_modified: input.now,
-    raw_payload: compactPayload(payload),
+    raw_payload: payload.rawPayload ?? compactPayload(payload),
   };
 }
 
@@ -552,7 +559,20 @@ function secureEquals(providedSecret: string, expectedSecret: string): boolean {
 }
 
 function normalizePayload(body: unknown): ProviderWebhookPayload {
-  return body && typeof body === 'object' ? (body as ProviderWebhookPayload) : {};
+  const payload = asRecord(body);
+  if (!payload) {
+    return {};
+  }
+  if (isRazorpayPayload(payload)) {
+    return normalizeRazorpayPayload(payload);
+  }
+  if (isCashfreePayload(payload)) {
+    return normalizeCashfreePayload(payload);
+  }
+  if (isStripePayload(payload)) {
+    return normalizeStripePayload(payload);
+  }
+  return { ...(payload as ProviderWebhookPayload), rawPayload: payload };
 }
 
 function validatePayload(payload: ProviderWebhookPayload): string | null {
@@ -569,7 +589,10 @@ function validatePayload(payload: ProviderWebhookPayload): string | null {
 }
 
 function buildProviderEventId(payload: ProviderWebhookPayload): string {
-  return normalizeId([payload.source ?? 'provider', payload.providerPaymentId ?? payload.reference ?? Date.now()].join('_'));
+  return normalizeId([
+    payload.provider ?? payload.source ?? 'provider',
+    payload.providerPaymentId ?? payload.reference ?? Date.now(),
+  ].join('_'));
 }
 
 function normalizeId(value: string): string {
@@ -641,7 +664,7 @@ function paymentModeForSource(source: ProviderSource): string {
 function buildPaymentDetails(payload: ProviderWebhookPayload) {
   return {
     referenceNumber: clean(payload.reference) ?? clean(payload.providerPaymentId),
-    provider: clean(payload.source) ?? 'provider',
+    provider: clean(payload.provider) ?? clean(payload.source) ?? 'provider',
     upiId: payload.source === 'upi' ? clean(payload.payerContact) : null,
     note: clean(payload.payerName),
   };
@@ -677,5 +700,227 @@ function deriveProviderInvoicePaymentStatus(input: {
 }
 
 function compactPayload(payload: ProviderWebhookPayload): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
+  return Object.fromEntries(Object.entries(payload).filter(([key, value]) => key !== 'rawPayload' && value !== undefined));
+}
+
+function isRazorpayPayload(payload: Record<string, unknown>): boolean {
+  return clean(stringValue(payload.event))?.includes('.') === true && asRecord(payload.payload) !== null;
+}
+
+function normalizeRazorpayPayload(payload: Record<string, unknown>): ProviderWebhookPayload {
+  const eventName = clean(stringValue(payload.event)) ?? '';
+  const payment = asRecord(asRecord(asRecord(payload.payload)?.payment)?.entity);
+  const refund = asRecord(asRecord(asRecord(payload.payload)?.refund)?.entity);
+  const entity = refund ?? payment ?? {};
+  const notes = normalizeMetadata(asRecord(entity.notes));
+  const paymentId = clean(stringValue(refund?.payment_id)) ?? clean(stringValue(payment?.id)) ?? clean(stringValue(entity.id));
+  const amount = normalizeMinorUnitAmount(numberLike(refund?.amount ?? payment?.amount ?? entity.amount));
+
+  return {
+    provider: 'razorpay',
+    workspaceId: metadataValue(notes, 'workspaceId', 'workspace_id', 'orbit_workspace_id'),
+    invoiceId: metadataValue(notes, 'invoiceId', 'invoice_id', 'orbit_invoice_id'),
+    invoiceNumber: metadataValue(notes, 'invoiceNumber', 'invoice_number', 'orbit_invoice_number'),
+    customerId: metadataValue(notes, 'customerId', 'customer_id', 'orbit_customer_id'),
+    source: razorpaySource(clean(stringValue(payment?.method)) ?? clean(stringValue(entity.method))),
+    status: razorpayStatus(eventName, clean(stringValue(entity.status))),
+    amount,
+    currency: clean(stringValue(entity.currency)) ?? 'INR',
+    reference: clean(stringValue(refund?.id)) ?? clean(stringValue(entity.order_id)) ?? clean(stringValue(entity.id)),
+    providerPaymentId: paymentId,
+    payerName: metadataValue(notes, 'payerName', 'customer_name', 'name') ?? clean(stringValue(entity.email)),
+    payerContact: clean(stringValue(entity.contact)) ?? clean(stringValue(entity.vpa)),
+    paidAt: epochSecondsToIso(numberLike(entity.created_at)),
+    rawPayload: payload,
+  };
+}
+
+function razorpaySource(method: string | null): ProviderSource {
+  switch (method) {
+    case 'upi':
+      return 'upi';
+    case 'netbanking':
+      return 'bank_transfer';
+    case 'card':
+      return 'card';
+    case 'wallet':
+      return 'wallet';
+    default:
+      return 'payment_page';
+  }
+}
+
+function razorpayStatus(eventName: string, entityStatus: string | null): ProviderPaymentStatus {
+  if (eventName.startsWith('refund.')) {
+    return 'refunded';
+  }
+  if (eventName === 'payment.captured' || entityStatus === 'captured') {
+    return 'succeeded';
+  }
+  if (eventName === 'payment.authorized' || entityStatus === 'authorized') {
+    return 'pending';
+  }
+  return 'failed';
+}
+
+function isCashfreePayload(payload: Record<string, unknown>): boolean {
+  const data = asRecord(payload.data);
+  return clean(stringValue(payload.type))?.includes('_WEBHOOK') === true && Boolean(asRecord(data?.payment));
+}
+
+function normalizeCashfreePayload(payload: Record<string, unknown>): ProviderWebhookPayload {
+  const data = asRecord(payload.data) ?? {};
+  const order = asRecord(data.order) ?? {};
+  const payment = asRecord(data.payment) ?? {};
+  const customer = asRecord(data.customer_details) ?? {};
+  const gateway = asRecord(data.payment_gateway_details) ?? {};
+  const tags = normalizeMetadata(asRecord(order.order_tags));
+  const type = clean(stringValue(payload.type)) ?? '';
+  const paymentStatus = clean(stringValue(payment.payment_status));
+  const providerPaymentId =
+    clean(stringValue(payment.cf_payment_id)) ??
+    clean(stringValue(gateway.gateway_payment_id)) ??
+    clean(stringValue(order.order_id));
+
+  return {
+    provider: 'cashfree',
+    workspaceId: metadataValue(tags, 'workspaceId', 'workspace_id', 'orbit_workspace_id'),
+    invoiceId: metadataValue(tags, 'invoiceId', 'invoice_id', 'orbit_invoice_id'),
+    invoiceNumber: metadataValue(tags, 'invoiceNumber', 'invoice_number', 'orbit_invoice_number') ?? clean(stringValue(order.order_id)),
+    customerId: metadataValue(tags, 'customerId', 'customer_id', 'orbit_customer_id') ?? clean(stringValue(customer.customer_id)),
+    source: cashfreeSource(clean(stringValue(payment.payment_group))),
+    status: cashfreeStatus(type, paymentStatus),
+    amount: normalizeAmount(numberLike(payment.payment_amount ?? order.order_amount)),
+    currency: clean(stringValue(payment.payment_currency)) ?? clean(stringValue(order.order_currency)) ?? 'INR',
+    reference: clean(stringValue(order.order_id)) ?? clean(stringValue(payment.bank_reference)) ?? providerPaymentId,
+    providerPaymentId,
+    payerName: clean(stringValue(customer.customer_name)),
+    payerContact: clean(stringValue(customer.customer_phone)) ?? clean(stringValue(customer.customer_email)),
+    paidAt: clean(stringValue(payment.payment_time)) ?? clean(stringValue(payload.event_time)),
+    rawPayload: payload,
+  };
+}
+
+function cashfreeSource(paymentGroup: string | null): ProviderSource {
+  if (paymentGroup?.includes('upi')) {
+    return 'upi';
+  }
+  if (paymentGroup?.includes('card')) {
+    return 'card';
+  }
+  if (paymentGroup?.includes('wallet')) {
+    return 'wallet';
+  }
+  if (paymentGroup?.includes('bank')) {
+    return 'bank_transfer';
+  }
+  return 'payment_page';
+}
+
+function cashfreeStatus(eventType: string, paymentStatus: string | null): ProviderPaymentStatus {
+  if (eventType.includes('REFUND') || paymentStatus === 'REFUNDED') {
+    return 'refunded';
+  }
+  if (eventType.includes('SUCCESS') || paymentStatus === 'SUCCESS') {
+    return 'succeeded';
+  }
+  if (paymentStatus === 'PENDING') {
+    return 'pending';
+  }
+  return 'failed';
+}
+
+function isStripePayload(payload: Record<string, unknown>): boolean {
+  return clean(stringValue(payload.type))?.includes('.') === true && asRecord(asRecord(payload.data)?.object) !== null;
+}
+
+function normalizeStripePayload(payload: Record<string, unknown>): ProviderWebhookPayload {
+  const type = clean(stringValue(payload.type)) ?? '';
+  const object = asRecord(asRecord(payload.data)?.object) ?? {};
+  const metadata = normalizeMetadata(asRecord(object.metadata));
+  const providerPaymentId =
+    clean(stringValue(object.payment_intent)) ??
+    clean(stringValue(object.id)) ??
+    clean(stringValue(object.charge));
+  const amount =
+    normalizeMinorUnitAmount(numberLike(object.amount_received ?? object.amount_paid ?? object.amount ?? object.amount_refunded));
+
+  return {
+    provider: 'stripe',
+    workspaceId: metadataValue(metadata, 'workspaceId', 'workspace_id', 'orbit_workspace_id'),
+    invoiceId: metadataValue(metadata, 'invoiceId', 'invoice_id', 'orbit_invoice_id'),
+    invoiceNumber: metadataValue(metadata, 'invoiceNumber', 'invoice_number', 'orbit_invoice_number'),
+    customerId: metadataValue(metadata, 'customerId', 'customer_id', 'orbit_customer_id'),
+    source: 'card',
+    status: stripeStatus(type, clean(stringValue(object.status))),
+    amount,
+    currency: clean(stringValue(object.currency))?.toUpperCase() ?? 'USD',
+    reference: clean(stringValue(object.id)) ?? providerPaymentId,
+    providerPaymentId,
+    payerName: clean(stringValue(object.receipt_email)) ?? metadataValue(metadata, 'payerName', 'customer_name', 'name'),
+    payerContact: clean(stringValue(object.receipt_email)),
+    paidAt: epochSecondsToIso(numberLike(object.created)) ?? clean(stringValue(payload.created)),
+    rawPayload: payload,
+  };
+}
+
+function stripeStatus(eventType: string, objectStatus: string | null): ProviderPaymentStatus {
+  if (eventType.includes('refund') || eventType === 'charge.refunded') {
+    return 'refunded';
+  }
+  if (eventType === 'payment_intent.succeeded' || eventType === 'charge.succeeded' || objectStatus === 'succeeded') {
+    return 'succeeded';
+  }
+  if (objectStatus === 'processing' || objectStatus === 'requires_capture') {
+    return 'pending';
+  }
+  return 'failed';
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function stringValue(value: unknown): string | null {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return null;
+}
+
+function numberLike(value: unknown): number | string | null {
+  return typeof value === 'number' || typeof value === 'string' ? value : null;
+}
+
+function normalizeMinorUnitAmount(value: number | string | null): number {
+  return roundMoney(normalizeAmount(value) / 100);
+}
+
+function normalizeMetadata(metadata: Record<string, unknown> | null): Record<string, string> {
+  if (!metadata) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(metadata)
+      .map(([key, value]) => [key, stringValue(value)])
+      .filter((entry): entry is [string, string] => Boolean(entry[1]))
+  );
+}
+
+function metadataValue(metadata: Record<string, string>, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const value = clean(metadata[key]);
+    if (value) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function epochSecondsToIso(value: number | string | null): string | undefined {
+  const seconds = Number(value ?? 0);
+  return Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000).toISOString() : undefined;
 }
