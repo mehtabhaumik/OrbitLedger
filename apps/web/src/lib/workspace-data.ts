@@ -36,6 +36,7 @@ import {
   type QueryDocumentSnapshot,
   where,
   writeBatch,
+  updateDoc,
 } from 'firebase/firestore';
 
 import { getWebFirestore } from './firebase';
@@ -154,6 +155,36 @@ export type CreateWorkspaceInvoicePaymentInput = {
   paymentDetails?: PaymentModeDetails | null;
   paymentClearanceStatus?: PaymentClearanceStatus | null;
   paymentAttachments?: PaymentInstrumentAttachment[];
+};
+
+export type WorkspacePaymentProviderEvent = {
+  id: string;
+  source: string;
+  status: string;
+  applyStatus: string;
+  applied: boolean;
+  amount: number;
+  currency: string;
+  reference: string | null;
+  providerPaymentId: string | null;
+  payerName: string | null;
+  payerContact: string | null;
+  invoiceId: string | null;
+  customerId: string | null;
+  transactionId: string | null;
+  allocationId: string | null;
+  allocationAmount: number;
+  error: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+  lastModified: string;
+};
+
+export type ApplyWorkspaceProviderEventInput = {
+  invoiceId: string;
+  customerId?: string | null;
+  note?: string | null;
 };
 
 export type UpdateWorkspacePaymentClearanceInput = {
@@ -812,6 +843,100 @@ export async function updateWorkspacePaymentClearance(
   await batch.commit();
 }
 
+export async function listWorkspacePaymentProviderEvents(
+  workspaceId: string
+): Promise<WorkspacePaymentProviderEvent[]> {
+  const firestore = getWebFirestore();
+  const snapshot = await getDocs(
+    query(
+      collection(firestore, 'workspaces', workspaceId, 'payment_provider_events'),
+      orderBy('created_at', 'desc'),
+      limitQuery(80)
+    )
+  );
+
+  return snapshot.docs.map(mapWorkspacePaymentProviderEvent);
+}
+
+export async function markWorkspaceProviderEventReviewed(
+  workspaceId: string,
+  eventId: string,
+  note?: string | null
+): Promise<void> {
+  const now = new Date().toISOString();
+  await updateDoc(
+    doc(getWebFirestore(), 'workspaces', workspaceId, 'payment_provider_events', eventId),
+    {
+      reviewed_at: now,
+      review_note: note?.trim() || null,
+      last_modified: now,
+    }
+  );
+}
+
+export async function applyWorkspaceProviderEventToInvoice(
+  workspaceId: string,
+  eventId: string,
+  input: ApplyWorkspaceProviderEventInput
+): Promise<void> {
+  const firestore = getWebFirestore();
+  const eventRef = doc(firestore, 'workspaces', workspaceId, 'payment_provider_events', eventId);
+  const eventSnapshot = await getDoc(eventRef);
+  if (!eventSnapshot.exists()) {
+    throw new Error('Payment event could not be found.');
+  }
+
+  const event = mapWorkspacePaymentProviderEvent(eventSnapshot);
+  if (event.applied) {
+    throw new Error('This payment event is already applied.');
+  }
+  if (event.status !== 'succeeded') {
+    throw new Error('Only successful payment events can be applied to an invoice.');
+  }
+  if (event.amount <= 0) {
+    throw new Error('Payment event has no valid amount.');
+  }
+
+  const invoice = await getWorkspaceInvoiceDetail(workspaceId, input.invoiceId);
+  if (!invoice) {
+    throw new Error('Choose a valid invoice before applying this event.');
+  }
+  const customerId = input.customerId ?? invoice.customerId;
+  if (!customerId) {
+    throw new Error('Choose a customer before applying this payment.');
+  }
+
+  const transaction = await createWorkspaceTransaction(workspaceId, {
+    customerId,
+    type: 'payment',
+    amount: event.amount,
+    effectiveDate: event.createdAt.slice(0, 10),
+    note: input.note?.trim() || buildProviderEventPaymentNote(event, invoice.invoiceNumber),
+    paymentMode: paymentModeForProviderEvent(event.source),
+    paymentDetails: {
+      referenceNumber: event.reference ?? event.providerPaymentId,
+      provider: providerEventLabel(event.source),
+      note: event.payerName,
+    },
+    paymentClearanceStatus: 'cleared',
+    paymentAttachments: [],
+    allocationStrategy: 'selected_invoice',
+    invoiceId: invoice.id,
+  });
+
+  const now = new Date().toISOString();
+  await updateDoc(eventRef, {
+    applied: true,
+    apply_status: 'manual_applied',
+    invoice_id: invoice.id,
+    customer_id: customerId,
+    transaction_id: transaction.id,
+    reviewed_at: now,
+    review_note: input.note?.trim() || 'Applied by owner review.',
+    last_modified: now,
+  });
+}
+
 export async function getWorkspaceInvoiceDetail(
   workspaceId: string,
   invoiceId: string
@@ -1378,6 +1503,89 @@ function mapWorkspaceInvoice(entry: QueryDocumentSnapshot): WorkspaceInvoice {
     versionNumber: data.version_number ?? (documentState === 'draft' ? 0 : 1),
     serverRevision: data.server_revision ?? 1,
   };
+}
+
+function mapWorkspacePaymentProviderEvent(entry: {
+  id: string;
+  data(): Record<string, unknown>;
+}): WorkspacePaymentProviderEvent {
+  const data = entry.data();
+  return {
+    id: entry.id,
+    source: stringValue(data.source, 'other'),
+    status: stringValue(data.status, 'pending'),
+    applyStatus: stringValue(data.apply_status, 'needs_review'),
+    applied: Boolean(data.applied),
+    amount: numberValue(data.amount),
+    currency: stringValue(data.currency, 'INR').toUpperCase(),
+    reference: nullableString(data.reference),
+    providerPaymentId: nullableString(data.provider_payment_id),
+    payerName: nullableString(data.payer_name),
+    payerContact: nullableString(data.payer_contact),
+    invoiceId: nullableString(data.invoice_id),
+    customerId: nullableString(data.customer_id),
+    transactionId: nullableString(data.transaction_id),
+    allocationId: nullableString(data.allocation_id),
+    allocationAmount: numberValue(data.allocation_amount),
+    error: nullableString(data.error),
+    reviewedAt: nullableString(data.reviewed_at),
+    reviewNote: nullableString(data.review_note),
+    createdAt: stringValue(data.created_at, ''),
+    lastModified: stringValue(data.last_modified, ''),
+  };
+}
+
+function paymentModeForProviderEvent(source: string): PaymentMode {
+  switch (source) {
+    case 'upi':
+      return 'upi';
+    case 'bank_transfer':
+      return 'bank_transfer';
+    case 'card':
+      return 'card';
+    case 'wallet':
+    case 'payment_page':
+      return 'wallet';
+    default:
+      return 'other';
+  }
+}
+
+function providerEventLabel(source: string): string {
+  switch (source) {
+    case 'upi':
+      return 'UPI';
+    case 'payment_page':
+      return 'Payment page';
+    case 'bank_transfer':
+      return 'Bank transfer';
+    case 'card':
+      return 'Card';
+    case 'wallet':
+      return 'Wallet';
+    default:
+      return 'Provider';
+  }
+}
+
+function buildProviderEventPaymentNote(event: WorkspacePaymentProviderEvent, invoiceNumber: string): string {
+  const reference = event.reference ?? event.providerPaymentId;
+  return reference
+    ? `Reviewed provider payment ${reference} for invoice ${invoiceNumber}`
+    : `Reviewed provider payment for invoice ${invoiceNumber}`;
+}
+
+function stringValue(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function nullableString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function numberValue(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 async function loadCustomerNamesForInvoices(
