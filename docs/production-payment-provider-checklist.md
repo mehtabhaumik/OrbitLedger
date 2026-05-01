@@ -26,6 +26,7 @@ Every provider event should be sent as a `POST` request with JSON.
 Provider-specific mapping details are maintained in:
 
 - `docs/payment-provider-selection-and-mapping.md`
+- `docs/razorpay-dashboard-webhook-setup.md`
 
 The web Payments page can copy a Razorpay test payment-link draft. That draft contains no secrets. It is intended for the later Razorpay account setup phase and must remain in test mode until a real provider transaction has passed the full checklist.
 
@@ -94,19 +95,21 @@ Example shape, with placeholder values only:
 1. Create or open the payment provider account.
 2. Keep the provider in test mode.
 3. Store provider credentials with `npm run setup:razorpay-test-keys`.
-4. Add the production webhook URL.
-5. Add the secret as `x-orbit-ledger-webhook-secret`, or as a bearer token if the provider cannot send custom headers.
-6. Set the webhook method to `POST`.
-7. Set the content type to JSON.
-8. Configure success, pending, failed, and refund events.
-9. Store `workspaceId` in provider metadata, payment notes, or webhook custom fields.
-10. Store `invoiceId` in provider metadata when a payment is started from an invoice.
-11. Store `invoiceNumber` as a fallback reference.
-12. Confirm the provider sends payment amounts in the same currency unit Orbit Ledger expects.
-13. Confirm refunds include the original provider payment ID or original invoice reference.
-14. Create a checkout link from the invoice editor.
-15. Run the smoke tests below.
-16. Turn provider test mode off only after all smoke tests pass.
+4. Follow `docs/razorpay-dashboard-webhook-setup.md`.
+5. Add the production webhook URL.
+6. Add the webhook secret in Razorpay and store the same value as `RAZORPAY_WEBHOOK_SECRET`.
+7. Confirm Razorpay sends `X-Razorpay-Signature`.
+8. Set the webhook method to `POST`.
+9. Set the content type to JSON.
+10. Configure success, pending, failed, and refund events only.
+11. Store `workspaceId` in provider metadata, payment notes, or webhook custom fields.
+12. Store `invoiceId` in provider metadata when a payment is started from an invoice.
+13. Store `invoiceNumber` as a fallback reference.
+14. Confirm the provider sends payment amounts in the same currency unit Orbit Ledger expects.
+15. Confirm refunds include the original provider payment ID or original invoice reference.
+16. Create a checkout link from the invoice editor.
+17. Run the smoke tests below.
+18. Turn provider test mode off only after all smoke tests pass.
 
 ## Backend Access Checklist
 
@@ -354,7 +357,7 @@ npm run smoke:razorpay-checkout
 
 Sandbox workspace:
 
-- `sandbox_razorpay_checkout_1777670302115`
+- `sandbox_razorpay_checkout_1777670608889`
 
 Result:
 
@@ -377,3 +380,14 @@ Result:
 - Placeholder webhook secrets are treated as disabled and cannot authorize a webhook.
 - A Razorpay-style signed request using the placeholder secret returned HTTP `401`.
 - `npm run smoke:razorpay-capture` refuses to run unless a real local `RAZORPAY_WEBHOOK_SECRET` is provided.
+
+## Latest Razorpay Dashboard Setup Result
+
+Last verified: `2026-05-02`
+
+Result:
+
+- Orbit Ledger production endpoints are documented.
+- Razorpay Dashboard setup runbook was added.
+- Firebase Secret Manager still contains placeholder values for `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET`.
+- Real Razorpay test payment could not be run because dashboard credentials and webhook secret are not available in this workspace.
