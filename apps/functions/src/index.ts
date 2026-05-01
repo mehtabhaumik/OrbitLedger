@@ -60,7 +60,8 @@ export const providerWebhook = onRequest(
       .doc(eventId);
 
     const existingEvent = await eventRef.get();
-    if (existingEvent.exists && existingEvent.get('applied') === true) {
+    const status = normalizeProviderStatus(normalizedPayload.status);
+    if (existingEvent.exists && existingEvent.get('applied') === true && status !== 'refunded') {
       response.status(200).json({ ok: true, duplicate: true, eventId });
       return;
     }
@@ -111,6 +112,16 @@ async function applyProviderEvent(
     }
 
     const existingEvent = await transaction.get(eventRef);
+    if (status === 'refunded') {
+      return applyProviderRefundInTransaction(transaction, workspaceRef, eventRef, existingEvent, {
+        eventId,
+        payload,
+        amount,
+        currency,
+        now,
+      });
+    }
+
     if (existingEvent.exists && existingEvent.get('applied') === true) {
       return { applied: true, duplicate: true };
     }
@@ -269,6 +280,177 @@ async function applyProviderEvent(
       allocationAmount,
     };
   });
+}
+
+async function applyProviderRefundInTransaction(
+  transaction: FirebaseFirestore.Transaction,
+  workspaceRef: FirebaseFirestore.DocumentReference,
+  eventRef: FirebaseFirestore.DocumentReference,
+  existingEvent: FirebaseFirestore.DocumentSnapshot,
+  input: {
+    eventId: string;
+    payload: ProviderWebhookPayload;
+    amount: number;
+    currency: string;
+    now: string;
+  }
+) {
+  if (!existingEvent.exists || existingEvent.get('applied') !== true) {
+    transaction.set(
+      eventRef,
+      buildEventPayload(input.payload, {
+        applied: false,
+        applyStatus: 'refund_needs_review',
+        amount: input.amount,
+        currency: input.currency,
+        now: input.now,
+      }),
+      { merge: true }
+    );
+    return { applied: false, applyStatus: 'refund_needs_review' };
+  }
+
+  if (existingEvent.get('reversed') === true) {
+    return { applied: true, duplicate: true, applyStatus: 'already_reversed' };
+  }
+
+  const invoiceId = clean(existingEvent.get('invoice_id'));
+  const customerId = clean(existingEvent.get('customer_id'));
+  const originalAmount = money(existingEvent.get('amount'));
+  const originalAllocationAmount = money(existingEvent.get('allocation_amount'));
+  if (!invoiceId || !customerId || originalAmount <= 0) {
+    transaction.set(
+      eventRef,
+      {
+        status: 'refunded',
+        apply_status: 'refund_needs_review',
+        refund_error: 'Original payment is missing invoice or customer details.',
+        last_modified: input.now,
+        raw_refund_payload: compactPayload(input.payload),
+      },
+      { merge: true }
+    );
+    return { applied: false, applyStatus: 'refund_needs_review' };
+  }
+
+  const reversalRef = workspaceRef.collection('payment_reversals').doc(`rev_${input.eventId}`);
+  const invoiceRef = workspaceRef.collection('invoices').doc(invoiceId);
+  const reversalTransactionRef = workspaceRef.collection('transactions').doc(`txn_rev_${input.eventId}`);
+  const [reversalSnapshot, invoiceSnapshot] = await Promise.all([
+    transaction.get(reversalRef),
+    transaction.get(invoiceRef),
+  ]);
+
+  if (reversalSnapshot.exists) {
+    return { applied: true, duplicate: true, applyStatus: 'already_reversed' };
+  }
+  if (!invoiceSnapshot.exists) {
+    transaction.set(
+      eventRef,
+      {
+        status: 'refunded',
+        apply_status: 'refund_needs_review',
+        refund_error: 'Invoice for the original payment was not found.',
+        last_modified: input.now,
+        raw_refund_payload: compactPayload(input.payload),
+      },
+      { merge: true }
+    );
+    return { applied: false, applyStatus: 'refund_needs_review', invoiceId, customerId };
+  }
+
+  const invoice = invoiceSnapshot.data() ?? {};
+  const refundAmount = roundMoney(Math.min(input.amount, originalAmount));
+  const reversalAllocationAmount = roundMoney(Math.min(refundAmount, originalAllocationAmount));
+  const totalAmount = money(invoice.total_amount);
+  const paidAmount = money(invoice.paid_amount);
+  const nextPaidAmount = roundMoney(Math.max(paidAmount - reversalAllocationAmount, 0));
+  const nextPaymentStatus = deriveProviderInvoicePaymentStatus({
+    totalAmount,
+    paidAmount: nextPaidAmount,
+    dueDate: clean(String(invoice.due_date ?? '')),
+    now: input.now,
+  });
+  const documentState = String(invoice.document_state ?? invoice.status ?? 'created');
+  const nextLegacyStatus =
+    documentState === 'cancelled' ? 'cancelled' : nextPaymentStatus === 'paid' ? 'paid' : nextPaymentStatus === 'overdue' ? 'overdue' : 'issued';
+
+  transaction.set(reversalTransactionRef, {
+    customer_id: customerId,
+    type: 'credit',
+    amount: refundAmount,
+    note: buildRefundNote(input.payload, existingEvent.get('reference')),
+    payment_mode: null,
+    payment_details: null,
+    payment_details_json: null,
+    payment_clearance_status: null,
+    payment_attachments: [],
+    payment_attachments_json: null,
+    effective_date: input.now.slice(0, 10),
+    created_at: input.now,
+    last_modified: input.now,
+    sync_status: 'synced',
+    server_revision: 1,
+    provider_event_id: input.eventId,
+    reversal_of_transaction_id: clean(existingEvent.get('transaction_id')),
+  });
+
+  transaction.set(reversalRef, {
+    provider_event_id: input.eventId,
+    original_transaction_id: clean(existingEvent.get('transaction_id')),
+    reversal_transaction_id: reversalTransactionRef.id,
+    invoice_id: invoiceId,
+    customer_id: customerId,
+    amount: refundAmount,
+    allocation_amount: reversalAllocationAmount,
+    reason: 'Provider refund',
+    created_at: input.now,
+    last_modified: input.now,
+    source: input.payload.source ?? 'other',
+    reference: clean(input.payload.reference) ?? clean(input.payload.providerPaymentId),
+    raw_payload: compactPayload(input.payload),
+  });
+
+  transaction.update(invoiceRef, {
+    paid_amount: nextPaidAmount,
+    payment_status: nextPaymentStatus,
+    status: nextLegacyStatus,
+    last_modified: input.now,
+    server_revision: admin.firestore.FieldValue.increment(1),
+  });
+
+  transaction.update(workspaceRef.collection('customers').doc(customerId), {
+    current_balance: admin.firestore.FieldValue.increment(refundAmount),
+    updated_at: input.now,
+    last_modified: input.now,
+    server_revision: admin.firestore.FieldValue.increment(1),
+  });
+
+  transaction.set(
+    eventRef,
+    {
+      status: 'refunded',
+      apply_status: 'reversed',
+      reversed: true,
+      reversed_at: input.now,
+      reversal_id: reversalRef.id,
+      reversal_transaction_id: reversalTransactionRef.id,
+      refunded_amount: refundAmount,
+      raw_refund_payload: compactPayload(input.payload),
+      last_modified: input.now,
+    },
+    { merge: true }
+  );
+
+  return {
+    applied: true,
+    applyStatus: 'reversed',
+    invoiceId,
+    customerId,
+    reversalId: reversalRef.id,
+    reversalTransactionId: reversalTransactionRef.id,
+    refundAmount,
+  };
 }
 
 async function findInvoiceSnapshot(
@@ -445,6 +627,29 @@ function buildPaymentNote(payload: ProviderWebhookPayload, invoiceNumber: unknow
   const invoice = typeof invoiceNumber === 'string' ? invoiceNumber : clean(payload.invoiceNumber) ?? 'invoice';
   const reference = clean(payload.reference) ?? clean(payload.providerPaymentId);
   return reference ? `Provider payment ${reference} for invoice ${invoice}` : `Provider payment for invoice ${invoice}`;
+}
+
+function buildRefundNote(payload: ProviderWebhookPayload, originalReference: unknown): string {
+  const reference = clean(payload.reference) ?? clean(payload.providerPaymentId) ?? clean(String(originalReference ?? ''));
+  return reference ? `Payment refund or reversal for ${reference}` : 'Payment refund or reversal';
+}
+
+function deriveProviderInvoicePaymentStatus(input: {
+  totalAmount: number;
+  paidAmount: number;
+  dueDate: string | null;
+  now: string;
+}): 'unpaid' | 'partially_paid' | 'paid' | 'overdue' {
+  if (input.totalAmount > 0 && input.paidAmount >= input.totalAmount) {
+    return 'paid';
+  }
+  if (input.paidAmount > 0) {
+    return 'partially_paid';
+  }
+  if (input.dueDate && input.dueDate < input.now.slice(0, 10)) {
+    return 'overdue';
+  }
+  return 'unpaid';
 }
 
 function compactPayload(payload: ProviderWebhookPayload): Record<string, unknown> {

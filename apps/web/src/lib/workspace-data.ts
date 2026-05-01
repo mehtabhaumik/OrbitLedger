@@ -174,6 +174,11 @@ export type WorkspacePaymentProviderEvent = {
   transactionId: string | null;
   allocationId: string | null;
   allocationAmount: number;
+  reversed: boolean;
+  reversedAt: string | null;
+  reversalId: string | null;
+  reversalTransactionId: string | null;
+  refundedAmount: number;
   error: string | null;
   reviewedAt: string | null;
   reviewNote: string | null;
@@ -183,6 +188,12 @@ export type WorkspacePaymentProviderEvent = {
 
 export type ApplyWorkspaceProviderEventInput = {
   invoiceId: string;
+  customerId?: string | null;
+  note?: string | null;
+};
+
+export type ReverseWorkspaceProviderEventInput = {
+  invoiceId?: string | null;
   customerId?: string | null;
   note?: string | null;
 };
@@ -937,6 +948,125 @@ export async function applyWorkspaceProviderEventToInvoice(
   });
 }
 
+export async function reverseWorkspaceProviderEventPayment(
+  workspaceId: string,
+  eventId: string,
+  input: ReverseWorkspaceProviderEventInput = {}
+): Promise<void> {
+  const firestore = getWebFirestore();
+  const eventRef = doc(firestore, 'workspaces', workspaceId, 'payment_provider_events', eventId);
+  const eventSnapshot = await getDoc(eventRef);
+  if (!eventSnapshot.exists()) {
+    throw new Error('Payment event could not be found.');
+  }
+
+  const event = mapWorkspacePaymentProviderEvent(eventSnapshot);
+  if (event.reversed) {
+    throw new Error('This payment event is already reversed.');
+  }
+  if (!event.applied && event.status !== 'refunded') {
+    throw new Error('Only applied payments or refund events can be reversed.');
+  }
+  if (event.amount <= 0) {
+    throw new Error('This event has no valid amount to reverse.');
+  }
+
+  const invoiceId = input.invoiceId ?? event.invoiceId;
+  if (!invoiceId) {
+    throw new Error('Choose an invoice before reversing this payment.');
+  }
+  const invoice = await getWorkspaceInvoiceDetail(workspaceId, invoiceId);
+  if (!invoice) {
+    throw new Error('Invoice for this payment event could not be found.');
+  }
+  const customerId = input.customerId ?? event.customerId ?? invoice.customerId;
+  if (!customerId) {
+    throw new Error('Choose a customer before reversing this payment.');
+  }
+
+  const now = new Date().toISOString();
+  const refundAmount = roundMoney(event.amount);
+  const reversalAllocationAmount = roundMoney(Math.min(event.allocationAmount || refundAmount, invoice.paidAmount));
+  const nextPaidAmount = roundMoney(Math.max(invoice.paidAmount - reversalAllocationAmount, 0));
+  const nextPaymentStatus = deriveInvoicePaymentStatus({
+    dueDate: invoice.dueDate,
+    totalAmount: invoice.totalAmount,
+    paidAmount: nextPaidAmount,
+  });
+  const nextLegacyStatus = legacyStatusForInvoiceLifecycle(invoice.documentState, nextPaymentStatus);
+  const reversalId = `rev_${event.id}`;
+  const reversalTransactionId = `txn_rev_${event.id}`;
+  const batch = writeBatch(firestore);
+
+  batch.set(doc(firestore, 'workspaces', workspaceId, 'transactions', reversalTransactionId), {
+    customer_id: customerId,
+    type: 'credit',
+    amount: refundAmount,
+    note: input.note?.trim() || buildProviderEventRefundNote(event),
+    payment_mode: null,
+    payment_details: null,
+    payment_details_json: null,
+    payment_clearance_status: null,
+    payment_attachments: [],
+    payment_attachments_json: null,
+    effective_date: now.slice(0, 10),
+    created_at: now,
+    last_modified: now,
+    sync_status: 'synced',
+    server_revision: 1,
+    provider_event_id: event.id,
+    reversal_of_transaction_id: event.transactionId,
+  });
+
+  batch.set(doc(firestore, 'workspaces', workspaceId, 'payment_reversals', reversalId), {
+    provider_event_id: event.id,
+    original_transaction_id: event.transactionId,
+    reversal_transaction_id: reversalTransactionId,
+    invoice_id: invoice.id,
+    customer_id: customerId,
+    amount: refundAmount,
+    allocation_amount: reversalAllocationAmount,
+    reason: input.note?.trim() || 'Payment reversed by owner review.',
+    created_at: now,
+    last_modified: now,
+    source: event.source,
+    reference: event.reference ?? event.providerPaymentId,
+  });
+
+  batch.update(doc(firestore, 'workspaces', workspaceId, 'invoices', invoice.id), {
+    paid_amount: nextPaidAmount,
+    payment_status: nextPaymentStatus,
+    status: nextLegacyStatus,
+    last_modified: now,
+    server_revision: increment(1),
+  });
+
+  batch.update(doc(firestore, 'workspaces', workspaceId, 'customers', customerId), {
+    current_balance: increment(refundAmount),
+    updated_at: now,
+    last_modified: now,
+    server_revision: increment(1),
+  });
+
+  batch.update(eventRef, {
+    apply_status: 'reversed',
+    status: 'refunded',
+    applied: true,
+    invoice_id: invoice.id,
+    customer_id: customerId,
+    reversed: true,
+    reversed_at: now,
+    reversal_id: reversalId,
+    reversal_transaction_id: reversalTransactionId,
+    refunded_amount: refundAmount,
+    reviewed_at: now,
+    review_note: input.note?.trim() || 'Payment reversed by owner review.',
+    last_modified: now,
+  });
+
+  await batch.commit();
+}
+
 export async function getWorkspaceInvoiceDetail(
   workspaceId: string,
   invoiceId: string
@@ -1527,6 +1657,11 @@ function mapWorkspacePaymentProviderEvent(entry: {
     transactionId: nullableString(data.transaction_id),
     allocationId: nullableString(data.allocation_id),
     allocationAmount: numberValue(data.allocation_amount),
+    reversed: Boolean(data.reversed),
+    reversedAt: nullableString(data.reversed_at),
+    reversalId: nullableString(data.reversal_id),
+    reversalTransactionId: nullableString(data.reversal_transaction_id),
+    refundedAmount: numberValue(data.refunded_amount),
     error: nullableString(data.error),
     reviewedAt: nullableString(data.reviewed_at),
     reviewNote: nullableString(data.review_note),
@@ -1573,6 +1708,11 @@ function buildProviderEventPaymentNote(event: WorkspacePaymentProviderEvent, inv
   return reference
     ? `Reviewed provider payment ${reference} for invoice ${invoiceNumber}`
     : `Reviewed provider payment for invoice ${invoiceNumber}`;
+}
+
+function buildProviderEventRefundNote(event: WorkspacePaymentProviderEvent): string {
+  const reference = event.reference ?? event.providerPaymentId;
+  return reference ? `Payment refund or reversal for ${reference}` : 'Payment refund or reversal';
 }
 
 function stringValue(value: unknown, fallback: string): string {

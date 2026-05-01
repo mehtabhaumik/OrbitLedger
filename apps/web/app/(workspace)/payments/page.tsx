@@ -11,6 +11,7 @@ import {
   listWorkspaceInvoices,
   listWorkspacePaymentProviderEvents,
   markWorkspaceProviderEventReviewed,
+  reverseWorkspaceProviderEventPayment,
   type WorkspaceCustomer,
   type WorkspaceInvoice,
   type WorkspacePaymentProviderEvent,
@@ -18,7 +19,7 @@ import {
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
-type EventFilter = 'needs_review' | 'applied' | 'all';
+type EventFilter = 'needs_review' | 'applied' | 'reversed' | 'all';
 
 export default function PaymentsPage() {
   const { activeWorkspace } = useWorkspace();
@@ -79,7 +80,10 @@ export default function PaymentsPage() {
           return true;
         }
         if (filter === 'applied') {
-          return event.applied;
+          return event.applied && !event.reversed;
+        }
+        if (filter === 'reversed') {
+          return event.reversed;
         }
         return !event.applied || event.applyStatus === 'needs_review' || event.error;
       }),
@@ -88,7 +92,8 @@ export default function PaymentsPage() {
   const stats = useMemo(
     () => ({
       total: events.length,
-      applied: events.filter((event) => event.applied).length,
+      applied: events.filter((event) => event.applied && !event.reversed).length,
+      reversed: events.filter((event) => event.reversed).length,
       review: events.filter((event) => !event.applied || event.applyStatus === 'needs_review' || event.error).length,
     }),
     [events]
@@ -169,12 +174,42 @@ export default function PaymentsPage() {
     }
   }
 
+  async function reverseEvent(event: WorkspacePaymentProviderEvent) {
+    if (!activeWorkspace) {
+      return;
+    }
+    const invoiceId = selectedInvoices[event.id] || event.invoiceId || '';
+    if (!event.applied && !invoiceId) {
+      showToast('Choose an invoice before reversing this refund.', 'danger');
+      return;
+    }
+    if (!window.confirm('Reverse this payment? This adds a ledger correction and reduces the invoice paid amount.')) {
+      return;
+    }
+
+    setBusyEventId(event.id);
+    try {
+      await reverseWorkspaceProviderEventPayment(activeWorkspace.workspaceId, event.id, {
+        invoiceId,
+        customerId: event.customerId,
+        note: reviewNotes[event.id],
+      });
+      await loadPaymentAdminData();
+      showToast('Payment reversed and ledger corrected.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Payment could not be reversed.', 'danger');
+    } finally {
+      setBusyEventId(null);
+    }
+  }
+
   return (
     <AppShell title="Payments" subtitle="Review automatic payment updates and match provider events.">
       <section className="ol-metric-grid">
         <Metric label="Events" value={String(stats.total)} helper="Received from payment providers." tone="primary" />
         <Metric label="Applied" value={String(stats.applied)} helper="Updated invoices automatically." tone="success" />
         <Metric label="Needs Review" value={String(stats.review)} helper="Waiting for owner decision." tone="warning" />
+        <Metric label="Reversed" value={String(stats.reversed)} helper="Refunds and payment rollbacks." tone="warning" />
       </section>
 
       <section className="ol-panel-dark">
@@ -213,6 +248,7 @@ export default function PaymentsPage() {
             <select className="ol-select" value={filter} onChange={(event) => setFilter(event.target.value as EventFilter)}>
               <option value="needs_review">Needs review</option>
               <option value="applied">Applied</option>
+              <option value="reversed">Reversed</option>
               <option value="all">All events</option>
             </select>
           </label>
@@ -235,10 +271,10 @@ export default function PaymentsPage() {
         {reviewEvents.map((event) => (
           <div className="ol-table-row" key={event.id} style={{ gridTemplateColumns: '0.72fr 0.9fr 0.7fr 1fr 1.2fr' }}>
             <span>
-              <strong>{event.applied ? 'Applied' : formatEventStatus(event)}</strong>
+              <strong>{event.reversed ? 'Reversed' : event.applied ? 'Applied' : formatEventStatus(event)}</strong>
               <br />
               <span className="ol-muted" style={{ fontSize: 13 }}>
-                {formatDateTime(event.createdAt)}
+                {event.reversedAt ? formatDateTime(event.reversedAt) : formatDateTime(event.createdAt)}
               </span>
             </span>
             <span>
@@ -260,7 +296,7 @@ export default function PaymentsPage() {
             <span>
               <select
                 className="ol-select"
-                disabled={event.applied}
+                disabled={(event.applied && event.status !== 'refunded') || event.reversed}
                 value={selectedInvoices[event.id] ?? ''}
                 onChange={(input) =>
                   setSelectedInvoices((current) => ({ ...current, [event.id]: input.target.value }))
@@ -275,7 +311,7 @@ export default function PaymentsPage() {
               </select>
               <input
                 className="ol-input"
-                disabled={event.applied}
+                disabled={event.reversed}
                 placeholder="Review note"
                 style={{ marginTop: 8 }}
                 value={reviewNotes[event.id] ?? ''}
@@ -292,6 +328,14 @@ export default function PaymentsPage() {
                 onClick={() => void applyEvent(event)}
               >
                 Apply
+              </button>
+              <button
+                className="ol-button-ghost"
+                disabled={event.reversed || busyEventId === event.id || (!event.applied && event.status !== 'refunded')}
+                type="button"
+                onClick={() => void reverseEvent(event)}
+              >
+                Reverse
               </button>
               <button
                 className="ol-button-secondary"
