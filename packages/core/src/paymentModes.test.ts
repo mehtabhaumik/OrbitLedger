@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   normalizePaymentMode,
+  normalizePaymentClearanceStatus,
   normalizePaymentModeDetails,
   summarizePaymentMode,
   validatePaymentModeDetails,
@@ -31,5 +32,12 @@ describe('payment modes', () => {
     expect(summarizePaymentMode('wallet', { provider: 'Paytm', referenceNumber: 'TXN1' })).toBe(
       'Wallet / provider - Paytm - Ref TXN1'
     );
+  });
+
+  it('keeps future cheque instruments pending by default', () => {
+    expect(
+      normalizePaymentClearanceStatus(null, 'cheque', { instrumentDate: '2026-06-01' }, '2026-05-01')
+    ).toBe('post_dated');
+    expect(normalizePaymentClearanceStatus(null, 'upi', {}, '2026-05-01')).toBe('cleared');
   });
 });

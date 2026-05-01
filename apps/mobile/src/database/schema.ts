@@ -71,6 +71,8 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
       note TEXT,
       payment_mode TEXT,
       payment_details_json TEXT,
+      payment_clearance_status TEXT,
+      payment_attachments_json TEXT,
       effective_date TEXT NOT NULL,
       created_at TEXT NOT NULL,
       sync_id TEXT NOT NULL DEFAULT '',
@@ -507,6 +509,8 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
   await ensureColumn(db, 'invoices', 'latest_snapshot_hash', 'TEXT');
   await ensureColumn(db, 'transactions', 'payment_mode', 'TEXT');
   await ensureColumn(db, 'transactions', 'payment_details_json', 'TEXT');
+  await ensureColumn(db, 'transactions', 'payment_clearance_status', 'TEXT');
+  await ensureColumn(db, 'transactions', 'payment_attachments_json', 'TEXT');
   await ensureColumn(db, 'invoice_items', 'product_id', 'TEXT');
   await ensureColumn(db, 'invoice_items', 'description', 'TEXT');
   await ensureColumn(

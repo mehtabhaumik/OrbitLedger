@@ -2,7 +2,10 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import {
   buildCustomerHealthScore,
   deriveInvoicePaymentStatus,
+  doesPaymentClearInvoice,
   legacyStatusForInvoiceLifecycle,
+  normalizePaymentClearanceStatus,
+  normalizePaymentInstrumentAttachments,
   normalizePaymentMode,
   normalizePaymentModeDetails,
   normalizeInvoiceDocumentState,
@@ -11,6 +14,8 @@ import {
   type InvoiceDocumentState,
   type InvoicePaymentStatus,
   type PaymentAllocationStrategy,
+  type PaymentClearanceStatus,
+  type PaymentInstrumentAttachment,
   type PaymentMode,
   type PaymentModeDetails,
 } from '@orbit-ledger/core';
@@ -1469,6 +1474,12 @@ export async function addTransaction(input: AddTransactionInput): Promise<Ledger
         if (paymentModeError) {
           throw new Error(paymentModeError);
         }
+        const paymentClearanceStatus =
+          input.type === 'payment'
+            ? normalizePaymentClearanceStatus(input.paymentClearanceStatus, paymentMode, paymentDetails)
+            : null;
+        const paymentAttachments =
+          input.type === 'payment' ? normalizePaymentInstrumentAttachments(input.paymentAttachments) : [];
 
         await db.withTransactionAsync(async () => {
           await db.runAsync(
@@ -1480,12 +1491,14 @@ export async function addTransaction(input: AddTransactionInput): Promise<Ledger
               note,
               payment_mode,
               payment_details_json,
+              payment_clearance_status,
+              payment_attachments_json,
               effective_date,
               created_at,
               sync_id,
               last_modified,
               sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             input.customerId,
             input.type,
@@ -1493,6 +1506,8 @@ export async function addTransaction(input: AddTransactionInput): Promise<Ledger
             cleanText(input.note),
             paymentMode,
             serializePaymentDetails(paymentDetails),
+            paymentClearanceStatus,
+            serializePaymentAttachments(paymentAttachments),
             input.effectiveDate ?? toDateOnlyIso(),
             now,
             id,
@@ -1508,6 +1523,7 @@ export async function addTransaction(input: AddTransactionInput): Promise<Ledger
               strategy: input.allocationStrategy ?? 'ledger_only',
               invoiceId: input.invoiceId ?? null,
               createdAt: now,
+              clearanceStatus: paymentClearanceStatus,
             });
           }
         });
@@ -1588,6 +1604,18 @@ export async function updateTransaction(
         if (paymentModeError) {
           throw new Error(paymentModeError);
         }
+        const paymentClearanceStatus =
+          type === 'payment'
+            ? normalizePaymentClearanceStatus(
+                input.paymentClearanceStatus ?? existing.paymentClearanceStatus,
+                paymentMode,
+                paymentDetails
+              )
+            : null;
+        const paymentAttachments =
+          type === 'payment'
+            ? normalizePaymentInstrumentAttachments(input.paymentAttachments ?? existing.paymentAttachments)
+            : [];
 
         await db.runAsync(
           `UPDATE transactions SET
@@ -1596,6 +1624,8 @@ export async function updateTransaction(
             note = ?,
             payment_mode = ?,
             payment_details_json = ?,
+            payment_clearance_status = ?,
+            payment_attachments_json = ?,
             effective_date = ?,
             last_modified = ?,
             sync_status = 'pending'
@@ -1605,6 +1635,8 @@ export async function updateTransaction(
           input.note === undefined ? existing.note : cleanText(input.note),
           paymentMode,
           serializePaymentDetails(paymentDetails),
+          paymentClearanceStatus,
+          serializePaymentAttachments(paymentAttachments),
           input.effectiveDate ?? existing.effectiveDate,
           now,
           id
@@ -2426,6 +2458,8 @@ export async function listInvoicePaymentAllocations(invoiceId: string): Promise<
         transaction_note: string | null;
         transaction_payment_mode: PaymentMode | null;
         transaction_payment_details_json: string | null;
+        transaction_payment_clearance_status: PaymentClearanceStatus | null;
+        transaction_payment_attachments_json: string | null;
       }
     >(
       `SELECT
@@ -2433,7 +2467,9 @@ export async function listInvoicePaymentAllocations(invoiceId: string): Promise<
         t.effective_date AS transaction_effective_date,
         t.note AS transaction_note,
         t.payment_mode AS transaction_payment_mode,
-        t.payment_details_json AS transaction_payment_details_json
+        t.payment_details_json AS transaction_payment_details_json,
+        t.payment_clearance_status AS transaction_payment_clearance_status,
+        t.payment_attachments_json AS transaction_payment_attachments_json
        FROM payment_allocations pa
        LEFT JOIN transactions t ON t.id = pa.transaction_id
        WHERE pa.invoice_id = ?
@@ -2447,6 +2483,14 @@ export async function listInvoicePaymentAllocations(invoiceId: string): Promise<
       transactionNote: row.transaction_note,
       paymentMode: row.transaction_payment_mode ? normalizePaymentMode(row.transaction_payment_mode) : null,
       paymentDetails: parsePaymentDetailsJson(row.transaction_payment_details_json),
+      paymentClearanceStatus: row.transaction_payment_clearance_status
+        ? normalizePaymentClearanceStatus(
+            row.transaction_payment_clearance_status,
+            row.transaction_payment_mode,
+            parsePaymentDetailsJson(row.transaction_payment_details_json)
+          )
+        : null,
+      paymentAttachments: parsePaymentAttachmentsJson(row.transaction_payment_attachments_json),
     }));
   } catch (error) {
     return throwDatabaseError('listInvoicePaymentAllocations', error);
@@ -3787,6 +3831,7 @@ async function allocatePaymentToInvoices(
     strategy: PaymentAllocationStrategy;
     invoiceId: string | null;
     createdAt: string;
+    clearanceStatus: PaymentClearanceStatus | null;
   }
 ): Promise<void> {
   if (input.strategy === 'ledger_only') {
@@ -3823,11 +3868,14 @@ async function allocatePaymentToInvoices(
       continue;
     }
 
-    const nextPaidAmount = roundCurrency(invoice.paid_amount + allocationAmount);
+    const paidDelta = doesPaymentClearInvoice(input.clearanceStatus) ? allocationAmount : 0;
+    const nextPaidAmount = roundCurrency(invoice.paid_amount + paidDelta);
+    const pendingAmount = doesPaymentClearInvoice(input.clearanceStatus) ? 0 : allocationAmount;
     const nextPaymentStatus = deriveInvoicePaymentStatus({
       dueDate: invoice.due_date,
       totalAmount: invoice.total_amount,
       paidAmount: nextPaidAmount,
+      pendingAmount,
     });
     const documentState = normalizeInvoiceDocumentState(invoice.document_state ?? invoice.status);
     const legacyStatus = legacyStatusForInvoiceLifecycle(documentState, nextPaymentStatus);
@@ -3894,6 +3942,23 @@ function parsePaymentDetailsJson(value: string | null): PaymentModeDetails | nul
     return normalizePaymentModeDetails(JSON.parse(value) as PaymentModeDetails);
   } catch {
     return null;
+  }
+}
+
+function serializePaymentAttachments(attachments: PaymentInstrumentAttachment[]): string | null {
+  const normalized = normalizePaymentInstrumentAttachments(attachments);
+  return normalized.length ? JSON.stringify(normalized) : null;
+}
+
+function parsePaymentAttachmentsJson(value: string | null): PaymentInstrumentAttachment[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    return normalizePaymentInstrumentAttachments(JSON.parse(value) as PaymentInstrumentAttachment[]);
+  } catch {
+    return [];
   }
 }
 

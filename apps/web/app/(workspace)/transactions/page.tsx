@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   getPaymentModeConfig,
   PAYMENT_MODE_CONFIGS,
+  summarizePaymentClearance,
   summarizePaymentMode,
   type PaymentMode,
   type PaymentModeDetails,
@@ -219,7 +220,9 @@ export default function TransactionsPage() {
       transaction.effectiveDate,
       transaction.type === 'payment' ? 'Payment' : 'Credit',
       transaction.customerName,
-      transaction.type === 'payment' ? summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails) : '',
+      transaction.type === 'payment'
+        ? `${summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails)} - ${summarizePaymentClearance(transaction.paymentClearanceStatus, transaction.paymentDetails)}`
+        : '',
       transaction.note ?? '',
       transaction.amount,
     ]);
@@ -484,7 +487,7 @@ export default function TransactionsPage() {
               <br />
               <span className="ol-muted" style={{ fontSize: 13 }}>
                 {transaction.type === 'payment'
-                  ? `${summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails)}${transaction.note ? ` · ${transaction.note}` : ''}`
+                  ? `${summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails)} · ${summarizePaymentClearance(transaction.paymentClearanceStatus, transaction.paymentDetails)}${transaction.note ? ` · ${transaction.note}` : ''}`
                   : transaction.note || 'No note'}
               </span>
             </span>

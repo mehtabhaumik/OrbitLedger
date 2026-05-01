@@ -102,6 +102,8 @@ function recentTransaction(id: string, amount: number) {
     note: null,
     paymentMode: null,
     paymentDetails: null,
+    paymentClearanceStatus: null,
+    paymentAttachments: [],
     serverRevision: 0,
     syncId: id,
     syncStatus: 'synced' as const,

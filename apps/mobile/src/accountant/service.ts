@@ -80,6 +80,8 @@ export function serializeAccountantPayloadAsCsv(payload: AccountantIntegrationPa
         createdAt: transaction.createdAt,
         paymentDetails: transaction.paymentDetails,
         paymentMode: transaction.paymentMode,
+        paymentClearanceStatus: transaction.paymentClearanceStatus,
+        paymentAttachments: transaction.paymentAttachments,
         syncStatus: transaction.syncStatus,
       }),
     });

@@ -82,13 +82,21 @@ export {
 export {
   getPaymentModeConfig,
   getPaymentModeLabel,
+  doesPaymentClearInvoice,
+  getPaymentClearanceStatusLabel,
+  isInstrumentPaymentMode,
+  normalizePaymentClearanceStatus,
+  normalizePaymentInstrumentAttachments,
   normalizePaymentMode,
   normalizePaymentModeDetails,
   PAYMENT_MODE_CONFIGS,
+  summarizePaymentClearance,
   summarizePaymentMode,
   validatePaymentModeDetails,
 } from './paymentModes';
 export type {
+  PaymentClearanceStatus,
+  PaymentInstrumentAttachment,
   PaymentMode,
   PaymentModeConfig,
   PaymentModeDetails,

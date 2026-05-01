@@ -1,6 +1,9 @@
 import {
   normalizePaymentMode,
+  normalizePaymentClearanceStatus,
   normalizePaymentModeDetails,
+  normalizePaymentInstrumentAttachments,
+  type PaymentInstrumentAttachment,
   type PaymentModeDetails,
 } from '@orbit-ledger/core';
 
@@ -124,6 +127,10 @@ export function mapTransaction(row: LedgerTransactionRow): LedgerTransaction {
     note: row.note,
     paymentMode: row.payment_mode ? normalizePaymentMode(row.payment_mode) : null,
     paymentDetails,
+    paymentClearanceStatus: row.payment_clearance_status
+      ? normalizePaymentClearanceStatus(row.payment_clearance_status, row.payment_mode, paymentDetails)
+      : null,
+    paymentAttachments: parsePaymentAttachments(row.payment_attachments_json),
     effectiveDate: row.effective_date,
     createdAt: row.created_at,
   };
@@ -138,6 +145,18 @@ function parsePaymentDetails(value: string | null): PaymentModeDetails | null {
     return normalizePaymentModeDetails(JSON.parse(value) as PaymentModeDetails);
   } catch {
     return null;
+  }
+}
+
+function parsePaymentAttachments(value: string | null): PaymentInstrumentAttachment[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    return normalizePaymentInstrumentAttachments(JSON.parse(value) as PaymentInstrumentAttachment[]);
+  } catch {
+    return [];
   }
 }
 

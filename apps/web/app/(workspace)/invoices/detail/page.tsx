@@ -6,11 +6,15 @@ import { useSearchParams } from 'next/navigation';
 import {
   getInvoiceDocumentStateLabel,
   getInvoicePaymentStatusLabel,
+  getPaymentClearanceStatusLabel,
   getPaymentModeConfig,
   PAYMENT_MODE_CONFIGS,
+  summarizePaymentClearance,
   summarizePaymentMode,
   type InvoiceDocumentState,
   type InvoicePaymentStatus,
+  type PaymentClearanceStatus,
+  type PaymentInstrumentAttachment,
   type PaymentMode,
   type PaymentModeDetails,
 } from '@orbit-ledger/core';
@@ -22,6 +26,7 @@ import {
   listWorkspaceInvoicePaymentAllocations,
   listWorkspaceCustomers,
   saveWorkspaceInvoiceDetail,
+  updateWorkspacePaymentClearance,
   type WorkspaceCustomer,
   type WorkspaceInvoiceDetail,
   type WorkspaceInvoicePaymentAllocation,
@@ -34,6 +39,7 @@ import {
   getWebDocumentTemplates,
   openPrintableDocument,
 } from '@/lib/web-documents';
+import { uploadPaymentInstrumentImage } from '@/lib/workspace-storage';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
@@ -71,6 +77,10 @@ function InvoiceEditorContent() {
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   const [paymentDetails, setPaymentDetails] = useState<PaymentModeDetails>({});
+  const [paymentClearanceStatus, setPaymentClearanceStatus] = useState<PaymentClearanceStatus>('cleared');
+  const [paymentAttachments, setPaymentAttachments] = useState<PaymentInstrumentAttachment[]>([]);
+  const [includeInstrumentInDocument, setIncludeInstrumentInDocument] = useState(false);
+  const [urgentPaymentRequired, setUrgentPaymentRequired] = useState(false);
   const [allocations, setAllocations] = useState<WorkspaceInvoicePaymentAllocation[]>([]);
   const [revisionReason, setRevisionReason] = useState('');
   const [notes, setNotes] = useState('');
@@ -154,6 +164,8 @@ function InvoiceEditorContent() {
   const currency = activeWorkspace?.currency ?? 'INR';
   const selectedCustomer = customers.find((customer) => customer.id === customerId) ?? null;
   const dueAmount = invoice ? Math.max(total - invoice.paidAmount, 0) : 0;
+  const documentInstrumentAttachment =
+    paymentAttachments[0] ?? allocations.flatMap((allocation) => allocation.paymentAttachments)[0] ?? null;
   const currentInvoiceDocument = useMemo(() => {
     if (!activeWorkspace || !invoice) {
       return null;
@@ -195,8 +207,13 @@ function InvoiceEditorContent() {
       invoice: documentInvoice,
       customer: selectedCustomer,
       templateKey: selectedTemplate?.key,
+      urgentPaymentRequired,
+      instrumentAttachment:
+        includeInstrumentInDocument && documentInstrumentAttachment
+          ? { name: documentInstrumentAttachment.name, url: documentInstrumentAttachment.url }
+          : null,
     });
-  }, [activeWorkspace, customerId, dueDate, invoice, invoiceNumber, issueDate, items, notes, paymentStatus, selectedCustomer, selectedTemplate?.key, total]);
+  }, [activeWorkspace, customerId, documentInstrumentAttachment, dueDate, includeInstrumentInDocument, invoice, invoiceNumber, issueDate, items, notes, paymentStatus, selectedCustomer, selectedTemplate?.key, total, urgentPaymentRequired]);
 
   async function saveInvoice(
     nextPaymentStatus = paymentStatus,
@@ -355,6 +372,8 @@ function InvoiceEditorContent() {
         note: paymentNote,
         paymentMode,
         paymentDetails,
+        paymentClearanceStatus,
+        paymentAttachments,
       });
       const nextAllocations = await listWorkspaceInvoicePaymentAllocations(activeWorkspace.workspaceId, invoice.id);
       setInvoice(updated);
@@ -365,9 +384,53 @@ function InvoiceEditorContent() {
       setPaymentNote(`Payment for invoice ${updated.invoiceNumber}`);
       setPaymentMode('cash');
       setPaymentDetails({});
+      setPaymentClearanceStatus('cleared');
+      setPaymentAttachments([]);
       showToast('Payment recorded and applied to this invoice.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Payment could not be recorded.', 'danger');
+    } finally {
+      setIsRecordingPayment(false);
+    }
+  }
+
+  async function attachPaymentInstrument(file: File | null) {
+    if (!activeWorkspace || !file) {
+      return;
+    }
+
+    setIsRecordingPayment(true);
+    try {
+      const attachment = await uploadPaymentInstrumentImage(activeWorkspace.workspaceId, invoice?.id ?? 'payment', file);
+      setPaymentAttachments((current) => [attachment, ...current].slice(0, 3));
+      showToast('Payment proof attached.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Payment proof could not be attached.', 'danger');
+    } finally {
+      setIsRecordingPayment(false);
+    }
+  }
+
+  async function updateAllocationClearance(allocationId: string, clearanceStatus: PaymentClearanceStatus) {
+    if (!activeWorkspace || !invoice) {
+      return;
+    }
+
+    setIsRecordingPayment(true);
+    try {
+      await updateWorkspacePaymentClearance(activeWorkspace.workspaceId, allocationId, { clearanceStatus });
+      const [updatedInvoice, nextAllocations] = await Promise.all([
+        getWorkspaceInvoiceDetail(activeWorkspace.workspaceId, invoice.id),
+        listWorkspaceInvoicePaymentAllocations(activeWorkspace.workspaceId, invoice.id),
+      ]);
+      if (updatedInvoice) {
+        setInvoice(updatedInvoice);
+        setPaymentStatus(updatedInvoice.paymentStatus);
+      }
+      setAllocations(nextAllocations);
+      showToast('Payment clearance updated.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Payment clearance could not be updated.', 'danger');
     } finally {
       setIsRecordingPayment(false);
     }
@@ -591,6 +654,73 @@ function InvoiceEditorContent() {
                 <input className="ol-input" value={paymentNote} onChange={(event) => setPaymentNote(event.target.value)} />
               </label>
               <PaymentModeFields details={paymentDetails} mode={paymentMode} onChange={setPaymentDetails} />
+              <label className="ol-field">
+                <span className="ol-field-label">Clearance</span>
+                <select
+                  className="ol-select"
+                  value={paymentClearanceStatus}
+                  onChange={(event) => setPaymentClearanceStatus(event.target.value as PaymentClearanceStatus)}
+                >
+                  {(['received', 'post_dated', 'deposited', 'cleared', 'bounced', 'cancelled'] as PaymentClearanceStatus[]).map((status) => (
+                    <option key={status} value={status}>
+                      {getPaymentClearanceStatusLabel(status)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {paymentMode === 'cheque' || paymentMode === 'demand_draft' ? (
+                <div className="ol-field">
+                  <span className="ol-field-label">Instrument image</span>
+                  <label className="ol-button-secondary" style={{ width: 'fit-content' }}>
+                    Upload image
+                    <input
+                      hidden
+                      accept="image/png,image/jpeg,image/webp"
+                      type="file"
+                      onChange={(event) => {
+                        void attachPaymentInstrument(event.currentTarget.files?.[0] ?? null);
+                        event.currentTarget.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+              ) : null}
+              {paymentAttachments.length ? (
+                <div className="ol-field">
+                  <span className="ol-field-label">Attached proof</span>
+                  <div className="ol-attachment-strip">
+                    {paymentAttachments.map((attachment) => (
+                      <a
+                        className="ol-instrument-preview"
+                        href={attachment.url}
+                        key={attachment.id}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Open full image"
+                      >
+                        <img alt={attachment.name} src={attachment.url} />
+                        <span>{attachment.name}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <label className="ol-check-row">
+                <input
+                  type="checkbox"
+                  checked={includeInstrumentInDocument}
+                  onChange={(event) => setIncludeInstrumentInDocument(event.target.checked)}
+                />
+                <span>Show attached payment proof on invoice</span>
+              </label>
+              <label className="ol-check-row">
+                <input
+                  type="checkbox"
+                  checked={urgentPaymentRequired}
+                  onChange={(event) => setUrgentPaymentRequired(event.target.checked)}
+                />
+                <span>Add payment required urgently stamp</span>
+              </label>
               <div className="ol-field ol-field--action">
                 <span className="ol-field-label">Action</span>
                 <button className="ol-button" type="button" disabled={isRecordingPayment || dueAmount <= 0} onClick={() => void recordInvoicePayment()}>
@@ -610,9 +740,44 @@ function InvoiceEditorContent() {
                   <div className="ol-list-copy">
                     <div className="ol-list-title">{formatCurrency(allocation.amount, currency)}</div>
                     <div className="ol-list-text">
-                      {summarizePaymentMode(allocation.paymentMode, allocation.paymentDetails)} · {allocation.transactionEffectiveDate || allocation.createdAt.slice(0, 10)}
+                      {summarizePaymentMode(allocation.paymentMode, allocation.paymentDetails)} · {summarizePaymentClearance(allocation.paymentClearanceStatus, allocation.paymentDetails)} · {allocation.transactionEffectiveDate || allocation.createdAt.slice(0, 10)}
                       {allocation.transactionNote ? ` · ${allocation.transactionNote}` : ''}
                     </div>
+                    {allocation.paymentAttachments.length ? (
+                      <div className="ol-attachment-strip" style={{ marginTop: 10 }}>
+                        {allocation.paymentAttachments.map((attachment) => (
+                          <a
+                            className="ol-instrument-preview"
+                            href={attachment.url}
+                            key={attachment.id}
+                            target="_blank"
+                            rel="noreferrer"
+                            download={attachment.name}
+                          >
+                            <img alt={attachment.name} src={attachment.url} />
+                            <span>Open / download</span>
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="ol-inline-actions">
+                    <button
+                      className="ol-button-secondary"
+                      disabled={isRecordingPayment || allocation.paymentClearanceStatus === 'cleared'}
+                      type="button"
+                      onClick={() => void updateAllocationClearance(allocation.id, 'cleared')}
+                    >
+                      Mark cleared
+                    </button>
+                    <button
+                      className="ol-button-ghost"
+                      disabled={isRecordingPayment || allocation.paymentClearanceStatus === 'bounced'}
+                      type="button"
+                      onClick={() => void updateAllocationClearance(allocation.id, 'bounced')}
+                    >
+                      Mark bounced
+                    </button>
                   </div>
                 </div>
               ))}

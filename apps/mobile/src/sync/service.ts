@@ -116,6 +116,8 @@ type TransactionSyncRow = {
   note: string | null;
   payment_mode: string | null;
   payment_details_json: string | null;
+  payment_clearance_status: string | null;
+  payment_attachments_json: string | null;
   effective_date: string;
   created_at: string;
   sync_id: string;
@@ -670,6 +672,8 @@ function buildWorkspacePayload(entity: OrbitSyncEntityName, row: Record<string, 
         note: row.note ?? null,
         payment_mode: row.payment_mode ?? null,
         payment_details_json: row.payment_details_json ?? null,
+        payment_clearance_status: row.payment_clearance_status ?? null,
+        payment_attachments_json: row.payment_attachments_json ?? null,
         effective_date: row.effective_date,
         created_at: row.created_at,
         last_modified: row.last_modified,
@@ -853,9 +857,10 @@ async function applyRemoteTransactions(
 
     await db.runAsync(
       `INSERT INTO transactions (
-          id, customer_id, type, amount, note, payment_mode, payment_details_json, effective_date, created_at,
+          id, customer_id, type, amount, note, payment_mode, payment_details_json,
+          payment_clearance_status, payment_attachments_json, effective_date, created_at,
           sync_id, last_modified, sync_status, server_revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
         ON CONFLICT(id) DO UPDATE SET
           customer_id = excluded.customer_id,
           type = excluded.type,
@@ -863,6 +868,8 @@ async function applyRemoteTransactions(
           note = excluded.note,
           payment_mode = excluded.payment_mode,
           payment_details_json = excluded.payment_details_json,
+          payment_clearance_status = excluded.payment_clearance_status,
+          payment_attachments_json = excluded.payment_attachments_json,
           effective_date = excluded.effective_date,
           created_at = excluded.created_at,
           sync_id = excluded.sync_id,
@@ -876,6 +883,8 @@ async function applyRemoteTransactions(
       record.note ?? null,
       record.payment_mode ?? null,
       record.payment_details_json ?? null,
+      record.payment_clearance_status ?? null,
+      record.payment_attachments_json ?? null,
       record.effective_date,
       record.created_at,
       record.id,

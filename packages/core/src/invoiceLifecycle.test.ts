@@ -27,4 +27,16 @@ describe('invoice payment lifecycle', () => {
       })
     ).toBe('overdue');
   });
+
+  it('keeps post-dated or deposited instruments pending until cleared', () => {
+    expect(
+      deriveInvoicePaymentStatus({
+        dueDate: '2026-04-30',
+        paidAmount: 0,
+        pendingAmount: 1000,
+        today: '2026-05-01',
+        totalAmount: 1000,
+      })
+    ).toBe('pending_clearance');
+  });
 });

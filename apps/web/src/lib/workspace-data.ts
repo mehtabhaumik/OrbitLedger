@@ -3,12 +3,17 @@
 import {
   buildCustomerHealthScore,
   deriveInvoicePaymentStatus,
+  doesPaymentClearInvoice,
   legacyStatusForInvoiceLifecycle,
+  normalizePaymentClearanceStatus,
+  normalizePaymentInstrumentAttachments,
   normalizePaymentMode,
   normalizePaymentModeDetails,
   normalizeInvoiceDocumentState,
   normalizeInvoicePaymentStatus,
   validatePaymentModeDetails,
+  type PaymentClearanceStatus,
+  type PaymentInstrumentAttachment,
   type InvoiceDocumentState,
   type InvoicePaymentStatus,
   type PaymentAllocationStrategy,
@@ -58,6 +63,8 @@ export type WorkspaceTransaction = {
   note: string | null;
   paymentMode: PaymentMode | null;
   paymentDetails: PaymentModeDetails | null;
+  paymentClearanceStatus: PaymentClearanceStatus | null;
+  paymentAttachments: PaymentInstrumentAttachment[];
   effectiveDate: string;
   createdAt: string;
 };
@@ -135,6 +142,8 @@ export type WorkspaceInvoicePaymentAllocation = WorkspacePaymentAllocation & {
   transactionNote: string | null;
   paymentMode: PaymentMode | null;
   paymentDetails: PaymentModeDetails | null;
+  paymentClearanceStatus: PaymentClearanceStatus | null;
+  paymentAttachments: PaymentInstrumentAttachment[];
 };
 
 export type CreateWorkspaceInvoicePaymentInput = {
@@ -143,6 +152,12 @@ export type CreateWorkspaceInvoicePaymentInput = {
   note?: string | null;
   paymentMode?: PaymentMode | null;
   paymentDetails?: PaymentModeDetails | null;
+  paymentClearanceStatus?: PaymentClearanceStatus | null;
+  paymentAttachments?: PaymentInstrumentAttachment[];
+};
+
+export type UpdateWorkspacePaymentClearanceInput = {
+  clearanceStatus: PaymentClearanceStatus;
 };
 
 export type SaveWorkspaceInvoiceInput = {
@@ -180,6 +195,8 @@ export type CreateWorkspaceTransactionInput = {
   effectiveDate?: string;
   paymentMode?: PaymentMode | null;
   paymentDetails?: PaymentModeDetails | null;
+  paymentClearanceStatus?: PaymentClearanceStatus | null;
+  paymentAttachments?: PaymentInstrumentAttachment[];
   allocationStrategy?: PaymentAllocationStrategy;
   invoiceId?: string | null;
 };
@@ -237,13 +254,22 @@ export async function getWorkspaceCustomer(
   const balanceDeltas = new Map<string, number>();
   const healthStats = buildCustomerHealthStats(transactionSnapshot.docs);
   for (const entry of transactionSnapshot.docs) {
-    const data = entry.data() as { type?: 'credit' | 'payment'; amount?: number };
+    const data = entry.data() as {
+      type?: 'credit' | 'payment';
+      amount?: number;
+      payment_clearance_status?: string | null;
+    };
     if (typeof data.amount !== 'number') {
       continue;
     }
+    const paymentCountsTowardBalance =
+      data.type !== 'payment' ||
+      !data.payment_clearance_status ||
+      doesPaymentClearInvoice(data.payment_clearance_status);
     balanceDeltas.set(
       customerId,
-      (balanceDeltas.get(customerId) ?? 0) + (data.type === 'credit' ? data.amount : -data.amount)
+      (balanceDeltas.get(customerId) ?? 0) +
+        (data.type === 'credit' ? data.amount : paymentCountsTowardBalance ? -data.amount : 0)
     );
   }
 
@@ -348,9 +374,14 @@ export async function listWorkspaceTransactions(
         payment_mode?: string | null;
         payment_details?: PaymentModeDetails | null;
         payment_details_json?: string | null;
+        payment_clearance_status?: string | null;
+        payment_attachments?: PaymentInstrumentAttachment[] | null;
+        payment_attachments_json?: string | null;
         effective_date?: string;
         created_at?: string;
       };
+      const paymentDetails = normalizeStoredPaymentDetails(data);
+      const paymentMode = data.payment_mode ? normalizePaymentMode(data.payment_mode) : null;
       return {
         id: entry.id,
         customerId: data.customer_id ?? '',
@@ -358,8 +389,12 @@ export async function listWorkspaceTransactions(
         type: data.type ?? 'payment',
         amount: data.amount ?? 0,
         note: data.note ?? null,
-        paymentMode: data.payment_mode ? normalizePaymentMode(data.payment_mode) : null,
-        paymentDetails: normalizeStoredPaymentDetails(data),
+        paymentMode,
+        paymentDetails,
+        paymentClearanceStatus: data.payment_clearance_status
+          ? normalizePaymentClearanceStatus(data.payment_clearance_status, paymentMode, paymentDetails)
+          : null,
+        paymentAttachments: normalizeStoredPaymentAttachments(data),
         effectiveDate: data.effective_date ?? '',
         createdAt: data.created_at ?? '',
       } satisfies WorkspaceTransaction;
@@ -394,9 +429,14 @@ export async function listWorkspaceCustomerTransactions(
       payment_mode?: string | null;
       payment_details?: PaymentModeDetails | null;
       payment_details_json?: string | null;
+      payment_clearance_status?: string | null;
+      payment_attachments?: PaymentInstrumentAttachment[] | null;
+      payment_attachments_json?: string | null;
       effective_date?: string;
       created_at?: string;
     };
+    const paymentDetails = normalizeStoredPaymentDetails(data);
+    const paymentMode = data.payment_mode ? normalizePaymentMode(data.payment_mode) : null;
     return {
       id: entry.id,
       customerId: data.customer_id ?? customerId,
@@ -404,8 +444,12 @@ export async function listWorkspaceCustomerTransactions(
       type: data.type ?? 'payment',
       amount: data.amount ?? 0,
       note: data.note ?? null,
-      paymentMode: data.payment_mode ? normalizePaymentMode(data.payment_mode) : null,
-      paymentDetails: normalizeStoredPaymentDetails(data),
+      paymentMode,
+      paymentDetails,
+      paymentClearanceStatus: data.payment_clearance_status
+        ? normalizePaymentClearanceStatus(data.payment_clearance_status, paymentMode, paymentDetails)
+        : null,
+      paymentAttachments: normalizeStoredPaymentAttachments(data),
       effectiveDate: data.effective_date ?? '',
       createdAt: data.created_at ?? '',
     } satisfies WorkspaceTransaction;
@@ -438,6 +482,12 @@ export async function createWorkspaceTransaction(
   if (paymentModeError) {
     throw new Error(paymentModeError);
   }
+  const paymentClearanceStatus =
+    input.type === 'payment'
+      ? normalizePaymentClearanceStatus(input.paymentClearanceStatus, paymentMode, paymentDetails)
+      : null;
+  const paymentAttachments =
+    input.type === 'payment' ? normalizePaymentInstrumentAttachments(input.paymentAttachments) : [];
   const payload = {
     customer_id: input.customerId,
     type: input.type,
@@ -446,6 +496,9 @@ export async function createWorkspaceTransaction(
     payment_mode: paymentMode,
     payment_details: paymentDetails,
     payment_details_json: serializePaymentDetails(paymentDetails),
+    payment_clearance_status: paymentClearanceStatus,
+    payment_attachments: paymentAttachments,
+    payment_attachments_json: serializePaymentAttachments(paymentAttachments),
     effective_date: input.effectiveDate ?? now.slice(0, 10),
     created_at: now,
     last_modified: now,
@@ -463,9 +516,15 @@ export async function createWorkspaceTransaction(
           invoiceId: input.invoiceId ?? null,
           transactionId: transactionRef.id,
           createdAt: now,
+          clearanceStatus: paymentClearanceStatus,
         })
       : [];
-  const delta = input.type === 'credit' ? input.amount : -input.amount;
+  const delta =
+    input.type === 'credit'
+      ? input.amount
+      : doesPaymentClearInvoice(paymentClearanceStatus)
+        ? -input.amount
+        : 0;
   const batch = writeBatch(firestore);
   batch.set(transactionRef, payload);
   batch.update(customerRef, {
@@ -502,6 +561,8 @@ export async function createWorkspaceTransaction(
     note: payload.note,
     paymentMode,
     paymentDetails,
+    paymentClearanceStatus,
+    paymentAttachments,
     effectiveDate: payload.effective_date,
     createdAt: now,
   };
@@ -586,6 +647,8 @@ export async function listWorkspaceInvoicePaymentAllocations(
         transactionNote: transaction?.note ?? null,
         paymentMode: transaction?.paymentMode ?? null,
         paymentDetails: transaction?.paymentDetails ?? null,
+        paymentClearanceStatus: transaction?.paymentClearanceStatus ?? null,
+        paymentAttachments: transaction?.paymentAttachments ?? [],
       };
     })
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
@@ -620,6 +683,8 @@ export async function createWorkspaceInvoicePayment(
     note: input.note?.trim() || `Payment for invoice ${invoice.invoiceNumber}`,
     paymentMode: input.paymentMode,
     paymentDetails: input.paymentDetails,
+    paymentClearanceStatus: input.paymentClearanceStatus,
+    paymentAttachments: input.paymentAttachments,
     allocationStrategy: 'selected_invoice',
     invoiceId,
   });
@@ -629,6 +694,122 @@ export async function createWorkspaceInvoicePayment(
     throw new Error('Invoice could not be loaded after payment.');
   }
   return updated;
+}
+
+export async function updateWorkspacePaymentClearance(
+  workspaceId: string,
+  allocationId: string,
+  input: UpdateWorkspacePaymentClearanceInput
+): Promise<void> {
+  const firestore = getWebFirestore();
+  const allocationRef = doc(firestore, 'workspaces', workspaceId, 'payment_allocations', allocationId);
+  const allocationSnapshot = await getDoc(allocationRef);
+  if (!allocationSnapshot.exists()) {
+    throw new Error('Payment allocation could not be found.');
+  }
+
+  const allocation = allocationSnapshot.data() as {
+    transaction_id?: string;
+    customer_id?: string;
+  };
+  if (!allocation.transaction_id) {
+    throw new Error('Payment record could not be found.');
+  }
+
+  const transactionRef = doc(firestore, 'workspaces', workspaceId, 'transactions', allocation.transaction_id);
+  const transactionSnapshot = await getDoc(transactionRef);
+  if (!transactionSnapshot.exists()) {
+    throw new Error('Payment record could not be found.');
+  }
+  const transaction = transactionSnapshot.data() as {
+    amount?: number;
+    customer_id?: string;
+    payment_mode?: string | null;
+    payment_details?: PaymentModeDetails | null;
+    payment_details_json?: string | null;
+    payment_clearance_status?: string | null;
+  };
+  const paymentDetails = normalizeStoredPaymentDetails(transaction);
+  const paymentMode = transaction.payment_mode ? normalizePaymentMode(transaction.payment_mode) : null;
+  const previousStatus = normalizePaymentClearanceStatus(
+    transaction.payment_clearance_status,
+    paymentMode,
+    paymentDetails
+  );
+  const nextStatus = normalizePaymentClearanceStatus(input.clearanceStatus, paymentMode, paymentDetails);
+  if (previousStatus === nextStatus) {
+    return;
+  }
+
+  const relatedAllocations = await getDocs(
+    query(
+      collection(firestore, 'workspaces', workspaceId, 'payment_allocations'),
+      where('transaction_id', '==', allocation.transaction_id)
+    )
+  );
+  const now = new Date().toISOString();
+  const batch = writeBatch(firestore);
+  batch.update(transactionRef, {
+    payment_clearance_status: nextStatus,
+    last_modified: now,
+    server_revision: increment(1),
+  });
+
+  for (const related of relatedAllocations.docs) {
+    const data = related.data() as {
+      invoice_id?: string;
+      amount?: number;
+    };
+    if (!data.invoice_id || typeof data.amount !== 'number') {
+      continue;
+    }
+    const invoiceRef = doc(firestore, 'workspaces', workspaceId, 'invoices', data.invoice_id);
+    const invoiceSnapshot = await getDoc(invoiceRef);
+    if (!invoiceSnapshot.exists()) {
+      continue;
+    }
+    const invoice = invoiceSnapshot.data() as {
+      paid_amount?: number;
+      total_amount?: number;
+      due_date?: string | null;
+      status?: string;
+      document_state?: string;
+    };
+    const previousPaidDelta = doesPaymentClearInvoice(previousStatus) ? data.amount : 0;
+    const nextPaidDelta = doesPaymentClearInvoice(nextStatus) ? data.amount : 0;
+    const nextPaidAmount = roundMoney(Math.max((invoice.paid_amount ?? 0) - previousPaidDelta + nextPaidDelta, 0));
+    const nextPaymentStatus = deriveInvoicePaymentStatus({
+      dueDate: invoice.due_date,
+      totalAmount: invoice.total_amount,
+      paidAmount: nextPaidAmount,
+      pendingAmount: doesPaymentClearInvoice(nextStatus) || nextStatus === 'bounced' || nextStatus === 'cancelled' ? 0 : data.amount,
+    });
+    const documentState = normalizeInvoiceDocumentState(invoice.document_state ?? invoice.status);
+    batch.update(invoiceRef, {
+      paid_amount: nextPaidAmount,
+      payment_status: nextPaymentStatus,
+      status: legacyStatusForInvoiceLifecycle(documentState, nextPaymentStatus),
+      last_modified: now,
+      server_revision: increment(1),
+    });
+  }
+
+  const customerId = transaction.customer_id ?? allocation.customer_id;
+  const amount = typeof transaction.amount === 'number' ? transaction.amount : 0;
+  if (customerId && amount > 0) {
+    const balanceDelta =
+      (doesPaymentClearInvoice(previousStatus) ? amount : 0) -
+      (doesPaymentClearInvoice(nextStatus) ? amount : 0);
+    if (balanceDelta !== 0) {
+      batch.update(doc(firestore, 'workspaces', workspaceId, 'customers', customerId), {
+        current_balance: increment(balanceDelta),
+        updated_at: now,
+        last_modified: now,
+      });
+    }
+  }
+
+  await batch.commit();
 }
 
 export async function getWorkspaceInvoiceDetail(
@@ -971,9 +1152,14 @@ async function loadTransactionsByIds(
       payment_mode?: string | null;
       payment_details?: PaymentModeDetails | null;
       payment_details_json?: string | null;
+      payment_clearance_status?: string | null;
+      payment_attachments?: PaymentInstrumentAttachment[] | null;
+      payment_attachments_json?: string | null;
       effective_date?: string;
       created_at?: string;
     };
+    const paymentDetails = normalizeStoredPaymentDetails(data);
+    const paymentMode = data.payment_mode ? normalizePaymentMode(data.payment_mode) : null;
     transactions.set(entry.id, {
       id: entry.id,
       customerId: data.customer_id ?? '',
@@ -981,8 +1167,12 @@ async function loadTransactionsByIds(
       type: data.type ?? 'payment',
       amount: data.amount ?? 0,
       note: data.note ?? null,
-      paymentMode: data.payment_mode ? normalizePaymentMode(data.payment_mode) : null,
-      paymentDetails: normalizeStoredPaymentDetails(data),
+      paymentMode,
+      paymentDetails,
+      paymentClearanceStatus: data.payment_clearance_status
+        ? normalizePaymentClearanceStatus(data.payment_clearance_status, paymentMode, paymentDetails)
+        : null,
+      paymentAttachments: normalizeStoredPaymentAttachments(data),
       effectiveDate: data.effective_date ?? '',
       createdAt: data.created_at ?? '',
     });
@@ -1008,6 +1198,7 @@ async function buildPaymentAllocationPlan(
     invoiceId: string | null;
     transactionId: string;
     createdAt: string;
+    clearanceStatus: PaymentClearanceStatus | null;
   }
 ): Promise<Array<WorkspacePaymentAllocation & {
   nextPaidAmount: number;
@@ -1082,11 +1273,13 @@ async function buildPaymentAllocationPlan(
     if (allocatedAmount <= 0) {
       continue;
     }
-    const nextPaidAmount = roundMoney(invoice.paidAmount + allocatedAmount);
+    const paidDelta = doesPaymentClearInvoice(input.clearanceStatus) ? allocatedAmount : 0;
+    const nextPaidAmount = roundMoney(invoice.paidAmount + paidDelta);
     const nextPaymentStatus = deriveInvoicePaymentStatus({
       dueDate: invoice.dueDate,
       totalAmount: invoice.totalAmount,
       paidAmount: nextPaidAmount,
+      pendingAmount: doesPaymentClearInvoice(input.clearanceStatus) ? 0 : allocatedAmount,
     });
     allocations.push({
       id: doc(collection(firestore, 'workspaces', workspaceId, 'payment_allocations')).id,
@@ -1361,6 +1554,7 @@ function buildCustomerHealthStats(transactions: QueryDocumentSnapshot[]) {
       type?: 'credit' | 'payment';
       amount?: number;
       effective_date?: string;
+      payment_clearance_status?: string | null;
     };
     const customerId = data.customer_id;
     if (!customerId || typeof data.amount !== 'number') {
@@ -1378,7 +1572,10 @@ function buildCustomerHealthStats(transactions: QueryDocumentSnapshot[]) {
       current.totalCredit += data.amount;
       current.oldestCreditAt =
         !current.oldestCreditAt || (date && date < current.oldestCreditAt) ? date : current.oldestCreditAt;
-    } else if (data.type === 'payment') {
+    } else if (
+      data.type === 'payment' &&
+      (!data.payment_clearance_status || doesPaymentClearInvoice(data.payment_clearance_status))
+    ) {
       current.totalPayment += data.amount;
       current.paymentCount += 1;
       current.lastPaymentAt =
@@ -1426,6 +1623,32 @@ function serializePaymentDetails(details: PaymentModeDetails | null): string | n
     Object.entries(details).filter(([, value]) => typeof value === 'string' && value.trim())
   );
   return Object.keys(compact).length ? JSON.stringify(compact) : null;
+}
+
+function normalizeStoredPaymentAttachments(data: {
+  payment_attachments?: PaymentInstrumentAttachment[] | null;
+  payment_attachments_json?: string | null;
+}): PaymentInstrumentAttachment[] {
+  if (data.payment_attachments) {
+    return normalizePaymentInstrumentAttachments(data.payment_attachments);
+  }
+
+  if (!data.payment_attachments_json) {
+    return [];
+  }
+
+  try {
+    return normalizePaymentInstrumentAttachments(
+      JSON.parse(data.payment_attachments_json) as PaymentInstrumentAttachment[]
+    );
+  } catch {
+    return [];
+  }
+}
+
+function serializePaymentAttachments(attachments: PaymentInstrumentAttachment[]): string | null {
+  const normalized = normalizePaymentInstrumentAttachments(attachments);
+  return normalized.length ? JSON.stringify(normalized) : null;
 }
 
 function mapInvoiceItem(entry: QueryDocumentSnapshot): WorkspaceInvoiceItem {

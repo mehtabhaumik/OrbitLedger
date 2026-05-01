@@ -19,6 +19,24 @@ export type PaymentModeDetails = {
   note?: string | null;
 };
 
+export type PaymentClearanceStatus =
+  | 'received'
+  | 'post_dated'
+  | 'deposited'
+  | 'cleared'
+  | 'bounced'
+  | 'cancelled';
+
+export type PaymentInstrumentAttachment = {
+  id: string;
+  name: string;
+  url: string;
+  storagePath?: string | null;
+  contentType?: string | null;
+  size?: number | null;
+  uploadedAt: string;
+};
+
 export type PaymentModeConfig = {
   mode: PaymentMode;
   label: string;
@@ -135,9 +153,95 @@ export function summarizePaymentMode(mode?: string | null, details?: PaymentMode
   return parts.length ? `${label} - ${parts.join(' - ')}` : label;
 }
 
+export function isInstrumentPaymentMode(mode?: string | null): boolean {
+  return mode === 'cheque' || mode === 'demand_draft';
+}
+
+export function normalizePaymentClearanceStatus(
+  value?: string | null,
+  mode?: PaymentMode | string | null,
+  details?: PaymentModeDetails | null,
+  today = todayDate()
+): PaymentClearanceStatus {
+  if (
+    value === 'received' ||
+    value === 'post_dated' ||
+    value === 'deposited' ||
+    value === 'cleared' ||
+    value === 'bounced' ||
+    value === 'cancelled'
+  ) {
+    return value;
+  }
+
+  if (!isInstrumentPaymentMode(mode)) {
+    return 'cleared';
+  }
+
+  const instrumentDate = details?.instrumentDate?.trim();
+  return instrumentDate && instrumentDate > today ? 'post_dated' : 'received';
+}
+
+export function doesPaymentClearInvoice(status?: string | null): boolean {
+  return status === 'cleared';
+}
+
+export function getPaymentClearanceStatusLabel(status?: string | null): string {
+  switch (status) {
+    case 'post_dated':
+      return 'Post-dated';
+    case 'deposited':
+      return 'Deposited';
+    case 'cleared':
+      return 'Cleared';
+    case 'bounced':
+      return 'Bounced';
+    case 'cancelled':
+      return 'Cancelled';
+    case 'received':
+    default:
+      return 'Received';
+  }
+}
+
+export function summarizePaymentClearance(
+  status?: string | null,
+  details?: PaymentModeDetails | null
+): string {
+  const label = getPaymentClearanceStatusLabel(status);
+  if (status === 'post_dated' && details?.instrumentDate) {
+    return `${label} until ${details.instrumentDate}`;
+  }
+  return label;
+}
+
+export function normalizePaymentInstrumentAttachments(
+  attachments?: PaymentInstrumentAttachment[] | null
+): PaymentInstrumentAttachment[] {
+  if (!Array.isArray(attachments)) {
+    return [];
+  }
+
+  return attachments
+    .map((attachment) => ({
+      id: clean(attachment.id) ?? `att-${Date.now()}`,
+      name: clean(attachment.name) ?? 'Payment proof',
+      url: clean(attachment.url) ?? '',
+      storagePath: clean(attachment.storagePath),
+      contentType: clean(attachment.contentType),
+      size: typeof attachment.size === 'number' && Number.isFinite(attachment.size) ? attachment.size : null,
+      uploadedAt: clean(attachment.uploadedAt) ?? new Date().toISOString(),
+    }))
+    .filter((attachment) => attachment.url);
+}
+
 function clean(value?: string | null): string | null {
   const cleaned = value?.trim();
   return cleaned ? cleaned : null;
+}
+
+function todayDate(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function normalizeCardLastFour(value?: string | null): string | null {

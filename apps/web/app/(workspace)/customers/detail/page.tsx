@@ -4,7 +4,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { summarizePaymentMode } from '@orbit-ledger/core';
+import { summarizePaymentClearance, summarizePaymentMode } from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
 import { downloadCustomerProfilePdf } from '@/lib/customer-export';
@@ -132,7 +132,9 @@ function CustomerDetailContent() {
     const rows = exportRows.map((transaction) => [
       transaction.effectiveDate,
       transaction.type === 'payment' ? 'Payment' : 'Credit',
-      transaction.type === 'payment' ? summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails) : '',
+      transaction.type === 'payment'
+        ? `${summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails)} - ${summarizePaymentClearance(transaction.paymentClearanceStatus, transaction.paymentDetails)}`
+        : '',
       transaction.note ?? '',
       transaction.amount,
     ]);
@@ -331,7 +333,7 @@ function CustomerDetailContent() {
                 </span>
                 <span>
                   {transaction.type === 'payment'
-                    ? `${summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails)}${transaction.note ? ` · ${transaction.note}` : ''}`
+                    ? `${summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails)} · ${summarizePaymentClearance(transaction.paymentClearanceStatus, transaction.paymentDetails)}${transaction.note ? ` · ${transaction.note}` : ''}`
                     : transaction.note || transaction.effectiveDate}
                 </span>
                 <span>{transaction.effectiveDate || '—'}</span>

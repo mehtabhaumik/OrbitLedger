@@ -782,9 +782,10 @@ async function upsertCustomerTimelineNote(
 async function upsertTransaction(db: DatabaseWriter, transaction: LedgerTransaction): Promise<void> {
   await db.runAsync(
     `INSERT INTO transactions (
-      id, customer_id, type, amount, note, payment_mode, payment_details_json, effective_date, created_at,
+      id, customer_id, type, amount, note, payment_mode, payment_details_json,
+      payment_clearance_status, payment_attachments_json, effective_date, created_at,
       sync_id, last_modified, sync_status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       customer_id = excluded.customer_id,
       type = excluded.type,
@@ -792,6 +793,8 @@ async function upsertTransaction(db: DatabaseWriter, transaction: LedgerTransact
       note = excluded.note,
       payment_mode = excluded.payment_mode,
       payment_details_json = excluded.payment_details_json,
+      payment_clearance_status = excluded.payment_clearance_status,
+      payment_attachments_json = excluded.payment_attachments_json,
       effective_date = excluded.effective_date,
       created_at = excluded.created_at,
       sync_id = excluded.sync_id,
@@ -804,6 +807,8 @@ async function upsertTransaction(db: DatabaseWriter, transaction: LedgerTransact
     transaction.note,
     transaction.paymentMode,
     transaction.paymentDetails ? JSON.stringify(transaction.paymentDetails) : null,
+    transaction.paymentClearanceStatus,
+    transaction.paymentAttachments.length ? JSON.stringify(transaction.paymentAttachments) : null,
     transaction.effectiveDate,
     transaction.createdAt,
     transaction.syncId,

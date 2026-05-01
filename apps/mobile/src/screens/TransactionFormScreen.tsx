@@ -5,6 +5,7 @@ import { Controller, useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,11 +15,16 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Directory, File, Paths } from 'expo-file-system';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
 import {
   getPaymentModeConfig,
+  getPaymentClearanceStatusLabel,
   PAYMENT_MODE_CONFIGS,
+  type PaymentClearanceStatus,
+  type PaymentInstrumentAttachment,
   type PaymentMode,
   type PaymentModeDetails,
 } from '@orbit-ledger/core';
@@ -93,6 +99,8 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
   const [selectedPromiseId, setSelectedPromiseId] = useState(initialPromiseId ?? '');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   const [paymentDetails, setPaymentDetails] = useState<PaymentModeDetails>({});
+  const [paymentClearanceStatus, setPaymentClearanceStatus] = useState<PaymentClearanceStatus>('cleared');
+  const [paymentAttachments, setPaymentAttachments] = useState<PaymentInstrumentAttachment[]>([]);
   const [allocationStrategy, setAllocationStrategy] = useState<'ledger_only' | 'oldest_invoice' | 'selected_invoice'>(
     initialInvoiceId ? 'selected_invoice' : 'ledger_only'
   );
@@ -165,6 +173,8 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
             setLoadedTransaction(transaction);
             setPaymentMode(transaction.paymentMode ?? 'cash');
             setPaymentDetails(transaction.paymentDetails ?? {});
+            setPaymentClearanceStatus(transaction.paymentClearanceStatus ?? 'cleared');
+            setPaymentAttachments(transaction.paymentAttachments);
             reset({
               customerId: transaction.customerId,
               type: transaction.type,
@@ -290,6 +300,52 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
     }
   }
 
+  async function attachInstrumentImage(source: 'camera' | 'library') {
+    try {
+      const permission =
+        source === 'camera'
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          'Permission needed',
+          source === 'camera' ? 'Camera permission is needed.' : 'Photo permission is needed.'
+        );
+        return;
+      }
+
+      const result =
+        source === 'camera'
+          ? await ImagePicker.launchCameraAsync({ quality: 0.75, allowsEditing: false })
+          : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.75, allowsEditing: false });
+      const asset = result.canceled ? null : result.assets[0];
+      if (!asset?.uri) {
+        return;
+      }
+
+      const copiedUri = copyInstrumentImageToLocalStorage(asset.uri);
+      setPaymentAttachments((current) =>
+        [
+          {
+            id: `instrument-${Date.now()}`,
+            name: asset.fileName ?? `payment-proof-${Date.now()}.jpg`,
+            url: copiedUri,
+            storagePath: null,
+            contentType: asset.mimeType ?? 'image/jpeg',
+            size: asset.fileSize ?? null,
+            uploadedAt: new Date().toISOString(),
+          },
+          ...current,
+        ].slice(0, 3)
+      );
+    } catch (error) {
+      Alert.alert(
+        'Image not attached',
+        error instanceof Error ? error.message : 'Payment proof image could not be attached.'
+      );
+    }
+  }
+
   async function onSubmit(input: TransactionFormValues) {
     try {
       if (isEditing && transactionId) {
@@ -300,6 +356,8 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
           note: input.note,
           paymentMode: input.type === 'payment' ? paymentMode : null,
           paymentDetails: input.type === 'payment' ? paymentDetails : null,
+          paymentClearanceStatus: input.type === 'payment' ? paymentClearanceStatus : null,
+          paymentAttachments: input.type === 'payment' ? paymentAttachments : [],
           effectiveDate: input.effectiveDate,
         });
         await recordLedgerDataChangedForBackupNudge('transaction');
@@ -316,6 +374,8 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
         effectiveDate: input.effectiveDate,
         paymentMode: input.type === 'payment' ? paymentMode : null,
         paymentDetails: input.type === 'payment' ? paymentDetails : null,
+        paymentClearanceStatus: input.type === 'payment' ? paymentClearanceStatus : null,
+        paymentAttachments: input.type === 'payment' ? paymentAttachments : [],
         allocationStrategy: input.type === 'payment' ? allocationStrategy : 'ledger_only',
         invoiceId: allocationStrategy === 'selected_invoice' ? selectedInvoiceId : null,
       });
@@ -572,6 +632,46 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
                 mode={paymentMode}
                 onChange={setPaymentDetails}
               />
+              <Text style={styles.choiceMeta}>Clearance status</Text>
+              <View style={styles.paymentModeGrid}>
+                {(['received', 'post_dated', 'deposited', 'cleared', 'bounced', 'cancelled'] as PaymentClearanceStatus[]).map((status) => {
+                  const selected = paymentClearanceStatus === status;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      hitSlop={touch.hitSlop}
+                      key={status}
+                      onPress={() => setPaymentClearanceStatus(status)}
+                      pressRetentionOffset={touch.pressRetentionOffset}
+                      style={[styles.paymentModeChoice, selected ? styles.promiseChoiceSelected : null]}
+                    >
+                      <Text style={[styles.choiceText, selected ? styles.choiceTextSelected : null]}>
+                        {getPaymentClearanceStatusLabel(status)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {paymentMode === 'cheque' || paymentMode === 'demand_draft' ? (
+                <View style={styles.attachmentActions}>
+                  <PrimaryButton variant="secondary" onPress={() => void attachInstrumentImage('camera')}>
+                    Capture image
+                  </PrimaryButton>
+                  <PrimaryButton variant="secondary" onPress={() => void attachInstrumentImage('library')}>
+                    Upload image
+                  </PrimaryButton>
+                </View>
+              ) : null}
+              {paymentAttachments.length ? (
+                <View style={styles.attachmentGrid}>
+                  {paymentAttachments.map((attachment) => (
+                    <View key={attachment.id} style={styles.attachmentCard}>
+                      <Image source={{ uri: attachment.url }} style={styles.attachmentImage} resizeMode="contain" />
+                      <Text style={styles.choiceMeta} numberOfLines={1}>{attachment.name}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </Section>
           ) : null}
 
@@ -766,6 +866,23 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
 
 function formatAmountInput(amount: number): string {
   return Number.isInteger(amount) ? String(amount) : amount.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function copyInstrumentImageToLocalStorage(sourceUri: string): string {
+  try {
+    const directory = new Directory(Paths.document, 'payment-instruments');
+    directory.create({ intermediates: true, idempotent: true });
+
+    const source = new File(sourceUri);
+    const extension = source.extension || '.jpg';
+    const destination = new File(directory, `instrument-${Date.now()}${extension}`);
+    source.copy(destination);
+
+    return destination.uri;
+  } catch (error) {
+    console.warn('[payment-instrument] Falling back to picker URI', error);
+    return sourceUri;
+  }
 }
 
 function PaymentModeFields({
@@ -1026,6 +1143,28 @@ const styles = StyleSheet.create({
   },
   paymentDetailFields: {
     gap: spacing.md,
+  },
+  attachmentActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  attachmentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  attachmentCard: {
+    width: 132,
+    gap: spacing.xs,
+  },
+  attachmentImage: {
+    width: 132,
+    height: 82,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   typeButton: {
     flex: 1,

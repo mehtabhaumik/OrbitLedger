@@ -155,6 +155,8 @@ function makeTransaction(overrides: Partial<WorkspaceTransaction>): WorkspaceTra
     note: null,
     paymentMode: null,
     paymentDetails: null,
+    paymentClearanceStatus: null,
+    paymentAttachments: [],
     effectiveDate: '2026-04-01',
     createdAt: '2026-04-01T00:00:00.000Z',
     ...overrides,

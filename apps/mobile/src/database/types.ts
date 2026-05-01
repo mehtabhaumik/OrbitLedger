@@ -7,6 +7,8 @@ import type {
 import type {
   CustomerHealthScore,
   PaymentAllocationStrategy,
+  PaymentClearanceStatus,
+  PaymentInstrumentAttachment,
   PaymentMode,
   PaymentModeDetails,
 } from '@orbit-ledger/core';
@@ -33,7 +35,7 @@ export type PaymentPromiseStatus = 'open' | 'fulfilled' | 'missed' | 'cancelled'
 
 export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'overdue' | 'cancelled';
 export type InvoiceDocumentState = 'draft' | 'created' | 'revised' | 'cancelled';
-export type InvoicePaymentStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overdue';
+export type InvoicePaymentStatus = 'unpaid' | 'pending_clearance' | 'partially_paid' | 'paid' | 'overdue';
 
 export type CustomerTimelineNoteKind = 'note' | 'dispute';
 
@@ -171,6 +173,8 @@ export type LedgerTransaction = SyncMetadata & {
   note: string | null;
   paymentMode: PaymentMode | null;
   paymentDetails: PaymentModeDetails | null;
+  paymentClearanceStatus: PaymentClearanceStatus | null;
+  paymentAttachments: PaymentInstrumentAttachment[];
   effectiveDate: string;
   createdAt: string;
 };
@@ -183,6 +187,8 @@ export type AddTransactionInput = {
   effectiveDate?: string;
   paymentMode?: PaymentMode | null;
   paymentDetails?: PaymentModeDetails | null;
+  paymentClearanceStatus?: PaymentClearanceStatus | null;
+  paymentAttachments?: PaymentInstrumentAttachment[];
   allocationStrategy?: PaymentAllocationStrategy;
   invoiceId?: string | null;
 };
@@ -193,6 +199,8 @@ export type UpdateTransactionInput = {
   note?: string | null;
   paymentMode?: PaymentMode | null;
   paymentDetails?: PaymentModeDetails | null;
+  paymentClearanceStatus?: PaymentClearanceStatus | null;
+  paymentAttachments?: PaymentInstrumentAttachment[];
   effectiveDate?: string;
 };
 
@@ -364,6 +372,8 @@ export type InvoicePaymentAllocation = PaymentAllocation & {
   transactionNote: string | null;
   paymentMode: PaymentMode | null;
   paymentDetails: PaymentModeDetails | null;
+  paymentClearanceStatus: PaymentClearanceStatus | null;
+  paymentAttachments: PaymentInstrumentAttachment[];
 };
 
 export type AddInvoiceItemInput = {
@@ -779,6 +789,8 @@ export type LedgerTransactionRow = {
   note: string | null;
   payment_mode: PaymentMode | null;
   payment_details_json: string | null;
+  payment_clearance_status: PaymentClearanceStatus | null;
+  payment_attachments_json: string | null;
   effective_date: string;
   created_at: string;
   sync_id: string;

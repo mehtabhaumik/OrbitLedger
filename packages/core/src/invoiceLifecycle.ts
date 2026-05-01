@@ -1,6 +1,11 @@
 export type InvoiceDocumentState = 'draft' | 'created' | 'revised' | 'cancelled';
 
-export type InvoicePaymentStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overdue';
+export type InvoicePaymentStatus =
+  | 'unpaid'
+  | 'pending_clearance'
+  | 'partially_paid'
+  | 'paid'
+  | 'overdue';
 
 export type LegacyInvoiceStatus = 'draft' | 'issued' | 'paid' | 'overdue' | 'cancelled';
 
@@ -13,6 +18,7 @@ export type InvoiceLifecycleInput = {
   dueDate?: string | null;
   totalAmount?: number | null;
   paidAmount?: number | null;
+  pendingAmount?: number | null;
   today?: string;
 };
 
@@ -25,6 +31,7 @@ export const INVOICE_DOCUMENT_STATES: InvoiceDocumentState[] = [
 
 export const INVOICE_PAYMENT_STATUSES: InvoicePaymentStatus[] = [
   'unpaid',
+  'pending_clearance',
   'partially_paid',
   'paid',
   'overdue',
@@ -52,6 +59,7 @@ export function normalizeInvoicePaymentStatus(input: InvoiceLifecycleInput): Inv
   const explicit = input.paymentStatus;
   if (
     explicit === 'unpaid' ||
+    explicit === 'pending_clearance' ||
     explicit === 'partially_paid' ||
     explicit === 'paid' ||
     explicit === 'overdue'
@@ -73,6 +81,7 @@ export function normalizeInvoicePaymentStatus(input: InvoiceLifecycleInput): Inv
 export function deriveInvoicePaymentStatus(input: InvoiceLifecycleInput): InvoicePaymentStatus {
   const total = Math.max(Number(input.totalAmount ?? 0), 0);
   const paid = Math.max(Number(input.paidAmount ?? 0), 0);
+  const pending = Math.max(Number(input.pendingAmount ?? 0), 0);
 
   if (total > 0 && paid >= total) {
     return 'paid';
@@ -80,6 +89,10 @@ export function deriveInvoicePaymentStatus(input: InvoiceLifecycleInput): Invoic
 
   if (paid > 0 && paid < total) {
     return 'partially_paid';
+  }
+
+  if (pending > 0) {
+    return 'pending_clearance';
   }
 
   if (input.dueDate && input.dueDate < (input.today ?? todayDate())) {
@@ -132,6 +145,8 @@ export function getInvoicePaymentStatusLabel(status: InvoicePaymentStatus): stri
       return 'Partially paid';
     case 'paid':
       return 'Paid';
+    case 'pending_clearance':
+      return 'Pending clearance';
     case 'overdue':
       return 'Overdue';
     case 'unpaid':

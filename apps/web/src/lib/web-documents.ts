@@ -45,6 +45,11 @@ type BuildInvoiceDocumentInput = {
   subscription?: WebSubscriptionStatus;
   templateKey?: string | null;
   proTheme?: WebProBrandTheme | null;
+  urgentPaymentRequired?: boolean;
+  instrumentAttachment?: {
+    name: string;
+    url: string;
+  } | null;
 };
 
 type BuildStatementDocumentInput = {
@@ -340,6 +345,7 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
         includeBranding,
         template,
       })}
+      ${input.urgentPaymentRequired ? urgentPaymentStamp() : ''}
       <section class="identity-grid">
         <div class="panel">
           <p class="label">${escapeHtml(pack.documents.buyerLabel)}</p>
@@ -369,6 +375,7 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
         </div>
         ${signatureBlock(input.workspace, includeBranding)}
       </section>
+      ${input.instrumentAttachment ? instrumentAttachmentBlock(input.instrumentAttachment) : ''}
       <section class="tax-note">
         <p class="label">${escapeHtml(template.taxLabel)} Details</p>
         <p>${escapeHtml(taxAmount > 0 ? `${template.taxLabel} is included from saved invoice item rates.` : `No ${template.taxLabel.toLowerCase()} amount is applied to this invoice.`)}</p>
@@ -986,6 +993,14 @@ function signatureBlock(workspace: OrbitWorkspaceSummary, includeBranding: boole
   return `<div class="signature-card"><p class="label">Authorized by</p><div class="signature-box">${signature}</div><div class="signature-line"></div><h2>${escapeHtml(workspace.authorizedPersonName || workspace.ownerName || workspace.businessName)}</h2><p>${escapeHtml(workspace.authorizedPersonTitle || 'Authorized person')}</p></div>`;
 }
 
+function urgentPaymentStamp() {
+  return '<section class="urgent-stamp">Payment required urgently</section>';
+}
+
+function instrumentAttachmentBlock(attachment: { name: string; url: string }) {
+  return `<section class="instrument-proof"><div><p class="label">Payment instrument proof</p><h2>${escapeHtml(attachment.name)}</h2><p>Included by the business for payment review.</p></div><img src="${escapeAttribute(attachment.url)}" alt="${escapeAttribute(attachment.name)}"></section>`;
+}
+
 function invoiceTable(rows: Array<Record<string, string | number | null>>, columns: WebDocumentTemplate['columns']) {
   if (!rows.length) {
     return '<div class="empty-table">No items added to this invoice.</div>';
@@ -1233,6 +1248,8 @@ const pdfStyles = `
   .table-section{margin:18px 0}.table-section h2{font-size:15px;margin-bottom:10px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border-bottom:1px solid #e2eaf4;padding:9px 8px;text-align:left;vertical-align:top}th{background:#f4f8fc;color:#516173;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.numeric{text-align:right}.description{font-weight:700}.empty-table{border:1px dashed #cdd8e8;border-radius:14px;padding:18px;color:#66758a}
   .summary-line{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid #e5edf6;font-size:12px}.summary-line.emphasized{font-size:15px;font-weight:900;color:#145C52;border-bottom:0}.amount-words{font-size:11px;line-height:1.5;margin-top:10px;color:#516173}
   .signature-box{height:60px;border:1px dashed #cad6e6;border-radius:12px;display:grid;place-items:center;color:#8390a3;margin:12px 0}.signature{max-width:100%;max-height:52px;object-fit:contain}.signature-line{height:1px;background:#aebace;margin-bottom:8px}
+  .urgent-stamp{margin:0 0 14px auto;width:max-content;max-width:100%;border:2px solid #b42318;color:#b42318;border-radius:12px;padding:8px 14px;text-transform:uppercase;font-weight:900;letter-spacing:.08em;transform:rotate(-1deg)}
+  .instrument-proof{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:16px;align-items:center;border:1px solid #dce6f2;border-radius:16px;padding:14px;background:#fbfdff;margin:16px 0;break-inside:avoid}.instrument-proof h2{font-size:15px;margin:6px 0}.instrument-proof p{font-size:11px;color:#516173}.instrument-proof img{width:100%;max-height:140px;object-fit:contain;border:1px solid #dce6f2;border-radius:12px;background:#fff}
   .tax-note{font-size:11px;color:#516173;line-height:1.55}.tax-breakdown{margin:8px 0}.account-summary-panel h2{font-size:26px;color:#b56a18}
   .style-advanced .page{border-top:8px solid var(--pro-accent)}.style-advanced .logo-fallback,.style-advanced .style-badge{background:var(--pro-surface);color:var(--pro-accent);border-color:var(--pro-line)}.style-advanced .statement-title strong,.style-advanced .summary-line.emphasized{color:var(--pro-accent)}
   .brand-footer{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid var(--pro-line);font-size:10px;font-weight:800;color:var(--pro-accent)}
