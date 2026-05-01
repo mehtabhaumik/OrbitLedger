@@ -6,6 +6,7 @@ apps/mobile/node_modules/
 
 # Expo
 .expo/
+.firebase/
 apps/mobile/.expo/
 .next/
 apps/web/.next/
