@@ -23,10 +23,12 @@ import {
   getPaymentModeConfig,
   getPaymentClearanceStatusLabel,
   PAYMENT_MODE_CONFIGS,
+  reconcileProviderPayment,
   type PaymentClearanceStatus,
   type PaymentInstrumentAttachment,
   type PaymentMode,
   type PaymentModeDetails,
+  type PaymentProviderSource,
 } from '@orbit-ledger/core';
 
 import { recordUsageAnalyticsEvent } from '../analytics';
@@ -43,6 +45,7 @@ import {
   addTransaction,
   getBusinessSettings,
   getTransaction,
+  listInvoices,
   listInvoicesForCustomer,
   listOpenPaymentPromisesForCustomer,
   searchCustomerSummaries,
@@ -101,6 +104,10 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
   const [paymentDetails, setPaymentDetails] = useState<PaymentModeDetails>({});
   const [paymentClearanceStatus, setPaymentClearanceStatus] = useState<PaymentClearanceStatus>('cleared');
   const [paymentAttachments, setPaymentAttachments] = useState<PaymentInstrumentAttachment[]>([]);
+  const [workspaceInvoices, setWorkspaceInvoices] = useState<Invoice[]>([]);
+  const [providerSource, setProviderSource] = useState<PaymentProviderSource>('upi');
+  const [providerReference, setProviderReference] = useState('');
+  const [payerName, setPayerName] = useState('');
   const [allocationStrategy, setAllocationStrategy] = useState<'ledger_only' | 'oldest_invoice' | 'selected_invoice'>(
     initialInvoiceId ? 'selected_invoice' : 'ledger_only'
   );
@@ -132,6 +139,27 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
   const isLoadingInitialData = isLoadingCustomers || isLoadingTransaction;
   const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId);
   const selectedPromise = openPromises.find((promise) => promise.id === selectedPromiseId);
+  const openWorkspaceInvoices = useMemo(
+    () =>
+      workspaceInvoices.filter(
+        (invoice) => invoice.documentState !== 'cancelled' && invoice.totalAmount - invoice.paidAmount > 0
+      ),
+    [workspaceInvoices]
+  );
+  const reconciliationDecision = useMemo(
+    () =>
+      selectedType === 'payment'
+        ? reconcileProviderPayment({
+            source: providerSource,
+            reference: providerReference,
+            amount,
+            currency,
+            payerName,
+            invoices: openWorkspaceInvoices,
+          })
+        : null,
+    [amount, currency, openWorkspaceInvoices, payerName, providerReference, providerSource, selectedType]
+  );
   const recentCustomers = useMemo(() => customers.slice(0, 6), [customers]);
   const visibleCustomers = useMemo(() => {
     const cleaned = customerQuery.trim().toLowerCase();
@@ -153,14 +181,16 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
 
     async function load() {
       try {
-        const [settings, activeCustomers, transaction] = await Promise.all([
+        const [settings, activeCustomers, recentInvoices, transaction] = await Promise.all([
           getBusinessSettings(),
           searchCustomerSummaries('', 100),
+          listInvoices({ limit: 100 }),
           transactionId ? getTransaction(transactionId) : Promise.resolve(null),
         ]);
         if (isMounted) {
           setCurrency(settings?.currency ?? 'INR');
           setCustomers(activeCustomers);
+          setWorkspaceInvoices(recentInvoices);
 
           if (transactionId) {
             if (!transaction) {
@@ -300,6 +330,31 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
     }
   }
 
+  function applyReconciliationMatch() {
+    if (!reconciliationDecision?.invoice || reconciliationDecision.allocationStrategy !== 'selected_invoice') {
+      Alert.alert('No invoice match', 'Add a payment reference that matches an open invoice.');
+      return;
+    }
+
+    setValue('customerId', reconciliationDecision.invoice.customerId ?? '', {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setAllocationStrategy('selected_invoice');
+    setSelectedInvoiceId(reconciliationDecision.invoice.id);
+    setPaymentMode(reconciliationDecision.paymentMode);
+    setPaymentDetails(reconciliationDecision.paymentDetails);
+    setValue('note', reconciliationDecision.note, { shouldDirty: true, shouldValidate: true });
+    if (amount <= 0 && reconciliationDecision.allocationAmount > 0) {
+      setValue('amount', formatAmountInput(reconciliationDecision.allocationAmount), {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+    setCustomerQuery('');
+    Alert.alert('Invoice matched', 'This payment is ready to save against the matched invoice.');
+  }
+
   async function attachInstrumentImage(source: 'camera' | 'library') {
     try {
       const permission =
@@ -348,6 +403,14 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
 
   async function onSubmit(input: TransactionFormValues) {
     try {
+      const reconciledPaymentDetails =
+        input.type === 'payment' && providerReference.trim()
+          ? {
+              ...paymentDetails,
+              referenceNumber: paymentDetails.referenceNumber ?? providerReference.trim(),
+              provider: paymentDetails.provider ?? paymentProviderLabel(providerSource),
+            }
+          : paymentDetails;
       if (isEditing && transactionId) {
         rememberedTransactionType = input.type;
         const updatedTransaction = await updateTransaction(transactionId, {
@@ -355,7 +418,7 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
           amount: Number(input.amount),
           note: input.note,
           paymentMode: input.type === 'payment' ? paymentMode : null,
-          paymentDetails: input.type === 'payment' ? paymentDetails : null,
+          paymentDetails: input.type === 'payment' ? reconciledPaymentDetails : null,
           paymentClearanceStatus: input.type === 'payment' ? paymentClearanceStatus : null,
           paymentAttachments: input.type === 'payment' ? paymentAttachments : [],
           effectiveDate: input.effectiveDate,
@@ -373,7 +436,7 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
         note: input.note,
         effectiveDate: input.effectiveDate,
         paymentMode: input.type === 'payment' ? paymentMode : null,
-        paymentDetails: input.type === 'payment' ? paymentDetails : null,
+        paymentDetails: input.type === 'payment' ? reconciledPaymentDetails : null,
         paymentClearanceStatus: input.type === 'payment' ? paymentClearanceStatus : null,
         paymentAttachments: input.type === 'payment' ? paymentAttachments : [],
         allocationStrategy: input.type === 'payment' ? allocationStrategy : 'ledger_only',
@@ -632,6 +695,55 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
                 mode={paymentMode}
                 onChange={setPaymentDetails}
               />
+              <Text style={styles.choiceMeta}>Match from payment app or bank</Text>
+              <View style={styles.paymentModeGrid}>
+                {(['upi', 'payment_page', 'bank_transfer', 'card', 'wallet', 'other'] as PaymentProviderSource[]).map((source) => {
+                  const selected = providerSource === source;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      hitSlop={touch.hitSlop}
+                      key={source}
+                      onPress={() => setProviderSource(source)}
+                      pressRetentionOffset={touch.pressRetentionOffset}
+                      style={[styles.paymentModeChoice, selected ? styles.promiseChoiceSelected : null]}
+                    >
+                      <Text style={[styles.choiceText, selected ? styles.choiceTextSelected : null]}>
+                        {paymentProviderLabel(source)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <TextField
+                label="Payment reference"
+                value={providerReference}
+                onChangeText={setProviderReference}
+                placeholder="Reference from app or bank"
+                helperText="Paste the reference shown by the payment app, bank, or card provider."
+              />
+              <TextField
+                label="Paid by"
+                value={payerName}
+                onChangeText={setPayerName}
+                placeholder="Optional payer name"
+              />
+              {reconciliationDecision && providerReference.trim() ? (
+                <View style={styles.reconciliationCard}>
+                  <Text style={styles.choiceText}>{reconciliationDecision.message}</Text>
+                  {reconciliationDecision.invoice ? (
+                    <Text style={styles.choiceMeta}>
+                      {reconciliationDecision.invoice.customerName ?? 'Customer'} · Due{' '}
+                      {formatCurrency(reconciliationDecision.dueAmount, currency)}
+                    </Text>
+                  ) : null}
+                  {reconciliationDecision.allocationStrategy === 'selected_invoice' ? (
+                    <PrimaryButton variant="secondary" onPress={applyReconciliationMatch}>
+                      Use this match
+                    </PrimaryButton>
+                  ) : null}
+                </View>
+              ) : null}
               <Text style={styles.choiceMeta}>Clearance status</Text>
               <View style={styles.paymentModeGrid}>
                 {(['received', 'post_dated', 'deposited', 'cleared', 'bounced', 'cancelled'] as PaymentClearanceStatus[]).map((status) => {
@@ -866,6 +978,24 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
 
 function formatAmountInput(amount: number): string {
   return Number.isInteger(amount) ? String(amount) : amount.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function paymentProviderLabel(source: PaymentProviderSource): string {
+  switch (source) {
+    case 'upi':
+      return 'UPI';
+    case 'payment_page':
+      return 'Payment page';
+    case 'bank_transfer':
+      return 'Bank transfer';
+    case 'card':
+      return 'Card';
+    case 'wallet':
+      return 'Wallet';
+    case 'other':
+    default:
+      return 'Other';
+  }
 }
 
 function copyInstrumentImageToLocalStorage(sourceUri: string): string {
@@ -1143,6 +1273,14 @@ const styles = StyleSheet.create({
   },
   paymentDetailFields: {
     gap: spacing.md,
+  },
+  reconciliationCard: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.success,
+    backgroundColor: colors.successSurface,
+    padding: spacing.md,
+    gap: spacing.sm,
   },
   attachmentActions: {
     flexDirection: 'row',

@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   getPaymentModeConfig,
   PAYMENT_MODE_CONFIGS,
+  reconcileProviderPayment,
   summarizePaymentClearance,
   summarizePaymentMode,
+  type PaymentProviderSource,
   type PaymentMode,
   type PaymentModeDetails,
 } from '@orbit-ledger/core';
@@ -14,6 +16,7 @@ import { AppShell } from '@/components/app-shell';
 import { parseAmount, validatePositiveAmount } from '@/lib/form-validation';
 import {
   createWorkspaceTransaction,
+  listWorkspaceInvoices,
   listWorkspaceInvoicesForCustomer,
   listWorkspaceCustomers,
   listWorkspaceTransactions,
@@ -46,6 +49,10 @@ export default function TransactionsPage() {
   const [allocationStrategy, setAllocationStrategy] = useState<'ledger_only' | 'oldest_invoice' | 'selected_invoice'>('ledger_only');
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const [customerInvoices, setCustomerInvoices] = useState<WorkspaceInvoice[]>([]);
+  const [workspaceInvoices, setWorkspaceInvoices] = useState<WorkspaceInvoice[]>([]);
+  const [providerSource, setProviderSource] = useState<PaymentProviderSource>('upi');
+  const [providerReference, setProviderReference] = useState('');
+  const [payerName, setPayerName] = useState('');
   const [note, setNote] = useState('');
   const [effectiveDate, setEffectiveDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [errors, setErrors] = useState<{
@@ -73,9 +80,11 @@ export default function TransactionsPage() {
     void Promise.all([
       listWorkspaceCustomers(activeWorkspace.workspaceId),
       listWorkspaceTransactions(activeWorkspace.workspaceId),
-    ]).then(([nextCustomers, nextTransactions]) => {
+      listWorkspaceInvoices(activeWorkspace.workspaceId),
+    ]).then(([nextCustomers, nextTransactions, nextInvoices]) => {
       setCustomers(nextCustomers);
       setTransactions(nextTransactions);
+      setWorkspaceInvoices(nextInvoices);
       setCustomerId((current) => current || nextCustomers[0]?.id || '');
     });
     setSelectedTransactionIds(new Set());
@@ -121,6 +130,14 @@ export default function TransactionsPage() {
 
     setIsSaving(true);
     try {
+      const reconciledPaymentDetails =
+        type === 'payment' && providerReference.trim()
+          ? {
+              ...paymentDetails,
+              referenceNumber: paymentDetails.referenceNumber ?? providerReference.trim(),
+              provider: paymentDetails.provider ?? paymentProviderLabel(providerSource),
+            }
+          : paymentDetails;
       const transaction = await createWorkspaceTransaction(activeWorkspace.workspaceId, {
         customerId,
         type,
@@ -128,7 +145,7 @@ export default function TransactionsPage() {
         note,
         effectiveDate,
         paymentMode: type === 'payment' ? paymentMode : null,
-        paymentDetails: type === 'payment' ? paymentDetails : null,
+        paymentDetails: type === 'payment' ? reconciledPaymentDetails : null,
         allocationStrategy: type === 'payment' ? allocationStrategy : 'ledger_only',
         invoiceId: allocationStrategy === 'selected_invoice' ? selectedInvoiceId : null,
       });
@@ -137,6 +154,8 @@ export default function TransactionsPage() {
       setNote('');
       setPaymentMode('cash');
       setPaymentDetails({});
+      setProviderReference('');
+      setPayerName('');
       setEffectiveDate(new Date().toISOString().slice(0, 10));
       setAllocationStrategy('ledger_only');
       setSelectedInvoiceId('');
@@ -178,6 +197,27 @@ export default function TransactionsPage() {
     () => pickSelectedRows(filteredTransactions, selectedTransactionIds),
     [filteredTransactions, selectedTransactionIds]
   );
+  const openWorkspaceInvoices = useMemo(
+    () =>
+      workspaceInvoices.filter(
+        (invoice) => invoice.documentState !== 'cancelled' && invoice.totalAmount - invoice.paidAmount > 0
+      ),
+    [workspaceInvoices]
+  );
+  const reconciliationDecision = useMemo(
+    () =>
+      type === 'payment'
+        ? reconcileProviderPayment({
+            source: providerSource,
+            reference: providerReference,
+            amount: parseAmount(amount) ?? 0,
+            currency: activeWorkspace?.currency ?? 'INR',
+            payerName,
+            invoices: openWorkspaceInvoices,
+          })
+        : null,
+    [activeWorkspace?.currency, amount, openWorkspaceInvoices, payerName, providerReference, providerSource, type]
+  );
   const transactionSummary = useMemo(
     () => sumTransactionAmounts(filteredTransactions),
     [filteredTransactions]
@@ -208,6 +248,24 @@ export default function TransactionsPage() {
       }
       return next;
     });
+  }
+
+  function applyReconciliationMatch() {
+    if (!reconciliationDecision?.invoice || reconciliationDecision.allocationStrategy !== 'selected_invoice') {
+      showToast('No invoice match is ready to apply.', 'danger');
+      return;
+    }
+
+    setCustomerId(reconciliationDecision.invoice.customerId ?? '');
+    setAllocationStrategy('selected_invoice');
+    setSelectedInvoiceId(reconciliationDecision.invoice.id);
+    setPaymentMode(reconciliationDecision.paymentMode);
+    setPaymentDetails(reconciliationDecision.paymentDetails);
+    setNote(reconciliationDecision.note);
+    if ((parseAmount(amount) ?? 0) <= 0 && reconciliationDecision.allocationAmount > 0) {
+      setAmount(formatAmountInput(reconciliationDecision.allocationAmount));
+    }
+    showToast('Matched invoice applied to this payment.', 'success');
   }
 
   function exportTransactions() {
@@ -331,6 +389,58 @@ export default function TransactionsPage() {
                 </select>
               </label>
               <PaymentModeFields details={paymentDetails} mode={paymentMode} onChange={setPaymentDetails} />
+              <label className="ol-field">
+                <span className="ol-field-label">Match from</span>
+                <select
+                  className="ol-select"
+                  value={providerSource}
+                  onChange={(event) => setProviderSource(event.target.value as PaymentProviderSource)}
+                >
+                  <option value="upi">UPI</option>
+                  <option value="payment_page">Payment page</option>
+                  <option value="bank_transfer">Bank transfer</option>
+                  <option value="card">Card</option>
+                  <option value="wallet">Wallet</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">Payment reference</span>
+                <input
+                  className="ol-input"
+                  placeholder="Reference from app or bank"
+                  value={providerReference}
+                  onChange={(event) => setProviderReference(event.target.value)}
+                />
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">Paid by</span>
+                <input
+                  className="ol-input"
+                  placeholder="Optional payer name"
+                  value={payerName}
+                  onChange={(event) => setPayerName(event.target.value)}
+                />
+              </label>
+              {reconciliationDecision && providerReference.trim() ? (
+                <div className={`ol-message ${reconciliationDecision.invoice ? 'ol-message--success' : ''}`} style={{ margin: 0 }}>
+                  <strong>{reconciliationDecision.message}</strong>
+                  {reconciliationDecision.invoice ? (
+                    <>
+                      {' '}
+                      {reconciliationDecision.invoice.customerName ?? 'Customer'} ·{' '}
+                      {formatCurrency(reconciliationDecision.dueAmount, activeWorkspace?.currency ?? 'INR')} due
+                    </>
+                  ) : null}
+                  {reconciliationDecision.allocationStrategy === 'selected_invoice' ? (
+                    <div style={{ marginTop: 10 }}>
+                      <button className="ol-button-secondary" type="button" onClick={applyReconciliationMatch}>
+                        Use this match
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <label className="ol-field">
                 <span className="ol-field-label">Apply payment</span>
                 <select
@@ -609,4 +719,26 @@ function formatCurrency(value: number, currency: string) {
     currency,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatAmountInput(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function paymentProviderLabel(source: PaymentProviderSource) {
+  switch (source) {
+    case 'upi':
+      return 'UPI';
+    case 'payment_page':
+      return 'Payment page';
+    case 'bank_transfer':
+      return 'Bank transfer';
+    case 'card':
+      return 'Card';
+    case 'wallet':
+      return 'Wallet';
+    case 'other':
+    default:
+      return 'Other';
+  }
 }

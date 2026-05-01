@@ -242,7 +242,13 @@ type PreparedInvoiceTotals = {
 };
 
 const invoiceStatuses: InvoiceStatus[] = ['draft', 'issued', 'paid', 'overdue', 'cancelled'];
-const invoicePaymentStatuses: InvoicePaymentStatus[] = ['unpaid', 'partially_paid', 'paid', 'overdue'];
+const invoicePaymentStatuses: InvoicePaymentStatus[] = [
+  'unpaid',
+  'pending_clearance',
+  'partially_paid',
+  'paid',
+  'overdue',
+];
 const transactionTypes = ['credit', 'payment'] as const;
 const paymentPromiseStatuses: PaymentPromiseStatus[] = ['open', 'fulfilled', 'missed', 'cancelled'];
 const taxProfileSources: StoredTaxProfileSource[] = ['manual', 'remote', 'seed'];

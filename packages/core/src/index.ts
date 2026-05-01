@@ -114,6 +114,17 @@ export type {
   InvoicePaymentLinkInput,
   PaymentLinkDetails,
 } from './paymentLinks';
+export {
+  normalizeProviderReference,
+  reconcileProviderPayment,
+} from './paymentReconciliation';
+export type {
+  PaymentProviderReconciliationInput,
+  PaymentProviderSource,
+  PaymentReconciliationDecision,
+  PaymentReconciliationInvoice,
+  PaymentReconciliationStatus,
+} from './paymentReconciliation';
 export type {
   InvoiceDocumentState,
   InvoiceLifecycleInput,
