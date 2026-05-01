@@ -179,6 +179,7 @@ This is the strict setup path to follow once the Razorpay account is available.
    ```text
    RAZORPAY_KEY_ID
    RAZORPAY_KEY_SECRET
+   RAZORPAY_WEBHOOK_SECRET
    ```
 
    Until real values are provided, these can remain as `not_configured`. The app will show that Razorpay is not connected and will not create live checkout links.
@@ -186,13 +187,14 @@ This is the strict setup path to follow once the Razorpay account is available.
    Use this setup command when real Razorpay test credentials are available:
 
    ```sh
-   RAZORPAY_KEY_ID=rzp_test_xxx RAZORPAY_KEY_SECRET=xxx npm run setup:razorpay-test-keys
+   RAZORPAY_KEY_ID=rzp_test_xxx RAZORPAY_KEY_SECRET=xxx RAZORPAY_WEBHOOK_SECRET=xxx npm run setup:razorpay-test-keys
    ```
 
    Then run:
 
    ```sh
    npm run smoke:razorpay-checkout:connected
+   RAZORPAY_WEBHOOK_SECRET=xxx npm run smoke:razorpay-capture
    ```
 
 5. Add the Orbit Ledger webhook URL:
@@ -201,7 +203,7 @@ This is the strict setup path to follow once the Razorpay account is available.
    https://asia-south1-orbit-ledger-f41c2.cloudfunctions.net/providerWebhook
    ```
 
-6. Add the webhook secret as `x-orbit-ledger-webhook-secret` if Razorpay account settings allow a custom header. If the dashboard only supports a webhook secret/signature flow, add a Razorpay signature verification adapter before accepting live traffic.
+6. Add the webhook secret in Razorpay and use the `X-Razorpay-Signature` validation path. Orbit Ledger verifies this signature with `RAZORPAY_WEBHOOK_SECRET`.
 7. Enable payment, payment link, and refund events needed for:
    - successful payments,
    - pending or authorized payments,

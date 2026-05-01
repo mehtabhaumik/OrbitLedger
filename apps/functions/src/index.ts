@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import * as admin from 'firebase-admin';
 import { logger } from 'firebase-functions';
@@ -10,6 +10,7 @@ admin.initializeApp();
 const providerWebhookSecret = defineSecret('ORBIT_LEDGER_PROVIDER_WEBHOOK_SECRET');
 const razorpayKeyId = defineSecret('RAZORPAY_KEY_ID');
 const razorpayKeySecret = defineSecret('RAZORPAY_KEY_SECRET');
+const razorpayWebhookSecret = defineSecret('RAZORPAY_WEBHOOK_SECRET');
 
 type ProviderSource = 'upi' | 'payment_page' | 'bank_transfer' | 'card' | 'wallet' | 'other';
 type ProviderPaymentStatus = 'succeeded' | 'pending' | 'failed' | 'refunded';
@@ -36,6 +37,21 @@ const db = admin.firestore();
 
 export function normalizeProviderWebhookPayload(body: unknown): ProviderWebhookPayload {
   return normalizePayload(body);
+}
+
+export function verifyRazorpayWebhookSignature(
+  rawBody: Buffer | string,
+  providedSignature?: string | null,
+  webhookSecret?: string | null
+): boolean {
+  const signature = clean(providedSignature);
+  const secret = clean(webhookSecret);
+  if (!signature || !secret || !isConfiguredCredential(secret)) {
+    return false;
+  }
+
+  const expectedSignature = createHmac('sha256', secret).update(rawBody).digest('hex');
+  return secureEquals(signature, expectedSignature);
 }
 
 type RazorpayCheckoutPayloadInput = {
@@ -229,7 +245,7 @@ export const providerWebhook = onRequest(
     region: 'asia-south1',
     cors: false,
     maxInstances: 20,
-    secrets: [providerWebhookSecret],
+    secrets: [providerWebhookSecret, razorpayWebhookSecret],
   },
   async (request, response) => {
     if (request.method !== 'POST') {
@@ -714,7 +730,17 @@ function buildEventPayload(
 
 function isAuthorizedWebhook(request: {
   header(name: string): string | undefined;
+  rawBody?: Buffer;
 }) {
+  const razorpaySignature = request.header('x-razorpay-signature');
+  if (razorpaySignature) {
+    return verifyRazorpayWebhookSignature(
+      request.rawBody ?? Buffer.from(''),
+      razorpaySignature,
+      getSecretValue(razorpayWebhookSecret, 'RAZORPAY_WEBHOOK_SECRET')
+    );
+  }
+
   const expectedSecret = getExpectedWebhookSecret();
   if (!expectedSecret) {
     return process.env.FUNCTIONS_EMULATOR === 'true';

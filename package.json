@@ -29,6 +29,7 @@
     "setup:razorpay-test-keys": "node scripts/setup-razorpay-test-secrets.mjs",
     "smoke:razorpay-checkout": "node scripts/razorpay-checkout-smoke.mjs",
     "smoke:razorpay-checkout:connected": "node scripts/razorpay-checkout-smoke.mjs --expect-connected",
+    "smoke:razorpay-capture": "node scripts/razorpay-webhook-capture-smoke.mjs",
     "typecheck": "npm run typecheck --workspace @orbit-ledger/contracts && npm run typecheck --workspace @orbit-ledger/core && npm run typecheck --workspace @orbit-ledger/ui && npm run typecheck --workspace @orbit-ledger/sync && npm run typecheck --workspace @orbit-ledger/mobile && npm run typecheck --workspace @orbit-ledger/web && npm run typecheck --workspace @orbit-ledger/functions",
     "test": "vitest run apps packages",
     "test:rules": "vitest run firebase/rules.test.ts",

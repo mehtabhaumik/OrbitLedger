@@ -14,9 +14,10 @@ Current provider connection status: **not connected**. The production webhook an
 - Razorpay checkout creation: `https://asia-south1-orbit-ledger-f41c2.cloudfunctions.net/createRazorpayCheckout`
 - Function region: `asia-south1`
 - Function runtime: `nodejs24`
-- Required secret header: `x-orbit-ledger-webhook-secret`
+- Internal provider secret header: `x-orbit-ledger-webhook-secret`
+- Razorpay webhook signature header: `X-Razorpay-Signature`
 
-The webhook also accepts `Authorization: Bearer <secret>` for providers that support bearer tokens more cleanly than custom headers.
+The webhook also accepts `Authorization: Bearer <secret>` for providers that support bearer tokens more cleanly than custom headers. Razorpay webhooks should use `X-Razorpay-Signature`, verified with `RAZORPAY_WEBHOOK_SECRET`.
 
 ## Provider Payload Contract
 
@@ -37,19 +38,21 @@ Real Razorpay test keys must be set from a secure local shell. Do not paste them
 Use:
 
 ```sh
-RAZORPAY_KEY_ID=rzp_test_xxx RAZORPAY_KEY_SECRET=xxx npm run setup:razorpay-test-keys
+RAZORPAY_KEY_ID=rzp_test_xxx RAZORPAY_KEY_SECRET=xxx RAZORPAY_WEBHOOK_SECRET=xxx npm run setup:razorpay-test-keys
 ```
 
 Then run:
 
 ```sh
 npm run smoke:razorpay-checkout:connected
+RAZORPAY_WEBHOOK_SECRET=xxx npm run smoke:razorpay-capture
 ```
 
 Current local/Firebase verification:
 
 - `RAZORPAY_KEY_ID` is still the placeholder value.
 - `RAZORPAY_KEY_SECRET` is still the placeholder value.
+- `RAZORPAY_WEBHOOK_SECRET` is still the placeholder value.
 - Connected checkout verification cannot pass until real Razorpay test credentials are supplied.
 
 Required fields:
@@ -351,7 +354,7 @@ npm run smoke:razorpay-checkout
 
 Sandbox workspace:
 
-- `sandbox_razorpay_checkout_1777669621589`
+- `sandbox_razorpay_checkout_1777670302115`
 
 Result:
 
@@ -363,3 +366,14 @@ Result:
 - Response was `provider_not_connected`.
 - This is expected because `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are still placeholder values.
 - Sandbox cleanup completed.
+
+## Latest Razorpay Signature Smoke Result
+
+Last verified: `2026-05-02`
+
+Result:
+
+- `RAZORPAY_WEBHOOK_SECRET` placeholder was created in Firebase Secret Manager so deployment can bind the secret.
+- Placeholder webhook secrets are treated as disabled and cannot authorize a webhook.
+- A Razorpay-style signed request using the placeholder secret returned HTTP `401`.
+- `npm run smoke:razorpay-capture` refuses to run unless a real local `RAZORPAY_WEBHOOK_SECRET` is provided.

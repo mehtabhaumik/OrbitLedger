@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildRazorpayCheckoutPayload, normalizeProviderWebhookPayload } from './index';
+import {
+  buildRazorpayCheckoutPayload,
+  normalizeProviderWebhookPayload,
+  verifyRazorpayWebhookSignature,
+} from './index';
 
 describe('provider webhook payload mapping', () => {
+  it('verifies Razorpay webhook signatures against the raw body', () => {
+    const rawBody = '{"event":"payment.captured","payload":{}}';
+    const signature = '6d33264f91d4fa934a9c942270373391e88fd3c526f4a5033b85ad58908d24e9';
+
+    expect(verifyRazorpayWebhookSignature(rawBody, signature, 'webhook_secret')).toBe(true);
+    expect(verifyRazorpayWebhookSignature(`${rawBody}\n`, signature, 'webhook_secret')).toBe(false);
+    expect(verifyRazorpayWebhookSignature(rawBody, signature, 'wrong_secret')).toBe(false);
+  });
+
   it('builds Razorpay checkout payloads with Orbit Ledger notes', () => {
     const payload = buildRazorpayCheckoutPayload({
       workspaceId: 'workspace_1',
