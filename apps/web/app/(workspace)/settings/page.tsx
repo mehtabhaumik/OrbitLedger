@@ -25,6 +25,7 @@ import {
   type WorkspaceIdentityAssetKind,
 } from '@/lib/workspace-storage';
 import { updateWorkspaceProfile } from '@/lib/workspaces';
+import { useToast } from '@/providers/toast-provider';
 import { useWebLock } from '@/providers/web-lock-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
@@ -44,6 +45,7 @@ type ProfileFieldKey = keyof Omit<ProfileFormState, 'address' | 'logoUri' | 'sig
 export default function SettingsPage() {
   const { activeWorkspace, refresh } = useWorkspace();
   const { isEnabled, timeoutMs, enableLock, disableLock, setTimeoutMs } = useWebLock();
+  const { showToast } = useToast();
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const signatureInputRef = useRef<HTMLInputElement | null>(null);
   const [profile, setProfile] = useState<ProfileFormState>({
@@ -70,13 +72,9 @@ export default function SettingsPage() {
     email: false,
     stateCode: false,
   });
-  const [message, setMessage] = useState<string | null>(null);
-  const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
   const [isSaving, setIsSaving] = useState(false);
   const [uploadingAsset, setUploadingAsset] = useState<WorkspaceIdentityAssetKind | null>(null);
   const [pinInput, setPinInput] = useState('');
-  const [lockMessage, setLockMessage] = useState<string | null>(null);
-  const [lockMessageTone, setLockMessageTone] = useState<'success' | 'danger'>('success');
   const [pinError, setPinError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -108,7 +106,6 @@ export default function SettingsPage() {
       email: false,
       stateCode: false,
     });
-    setMessage(null);
   }, [activeWorkspace]);
 
   if (!activeWorkspace) {
@@ -136,7 +133,6 @@ export default function SettingsPage() {
   function handleFieldChange(field: keyof ProfileFormState, value: string) {
     const next = { ...profile, [field]: value };
     setProfile(next);
-    setMessage(null);
 
     if (field in touched && touched[field as ProfileFieldKey]) {
       const nextError = validateField(field as ProfileFieldKey, next);
@@ -178,13 +174,11 @@ export default function SettingsPage() {
     setFieldErrors(nextErrors);
 
     if (Object.values(nextErrors).some(Boolean)) {
-      setMessageTone('danger');
-      setMessage('Fix highlighted fields before saving.');
+      showToast('Fix highlighted fields before saving.', 'danger');
       return;
     }
 
     setIsSaving(true);
-    setMessage(null);
     try {
       await updateWorkspaceProfile(workspace.workspaceId, workspace.serverRevision, {
         businessName: profile.businessName.trim(),
@@ -201,11 +195,9 @@ export default function SettingsPage() {
         signatureUri: profile.signatureUri,
       });
       await refresh();
-      setMessageTone('success');
-      setMessage('Workspace profile saved.');
+      showToast('Workspace profile saved.', 'success');
     } catch (nextError) {
-      setMessageTone('danger');
-      setMessage(nextError instanceof Error ? nextError.message : 'Workspace profile could not be saved.');
+      showToast(nextError instanceof Error ? nextError.message : 'Workspace profile could not be saved.', 'danger');
     } finally {
       setIsSaving(false);
     }
@@ -213,7 +205,6 @@ export default function SettingsPage() {
 
   async function saveWorkspaceMedia(nextProfile: ProfileFormState, successMessage: string) {
     setIsSaving(true);
-    setMessage(null);
     try {
       await updateWorkspaceProfile(workspace.workspaceId, workspace.serverRevision, {
         businessName: nextProfile.businessName.trim(),
@@ -230,11 +221,9 @@ export default function SettingsPage() {
         signatureUri: nextProfile.signatureUri,
       });
       await refresh();
-      setMessageTone('success');
-      setMessage(successMessage);
+      showToast(successMessage, 'success');
     } catch (error) {
-      setMessageTone('danger');
-      setMessage(error instanceof Error ? error.message : 'Business file could not be saved.');
+      showToast(error instanceof Error ? error.message : 'Business file could not be saved.', 'danger');
     } finally {
       setIsSaving(false);
     }
@@ -247,14 +236,12 @@ export default function SettingsPage() {
 
     const validationError = validateWorkspaceIdentityImage(file);
     if (validationError) {
-      setMessageTone('danger');
-      setMessage(validationError);
+      showToast(validationError, 'danger');
       return;
     }
 
     const previousUrl = kind === 'logo' ? profile.logoUri : profile.signatureUri;
     setUploadingAsset(kind);
-    setMessage(null);
 
     try {
       const nextUrl = await uploadWorkspaceIdentityImage(workspace.workspaceId, kind, file);
@@ -269,8 +256,7 @@ export default function SettingsPage() {
       );
       void deleteWorkspaceStorageFile(previousUrl);
     } catch (error) {
-      setMessageTone('danger');
-      setMessage(error instanceof Error ? error.message : 'Business file could not be uploaded.');
+      showToast(error instanceof Error ? error.message : 'Business file could not be uploaded.', 'danger');
     } finally {
       setUploadingAsset(null);
     }
@@ -297,23 +283,20 @@ export default function SettingsPage() {
   async function enableBrowserLock() {
     if (pinInput.length !== 4) {
       setPinError('Use a 4-digit PIN.');
-      setLockMessageTone('danger');
-      setLockMessage('Use a 4-digit PIN to turn on browser lock.');
+      showToast('Use a 4-digit PIN to turn on browser lock.', 'danger');
       return;
     }
 
     setPinError(null);
     await enableLock(pinInput, timeoutMs);
     setPinInput('');
-    setLockMessageTone('success');
-    setLockMessage('Browser lock is now on for this device.');
+    showToast('Browser lock is now on for this device.', 'success');
   }
 
   async function disableBrowserLock() {
     if (pinInput.length !== 4) {
       setPinError('Enter your current 4-digit PIN.');
-      setLockMessageTone('danger');
-      setLockMessage('Enter your current 4-digit PIN to turn lock off.');
+      showToast('Enter your current 4-digit PIN to turn lock off.', 'danger');
       return;
     }
 
@@ -321,17 +304,15 @@ export default function SettingsPage() {
       setPinError(null);
       await disableLock(pinInput);
       setPinInput('');
-      setLockMessageTone('success');
-      setLockMessage('Browser lock is now off for this device.');
+      showToast('Browser lock is now off for this device.', 'success');
     } catch (error) {
       setPinError('Current PIN is incorrect.');
-      setLockMessageTone('danger');
-      setLockMessage(error instanceof Error ? error.message : 'Browser lock could not be changed.');
+      showToast(error instanceof Error ? error.message : 'Browser lock could not be changed.', 'danger');
     }
   }
 
   return (
-    <AppShell title="Settings" subtitle="Workspace profile, sync truth, and business identity.">
+    <AppShell title="Settings" subtitle="Business identity, files, launch checks, and browser lock.">
       <form className="ol-panel-glass" onSubmit={saveWorkspaceProfile}>
         <div className="ol-panel-header">
           <div>
@@ -418,12 +399,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {message ? (
-          <div className={`ol-message${messageTone === 'danger' ? ' ol-message--danger' : ' ol-message--success'}`}>
-            {message}
-          </div>
-        ) : null}
-
         <div className="ol-actions">
           <button className="ol-button" disabled={isSaving} type="submit">
             {isSaving ? 'Saving...' : 'Save workspace profile'}
@@ -467,7 +442,7 @@ export default function SettingsPage() {
       <section className="ol-note">
         <strong>Workspace note</strong>
         <span>
-          Link a business from mobile before reviewing it on web.
+          Keep this business profile ready before sharing invoices, reports, or backups.
         </span>
       </section>
 
@@ -537,9 +512,6 @@ export default function SettingsPage() {
                 if (pinError) {
                   setPinError(null);
                 }
-                if (lockMessage) {
-                  setLockMessage(null);
-                }
               }}
             />
             {pinError ? <span className="ol-field-error">{pinError}</span> : null}
@@ -569,12 +541,6 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
-
-        {lockMessage ? (
-          <div className={`ol-message${lockMessageTone === 'danger' ? ' ol-message--danger' : ' ol-message--success'}`}>
-            {lockMessage}
-          </div>
-        ) : null}
       </section>
     </AppShell>
   );

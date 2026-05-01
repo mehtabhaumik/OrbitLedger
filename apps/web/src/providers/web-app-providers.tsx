@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 
 import { AuthProvider } from './auth-provider';
+import { ToastProvider } from './toast-provider';
 import { WebLockProvider } from './web-lock-provider';
 import { WorkspaceProvider } from './workspace-provider';
 
@@ -26,7 +27,9 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
       <WorkspaceProvider>
-        <WebLockProvider>{children}</WebLockProvider>
+        <WebLockProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </WebLockProvider>
       </WorkspaceProvider>
     </AuthProvider>
   );

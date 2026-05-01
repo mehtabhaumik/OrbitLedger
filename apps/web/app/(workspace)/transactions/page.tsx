@@ -20,10 +20,12 @@ import {
   sumTransactionAmounts,
   type TransactionTypeFilter,
 } from '@/lib/workspace-power';
+import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function TransactionsPage() {
   const { activeWorkspace } = useWorkspace();
+  const { showToast } = useToast();
   const [transactions, setTransactions] = useState<WorkspaceTransaction[]>([]);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [customerId, setCustomerId] = useState('');
@@ -43,8 +45,6 @@ export default function TransactionsPage() {
     amount: false,
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<TransactionTypeFilter>('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -79,13 +79,11 @@ export default function TransactionsPage() {
     setErrors(nextErrors);
 
     if (nextErrors.customerId || nextErrors.amount) {
-      setMessageTone('danger');
-      setMessage('Fix highlighted fields before saving.');
+      showToast('Fix highlighted fields before saving.', 'danger');
       return;
     }
 
     setIsSaving(true);
-    setMessage(null);
     try {
       const transaction = await createWorkspaceTransaction(activeWorkspace.workspaceId, {
         customerId,
@@ -100,11 +98,14 @@ export default function TransactionsPage() {
       setEffectiveDate(new Date().toISOString().slice(0, 10));
       setTouched({ customerId: false, amount: false });
       setErrors({ customerId: null, amount: null });
-      setMessageTone('success');
-      setMessage('Transaction saved.');
+      showToast(
+        type === 'payment'
+          ? 'Payment saved. Balance updated.'
+          : 'Credit saved. Balance updated.',
+        'success'
+      );
     } catch (error) {
-      setMessageTone('danger');
-      setMessage(error instanceof Error ? error.message : 'Transaction could not be saved.');
+      showToast(error instanceof Error ? error.message : 'Transaction could not be saved.', 'danger');
     } finally {
       setIsSaving(false);
     }
@@ -112,7 +113,6 @@ export default function TransactionsPage() {
 
   function handleAmountChange(value: string) {
     setAmount(value);
-    setMessage(null);
     if (!touched.amount) {
       return;
     }
@@ -169,7 +169,8 @@ export default function TransactionsPage() {
       return;
     }
 
-    const rows = selectedTransactions.map((transaction) => [
+    const exportRows = selectedTransactions.length ? selectedTransactions : filteredTransactions;
+    const rows = exportRows.map((transaction) => [
       transaction.effectiveDate,
       transaction.type === 'payment' ? 'Payment' : 'Credit',
       transaction.customerName,
@@ -185,26 +186,25 @@ export default function TransactionsPage() {
       ]),
       csv
     );
-    setMessageTone('success');
-    setMessage(
-      `${selectedTransactions.length} transaction${selectedTransactions.length === 1 ? '' : 's'} exported.`
+    showToast(
+      `${exportRows.length} transaction${exportRows.length === 1 ? '' : 's'} exported.`,
+      'success'
     );
   }
 
   return (
-    <AppShell title="Transactions" subtitle="Quick payment and credit entry with a clean audit trail.">
+    <AppShell title="Transactions" subtitle="Record payments and credit entries with the same ledger behavior everywhere.">
       <section className="ol-panel-dark">
         <div className="ol-panel-header">
           <div>
             <div className="ol-panel-title">Fast entry</div>
             <p className="ol-panel-copy" style={{ maxWidth: 620 }}>
-              Use the wider web layout to log payments and credits without losing context. This is
-              Review, filter, and export the entries that need attention.
+              Credit adds to receivable. Payment reduces receivable.
             </p>
           </div>
           <div className="ol-chip-row">
-            <span className="ol-chip ol-chip--success">Payments</span>
-            <span className="ol-chip ol-chip--warning">Credits</span>
+            <span className="ol-chip ol-chip--warning">Credit adds due</span>
+            <span className="ol-chip ol-chip--success">Payment reduces due</span>
           </div>
         </div>
 
@@ -224,7 +224,6 @@ export default function TransactionsPage() {
               onChange={(event) => {
                 const next = event.target.value;
                 setCustomerId(next);
-                setMessage(null);
                 if (touched.customerId) {
                   setErrors((current) => ({ ...current, customerId: next ? null : 'Choose a customer.' }));
                 }
@@ -283,11 +282,6 @@ export default function TransactionsPage() {
             </button>
           </div>
         </div>
-        {message ? (
-          <div className={`ol-message${messageTone === 'danger' ? ' ol-message--danger' : ' ol-message--success'}`}>
-            {message}
-          </div>
-        ) : null}
       </section>
 
       <section className="ol-metric-grid">
@@ -301,7 +295,7 @@ export default function TransactionsPage() {
         <Metric
           label="Credits"
           value={formatCurrency(transactionSummary.credits, activeWorkspace?.currency ?? 'INR')}
-          helper="New credit in this view."
+          helper="Credit given in this view."
           tone="warning"
         />
       </section>
@@ -347,7 +341,7 @@ export default function TransactionsPage() {
             }}>
               Clear view
             </button>
-            <button className="ol-button" type="button" disabled={!selectedTransactions.length} onClick={exportTransactions}>
+            <button className="ol-button" type="button" disabled={!filteredTransactions.length} onClick={exportTransactions}>
               Export {selectedTransactionIds.size ? 'selected' : 'view'}
             </button>
           </div>

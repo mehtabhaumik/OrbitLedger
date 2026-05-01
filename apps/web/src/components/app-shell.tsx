@@ -33,6 +33,8 @@ export function AppShell({
   const { user, signOutUser } = useAuth();
   const { activeWorkspace, workspaces, selectWorkspace } = useWorkspace();
   const [isOnline, setIsOnline] = useState(true);
+  const accountLabel = user?.displayName || user?.email || 'Owner';
+  const accountInitial = accountLabel.trim().charAt(0).toUpperCase() || 'O';
   const syncBadge = useMemo(() => {
     if (!activeWorkspace) {
       return 'No business selected';
@@ -122,9 +124,8 @@ export function AppShell({
             {workspaces.length > 0 ? (
               <select
                 onChange={(event) => selectWorkspace(event.target.value)}
-                className="ol-select"
+                className="ol-select ol-topbar-select"
                 value={activeWorkspace?.workspaceId ?? ''}
-                style={{ minWidth: 240 }}
               >
                 {workspaces.map((workspace) => (
                   <option key={workspace.workspaceId} value={workspace.workspaceId}>
@@ -133,8 +134,9 @@ export function AppShell({
                 ))}
               </select>
             ) : null}
-            <span className="ol-chip ol-chip--primary">
-              {user?.displayName || user?.email || 'Owner'}
+            <span className="ol-account-chip" title={accountLabel}>
+              <span className="ol-account-avatar">{accountInitial}</span>
+              <span className="ol-account-name">{accountLabel}</span>
             </span>
             <button
               onClick={() => {

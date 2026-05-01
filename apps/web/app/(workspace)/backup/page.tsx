@@ -11,17 +11,17 @@ import {
   type WebWorkspaceBackup,
 } from '@/lib/workspace-backup';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function BackupPage() {
   const { activeWorkspace, refresh } = useWorkspace();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [preview, setPreview] = useState<WebWorkspaceBackup | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
   const [selectedFileName, setSelectedFileName] = useState('');
   const [fileError, setFileError] = useState<string | null>(null);
   const [restoreConfirmation, setRestoreConfirmation] = useState('');
@@ -47,8 +47,6 @@ export default function BackupPage() {
     }
 
     setIsExporting(true);
-    setMessage(null);
-    setMessageTone('success');
     try {
       const backup = await exportWorkspaceBackup(activeWorkspace.workspaceId);
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -65,11 +63,9 @@ export default function BackupPage() {
         window.localStorage.setItem(activeBackupKey, protectedAt);
       }
       setLastProtectedAt(protectedAt);
-      setMessageTone('success');
-      setMessage('Workspace backup exported. Keep this file somewhere private and easy to find.');
+      showToast('Workspace backup exported. Keep this file private.', 'success');
     } catch (error) {
-      setMessageTone('danger');
-      setMessage(error instanceof Error ? error.message : 'Workspace backup could not be exported.');
+      showToast(error instanceof Error ? error.message : 'Workspace backup could not be exported.', 'danger');
     } finally {
       setIsExporting(false);
     }
@@ -79,7 +75,6 @@ export default function BackupPage() {
     setPreview(null);
     setSelectedFileName('');
     setFileError(null);
-    setMessage(null);
 
     if (!file) {
       return;
@@ -95,18 +90,18 @@ export default function BackupPage() {
       file.type === '';
     if (!isJsonName || !isJsonType) {
       setFileError('Choose a valid backup file.');
+      showToast('Choose a valid backup file.', 'danger');
       return;
     }
 
     try {
       const parsed = parseWorkspaceBackup(await file.text());
       setPreview(parsed);
-      setMessageTone('success');
-      setMessage('Backup file loaded. Review counts before restoring.');
+      showToast('Backup file loaded. Review counts before restoring.', 'success');
     } catch (error) {
       setPreview(null);
-      setMessageTone('danger');
       setFileError(error instanceof Error ? error.message : 'Backup preview could not be loaded.');
+      showToast(error instanceof Error ? error.message : 'Backup preview could not be loaded.', 'danger');
     }
   }
 
@@ -115,14 +110,11 @@ export default function BackupPage() {
       return;
     }
     if (restoreConfirmation.trim() !== activeWorkspace.businessName) {
-      setMessageTone('danger');
-      setMessage(`Type ${activeWorkspace.businessName} to confirm restore.`);
+      showToast(`Type ${activeWorkspace.businessName} to confirm restore.`, 'danger');
       return;
     }
 
     setIsRestoring(true);
-    setMessage(null);
-    setMessageTone('success');
     setRestoreProgress('Preparing rollback copy...');
     let rollbackBackup: WebWorkspaceBackup | null = null;
     try {
@@ -142,8 +134,7 @@ export default function BackupPage() {
       setSelectedFileName('');
       setFileError(null);
       setRestoreConfirmation('');
-      setMessageTone('success');
-      setMessage('Workspace backup restored. A rollback copy was prepared before changes were applied.');
+      showToast('Workspace backup restored. Rollback copy was prepared first.', 'success');
     } catch (error) {
       if (rollbackBackup) {
         try {
@@ -153,14 +144,12 @@ export default function BackupPage() {
             onProgress: setRestoreProgress,
           });
         } catch {
-          setMessageTone('danger');
-          setMessage('Restore failed, and rollback could not complete. Review the workspace before continuing.');
+          showToast('Restore failed, and rollback could not complete. Review the workspace.', 'danger');
           setIsRestoring(false);
           return;
         }
       }
-      setMessageTone('danger');
-      setMessage(error instanceof Error ? error.message : 'Backup restore could not be completed.');
+      showToast(error instanceof Error ? error.message : 'Backup restore could not be completed.', 'danger');
     } finally {
       setRestoreProgress(null);
       setIsRestoring(false);
@@ -288,12 +277,6 @@ export default function BackupPage() {
       ) : null}
 
       {restoreProgress ? <div className="ol-message ol-message--success">{restoreProgress}</div> : null}
-
-      {message ? (
-        <div className={`ol-message${messageTone === 'danger' ? ' ol-message--danger' : ' ol-message--success'}`}>
-          {message}
-        </div>
-      ) : null}
     </AppShell>
   );
 }

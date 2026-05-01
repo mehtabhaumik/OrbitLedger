@@ -119,9 +119,9 @@ export default function DashboardPage() {
             <div className="ol-list-item">
               <div className="ol-list-icon">S</div>
               <div className="ol-list-copy">
-                <div className="ol-list-title">Synced workspace only</div>
+                <div className="ol-list-title">Business workspace</div>
                 <div className="ol-list-text">
-                  Link a business from mobile before reviewing it on web.
+                  Review the same customers, transactions, invoices, and reports across Orbit Ledger.
                 </div>
               </div>
             </div>

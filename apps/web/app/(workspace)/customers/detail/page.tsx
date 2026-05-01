@@ -19,6 +19,7 @@ import {
   pickSelectedRows,
   type TransactionTypeFilter,
 } from '@/lib/workspace-power';
+import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function CustomerDetailPage() {
@@ -33,6 +34,7 @@ function CustomerDetailContent() {
   const searchParams = useSearchParams();
   const customerId = searchParams.get('customerId') ?? '';
   const { activeWorkspace } = useWorkspace();
+  const { showToast } = useToast();
   const [customer, setCustomer] = useState<WorkspaceCustomer | null>(null);
   const [transactions, setTransactions] = useState<WorkspaceTransaction[]>([]);
   const [status, setStatus] = useState<string | null>(null);
@@ -123,7 +125,8 @@ function CustomerDetailContent() {
       return;
     }
 
-    const rows = selectedTransactions.map((transaction) => [
+    const exportRows = selectedTransactions.length ? selectedTransactions : filteredTransactions;
+    const rows = exportRows.map((transaction) => [
       transaction.effectiveDate,
       transaction.type === 'payment' ? 'Payment' : 'Credit',
       transaction.note ?? '',
@@ -139,6 +142,7 @@ function CustomerDetailContent() {
       ]),
       csv
     );
+    showToast(`${exportRows.length} entr${exportRows.length === 1 ? 'y' : 'ies'} exported.`, 'success');
   }
 
   return (
@@ -214,7 +218,7 @@ function CustomerDetailContent() {
                 }}>
                   Clear view
                 </button>
-                <button className="ol-button" type="button" disabled={!selectedTransactions.length} onClick={exportCustomerTransactions}>
+                <button className="ol-button" type="button" disabled={!filteredTransactions.length} onClick={exportCustomerTransactions}>
                   Export {selectedTransactionIds.size ? 'selected' : 'view'}
                 </button>
               </div>

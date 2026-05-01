@@ -12,6 +12,7 @@ import {
   type WorkspaceCustomer,
   type WorkspaceInvoiceDetail,
 } from '@/lib/workspace-data';
+import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 type EditableItem = {
@@ -35,6 +36,7 @@ function InvoiceEditorContent() {
   const searchParams = useSearchParams();
   const invoiceId = searchParams.get('invoiceId') ?? '';
   const { activeWorkspace } = useWorkspace();
+  const { showToast } = useToast();
   const [invoice, setInvoice] = useState<WorkspaceInvoiceDetail | null>(null);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [customerId, setCustomerId] = useState('');
@@ -46,11 +48,9 @@ function InvoiceEditorContent() {
   const [items, setItems] = useState<EditableItem[]>([emptyItem()]);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
 
   useEffect(() => {
     if (!activeWorkspace || !invoiceId) {
-      setMessageTone('danger');
       setMessage(invoiceId ? null : 'Choose an invoice from the invoice list.');
       return;
     }
@@ -62,7 +62,6 @@ function InvoiceEditorContent() {
       .then(([nextInvoice, nextCustomers]) => {
         setCustomers(nextCustomers);
         if (!nextInvoice) {
-          setMessageTone('danger');
           setMessage('Invoice could not be found.');
           return;
         }
@@ -87,7 +86,6 @@ function InvoiceEditorContent() {
         );
       })
       .catch((error) => {
-        setMessageTone('danger');
         setMessage(error instanceof Error ? error.message : 'Invoice could not be loaded.');
       });
   }, [activeWorkspace, invoiceId]);
@@ -115,8 +113,7 @@ function InvoiceEditorContent() {
     }
 
     if (!invoiceNumber.trim() || !issueDate.trim()) {
-      setMessageTone('danger');
-      setMessage('Add an invoice number and issue date before saving.');
+      showToast('Add an invoice number and issue date before saving.', 'danger');
       return;
     }
 
@@ -126,8 +123,7 @@ function InvoiceEditorContent() {
         (parseMoney(item.quantity) <= 0 || parseMoney(item.price) < 0 || parseMoney(item.taxRate) < 0)
     );
     if (hasInvalidItem) {
-      setMessageTone('danger');
-      setMessage('Check item quantity, price, and tax before saving.');
+      showToast('Check item quantity, price, and tax before saving.', 'danger');
       return;
     }
 
@@ -151,11 +147,9 @@ function InvoiceEditorContent() {
         })),
       });
       setInvoice(updated);
-      setMessageTone('success');
-      setMessage('Invoice saved.');
+      showToast('Invoice saved.', 'success');
     } catch (error) {
-      setMessageTone('danger');
-      setMessage(error instanceof Error ? error.message : 'Invoice could not be saved.');
+      showToast(error instanceof Error ? error.message : 'Invoice could not be saved.', 'danger');
     } finally {
       setIsSaving(false);
     }
@@ -210,6 +204,7 @@ function InvoiceEditorContent() {
     link.download = `${invoiceNumber || invoice.id}.html`;
     link.click();
     URL.revokeObjectURL(href);
+    showToast('Invoice document exported.', 'success');
   }
 
   return (
@@ -227,9 +222,7 @@ function InvoiceEditorContent() {
       </div>
 
       {message ? (
-        <div className={`ol-message${messageTone === 'danger' ? ' ol-message--danger' : ' ol-message--success'}`}>
-          {message}
-        </div>
+        <div className="ol-message ol-message--danger">{message}</div>
       ) : null}
 
       {invoice ? (

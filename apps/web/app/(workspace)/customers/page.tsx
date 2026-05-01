@@ -26,10 +26,12 @@ import {
   sumCustomerBalances,
   type CustomerBalanceFilter,
 } from '@/lib/workspace-power';
+import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function CustomersPage() {
   const { activeWorkspace } = useWorkspace();
+  const { showToast } = useToast();
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [newName, setNewName] = useState('');
@@ -50,8 +52,6 @@ export default function CustomersPage() {
     openingBalance: false,
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
   const [search, setSearch] = useState('');
   const [balanceFilter, setBalanceFilter] = useState<CustomerBalanceFilter>('all');
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(new Set());
@@ -83,13 +83,11 @@ export default function CustomersPage() {
     setErrors(nextErrors);
 
     if (nextErrors.name || nextErrors.phone || nextErrors.openingBalance) {
-      setMessageTone('danger');
-      setMessage('Fix highlighted fields before saving.');
+      showToast('Fix highlighted fields before saving.', 'danger');
       return;
     }
 
     setIsSaving(true);
-    setMessage(null);
     try {
       const customer = await createWorkspaceCustomer(activeWorkspace.workspaceId, {
         name: newName.trim(),
@@ -102,11 +100,9 @@ export default function CustomersPage() {
       setOpeningBalance('');
       setTouched({ name: false, phone: false, openingBalance: false });
       setErrors({ name: null, phone: null, openingBalance: null });
-      setMessageTone('success');
-      setMessage('Customer saved.');
+      showToast('Customer saved.', 'success');
     } catch (error) {
-      setMessageTone('danger');
-      setMessage(error instanceof Error ? error.message : 'Customer could not be saved.');
+      showToast(error instanceof Error ? error.message : 'Customer could not be saved.', 'danger');
     } finally {
       setIsSaving(false);
     }
@@ -114,7 +110,6 @@ export default function CustomersPage() {
 
   function handleNameChange(value: string) {
     setNewName(value);
-    setMessage(null);
     if (!touched.name) {
       return;
     }
@@ -123,7 +118,6 @@ export default function CustomersPage() {
 
   function handlePhoneChange(value: string) {
     setNewPhone(value);
-    setMessage(null);
     if (!touched.phone) {
       return;
     }
@@ -144,7 +138,6 @@ export default function CustomersPage() {
 
   function handleOpeningBalanceChange(value: string) {
     setOpeningBalance(value);
-    setMessage(null);
     if (!touched.openingBalance) {
       return;
     }
@@ -196,7 +189,8 @@ export default function CustomersPage() {
       return;
     }
 
-    const rows = selectedCustomers.map((customer) => [
+    const exportRows = selectedCustomers.length ? selectedCustomers : filteredCustomers;
+    const rows = exportRows.map((customer) => [
       customer.name,
       customer.phone ?? '',
       customer.address ?? '',
@@ -213,8 +207,7 @@ export default function CustomersPage() {
       makeExportFileName([activeWorkspace.businessName, 'customers', selectedCustomerIds.size ? 'selected' : 'current-view']),
       csv
     );
-    setMessageTone('success');
-    setMessage(`${selectedCustomers.length} customer${selectedCustomers.length === 1 ? '' : 's'} exported.`);
+    showToast(`${exportRows.length} customer${exportRows.length === 1 ? '' : 's'} exported.`, 'success');
   }
 
   async function importCustomers(file: File | null) {
@@ -223,7 +216,6 @@ export default function CustomersPage() {
     }
 
     setIsImporting(true);
-    setMessage(null);
     try {
       const rows = parseCustomerImportCsv(await file.text());
       const importedCustomers: WorkspaceCustomer[] = [];
@@ -239,11 +231,9 @@ export default function CustomersPage() {
       }
 
       setCustomers((current) => [...importedCustomers.reverse(), ...current]);
-      setMessageTone('success');
-      setMessage(`${rows.length} customer${rows.length === 1 ? '' : 's'} imported.`);
+      showToast(`${rows.length} customer${rows.length === 1 ? '' : 's'} imported.`, 'success');
     } catch (error) {
-      setMessageTone('danger');
-      setMessage(error instanceof Error ? error.message : 'Customers could not be imported.');
+      showToast(error instanceof Error ? error.message : 'Customers could not be imported.', 'danger');
     } finally {
       setIsImporting(false);
       if (importInputRef.current) {
@@ -312,11 +302,6 @@ export default function CustomersPage() {
                 ) : null}
               </label>
             </div>
-            {message ? (
-              <div className={`ol-message${messageTone === 'danger' ? ' ol-message--danger' : ' ol-message--success'}`}>
-                {message}
-              </div>
-            ) : null}
             <div className="ol-actions">
               <button className="ol-button" disabled={isSaving} type="button" onClick={() => void addCustomer()}>
                 {isSaving ? 'Saving...' : 'Save customer'}
@@ -344,7 +329,7 @@ export default function CustomersPage() {
               <div className="ol-list-copy">
                 <div className="ol-list-title">Cleaner office work</div>
                 <div className="ol-list-text">
-                  Use web for wider review, cleanup, and export. Use mobile for daily field entry.
+                  Use the wider view for review, cleanup, import, and export.
                 </div>
               </div>
             </div>
@@ -426,7 +411,7 @@ export default function CustomersPage() {
             }}>
               Clear view
             </button>
-            <button className="ol-button" type="button" disabled={!selectedCustomers.length} onClick={exportCustomers}>
+            <button className="ol-button" type="button" disabled={!filteredCustomers.length} onClick={exportCustomers}>
               Export {selectedCustomerIds.size ? 'selected' : 'view'}
             </button>
           </div>

@@ -248,13 +248,16 @@ a:focus-visible {
 .ol-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 30px;
-  padding: 0 10px;
+  gap: 6px;
+  min-height: 26px;
+  max-width: 100%;
+  padding: 0 9px;
   border-radius: 999px;
   border: 1px solid transparent;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .ol-chip--primary {
@@ -285,6 +288,41 @@ a:focus-visible {
   background: var(--tax-surface);
   color: var(--tax);
   border-color: rgba(206, 190, 255, 0.82);
+}
+
+.ol-account-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 260px;
+  min-height: 38px;
+  padding: 4px 10px 4px 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(170, 198, 240, 0.8);
+  background: var(--primary-surface);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.ol-account-avatar {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(170, 198, 240, 0.72);
+}
+
+.ol-account-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ol-dot {
@@ -332,6 +370,13 @@ a:focus-visible {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+}
+
+.ol-topbar-actions .ol-topbar-select {
+  width: auto;
+  min-width: 180px;
+  max-width: 280px;
 }
 
 .ol-select,
@@ -408,9 +453,11 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 44px;
-  padding: 0 16px;
-  border-radius: 10px;
+  min-height: 40px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0 14px;
+  border-radius: 9px;
   font-weight: 800;
   border: 1px solid transparent;
   transition:
@@ -686,7 +733,7 @@ a:focus-visible {
 
 .ol-table-actions .ol-button,
 .ol-table-actions .ol-button-secondary {
-  flex: 1 1 120px;
+  flex: 0 0 auto;
 }
 
 .ol-table-summary {
@@ -808,7 +855,7 @@ a:focus-visible {
 .ol-field--action .ol-button,
 .ol-field--action .ol-button-secondary,
 .ol-field--action .ol-button-ghost {
-  width: 100%;
+  width: fit-content;
 }
 
 .ol-field-label {
@@ -874,6 +921,70 @@ a:focus-visible {
 .ol-message--success {
   border-color: rgba(177, 226, 209, 0.88);
   background: linear-gradient(180deg, rgba(234, 250, 244, 0.96) 0%, rgba(244, 253, 248, 0.94) 100%);
+}
+
+.ol-toast-region {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 80;
+  display: grid;
+  gap: 10px;
+  width: min(380px, calc(100vw - 36px));
+  pointer-events: none;
+}
+
+.ol-toast {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(188, 204, 229, 0.9);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 42px rgba(20, 32, 51, 0.18);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+  pointer-events: auto;
+}
+
+.ol-toast[data-tone="success"] {
+  border-color: rgba(150, 218, 193, 0.92);
+}
+
+.ol-toast[data-tone="danger"] {
+  border-color: rgba(229, 149, 160, 0.92);
+}
+
+.ol-toast-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 16px currentColor;
+}
+
+.ol-toast[data-tone="success"] .ol-toast-dot {
+  background: var(--success);
+}
+
+.ol-toast[data-tone="danger"] .ol-toast-dot {
+  background: #c5455d;
+}
+
+.ol-toast-close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(234, 240, 249, 0.9);
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
 }
 
 .ol-note {
@@ -1615,7 +1726,7 @@ a:focus-visible {
 .ol-inline-actions .ol-button,
 .ol-inline-actions .ol-button-secondary,
 .ol-inline-actions .ol-button-ghost {
-  flex: 1 1 82px;
+  flex: 0 0 auto;
   min-height: 42px;
   padding-inline: 12px;
 }
@@ -1722,6 +1833,13 @@ a:focus-visible {
   .ol-topbar-actions {
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .ol-topbar-actions .ol-select,
+  .ol-account-chip {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .ol-page-content,

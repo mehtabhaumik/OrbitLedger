@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { AppShell } from '@/components/app-shell';
 import {
@@ -19,14 +20,15 @@ import {
   sumInvoiceTotals,
   type InvoiceStatusFilter,
 } from '@/lib/workspace-power';
+import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function InvoicesPage() {
   const { activeWorkspace } = useWorkspace();
+  const { showToast } = useToast();
+  const router = useRouter();
   const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
   const [isCreating, setIsCreating] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [messageTone, setMessageTone] = useState<'success' | 'danger'>('success');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<InvoiceStatusFilter>('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -37,16 +39,13 @@ export default function InvoicesPage() {
     if (!activeWorkspace) {
       return;
     }
-    setMessage(null);
-    setMessageTone('success');
     setSelectedInvoiceIds(new Set());
     void listWorkspaceInvoices(activeWorkspace.workspaceId)
       .then(setInvoices)
       .catch((error) => {
-        setMessageTone('danger');
-        setMessage(error instanceof Error ? error.message : 'Invoices could not be loaded.');
+        showToast(error instanceof Error ? error.message : 'Invoices could not be loaded.', 'danger');
       });
-  }, [activeWorkspace]);
+  }, [activeWorkspace, showToast]);
 
   async function addDraftInvoice() {
     if (!activeWorkspace) {
@@ -54,15 +53,13 @@ export default function InvoicesPage() {
     }
 
     setIsCreating(true);
-    setMessage(null);
     try {
       const invoice = await createDraftWorkspaceInvoice(activeWorkspace.workspaceId);
       setInvoices((current) => [invoice, ...current]);
-      setMessageTone('success');
-      setMessage(`Draft ${invoice.invoiceNumber} created.`);
+      showToast(`Invoice ${invoice.invoiceNumber} created.`, 'success');
+      router.push(`/invoices/detail?invoiceId=${encodeURIComponent(invoice.id)}` as Route);
     } catch (error) {
-      setMessageTone('danger');
-      setMessage(error instanceof Error ? error.message : 'Invoice draft could not be created.');
+      showToast(error instanceof Error ? error.message : 'Invoice could not be created.', 'danger');
     } finally {
       setIsCreating(false);
     }
@@ -114,7 +111,8 @@ export default function InvoicesPage() {
       return;
     }
 
-    const rows = selectedInvoices.map((invoice) => [
+    const exportRows = selectedInvoices.length ? selectedInvoices : filteredInvoices;
+    const rows = exportRows.map((invoice) => [
       invoice.invoiceNumber,
       invoice.status,
       invoice.issueDate,
@@ -130,30 +128,24 @@ export default function InvoicesPage() {
       ]),
       csv
     );
-    setMessageTone('success');
-    setMessage(`${selectedInvoices.length} invoice${selectedInvoices.length === 1 ? '' : 's'} exported.`);
+    showToast(`${exportRows.length} invoice${exportRows.length === 1 ? '' : 's'} exported.`, 'success');
   }
 
   return (
-    <AppShell title="Invoices" subtitle="Document-focused invoice workspace with clean draft control.">
+    <AppShell title="Invoices" subtitle="Create, edit, review, and export invoices from the web workspace.">
       <section className="ol-split-grid">
         <article className="ol-panel-dark">
           <div className="ol-panel-header">
             <div>
               <div className="ol-panel-title">Invoice workspace</div>
               <p className="ol-panel-copy" style={{ maxWidth: 560 }}>
-                Create drafts, finish item details, review totals, and export focused invoice lists.
+                Start a new invoice and continue directly in the editor for line items, totals, status, and export.
               </p>
             </div>
             <button className="ol-button" disabled={isCreating} type="button" onClick={() => void addDraftInvoice()}>
-              {isCreating ? 'Creating draft...' : 'Create draft'}
+              {isCreating ? 'Creating...' : 'Create invoice'}
             </button>
           </div>
-          {message ? (
-            <div className={`ol-message${messageTone === 'danger' ? ' ol-message--danger' : ' ol-message--success'}`}>
-              {message}
-            </div>
-          ) : null}
         </article>
 
         <article className="ol-panel-glass">
@@ -243,7 +235,7 @@ export default function InvoicesPage() {
             }}>
               Clear view
             </button>
-            <button className="ol-button" type="button" disabled={!selectedInvoices.length} onClick={exportInvoices}>
+            <button className="ol-button" type="button" disabled={!filteredInvoices.length} onClick={exportInvoices}>
               Export {selectedInvoiceIds.size ? 'selected' : 'view'}
             </button>
           </div>
