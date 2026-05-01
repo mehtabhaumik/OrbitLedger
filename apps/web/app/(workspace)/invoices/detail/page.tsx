@@ -42,6 +42,7 @@ import {
   getWebDocumentTemplates,
   openPrintableDocument,
 } from '@/lib/web-documents';
+import { getWebPaymentProviderPlan } from '@/lib/payment-provider-mode';
 import { createRazorpayCheckoutLink } from '@/lib/provider-checkout';
 import { uploadPaymentInstrumentImage } from '@/lib/workspace-storage';
 import { useToast } from '@/providers/toast-provider';
@@ -69,6 +70,7 @@ function InvoiceEditorContent() {
   const invoiceId = searchParams.get('invoiceId') ?? '';
   const { activeWorkspace } = useWorkspace();
   const { showToast } = useToast();
+  const providerPlan = getWebPaymentProviderPlan();
   const [invoice, setInvoice] = useState<WorkspaceInvoiceDetail | null>(null);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [customerId, setCustomerId] = useState('');
@@ -408,6 +410,10 @@ function InvoiceEditorContent() {
       showToast('This invoice has no pending amount.', 'info');
       return;
     }
+    if (!providerPlan.canCreateOnlineCheckout) {
+      showToast('Online checkout is not connected yet. Use manual payment details for now.', 'info');
+      return;
+    }
 
     setIsCreatingCheckout(true);
     try {
@@ -546,9 +552,11 @@ function InvoiceEditorContent() {
         <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentMessage()} disabled={!currentInvoiceDocument || total <= 0}>
           Copy payment message
         </button>
-        <button className="ol-button-secondary" type="button" onClick={() => void createRazorpayCheckout()} disabled={isCreatingCheckout || !invoice || dueAmount <= 0}>
-          {isCreatingCheckout ? 'Creating checkout...' : 'Create checkout link'}
-        </button>
+        {providerPlan.canCreateOnlineCheckout ? (
+          <button className="ol-button-secondary" type="button" onClick={() => void createRazorpayCheckout()} disabled={isCreatingCheckout || !invoice || dueAmount <= 0}>
+            {isCreatingCheckout ? 'Creating checkout...' : 'Create checkout link'}
+          </button>
+        ) : null}
         <button className="ol-button-secondary" type="button" onClick={() => void recordInvoicePayment(dueAmount)} disabled={isRecordingPayment || !invoice || dueAmount <= 0}>
           Record full payment
         </button>
@@ -850,17 +858,24 @@ function InvoiceEditorContent() {
               ) : (
                 <div className="ol-message">Add UPI ID or a secure payment page to create a payment link.</div>
               )}
-              <div className="ol-field ol-field--action">
-                <span className="ol-field-label">Online checkout</span>
-                <button
-                  className="ol-button-secondary"
-                  type="button"
-                  disabled={isCreatingCheckout || !invoice || dueAmount <= 0}
-                  onClick={() => void createRazorpayCheckout()}
-                >
-                  {isCreatingCheckout ? 'Creating...' : 'Create Razorpay link'}
-                </button>
-              </div>
+              {providerPlan.canCreateOnlineCheckout ? (
+                <div className="ol-field ol-field--action">
+                  <span className="ol-field-label">Online checkout</span>
+                  <button
+                    className="ol-button-secondary"
+                    type="button"
+                    disabled={isCreatingCheckout || !invoice || dueAmount <= 0}
+                    onClick={() => void createRazorpayCheckout()}
+                  >
+                    {isCreatingCheckout ? 'Creating...' : 'Create checkout link'}
+                  </button>
+                </div>
+              ) : (
+                <div className="ol-field">
+                  <span className="ol-field-label">Collection mode</span>
+                  <div className="ol-message" style={{ margin: 0 }}>{providerPlan.paymentPageCopy}</div>
+                </div>
+              )}
               <div className="ol-field ol-field--action">
                 <span className="ol-field-label">Action</span>
                 <button className="ol-button" type="button" disabled={isRecordingPayment || dueAmount <= 0} onClick={() => void recordInvoicePayment()}>

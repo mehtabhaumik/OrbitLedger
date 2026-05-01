@@ -123,6 +123,14 @@ export type {
   RazorpayPaymentLinkDraftInput,
 } from './paymentProviderSetup';
 export {
+  getPaymentProviderPlan,
+  normalizePaymentProviderMode,
+} from './paymentProviders';
+export type {
+  PaymentProviderMode,
+  PaymentProviderPlan,
+} from './paymentProviders';
+export {
   normalizeProviderReference,
   reconcileProviderPayment,
 } from './paymentReconciliation';

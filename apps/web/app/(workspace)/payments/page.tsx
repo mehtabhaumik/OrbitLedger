@@ -6,6 +6,7 @@ import { buildInvoicePaymentReference, buildRazorpayPaymentLinkDraft } from '@or
 
 import { AppShell } from '@/components/app-shell';
 import { getWebFirebaseProjectId } from '@/lib/firebase';
+import { getWebPaymentProviderPlan } from '@/lib/payment-provider-mode';
 import {
   applyWorkspaceProviderEventToInvoice,
   listWorkspaceCustomers,
@@ -34,6 +35,7 @@ export default function PaymentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const projectId = getWebFirebaseProjectId();
+  const providerPlan = getWebPaymentProviderPlan();
   const webhookUrl = `https://asia-south1-${projectId}.cloudfunctions.net/providerWebhook`;
   const [paymentPageUrl, setPaymentPageUrl] = useState(`https://${projectId}.web.app/pay`);
 
@@ -249,7 +251,7 @@ export default function PaymentsPage() {
   }
 
   return (
-    <AppShell title="Payments" subtitle="Review automatic payment updates and match provider events.">
+    <AppShell title="Payments" subtitle="Collect manually today, and connect online checkout when a provider is ready.">
       <section className="ol-metric-grid">
         <Metric label="Events" value={String(stats.total)} helper="Received from payment providers." tone="primary" />
         <Metric label="Applied" value={String(stats.applied)} helper="Updated invoices automatically." tone="success" />
@@ -260,34 +262,42 @@ export default function PaymentsPage() {
       <section className="ol-panel-dark">
         <div className="ol-panel-header">
           <div>
-            <div className="ol-panel-title">Automatic Payment Updates</div>
+            <div className="ol-panel-title">Payment Collection</div>
             <p className="ol-panel-copy" style={{ maxWidth: 680 }}>
-              No payment provider is connected yet. Orbit Ledger is prepared for Razorpay test mode when the account is ready.
+              {providerPlan.adminCopy}
             </p>
           </div>
-          <span className="ol-chip ol-chip--tax">Ready to connect</span>
+          <span className={providerPlan.statusTone === 'connected' ? 'ol-chip ol-chip--success' : 'ol-chip ol-chip--tax'}>
+            {providerPlan.statusLabel}
+          </span>
         </div>
         <div className="ol-review-grid">
-          <Review label="Provider status" value="Not connected" />
-          <Review label="First provider" value="Razorpay test mode" />
-          <Review label="Provider URL" value={webhookUrl} />
-          <Review label="Secret header" value="x-orbit-ledger-webhook-secret" />
+          <Review label="Collection mode" value={providerPlan.collectionLabel} />
+          <Review label="Online checkout" value={providerPlan.canCreateOnlineCheckout ? 'Available' : 'Not connected'} />
+          <Review label="Future provider URL" value={webhookUrl} />
+          <Review label="Signature header" value="X-Razorpay-Signature" />
           <Review label="Region" value="Asia South" />
           <Review label="Payment page" value={paymentPageUrl} />
         </div>
         <div className="ol-actions ol-actions--compact" style={{ marginTop: 16 }}>
-          <button className="ol-button" type="button" onClick={() => void copyWebhookUrl()}>
-            Copy provider URL
-          </button>
+          {providerPlan.mode !== 'manual' ? (
+            <button className="ol-button" type="button" onClick={() => void copyWebhookUrl()}>
+              Copy provider URL
+            </button>
+          ) : null}
           <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentPageUrl()}>
             Copy payment page
           </button>
-          <button className="ol-button-secondary" type="button" onClick={() => void copyRazorpayPaymentLinkDraft()}>
-            Copy Razorpay test link
-          </button>
-          <button className="ol-button-secondary" type="button" onClick={() => void copyExamplePayload()}>
-            Copy sample data
-          </button>
+          {providerPlan.canCopyGatewayDraft ? (
+            <button className="ol-button-secondary" type="button" onClick={() => void copyRazorpayPaymentLinkDraft()}>
+              Copy provider test link
+            </button>
+          ) : null}
+          {providerPlan.mode !== 'manual' ? (
+            <button className="ol-button-secondary" type="button" onClick={() => void copyExamplePayload()}>
+              Copy sample data
+            </button>
+          ) : null}
           <Link className="ol-button-secondary" href="/transactions">
             Record payment manually
           </Link>
@@ -305,7 +315,7 @@ export default function PaymentsPage() {
           <span className="ol-chip ol-chip--tax">Production checklist</span>
         </div>
         <div className="ol-review-grid">
-          {providerSetupChecklist.map((item) => (
+          {getProviderSetupChecklist(providerPlan.mode).map((item) => (
             <Review key={item.label} label={item.label} value={item.value} />
           ))}
         </div>
@@ -426,40 +436,63 @@ export default function PaymentsPage() {
   );
 }
 
-const providerSetupChecklist = [
-  {
-    label: 'Razorpay account',
-    value: 'Create the account later and keep it in test mode until the full payment test passes.',
-  },
-  {
-    label: 'Test link details',
-    value: 'Use Copy Razorpay test link after opening an invoice so amount, reference, and invoice details stay aligned.',
-  },
-  {
-    label: 'Secure provider access',
-    value: 'Add the secret header inside the payment provider dashboard. Do not place it in the payment link.',
-  },
-  {
-    label: 'Success event',
-    value: 'Send one paid test payment and confirm the invoice payment amount updates once.',
-  },
-  {
-    label: 'Review event',
-    value: 'Send one unmatched payment and confirm it waits for owner review.',
-  },
-  {
-    label: 'Refund event',
-    value: 'Send one refund and confirm the ledger reversal appears without deleting the original payment.',
-  },
-  {
-    label: 'Customer page',
-    value: 'Open the payment page from an invoice and confirm the amount, customer, and invoice number are correct.',
-  },
-  {
-    label: 'Go live',
-    value: 'Keep provider test mode off only after the above checks pass.',
-  },
-];
+function getProviderSetupChecklist(mode: string) {
+  if (mode === 'manual') {
+    return [
+      {
+        label: 'Active collection',
+        value: 'Use UPI, payment page details, cash, bank transfer, cheque, draft, and recorded payments.',
+      },
+      {
+        label: 'Invoice sharing',
+        value: 'Show payment details on invoices and copy payment messages from the invoice editor.',
+      },
+      {
+        label: 'Future providers',
+        value: 'Razorpay can be connected later without changing manual payment workflows.',
+      },
+      {
+        label: 'Owner review',
+        value: 'Provider event review stays available for future connected checkout or imported events.',
+      },
+    ];
+  }
+
+  return [
+    {
+      label: 'Provider account',
+      value: 'Create the account later and keep it in test mode until the full payment test passes.',
+    },
+    {
+      label: 'Test link details',
+      value: 'Use Copy provider test link after opening an invoice so amount, reference, and invoice details stay aligned.',
+    },
+    {
+      label: 'Secure provider access',
+      value: 'Add the provider webhook secret inside the payment provider dashboard. Do not place it in the payment link.',
+    },
+    {
+      label: 'Success event',
+      value: 'Send one paid test payment and confirm the invoice payment amount updates once.',
+    },
+    {
+      label: 'Review event',
+      value: 'Send one unmatched payment and confirm it waits for owner review.',
+    },
+    {
+      label: 'Refund event',
+      value: 'Send one refund and confirm the ledger reversal appears without deleting the original payment.',
+    },
+    {
+      label: 'Customer page',
+      value: 'Open the payment page from an invoice and confirm the amount, customer, and invoice number are correct.',
+    },
+    {
+      label: 'Go live',
+      value: 'Keep provider test mode off only after the above checks pass.',
+    },
+  ];
+}
 
 function Metric({
   label,

@@ -34,7 +34,7 @@ Choose the provider that best supports:
 
 ## Current Provider Decision
 
-Current connection status: **no real payment provider account is connected yet**.
+Current connection status: **manual collection is active; no real payment provider account is connected yet**.
 
 Orbit Ledger currently supports:
 
@@ -46,6 +46,10 @@ Orbit Ledger currently supports:
 - Payment review, payment application, refunds, and reversal history after trusted events arrive.
 
 Until Razorpay credentials are added, Orbit Ledger must not claim that online checkout is live. The owner can still collect with UPI or manual payment details, and the app can prepare the exact Razorpay test-link payload for later account setup.
+
+Manual provider mode details are maintained in:
+
+- `docs/payment-provider-abstraction-manual-mode.md`
 
 ### Primary: Razorpay
 
