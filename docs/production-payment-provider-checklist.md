@@ -30,6 +30,28 @@ The web Payments page can copy a Razorpay test payment-link draft. That draft co
 
 The invoice editor can request a Razorpay checkout link from the server. Until `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` contain real test credentials, that request returns `provider_not_connected` and no checkout is created.
 
+## Razorpay Test Credential Setup
+
+Real Razorpay test keys must be set from a secure local shell. Do not paste them into docs or commit them.
+
+Use:
+
+```sh
+RAZORPAY_KEY_ID=rzp_test_xxx RAZORPAY_KEY_SECRET=xxx npm run setup:razorpay-test-keys
+```
+
+Then run:
+
+```sh
+npm run smoke:razorpay-checkout:connected
+```
+
+Current local/Firebase verification:
+
+- `RAZORPAY_KEY_ID` is still the placeholder value.
+- `RAZORPAY_KEY_SECRET` is still the placeholder value.
+- Connected checkout verification cannot pass until real Razorpay test credentials are supplied.
+
 Required fields:
 
 - `workspaceId`
@@ -68,7 +90,7 @@ Example shape, with placeholder values only:
 
 1. Create or open the payment provider account.
 2. Keep the provider in test mode.
-3. Store provider credentials in Firebase Secret Manager.
+3. Store provider credentials with `npm run setup:razorpay-test-keys`.
 4. Add the production webhook URL.
 5. Add the secret as `x-orbit-ledger-webhook-secret`, or as a bearer token if the provider cannot send custom headers.
 6. Set the webhook method to `POST`.
@@ -329,7 +351,7 @@ npm run smoke:razorpay-checkout
 
 Sandbox workspace:
 
-- `sandbox_razorpay_checkout_1777669161678`
+- `sandbox_razorpay_checkout_1777669621589`
 
 Result:
 

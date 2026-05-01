@@ -183,6 +183,18 @@ This is the strict setup path to follow once the Razorpay account is available.
 
    Until real values are provided, these can remain as `not_configured`. The app will show that Razorpay is not connected and will not create live checkout links.
 
+   Use this setup command when real Razorpay test credentials are available:
+
+   ```sh
+   RAZORPAY_KEY_ID=rzp_test_xxx RAZORPAY_KEY_SECRET=xxx npm run setup:razorpay-test-keys
+   ```
+
+   Then run:
+
+   ```sh
+   npm run smoke:razorpay-checkout:connected
+   ```
+
 5. Add the Orbit Ledger webhook URL:
 
    ```text
