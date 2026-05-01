@@ -41,6 +41,7 @@ Orbit Ledger currently supports:
 - Orbit-hosted invoice payment pages.
 - Manual UPI/payment instructions on invoices.
 - A deployed provider webhook ready to receive trusted payment events.
+- A deployed Razorpay checkout creation endpoint that uses server-side credentials only.
 - Razorpay, Cashfree, Stripe, and generic webhook payload mapping.
 - Payment review, payment application, refunds, and reversal history after trusted events arrive.
 
@@ -173,25 +174,54 @@ This is the strict setup path to follow once the Razorpay account is available.
 1. Create or open the Razorpay account.
 2. Keep the Razorpay dashboard in **test mode**.
 3. Generate test API keys inside Razorpay. Store them only in secret storage. Do not place them in app code, docs, screenshots, or client-side settings.
-4. Add the Orbit Ledger webhook URL:
+4. Store the credentials in Firebase Secret Manager:
+
+   ```text
+   RAZORPAY_KEY_ID
+   RAZORPAY_KEY_SECRET
+   ```
+
+   Until real values are provided, these can remain as `not_configured`. The app will show that Razorpay is not connected and will not create live checkout links.
+
+5. Add the Orbit Ledger webhook URL:
 
    ```text
    https://asia-south1-orbit-ledger-f41c2.cloudfunctions.net/providerWebhook
    ```
 
-5. Add the webhook secret as `x-orbit-ledger-webhook-secret` if Razorpay account settings allow a custom header. If the dashboard only supports a webhook secret/signature flow, add a Razorpay signature verification adapter before accepting live traffic.
-6. Enable payment, payment link, and refund events needed for:
+6. Add the webhook secret as `x-orbit-ledger-webhook-secret` if Razorpay account settings allow a custom header. If the dashboard only supports a webhook secret/signature flow, add a Razorpay signature verification adapter before accepting live traffic.
+7. Enable payment, payment link, and refund events needed for:
    - successful payments,
    - pending or authorized payments,
    - failed payments,
    - processed refunds.
-7. Create one test invoice in Orbit Ledger.
-8. Open the web Payments page and use **Copy Razorpay test link**. This produces a provider payload with:
+8. Create one test invoice in Orbit Ledger.
+9. Open the invoice editor and choose **Create checkout link**. The request goes to the server-side Firebase Function. It never sends Razorpay secret keys to the browser.
+10. Open the web Payments page and use **Copy Razorpay test link** if you need to inspect the provider payload. This produces a provider payload with:
    - amount in paise,
    - INR currency,
    - invoice reference,
    - customer name,
    - Orbit Ledger metadata in `notes`.
+
+### Server Checkout Endpoint
+
+Orbit Ledger now has this server-only checkout endpoint:
+
+```text
+https://asia-south1-orbit-ledger-f41c2.cloudfunctions.net/createRazorpayCheckout
+```
+
+Security rules for this endpoint:
+
+- Only signed-in Firebase users can call it.
+- The caller must own the workspace.
+- The invoice must exist inside that workspace.
+- The invoice must have a pending amount.
+- Razorpay credentials stay in Firebase Secret Manager.
+- If credentials are missing or still set to `not_configured`, the endpoint returns `provider_not_connected`.
+
+Successful checkout creation stores a `payment_checkouts` record and updates the invoice with the latest provider checkout URL/reference.
 
 ### Test Payment Link Payload
 

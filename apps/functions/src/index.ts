@@ -8,6 +8,8 @@ import { onRequest } from 'firebase-functions/v2/https';
 admin.initializeApp();
 
 const providerWebhookSecret = defineSecret('ORBIT_LEDGER_PROVIDER_WEBHOOK_SECRET');
+const razorpayKeyId = defineSecret('RAZORPAY_KEY_ID');
+const razorpayKeySecret = defineSecret('RAZORPAY_KEY_SECRET');
 
 type ProviderSource = 'upi' | 'payment_page' | 'bank_transfer' | 'card' | 'wallet' | 'other';
 type ProviderPaymentStatus = 'succeeded' | 'pending' | 'failed' | 'refunded';
@@ -35,6 +37,192 @@ const db = admin.firestore();
 export function normalizeProviderWebhookPayload(body: unknown): ProviderWebhookPayload {
   return normalizePayload(body);
 }
+
+type RazorpayCheckoutPayloadInput = {
+  workspaceId: string;
+  businessName: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  customerId?: string | null;
+  customerName?: string | null;
+  amount: number;
+  currency: string;
+  reference: string;
+  callbackUrl?: string | null;
+};
+
+type RazorpayCheckoutPayload = {
+  amount: number;
+  currency: string;
+  accept_partial: boolean;
+  description: string;
+  reference_id: string;
+  customer?: {
+    name: string;
+  };
+  notify: {
+    sms: boolean;
+    email: boolean;
+  };
+  reminder_enable: boolean;
+  callback_url?: string;
+  callback_method?: 'get';
+  notes: Record<string, string>;
+};
+
+export function buildRazorpayCheckoutPayload(input: RazorpayCheckoutPayloadInput): RazorpayCheckoutPayload {
+  const amount = Math.max(Number.isFinite(input.amount) ? input.amount : 0, 0);
+  const callbackUrl = normalizeHttpsUrl(input.callbackUrl);
+
+  return {
+    amount: Math.round(amount * 100),
+    currency: normalizeCurrency(input.currency),
+    accept_partial: false,
+    description: `${clean(input.businessName) ?? 'Orbit Ledger'} invoice ${input.invoiceNumber}`,
+    reference_id: trimProviderReference(input.reference),
+    customer: clean(input.customerName) ? { name: clean(input.customerName) as string } : undefined,
+    notify: {
+      sms: false,
+      email: false,
+    },
+    reminder_enable: true,
+    ...(callbackUrl ? { callback_url: callbackUrl, callback_method: 'get' as const } : {}),
+    notes: {
+      orbit_workspace_id: trimProviderNote(input.workspaceId),
+      orbit_invoice_id: trimProviderNote(input.invoiceId),
+      orbit_invoice_number: trimProviderNote(input.invoiceNumber),
+      ...(clean(input.customerId) ? { orbit_customer_id: trimProviderNote(input.customerId as string) } : {}),
+      ...(clean(input.customerName) ? { orbit_customer_name: trimProviderNote(input.customerName as string) } : {}),
+    },
+  };
+}
+
+export const createRazorpayCheckout = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+    secrets: [razorpayKeyId, razorpayKeySecret],
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const userId = await verifyRequestUserId(request);
+    if (!userId) {
+      response.status(401).json({ ok: false, error: 'unauthorized' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const invoiceId = clean(stringValue(body?.invoiceId));
+    const callbackUrl = clean(stringValue(body?.callbackUrl));
+    if (!workspaceId || !invoiceId) {
+      response.status(400).json({ ok: false, error: 'invoice_required' });
+      return;
+    }
+
+    try {
+      const context = await loadCheckoutContext(userId, workspaceId, invoiceId);
+      if (!context.ok) {
+        response.status(context.status).json({ ok: false, error: context.error });
+        return;
+      }
+
+      const { workspace, invoice, customer } = context;
+      const totalAmount = money(invoice.total_amount);
+      const paidAmount = money(invoice.paid_amount);
+      const amountDue = roundMoney(Math.max(totalAmount - paidAmount, 0));
+      if (amountDue <= 0) {
+        response.status(400).json({ ok: false, error: 'invoice_already_paid' });
+        return;
+      }
+
+      const keyId = getSecretValue(razorpayKeyId, 'RAZORPAY_KEY_ID');
+      const keySecret = getSecretValue(razorpayKeySecret, 'RAZORPAY_KEY_SECRET');
+      if (!isConfiguredCredential(keyId) || !isConfiguredCredential(keySecret)) {
+        response.status(503).json({
+          ok: false,
+          error: 'provider_not_connected',
+          message: 'Razorpay is not connected yet.',
+        });
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const invoiceNumber = clean(stringValue(invoice.invoice_number)) ?? invoiceId.slice(0, 8).toUpperCase();
+      const reference = buildCheckoutReference(invoiceNumber, money(invoice.version_number), now);
+      const checkoutPayload = buildRazorpayCheckoutPayload({
+        workspaceId,
+        businessName: clean(stringValue(workspace.business_name)) ?? 'Orbit Ledger',
+        invoiceId,
+        invoiceNumber,
+        customerId: clean(stringValue(invoice.customer_id)),
+        customerName: clean(stringValue(customer?.name)) ?? clean(stringValue(invoice.customer_name)),
+        amount: amountDue,
+        currency: clean(stringValue(workspace.currency)) ?? 'INR',
+        reference,
+        callbackUrl,
+      });
+
+      const providerCheckout = await createRazorpayPaymentLink(checkoutPayload, keyId, keySecret);
+      const checkoutId = clean(stringValue(providerCheckout.id)) ?? normalizeId(`razorpay_${invoiceId}_${Date.now()}`);
+      const checkoutUrl = clean(stringValue(providerCheckout.short_url));
+      if (!checkoutUrl) {
+        throw new Error('Razorpay did not return a checkout URL.');
+      }
+
+      await Promise.all([
+        db.collection('workspaces').doc(workspaceId).collection('payment_checkouts').doc(checkoutId).set(
+          {
+            provider: 'razorpay',
+            provider_checkout_id: checkoutId,
+            provider_checkout_url: checkoutUrl,
+            provider_status: clean(stringValue(providerCheckout.status)) ?? 'created',
+            invoice_id: invoiceId,
+            invoice_number: invoiceNumber,
+            customer_id: clean(stringValue(invoice.customer_id)),
+            amount: amountDue,
+            currency: checkoutPayload.currency,
+            reference,
+            created_at: now,
+            last_modified: now,
+          },
+          { merge: true }
+        ),
+        db.collection('workspaces').doc(workspaceId).collection('invoices').doc(invoiceId).set(
+          {
+            provider_checkout_url: checkoutUrl,
+            provider_checkout_id: checkoutId,
+            provider_checkout_reference: reference,
+            last_modified: now,
+            server_revision: admin.firestore.FieldValue.increment(1),
+          },
+          { merge: true }
+        ),
+      ]);
+
+      response.status(200).json({
+        ok: true,
+        provider: 'razorpay',
+        checkoutId,
+        checkoutUrl,
+        reference,
+      });
+    } catch (error) {
+      logger.error('createRazorpayCheckout failed', { workspaceId, invoiceId, error });
+      response.status(500).json({ ok: false, error: 'checkout_failed' });
+    }
+  }
+);
 
 export const providerWebhook = onRequest(
   {
@@ -918,6 +1106,135 @@ function metadataValue(metadata: Record<string, string>, ...keys: string[]): str
     }
   }
   return null;
+}
+
+async function verifyRequestUserId(request: { header(name: string): string | undefined }): Promise<string | null> {
+  const authorization = request.header('authorization') ?? '';
+  if (!authorization.toLowerCase().startsWith('bearer ')) {
+    return null;
+  }
+
+  try {
+    const token = authorization.slice(7).trim();
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    return decodedToken.uid;
+  } catch {
+    return null;
+  }
+}
+
+async function loadCheckoutContext(userId: string, workspaceId: string, invoiceId: string): Promise<
+  | {
+      ok: true;
+      workspace: FirebaseFirestore.DocumentData;
+      invoice: FirebaseFirestore.DocumentData;
+      customer: FirebaseFirestore.DocumentData | null;
+    }
+  | { ok: false; status: number; error: string }
+> {
+  const workspaceRef = db.collection('workspaces').doc(workspaceId);
+  const invoiceRef = workspaceRef.collection('invoices').doc(invoiceId);
+  const [workspaceSnapshot, invoiceSnapshot] = await Promise.all([workspaceRef.get(), invoiceRef.get()]);
+
+  if (!workspaceSnapshot.exists) {
+    return { ok: false, status: 404, error: 'workspace_not_found' };
+  }
+  const workspace = workspaceSnapshot.data() ?? {};
+  if (workspace.owner_uid !== userId) {
+    return { ok: false, status: 403, error: 'workspace_forbidden' };
+  }
+  if (!invoiceSnapshot.exists) {
+    return { ok: false, status: 404, error: 'invoice_not_found' };
+  }
+
+  const invoice = invoiceSnapshot.data() ?? {};
+  const customerId = clean(stringValue(invoice.customer_id));
+  const customerSnapshot = customerId ? await workspaceRef.collection('customers').doc(customerId).get() : null;
+
+  return {
+    ok: true,
+    workspace,
+    invoice,
+    customer: customerSnapshot?.exists ? customerSnapshot.data() ?? null : null,
+  };
+}
+
+function getSecretValue(secret: ReturnType<typeof defineSecret>, fallbackName: string): string {
+  try {
+    return secret.value().trim();
+  } catch {
+    return process.env[fallbackName]?.trim() ?? '';
+  }
+}
+
+function isConfiguredCredential(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return Boolean(normalized) && !['not_configured', 'not-configured', 'placeholder', 'todo'].includes(normalized);
+}
+
+async function createRazorpayPaymentLink(
+  payload: RazorpayCheckoutPayload,
+  keyId: string,
+  keySecret: string
+): Promise<Record<string, unknown>> {
+  const authorization = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+  const providerResponse = await fetch('https://api.razorpay.com/v1/payment_links/', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${authorization}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  const responseText = await providerResponse.text();
+  const parsed = parseJsonObject(responseText);
+  if (!providerResponse.ok) {
+    logger.error('Razorpay payment link creation failed', {
+      status: providerResponse.status,
+      body: parsed ?? responseText.slice(0, 500),
+    });
+    throw new Error('Razorpay checkout could not be created.');
+  }
+  if (!parsed) {
+    throw new Error('Razorpay returned an invalid response.');
+  }
+  return parsed;
+}
+
+function parseJsonObject(value: string): Record<string, unknown> | null {
+  try {
+    return asRecord(JSON.parse(value));
+  } catch {
+    return null;
+  }
+}
+
+function buildCheckoutReference(invoiceNumber: string, versionNumber: number, now: string): string {
+  const suffix = new Date(now).getTime().toString(36).toUpperCase();
+  return trimProviderReference(`INV-${invoiceNumber}-V${Math.max(versionNumber, 1)}-${suffix}`);
+}
+
+function trimProviderReference(value: string): string {
+  const normalized = value.trim().replace(/\s+/g, '-');
+  return (normalized || `INV-${Date.now()}`).slice(0, 40);
+}
+
+function trimProviderNote(value: string): string {
+  return value.trim().slice(0, 255);
+}
+
+function normalizeHttpsUrl(value?: string | null): string | null {
+  const normalized = clean(value);
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    const url = new URL(normalized);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function epochSecondsToIso(value: number | string | null): string | undefined {

@@ -42,6 +42,7 @@ import {
   getWebDocumentTemplates,
   openPrintableDocument,
 } from '@/lib/web-documents';
+import { createRazorpayCheckoutLink } from '@/lib/provider-checkout';
 import { uploadPaymentInstrumentImage } from '@/lib/workspace-storage';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -93,6 +94,7 @@ function InvoiceEditorContent() {
   const [items, setItems] = useState<EditableItem[]>([emptyItem()]);
   const [isSaving, setIsSaving] = useState(false);
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [templateKey, setTemplateKey] = useState('');
   const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
@@ -398,6 +400,32 @@ function InvoiceEditorContent() {
     showToast('Payment message copied.', 'success');
   }
 
+  async function createRazorpayCheckout() {
+    if (!activeWorkspace || !invoice) {
+      return;
+    }
+    if (dueAmount <= 0) {
+      showToast('This invoice has no pending amount.', 'info');
+      return;
+    }
+
+    setIsCreatingCheckout(true);
+    try {
+      const checkout = await createRazorpayCheckoutLink({
+        workspaceId: activeWorkspace.workspaceId,
+        invoiceId: invoice.id,
+        callbackUrl: `${window.location.origin}/pay/`,
+      });
+      setPaymentLinkDetails((current) => ({ ...current, paymentPageUrl: checkout.checkoutUrl }));
+      await navigator.clipboard.writeText(checkout.checkoutUrl);
+      showToast('Razorpay checkout link copied.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Razorpay checkout could not be created.', 'info');
+    } finally {
+      setIsCreatingCheckout(false);
+    }
+  }
+
   async function markPaymentStatus(nextPaymentStatus: InvoicePaymentStatus) {
     setPaymentStatus(nextPaymentStatus);
     await saveInvoice(
@@ -517,6 +545,9 @@ function InvoiceEditorContent() {
         </button>
         <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentMessage()} disabled={!currentInvoiceDocument || total <= 0}>
           Copy payment message
+        </button>
+        <button className="ol-button-secondary" type="button" onClick={() => void createRazorpayCheckout()} disabled={isCreatingCheckout || !invoice || dueAmount <= 0}>
+          {isCreatingCheckout ? 'Creating checkout...' : 'Create checkout link'}
         </button>
         <button className="ol-button-secondary" type="button" onClick={() => void recordInvoicePayment(dueAmount)} disabled={isRecordingPayment || !invoice || dueAmount <= 0}>
           Record full payment
@@ -819,6 +850,17 @@ function InvoiceEditorContent() {
               ) : (
                 <div className="ol-message">Add UPI ID or a secure payment page to create a payment link.</div>
               )}
+              <div className="ol-field ol-field--action">
+                <span className="ol-field-label">Online checkout</span>
+                <button
+                  className="ol-button-secondary"
+                  type="button"
+                  disabled={isCreatingCheckout || !invoice || dueAmount <= 0}
+                  onClick={() => void createRazorpayCheckout()}
+                >
+                  {isCreatingCheckout ? 'Creating...' : 'Create Razorpay link'}
+                </button>
+              </div>
               <div className="ol-field ol-field--action">
                 <span className="ol-field-label">Action</span>
                 <button className="ol-button" type="button" disabled={isRecordingPayment || dueAmount <= 0} onClick={() => void recordInvoicePayment()}>

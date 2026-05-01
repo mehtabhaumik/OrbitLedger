@@ -1,8 +1,51 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeProviderWebhookPayload } from './index';
+import { buildRazorpayCheckoutPayload, normalizeProviderWebhookPayload } from './index';
 
 describe('provider webhook payload mapping', () => {
+  it('builds Razorpay checkout payloads with Orbit Ledger notes', () => {
+    const payload = buildRazorpayCheckoutPayload({
+      workspaceId: 'workspace_1',
+      businessName: 'Rudraix PVT',
+      invoiceId: 'invoice_1',
+      invoiceNumber: 'WEB-641090',
+      customerId: 'customer_1',
+      customerName: 'Sonali Traders',
+      amount: 1770,
+      currency: 'inr',
+      reference: 'INV-WEB-641090-V1',
+      callbackUrl: 'https://orbit-ledger-f41c2.web.app/pay/',
+    });
+
+    expect(payload.amount).toBe(177000);
+    expect(payload.currency).toBe('INR');
+    expect(payload.accept_partial).toBe(false);
+    expect(payload.reference_id).toBe('INV-WEB-641090-V1');
+    expect(payload.customer?.name).toBe('Sonali Traders');
+    expect(payload.callback_url).toBe('https://orbit-ledger-f41c2.web.app/pay/');
+    expect(payload.notes).toMatchObject({
+      orbit_workspace_id: 'workspace_1',
+      orbit_invoice_id: 'invoice_1',
+      orbit_invoice_number: 'WEB-641090',
+      orbit_customer_id: 'customer_1',
+    });
+  });
+
+  it('drops unsafe Razorpay callback URLs', () => {
+    const payload = buildRazorpayCheckoutPayload({
+      workspaceId: 'workspace_1',
+      businessName: 'Rudraix PVT',
+      invoiceId: 'invoice_1',
+      invoiceNumber: 'WEB-641090',
+      amount: 1770,
+      currency: 'INR',
+      reference: 'INV-WEB-641090-V1',
+      callbackUrl: 'http://localhost:3000/pay/',
+    });
+
+    expect(payload.callback_url).toBeUndefined();
+  });
+
   it('keeps the Orbit generic provider payload shape', () => {
     const payload = normalizeProviderWebhookPayload({
       workspaceId: 'workspace_1',

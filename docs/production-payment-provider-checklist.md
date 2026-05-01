@@ -11,6 +11,7 @@ Current provider connection status: **not connected**. The production webhook an
 - Public web app: `https://orbit-ledger-f41c2.web.app`
 - Hosted payment page: `https://orbit-ledger-f41c2.web.app/pay`
 - Provider webhook: `https://asia-south1-orbit-ledger-f41c2.cloudfunctions.net/providerWebhook`
+- Razorpay checkout creation: `https://asia-south1-orbit-ledger-f41c2.cloudfunctions.net/createRazorpayCheckout`
 - Function region: `asia-south1`
 - Function runtime: `nodejs24`
 - Required secret header: `x-orbit-ledger-webhook-secret`
@@ -26,6 +27,8 @@ Provider-specific mapping details are maintained in:
 - `docs/payment-provider-selection-and-mapping.md`
 
 The web Payments page can copy a Razorpay test payment-link draft. That draft contains no secrets. It is intended for the later Razorpay account setup phase and must remain in test mode until a real provider transaction has passed the full checklist.
+
+The invoice editor can request a Razorpay checkout link from the server. Until `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` contain real test credentials, that request returns `provider_not_connected` and no checkout is created.
 
 Required fields:
 
@@ -65,18 +68,20 @@ Example shape, with placeholder values only:
 
 1. Create or open the payment provider account.
 2. Keep the provider in test mode.
-3. Add the production webhook URL.
-4. Add the secret as `x-orbit-ledger-webhook-secret`, or as a bearer token if the provider cannot send custom headers.
-5. Set the webhook method to `POST`.
-6. Set the content type to JSON.
-7. Configure success, pending, failed, and refund events.
-8. Store `workspaceId` in provider metadata, payment notes, or webhook custom fields.
-9. Store `invoiceId` in provider metadata when a payment is started from an invoice.
-10. Store `invoiceNumber` as a fallback reference.
-11. Confirm the provider sends payment amounts in the same currency unit Orbit Ledger expects.
-12. Confirm refunds include the original provider payment ID or original invoice reference.
-13. Run the smoke tests below.
-14. Turn provider test mode off only after all smoke tests pass.
+3. Store provider credentials in Firebase Secret Manager.
+4. Add the production webhook URL.
+5. Add the secret as `x-orbit-ledger-webhook-secret`, or as a bearer token if the provider cannot send custom headers.
+6. Set the webhook method to `POST`.
+7. Set the content type to JSON.
+8. Configure success, pending, failed, and refund events.
+9. Store `workspaceId` in provider metadata, payment notes, or webhook custom fields.
+10. Store `invoiceId` in provider metadata when a payment is started from an invoice.
+11. Store `invoiceNumber` as a fallback reference.
+12. Confirm the provider sends payment amounts in the same currency unit Orbit Ledger expects.
+13. Confirm refunds include the original provider payment ID or original invoice reference.
+14. Create a checkout link from the invoice editor.
+15. Run the smoke tests below.
+16. Turn provider test mode off only after all smoke tests pass.
 
 ## Backend Access Checklist
 
