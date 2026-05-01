@@ -2,7 +2,14 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { buildInvoicePaymentReference, buildRazorpayPaymentLinkDraft } from '@orbit-ledger/core';
+import {
+  buildInvoicePaymentReference,
+  buildRazorpayPaymentLinkDraft,
+  getManualPaymentVerificationPlan,
+  getPaymentClearanceStatusLabel,
+  summarizePaymentMode,
+  type PaymentClearanceStatus,
+} from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
 import { getWebFirebaseProjectId } from '@/lib/firebase';
@@ -11,29 +18,36 @@ import {
   applyWorkspaceProviderEventToInvoice,
   listWorkspaceCustomers,
   listWorkspaceInvoices,
+  listWorkspaceManualPaymentReviewItems,
   listWorkspacePaymentProviderEvents,
   markWorkspaceProviderEventReviewed,
   reverseWorkspaceProviderEventPayment,
+  updateWorkspaceManualPaymentClearance,
   type WorkspaceCustomer,
   type WorkspaceInvoice,
+  type WorkspaceManualPaymentReviewItem,
   type WorkspacePaymentProviderEvent,
 } from '@/lib/workspace-data';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 type EventFilter = 'needs_review' | 'applied' | 'reversed' | 'all';
+type ManualPaymentFilter = 'needs_action' | 'pending' | 'bounced' | 'all';
 
 export default function PaymentsPage() {
   const { activeWorkspace } = useWorkspace();
   const { showToast } = useToast();
   const [events, setEvents] = useState<WorkspacePaymentProviderEvent[]>([]);
+  const [manualPayments, setManualPayments] = useState<WorkspaceManualPaymentReviewItem[]>([]);
   const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [filter, setFilter] = useState<EventFilter>('needs_review');
+  const [manualFilter, setManualFilter] = useState<ManualPaymentFilter>('needs_action');
   const [selectedInvoices, setSelectedInvoices] = useState<Record<string, string>>({});
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
+  const [busyManualPaymentId, setBusyManualPaymentId] = useState<string | null>(null);
   const projectId = getWebFirebaseProjectId();
   const providerPlan = getWebPaymentProviderPlan();
   const webhookUrl = `https://asia-south1-${projectId}.cloudfunctions.net/providerWebhook`;
@@ -57,12 +71,14 @@ export default function PaymentsPage() {
     }
     setIsLoading(true);
     try {
-      const [nextEvents, nextInvoices, nextCustomers] = await Promise.all([
+      const [nextEvents, nextManualPayments, nextInvoices, nextCustomers] = await Promise.all([
         listWorkspacePaymentProviderEvents(activeWorkspace.workspaceId),
+        listWorkspaceManualPaymentReviewItems(activeWorkspace.workspaceId),
         listWorkspaceInvoices(activeWorkspace.workspaceId),
         listWorkspaceCustomers(activeWorkspace.workspaceId),
       ]);
       setEvents(nextEvents);
+      setManualPayments(nextManualPayments);
       setInvoices(nextInvoices);
       setCustomers(nextCustomers);
       setSelectedInvoices((current) => {
@@ -103,8 +119,35 @@ export default function PaymentsPage() {
       applied: events.filter((event) => event.applied && !event.reversed).length,
       reversed: events.filter((event) => event.reversed).length,
       review: events.filter((event) => !event.applied || event.applyStatus === 'needs_review' || event.error).length,
+      manualReview: manualPayments.length,
+      pendingManual: manualPayments.filter((payment) =>
+        payment.paymentClearanceStatus === 'received' ||
+        payment.paymentClearanceStatus === 'post_dated' ||
+        payment.paymentClearanceStatus === 'deposited'
+      ).length,
+      bouncedManual: manualPayments.filter((payment) => payment.paymentClearanceStatus === 'bounced').length,
     }),
-    [events]
+    [events, manualPayments]
+  );
+  const manualReviewItems = useMemo(
+    () =>
+      manualPayments.filter((payment) => {
+        if (manualFilter === 'all') {
+          return true;
+        }
+        if (manualFilter === 'pending') {
+          return (
+            payment.paymentClearanceStatus === 'received' ||
+            payment.paymentClearanceStatus === 'post_dated' ||
+            payment.paymentClearanceStatus === 'deposited'
+          );
+        }
+        if (manualFilter === 'bounced') {
+          return payment.paymentClearanceStatus === 'bounced';
+        }
+        return payment.paymentClearanceStatus !== 'cleared';
+      }),
+    [manualFilter, manualPayments]
   );
   const openInvoices = useMemo(
     () =>
@@ -250,13 +293,37 @@ export default function PaymentsPage() {
     }
   }
 
+  async function updateManualPayment(payment: WorkspaceManualPaymentReviewItem, clearanceStatus: PaymentClearanceStatus) {
+    if (!activeWorkspace) {
+      return;
+    }
+
+    setBusyManualPaymentId(payment.transactionId);
+    try {
+      await updateWorkspaceManualPaymentClearance(activeWorkspace.workspaceId, payment.transactionId, {
+        clearanceStatus,
+      });
+      await loadPaymentAdminData();
+      showToast(
+        clearanceStatus === 'cleared'
+          ? 'Manual payment verified and balances updated.'
+          : `Manual payment marked ${getPaymentClearanceStatusLabel(clearanceStatus).toLowerCase()}.`,
+        'success'
+      );
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Manual payment could not be updated.', 'danger');
+    } finally {
+      setBusyManualPaymentId(null);
+    }
+  }
+
   return (
     <AppShell title="Payments" subtitle="Collect manually today, and connect online checkout when a provider is ready.">
       <section className="ol-metric-grid">
         <Metric label="Events" value={String(stats.total)} helper="Received from payment providers." tone="primary" />
         <Metric label="Applied" value={String(stats.applied)} helper="Updated invoices automatically." tone="success" />
-        <Metric label="Needs Review" value={String(stats.review)} helper="Waiting for owner decision." tone="warning" />
-        <Metric label="Reversed" value={String(stats.reversed)} helper="Refunds and payment rollbacks." tone="warning" />
+        <Metric label="Manual Review" value={String(stats.manualReview)} helper="Manual payments needing follow-up." tone="warning" />
+        <Metric label="Pending" value={String(stats.pendingManual)} helper="Received, post-dated, or deposited." tone="warning" />
       </section>
 
       <section className="ol-panel-dark">
@@ -319,6 +386,114 @@ export default function PaymentsPage() {
             <Review key={item.label} label={item.label} value={item.value} />
           ))}
         </div>
+      </section>
+
+      <section className="ol-table">
+        <div className="ol-table-tools">
+          <label className="ol-field">
+            <span className="ol-field-label">Manual payment review</span>
+            <select
+              className="ol-select"
+              value={manualFilter}
+              onChange={(event) => setManualFilter(event.target.value as ManualPaymentFilter)}
+            >
+              <option value="needs_action">Needs action</option>
+              <option value="pending">Pending clearance</option>
+              <option value="bounced">Bounced or failed</option>
+              <option value="all">All manual review</option>
+            </select>
+          </label>
+          <div className="ol-table-actions">
+            <Link className="ol-button-secondary" href="/transactions">
+              Record manual payment
+            </Link>
+          </div>
+        </div>
+        <div className="ol-table-summary">
+          {isLoading
+            ? 'Loading manual payments...'
+            : `${manualReviewItems.length} manual payment${manualReviewItems.length === 1 ? '' : 's'} in this queue.`}
+        </div>
+        <div className="ol-table-head" style={{ gridTemplateColumns: '0.9fr 0.9fr 0.8fr 1.2fr 1fr' }}>
+          <span>Customer</span>
+          <span>Payment</span>
+          <span>Match</span>
+          <span>Follow-up</span>
+          <span>Action</span>
+        </div>
+        {manualReviewItems.map((payment) => {
+          const plan = getManualPaymentVerificationPlan({
+            allocationStrategy: payment.invoiceId ? 'selected_invoice' : 'ledger_only',
+            clearanceStatus: payment.paymentClearanceStatus,
+          });
+          return (
+            <div
+              className="ol-table-row"
+              key={`${payment.transactionId}-${payment.allocationId ?? 'ledger'}`}
+              style={{ gridTemplateColumns: '0.9fr 0.9fr 0.8fr 1.2fr 1fr' }}
+            >
+              <span>
+                <strong>{payment.customerName}</strong>
+                <br />
+                <span className="ol-muted" style={{ fontSize: 13 }}>
+                  {payment.effectiveDate || payment.createdAt.slice(0, 10)}
+                </span>
+              </span>
+              <span>
+                <strong>{formatCurrency(payment.amount, activeWorkspace?.currency ?? 'INR')}</strong>
+                <br />
+                <span className="ol-muted" style={{ fontSize: 13 }}>
+                  {summarizePaymentMode(payment.paymentMode, payment.paymentDetails)}
+                </span>
+              </span>
+              <span>
+                {payment.invoiceId ? (
+                  <Link className="ol-link-button" href={`/invoices/detail?invoiceId=${encodeURIComponent(payment.invoiceId)}`}>
+                    {payment.invoiceNumber ?? 'Open invoice'}
+                  </Link>
+                ) : (
+                  <span className="ol-muted">Ledger only</span>
+                )}
+              </span>
+              <span>
+                <strong>{plan.statusLabel}</strong>
+                <br />
+                <span className="ol-muted" style={{ fontSize: 13 }}>
+                  {plan.invoiceEffect}
+                </span>
+                {payment.note ? (
+                  <>
+                    <br />
+                    <span className="ol-muted" style={{ fontSize: 13 }}>
+                      {payment.note}
+                    </span>
+                  </>
+                ) : null}
+              </span>
+              <span className="ol-inline-actions">
+                <button
+                  className="ol-button"
+                  disabled={busyManualPaymentId === payment.transactionId}
+                  type="button"
+                  onClick={() => void updateManualPayment(payment, 'cleared')}
+                >
+                  Verify cleared
+                </button>
+                <button
+                  className="ol-button-ghost"
+                  disabled={busyManualPaymentId === payment.transactionId}
+                  type="button"
+                  onClick={() => void updateManualPayment(payment, 'bounced')}
+                >
+                  Mark bounced
+                </button>
+              </span>
+            </div>
+          );
+        })}
+        {!isLoading && !manualReviewItems.length ? (
+          <div className="ol-empty">No manual payments need follow-up right now.</div>
+        ) : null}
       </section>
 
       <section className="ol-table">
