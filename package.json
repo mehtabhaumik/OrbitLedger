@@ -26,6 +26,8 @@
     "mobile:web": "npm run web --workspace @orbit-ledger/mobile",
     "doctor": "npm run doctor --workspace @orbit-ledger/mobile",
     "brand:assets": "npm run brand:assets --workspace @orbit-ledger/mobile",
+    "smoke:razorpay-checkout": "node scripts/razorpay-checkout-smoke.mjs",
+    "smoke:razorpay-checkout:connected": "node scripts/razorpay-checkout-smoke.mjs --expect-connected",
     "typecheck": "npm run typecheck --workspace @orbit-ledger/contracts && npm run typecheck --workspace @orbit-ledger/core && npm run typecheck --workspace @orbit-ledger/ui && npm run typecheck --workspace @orbit-ledger/sync && npm run typecheck --workspace @orbit-ledger/mobile && npm run typecheck --workspace @orbit-ledger/web && npm run typecheck --workspace @orbit-ledger/functions",
     "test": "vitest run apps packages",
     "test:rules": "vitest run firebase/rules.test.ts",

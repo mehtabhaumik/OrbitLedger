@@ -300,18 +300,20 @@ Invoice behavior:
 
 1. Create the Razorpay account.
 2. Keep Razorpay in test mode.
-3. Add the Orbit Ledger webhook URL.
-4. Add the secret header in Razorpay.
-5. Enable payment success, pending/authorized, failed, and refund events.
-6. Create a test invoice in Orbit Ledger.
-7. Create a payment link carrying Orbit Ledger metadata.
-8. Pay the invoice in Razorpay test mode.
-9. Confirm the invoice becomes paid.
-10. Retry the same event and confirm it does not duplicate.
-11. Refund the test payment.
-12. Confirm the invoice and customer balance reverse correctly.
-13. Confirm the payment reversal record exists.
-14. Only then switch Razorpay to live mode.
+3. Store the Razorpay test credentials as `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in Firebase Secret Manager.
+4. Add the Orbit Ledger webhook URL.
+5. Add the secret header in Razorpay.
+6. Enable payment success, pending/authorized, failed, and refund events.
+7. Run `npm run smoke:razorpay-checkout:connected`.
+8. Create a test invoice in Orbit Ledger.
+9. Create a payment link carrying Orbit Ledger metadata.
+10. Pay the invoice in Razorpay test mode.
+11. Confirm the invoice becomes paid.
+12. Retry the same event and confirm it does not duplicate.
+13. Refund the test payment.
+14. Confirm the invoice and customer balance reverse correctly.
+15. Confirm the payment reversal record exists.
+16. Only then switch Razorpay to live mode.
 
 ## Latest Razorpay Mapping Smoke Result
 

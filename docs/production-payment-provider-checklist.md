@@ -151,7 +151,39 @@ Expected result:
 - Page is readable on mobile and desktop
 - Payment details from invoice links are understandable to the customer
 
-### 5. Payment Admin Page Loads
+### 5. Razorpay Checkout Endpoint Is Safe Before Credentials
+
+Run:
+
+```sh
+npm run smoke:razorpay-checkout
+```
+
+Expected result when Razorpay credentials are still placeholders:
+
+- `GET` to checkout creation returns `405`.
+- Unsigned checkout creation returns `401`.
+- A temporary signed-in sandbox user can create a sandbox workspace and invoice.
+- Signed checkout creation reaches the server credential gate.
+- Response is `503 provider_not_connected`.
+- No Razorpay checkout link is created.
+- Sandbox user, workspace, customer, and invoice are cleaned up.
+
+Expected result after real Razorpay test credentials are stored:
+
+```sh
+npm run smoke:razorpay-checkout:connected
+```
+
+- `GET` to checkout creation returns `405`.
+- Unsigned checkout creation returns `401`.
+- A temporary signed-in sandbox user can create a sandbox workspace and invoice.
+- Signed checkout creation returns `200`.
+- Response includes a Razorpay checkout URL.
+- A `payment_checkouts` record is created.
+- The sandbox workspace is cleaned up.
+
+### 6. Payment Admin Page Loads
 
 Open:
 
@@ -166,7 +198,7 @@ Expected result:
 - Setup checklist is visible
 - Event review table loads without layout overflow
 
-### 6. Successful Payment Updates Invoice
+### 7. Successful Payment Updates Invoice
 
 Use a test invoice with an unpaid balance.
 
@@ -186,7 +218,7 @@ Expected result:
 - Customer balance decreases by the received amount.
 - Re-sending the same provider event does not duplicate the payment.
 
-### 7. Unmatched Payment Waits For Review
+### 8. Unmatched Payment Waits For Review
 
 Send a successful test payment without a matching invoice.
 
@@ -196,7 +228,7 @@ Expected result:
 - Event does not change invoice totals automatically.
 - Owner can choose an invoice and apply it manually.
 
-### 8. Pending Or Failed Payment Does Not Mark Invoice Paid
+### 9. Pending Or Failed Payment Does Not Mark Invoice Paid
 
 Send events with:
 
@@ -209,7 +241,7 @@ Expected result:
 - Invoice remains unpaid or partially paid.
 - Customer balance is not reduced.
 
-### 9. Refund Creates Reversal History
+### 10. Refund Creates Reversal History
 
 Refund a previously applied test payment.
 
@@ -223,7 +255,7 @@ Expected result:
 - Customer balance increases by the refunded amount.
 - Re-sending the same refund does not duplicate the reversal.
 
-### 10. Owner Manual Reversal Works
+### 11. Owner Manual Reversal Works
 
 In Payments, open an applied payment event and use `Reverse`.
 
@@ -284,3 +316,28 @@ Result:
 - Customer balance returned to `1770`.
 - Duplicate refund was detected as `already_reversed`.
 - Sandbox workspace cleanup completed.
+
+## Latest Razorpay Checkout Smoke Result
+
+Last verified: `2026-05-02`
+
+Command:
+
+```sh
+npm run smoke:razorpay-checkout
+```
+
+Sandbox workspace:
+
+- `sandbox_razorpay_checkout_1777669161678`
+
+Result:
+
+- Checkout endpoint rejected wrong methods with HTTP `405`.
+- Checkout endpoint rejected unsigned calls with HTTP `401`.
+- Temporary Firebase smoke user was created.
+- Sandbox workspace and invoice were created.
+- Signed checkout request returned HTTP `503`.
+- Response was `provider_not_connected`.
+- This is expected because `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are still placeholder values.
+- Sandbox cleanup completed.
