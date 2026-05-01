@@ -1,3 +1,8 @@
+import {
+  getGeneratedInvoiceDocumentLabel,
+  normalizeInvoiceDocumentState,
+} from '@orbit-ledger/core';
+
 import { formatCurrency } from '../../lib/format';
 import { parseDocumentTemplateConfig } from '../templates';
 import type {
@@ -81,7 +86,9 @@ export function prepareInvoiceDocumentData(input: InvoiceDocumentInput): Invoice
       issueDate: input.invoice.issueDate,
       dueDate: input.invoice.dueDate,
       currency,
-      status: input.invoice.status,
+      status: getGeneratedInvoiceDocumentLabel(
+        normalizeInvoiceDocumentState(input.invoice.documentState ?? input.invoice.status)
+      ),
     },
     items,
     summary: {

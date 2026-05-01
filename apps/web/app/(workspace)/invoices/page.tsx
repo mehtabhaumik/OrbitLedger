@@ -4,6 +4,12 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  getInvoiceDocumentStateLabel,
+  getInvoicePaymentStatusLabel,
+  INVOICE_DOCUMENT_STATES,
+  INVOICE_PAYMENT_STATUSES,
+} from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
 import {
@@ -18,7 +24,7 @@ import {
   makeExportFileName,
   pickSelectedRows,
   sumInvoiceTotals,
-  type InvoiceStatusFilter,
+  type InvoiceFilterSet,
 } from '@/lib/workspace-power';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -30,10 +36,15 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<InvoiceStatusFilter>('all');
+  const [filters, setFilters] = useState<InvoiceFilterSet>({
+    customerIds: [],
+    documentStates: [],
+    paymentStatuses: [],
+  });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
+  const [expandedInvoiceIds, setExpandedInvoiceIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -69,10 +80,10 @@ export default function InvoicesPage() {
     () =>
       filterWorkspaceInvoices(invoices, {
         query: search,
-        statusFilter,
+        filters,
         range: { from: dateFrom, to: dateTo },
       }),
-    [dateFrom, dateTo, invoices, search, statusFilter]
+    [dateFrom, dateTo, filters, invoices, search]
   );
   const selectedInvoices = useMemo(
     () => pickSelectedRows(filteredInvoices, selectedInvoiceIds),
@@ -81,6 +92,15 @@ export default function InvoicesPage() {
   const invoiceSummary = useMemo(() => sumInvoiceTotals(filteredInvoices), [filteredInvoices]);
   const allVisibleSelected =
     filteredInvoices.length > 0 && filteredInvoices.every((invoice) => selectedInvoiceIds.has(invoice.id));
+  const customerOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    for (const invoice of invoices) {
+      if (invoice.customerId) {
+        options.set(invoice.customerId, invoice.customerName ?? 'Customer');
+      }
+    }
+    return Array.from(options.entries()).sort((left, right) => left[1].localeCompare(right[1]));
+  }, [invoices]);
 
   function toggleInvoiceSelection(invoiceId: string) {
     setSelectedInvoiceIds((current) => {
@@ -114,12 +134,13 @@ export default function InvoicesPage() {
     const exportRows = selectedInvoices.length ? selectedInvoices : filteredInvoices;
     const rows = exportRows.map((invoice) => [
       invoice.invoiceNumber,
-      invoice.status,
+      getInvoiceDocumentStateLabel(invoice.documentState),
+      getInvoicePaymentStatusLabel(invoice.paymentStatus),
       invoice.issueDate,
-      invoice.customerId ?? '',
+      invoice.customerName ?? '',
       invoice.totalAmount,
     ]);
-    const csv = buildCsv(['Invoice number', 'Status', 'Issue date', 'Customer ID', 'Total'], rows);
+    const csv = buildCsv(['Invoice number', 'Document state', 'Payment state', 'Issue date', 'Customer', 'Amount'], rows);
     downloadTextFile(
       makeExportFileName([
         activeWorkspace.businessName,
@@ -131,6 +152,30 @@ export default function InvoicesPage() {
     showToast(`${exportRows.length} invoice${exportRows.length === 1 ? '' : 's'} exported.`, 'success');
   }
 
+  function toggleFilter(key: keyof InvoiceFilterSet, value: string) {
+    setFilters((current) => {
+      const values = new Set(current[key]);
+      if (values.has(value)) {
+        values.delete(value);
+      } else {
+        values.add(value);
+      }
+      return { ...current, [key]: Array.from(values) };
+    });
+  }
+
+  function toggleInvoiceExpanded(invoiceId: string) {
+    setExpandedInvoiceIds((current) => {
+      const next = new Set(current);
+      if (next.has(invoiceId)) {
+        next.delete(invoiceId);
+      } else {
+        next.add(invoiceId);
+      }
+      return next;
+    });
+  }
+
   return (
     <AppShell title="Invoices" subtitle="Create, edit, review, and export invoices from the web workspace.">
       <section className="ol-split-grid">
@@ -139,7 +184,7 @@ export default function InvoicesPage() {
             <div>
               <div className="ol-panel-title">Invoice workspace</div>
               <p className="ol-panel-copy" style={{ maxWidth: 560 }}>
-                Start a new invoice and continue directly in the editor for line items, totals, status, and export.
+                Start a new invoice and continue directly in the editor for line items, totals, saved versions, and export.
               </p>
             </div>
             <button className="ol-button" disabled={isCreating} type="button" onClick={() => void addDraftInvoice()}>
@@ -167,7 +212,7 @@ export default function InvoicesPage() {
               <div className="ol-list-copy">
                 <div className="ol-list-title">Clean document control</div>
                 <div className="ol-list-text">
-                  Filter by date and status before sending, saving, or reviewing documents.
+                  Filter by customer, document state, payment state, and date before sending or reviewing documents.
                 </div>
               </div>
             </div>
@@ -186,7 +231,7 @@ export default function InvoicesPage() {
         <Metric
           label="Drafts"
           value={String(invoiceSummary.byStatus.draft ?? 0)}
-          helper="Draft invoices still need review."
+          helper="Working invoices still need first save."
           tone="warning"
         />
       </section>
@@ -197,26 +242,29 @@ export default function InvoicesPage() {
             <span className="ol-field-label">Search invoices</span>
             <input
               className="ol-input"
-              placeholder="Invoice number"
+              placeholder="Invoice or customer"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
-          <label className="ol-field">
-            <span className="ol-field-label">Status</span>
-            <select
-              className="ol-select"
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as InvoiceStatusFilter)}
-            >
-              <option value="all">All invoices</option>
-              <option value="draft">Draft</option>
-              <option value="issued">Issued</option>
-              <option value="paid">Paid</option>
-              <option value="overdue">Overdue</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </label>
+          <FilterGroup
+            label="Customer"
+            options={customerOptions.map(([value, label]) => ({ value, label }))}
+            selected={filters.customerIds}
+            onToggle={(value) => toggleFilter('customerIds', value)}
+          />
+          <FilterGroup
+            label="Invoice"
+            options={INVOICE_DOCUMENT_STATES.map((value) => ({ value, label: getInvoiceDocumentStateLabel(value) }))}
+            selected={filters.documentStates}
+            onToggle={(value) => toggleFilter('documentStates', value)}
+          />
+          <FilterGroup
+            label="Payment"
+            options={INVOICE_PAYMENT_STATUSES.map((value) => ({ value, label: getInvoicePaymentStatusLabel(value) }))}
+            selected={filters.paymentStatuses}
+            onToggle={(value) => toggleFilter('paymentStatuses', value)}
+          />
           <label className="ol-field">
             <span className="ol-field-label">From</span>
             <input className="ol-input" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
@@ -228,7 +276,7 @@ export default function InvoicesPage() {
           <div className="ol-table-actions">
             <button className="ol-button-secondary" type="button" onClick={() => {
               setSearch('');
-              setStatusFilter('all');
+              setFilters({ customerIds: [], documentStates: [], paymentStatuses: [] });
               setDateFrom('');
               setDateTo('');
               setSelectedInvoiceIds(new Set());
@@ -245,7 +293,7 @@ export default function InvoicesPage() {
             ? `${selectedInvoices.length} selected from this view.`
             : 'Select rows for a focused export, or export the current view.'}
         </div>
-        <div className="ol-table-head" style={{ gridTemplateColumns: '44px 1fr 0.55fr 0.65fr 0.8fr' }}>
+        <div className="ol-table-head" style={{ gridTemplateColumns: '44px 1.15fr 0.8fr 0.7fr 0.65fr 0.65fr 0.8fr' }}>
           <span>
             <input
               aria-label="Select all visible invoices"
@@ -256,36 +304,67 @@ export default function InvoicesPage() {
             />
           </span>
           <span>Invoice</span>
-          <span>Status</span>
+          <span>Customer</span>
+          <span>Invoice state</span>
+          <span>Payment</span>
           <span>Date</span>
-          <span style={{ textAlign: 'right' }}>Total</span>
+          <span style={{ textAlign: 'right' }}>Amount</span>
         </div>
         {filteredInvoices.map((invoice) => (
-          <div
-            className="ol-table-row"
-            key={invoice.id}
-            style={{ gridTemplateColumns: '44px 1fr 0.55fr 0.65fr 0.8fr' }}
-          >
-            <span>
-              <input
-                aria-label={`Select ${invoice.invoiceNumber}`}
-                checked={selectedInvoiceIds.has(invoice.id)}
-                className="ol-checkbox"
-                type="checkbox"
-                onChange={() => toggleInvoiceSelection(invoice.id)}
-              />
-            </span>
-            <Link
-              href={`/invoices/detail?invoiceId=${encodeURIComponent(invoice.id)}` as Route}
-              style={{ fontWeight: 800 }}
+          <div key={invoice.id}>
+            <div
+              className="ol-table-row"
+              style={{ gridTemplateColumns: '44px 1.15fr 0.8fr 0.7fr 0.65fr 0.65fr 0.8fr' }}
             >
-              {invoice.invoiceNumber}
-            </Link>
-            <span>{invoice.status}</span>
-            <span>{invoice.issueDate || '—'}</span>
-            <span className="ol-amount" style={{ textAlign: 'right', fontWeight: 800 }}>
-              {formatCurrency(invoice.totalAmount, activeWorkspace?.currency ?? 'INR')}
-            </span>
+              <span>
+                <input
+                  aria-label={`Select ${invoice.invoiceNumber}`}
+                  checked={selectedInvoiceIds.has(invoice.id)}
+                  className="ol-checkbox"
+                  type="checkbox"
+                  onChange={() => toggleInvoiceSelection(invoice.id)}
+                />
+              </span>
+              <span>
+                <Link
+                  href={`/invoices/detail?invoiceId=${encodeURIComponent(invoice.id)}` as Route}
+                  style={{ fontWeight: 800 }}
+                >
+                  {invoice.invoiceNumber}
+                </Link>
+                <button
+                  className="ol-link-button"
+                  type="button"
+                  onClick={() => toggleInvoiceExpanded(invoice.id)}
+                >
+                  {invoice.versions?.length ? `${invoice.versions.length} version${invoice.versions.length === 1 ? '' : 's'}` : 'No saved version'}
+                </button>
+              </span>
+              <span>{invoice.customerName ?? 'Unlinked customer'}</span>
+              <span>{getInvoiceDocumentStateLabel(invoice.documentState)}</span>
+              <span>{getInvoicePaymentStatusLabel(invoice.paymentStatus)}</span>
+              <span>{invoice.issueDate || '—'}</span>
+              <span className="ol-amount" style={{ textAlign: 'right', fontWeight: 800 }}>
+                {formatCurrency(invoice.totalAmount, activeWorkspace?.currency ?? 'INR')}
+              </span>
+            </div>
+            {expandedInvoiceIds.has(invoice.id) && invoice.versions?.length ? (
+              <div className="ol-version-rows">
+                {invoice.versions.map((version) => (
+                  <div className="ol-version-row" key={version.id}>
+                    <span>v{version.versionNumber}</span>
+                    <span>{version.invoiceNumber}</span>
+                    <span>{formatDateTime(version.createdAt)}</span>
+                    <span>{version.reason}</span>
+                    <span>{getInvoicePaymentStatusLabel(version.paymentStatus)}</span>
+                    <span className="ol-amount">{formatCurrency(version.totalAmount, activeWorkspace?.currency ?? 'INR')}</span>
+                    <Link className="ol-button-secondary" href={`/invoices/detail?invoiceId=${encodeURIComponent(invoice.id)}` as Route}>
+                      View / update
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         ))}
         {!filteredInvoices.length ? (
@@ -295,6 +374,40 @@ export default function InvoicesPage() {
         ) : null}
       </section>
     </AppShell>
+  );
+}
+
+function FilterGroup({
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  options: Array<{ value: string; label: string }>;
+  selected: string[];
+  onToggle: (value: string) => void;
+}) {
+  return (
+    <div className="ol-field">
+      <span className="ol-field-label">{label}</span>
+      <div className="ol-filter-pills">
+        {options.length ? (
+          options.map((option) => (
+            <button
+              className={`ol-filter-pill${selected.includes(option.value) ? ' ol-filter-pill--active' : ''}`}
+              key={option.value}
+              type="button"
+              onClick={() => onToggle(option.value)}
+            >
+              {option.label}
+            </button>
+          ))
+        ) : (
+          <span className="ol-filter-empty">All</span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -324,4 +437,15 @@ function formatCurrency(value: number, currency: string) {
     currency,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatDateTime(value: string) {
+  if (!value) {
+    return 'Time not saved';
+  }
+
+  return new Intl.DateTimeFormat('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
 }

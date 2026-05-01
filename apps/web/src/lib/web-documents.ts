@@ -1,5 +1,9 @@
 import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
-import { getLocalBusinessPack } from '@orbit-ledger/core';
+import {
+  getGeneratedInvoiceDocumentLabel,
+  getLocalBusinessPack,
+  normalizeInvoiceDocumentState,
+} from '@orbit-ledger/core';
 
 import type {
   WorkspaceCustomer,
@@ -298,6 +302,9 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
     countryCode
   );
   const amountWords = amountInWords(total, input.workspace.currency);
+  const documentStatusLabel = getGeneratedInvoiceDocumentLabel(
+    normalizeInvoiceDocumentState(input.invoice.documentState ?? input.invoice.status)
+  );
   const invoiceData: InvoiceDocumentData = {
     title: pack.documents.invoiceTitle,
     businessName: input.workspace.businessName,
@@ -309,7 +316,7 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
     invoiceNumber: input.invoice.invoiceNumber,
     issueDate: input.invoice.issueDate,
     dueDate: input.invoice.dueDate,
-    status: input.invoice.status,
+    status: documentStatusLabel,
     countryCode,
     revisionNumber,
     taxLabel: template.taxLabel,
@@ -329,7 +336,7 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
         workspace: input.workspace,
         title: pack.documents.invoiceTitle,
         strong: input.invoice.invoiceNumber,
-        meta: `${template.label} · ${input.invoice.status}`,
+        meta: `${template.label} · ${documentStatusLabel}`,
         includeBranding,
         template,
       })}

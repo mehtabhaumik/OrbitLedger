@@ -1,5 +1,9 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import {
+  getInvoiceDocumentStateLabel,
+  getInvoicePaymentStatusLabel,
+} from '@orbit-ledger/core';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -163,13 +167,13 @@ export function InvoicesScreen({ navigation }: InvoicesScreenProps) {
                     accent={invoice.status === 'paid' ? 'success' : invoice.status === 'overdue' ? 'warning' : 'tax'}
                     onPress={() => navigation.navigate('InvoicePreview', { invoiceId: invoice.id })}
                     title={invoice.invoiceNumber}
-                    subtitle={`${formatShortDate(invoice.issueDate)} · Open preview and PDF export`}
+                    subtitle={`${formatShortDate(invoice.issueDate)} · ${getInvoiceDocumentStateLabel(invoice.documentState)} · ${getInvoicePaymentStatusLabel(invoice.paymentStatus)}`}
                     meta="Tap to review, share, or edit from preview"
                     right={
                       <>
                         <StatusChip
-                          label={formatInvoiceStatus(invoice.status)}
-                          tone={invoice.status === 'paid' ? 'success' : invoice.status === 'overdue' ? 'warning' : 'tax'}
+                          label={getInvoicePaymentStatusLabel(invoice.paymentStatus)}
+                          tone={invoice.paymentStatus === 'paid' ? 'success' : invoice.paymentStatus === 'overdue' ? 'warning' : 'tax'}
                         />
                         <MoneyText size="sm" align="right">
                           {formatCurrency(invoice.totalAmount, currency)}
@@ -198,10 +202,6 @@ export function InvoicesScreen({ navigation }: InvoicesScreenProps) {
       />
     </SafeAreaView>
   );
-}
-
-function formatInvoiceStatus(status: Invoice['status']): string {
-  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 const styles = StyleSheet.create({

@@ -3,6 +3,12 @@
 import Link from 'next/link';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import {
+  getInvoiceDocumentStateLabel,
+  getInvoicePaymentStatusLabel,
+  type InvoiceDocumentState,
+  type InvoicePaymentStatus,
+} from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
 import {
@@ -51,7 +57,8 @@ function InvoiceEditorContent() {
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [issueDate, setIssueDate] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [status, setStatus] = useState('draft');
+  const [paymentStatus, setPaymentStatus] = useState<InvoicePaymentStatus>('unpaid');
+  const [revisionReason, setRevisionReason] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<EditableItem[]>([emptyItem()]);
   const [isSaving, setIsSaving] = useState(false);
@@ -86,7 +93,8 @@ function InvoiceEditorContent() {
         setInvoiceNumber(nextInvoice.invoiceNumber);
         setIssueDate(nextInvoice.issueDate);
         setDueDate(nextInvoice.dueDate ?? '');
-        setStatus(nextInvoice.status);
+        setPaymentStatus(nextInvoice.paymentStatus);
+        setRevisionReason('');
         setNotes(nextInvoice.notes ?? '');
         const nextDefaultTaxRate = getDefaultInvoiceTaxRate(activeWorkspace.countryCode);
         setItems(
@@ -134,7 +142,9 @@ function InvoiceEditorContent() {
       invoiceNumber,
       issueDate,
       dueDate: dueDate || null,
-      status,
+      status: invoice.documentState,
+      documentState: invoice.documentState,
+      paymentStatus,
       notes,
       totalAmount: total,
       items: items
@@ -163,9 +173,13 @@ function InvoiceEditorContent() {
       customer: selectedCustomer,
       templateKey: selectedTemplate?.key,
     });
-  }, [activeWorkspace, customerId, dueDate, invoice, invoiceNumber, issueDate, items, notes, selectedCustomer, selectedTemplate?.key, status, total]);
+  }, [activeWorkspace, customerId, dueDate, invoice, invoiceNumber, issueDate, items, notes, paymentStatus, selectedCustomer, selectedTemplate?.key, total]);
 
-  async function saveInvoice() {
+  async function saveInvoice(
+    nextPaymentStatus = paymentStatus,
+    reason = revisionReason,
+    documentState?: InvoiceDocumentState
+  ) {
     if (!activeWorkspace || !invoice) {
       return;
     }
@@ -193,7 +207,9 @@ function InvoiceEditorContent() {
         invoiceNumber,
         issueDate,
         dueDate: dueDate || null,
-        status,
+        documentState,
+        paymentStatus: nextPaymentStatus,
+        revisionReason: reason,
         notes,
         items: items.map((item) => ({
           id: item.id,
@@ -205,6 +221,8 @@ function InvoiceEditorContent() {
         })),
       });
       setInvoice(updated);
+      setPaymentStatus(updated.paymentStatus);
+      setRevisionReason('');
       showToast('Invoice saved.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Invoice could not be saved.', 'danger');
@@ -284,6 +302,22 @@ function InvoiceEditorContent() {
     showToast('Payment message copied.', 'success');
   }
 
+  async function markPaymentStatus(nextPaymentStatus: InvoicePaymentStatus) {
+    setPaymentStatus(nextPaymentStatus);
+    await saveInvoice(
+      nextPaymentStatus,
+      nextPaymentStatus === 'paid' ? 'Payment marked received' : 'Payment status updated'
+    );
+  }
+
+  async function cancelInvoice() {
+    if (!window.confirm('Cancel this invoice? This keeps the history but marks the document as cancelled.')) {
+      return;
+    }
+
+    await saveInvoice(paymentStatus, 'Invoice cancelled', 'cancelled');
+  }
+
   return (
     <AppShell title="Invoice Editor" subtitle="Edit invoice details, line items, tax, and download a clean copy.">
       <div className="ol-actions ol-actions--sticky">
@@ -291,7 +325,7 @@ function InvoiceEditorContent() {
           Back to invoices
         </Link>
         <button className="ol-button-secondary" type="button" onClick={viewPdf} disabled={!currentInvoiceDocument}>
-          View / save PDF
+          View / print PDF
         </button>
         <button className="ol-button-secondary" type="button" onClick={() => void downloadInvoiceDocument()} disabled={!currentInvoiceDocument}>
           Download PDF
@@ -301,6 +335,15 @@ function InvoiceEditorContent() {
         </button>
         <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentMessage()} disabled={!currentInvoiceDocument || total <= 0}>
           Copy payment message
+        </button>
+        <button className="ol-button-secondary" type="button" onClick={() => void markPaymentStatus('paid')} disabled={isSaving || !invoice || total <= 0}>
+          Mark paid
+        </button>
+        <button className="ol-button-secondary" type="button" onClick={() => void markPaymentStatus('unpaid')} disabled={isSaving || !invoice}>
+          Mark unpaid
+        </button>
+        <button className="ol-button-secondary" type="button" onClick={() => void cancelInvoice()} disabled={isSaving || !invoice || invoice.documentState === 'cancelled'}>
+          Cancel invoice
         </button>
         <button className="ol-button" type="button" onClick={() => void saveInvoice()} disabled={isSaving || !invoice}>
           {isSaving ? 'Saving...' : 'Save invoice'}
@@ -339,15 +382,20 @@ function InvoiceEditorContent() {
                 <input className="ol-input" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
               </label>
             </div>
+            <div className="ol-review-grid" style={{ marginTop: 16 }}>
+              <Review label="Document state" value={getInvoiceDocumentStateLabel(invoice.documentState)} />
+              <Review label="Payment state" value={getInvoicePaymentStatusLabel(paymentStatus)} />
+              <Review label="Latest version" value={invoice.versionNumber ? `v${invoice.versionNumber}` : 'Not saved yet'} />
+              <Review label="Saved history" value={`${invoice.versions?.length ?? 0} version${(invoice.versions?.length ?? 0) === 1 ? '' : 's'}`} />
+            </div>
             <label className="ol-field" style={{ marginTop: 16 }}>
-              <span className="ol-field-label">Status</span>
-              <select className="ol-select" value={status} onChange={(event) => setStatus(event.target.value)}>
-                <option value="draft">Draft</option>
-                <option value="issued">Issued</option>
-                <option value="paid">Paid</option>
-                <option value="overdue">Overdue</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+              <span className="ol-field-label">Revision note</span>
+              <input
+                className="ol-input"
+                placeholder={invoice.documentState === 'draft' ? 'First saved invoice' : 'What changed?'}
+                value={revisionReason}
+                onChange={(event) => setRevisionReason(event.target.value)}
+              />
             </label>
             <label className="ol-field" style={{ marginTop: 16 }}>
               <span className="ol-field-label">PDF template</span>
@@ -453,6 +501,38 @@ function InvoiceEditorContent() {
               <Review label="Customer" value={selectedCustomer?.name ?? 'Unlinked customer'} />
             </div>
           </section>
+
+          <section className="ol-panel">
+            <div className="ol-panel-header">
+              <div>
+                <div className="ol-panel-title">Invoice history</div>
+                <p className="ol-panel-copy">
+                  Saved versions stay available for review, export, and correction.
+                </p>
+              </div>
+            </div>
+            <div className="ol-list">
+              {(invoice.versions ?? []).map((version) => (
+                <div className="ol-list-item" key={version.id}>
+                  <div className="ol-list-icon">v{version.versionNumber}</div>
+                  <div className="ol-list-copy">
+                    <div className="ol-list-title">
+                      {version.invoiceNumber} · {formatCurrency(version.totalAmount, currency)}
+                    </div>
+                    <div className="ol-list-text">
+                      {formatDateTime(version.createdAt)} · {version.reason} · {getInvoiceDocumentStateLabel(version.documentState)} · {getInvoicePaymentStatusLabel(version.paymentStatus)}
+                    </div>
+                  </div>
+                  <Link className="ol-button-secondary" href={`/invoices/detail?invoiceId=${encodeURIComponent(version.invoiceId)}`}>
+                    Update
+                  </Link>
+                </div>
+              ))}
+              {!(invoice.versions ?? []).length ? (
+                <div className="ol-empty">Save this invoice to create version v1.</div>
+              ) : null}
+            </div>
+          </section>
         </>
       ) : null}
     </AppShell>
@@ -553,4 +633,15 @@ function formatCurrency(value: number, currency: string) {
     currency,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatDateTime(value: string) {
+  if (!value) {
+    return 'Time not saved';
+  }
+
+  return new Intl.DateTimeFormat('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
 }

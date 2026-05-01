@@ -68,6 +68,11 @@ export type RemoteWorkspaceDataset = {
       tax_amount: number;
       total_amount: number;
       status: string;
+      document_state?: string;
+      payment_status?: string;
+      version_number?: number;
+      latest_version_id?: string | null;
+      latest_snapshot_hash?: string | null;
       notes: string | null;
       created_at: string;
     }>

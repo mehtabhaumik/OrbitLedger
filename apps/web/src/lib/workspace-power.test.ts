@@ -61,16 +61,16 @@ describe('workspace power helpers', () => {
     expect(sumTransactionAmounts(transactions)).toEqual({ payments: 440, credits: 220 });
   });
 
-  it('filters invoices by status and date range', () => {
+  it('filters invoices by payment status and date range', () => {
     const invoices: WorkspaceInvoice[] = [
-      makeInvoice({ id: 'a', invoiceNumber: 'INV-1', status: 'paid', issueDate: '2026-04-02', totalAmount: 300 }),
+      makeInvoice({ id: 'a', invoiceNumber: 'INV-1', status: 'paid', paymentStatus: 'paid', issueDate: '2026-04-02', totalAmount: 300 }),
       makeInvoice({ id: 'b', invoiceNumber: 'INV-2', status: 'draft', issueDate: '2026-04-12', totalAmount: 100 }),
-      makeInvoice({ id: 'c', invoiceNumber: 'INV-3', status: 'paid', issueDate: '2026-05-02', totalAmount: 500 }),
+      makeInvoice({ id: 'c', invoiceNumber: 'INV-3', status: 'paid', paymentStatus: 'paid', issueDate: '2026-05-02', totalAmount: 500 }),
     ];
 
     const visible = filterWorkspaceInvoices(invoices, {
       query: 'inv',
-      statusFilter: 'paid',
+      filters: { customerIds: [], documentStates: [], paymentStatuses: ['paid'] },
       range,
     });
 
@@ -161,10 +161,15 @@ function makeInvoice(overrides: Partial<WorkspaceInvoice>): WorkspaceInvoice {
   return {
     id: 'invoice',
     customerId: null,
+    customerName: null,
     invoiceNumber: 'INV',
     issueDate: '2026-04-01',
     totalAmount: 0,
     status: 'draft',
+    documentState: 'draft',
+    paymentStatus: 'unpaid',
+    versionNumber: 0,
+    versions: [],
     ...overrides,
   };
 }

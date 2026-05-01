@@ -158,7 +158,7 @@ export default function DocumentsPage() {
 
         <div className="ol-actions ol-actions--sticky" style={{ marginTop: 16 }}>
           <button className="ol-button" type="button" disabled={!statement || isLoading} onClick={viewPdf}>
-            View / save PDF
+            View / print PDF
           </button>
           <button className="ol-button-secondary" type="button" disabled={!statement || isLoading} onClick={() => void downloadStatement()}>
             Download PDF

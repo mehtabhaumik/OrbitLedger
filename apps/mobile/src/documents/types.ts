@@ -2,7 +2,6 @@ import type {
   BusinessSettings,
   Customer,
   DocumentTemplate,
-  InvoiceStatus,
   InvoiceWithItems,
   LedgerTransaction,
   TransactionType,
@@ -136,7 +135,7 @@ export type InvoiceMetadataBlock = {
   issueDate: string;
   dueDate: string | null;
   currency: string;
-  status: InvoiceStatus;
+  status: string;
 };
 
 export type InvoiceItemTableRow = {

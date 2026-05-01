@@ -26,6 +26,8 @@ export type PaymentReminderTone = 'polite' | 'firm' | 'final';
 export type PaymentPromiseStatus = 'open' | 'fulfilled' | 'missed' | 'cancelled';
 
 export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'overdue' | 'cancelled';
+export type InvoiceDocumentState = 'draft' | 'created' | 'revised' | 'cancelled';
+export type InvoicePaymentStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overdue';
 
 export type CustomerTimelineNoteKind = 'note' | 'dispute';
 
@@ -307,6 +309,11 @@ export type Invoice = SyncMetadata & {
   taxAmount: number;
   totalAmount: number;
   status: InvoiceStatus;
+  documentState: InvoiceDocumentState;
+  paymentStatus: InvoicePaymentStatus;
+  versionNumber: number;
+  latestVersionId: string | null;
+  latestSnapshotHash: string | null;
   notes: string | null;
   createdAt: string;
 };
@@ -342,6 +349,9 @@ export type AddInvoiceInput = {
   issueDate?: string;
   dueDate?: string | null;
   status?: InvoiceStatus;
+  documentState?: InvoiceDocumentState;
+  paymentStatus?: InvoicePaymentStatus;
+  revisionReason?: string | null;
   notes?: string | null;
   items: AddInvoiceItemInput[];
 };
@@ -352,6 +362,9 @@ export type UpdateInvoiceInput = {
   issueDate?: string;
   dueDate?: string | null;
   status?: InvoiceStatus;
+  documentState?: InvoiceDocumentState;
+  paymentStatus?: InvoicePaymentStatus;
+  revisionReason?: string | null;
   notes?: string | null;
   items: AddInvoiceItemInput[];
 };
@@ -359,7 +372,29 @@ export type UpdateInvoiceInput = {
 export type InvoiceListOptions = {
   customerId?: string | null;
   status?: InvoiceStatus;
+  documentState?: InvoiceDocumentState;
+  paymentStatus?: InvoicePaymentStatus;
   limit?: number;
+};
+
+export type InvoiceVersion = SyncMetadata & {
+  id: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  versionNumber: number;
+  reason: string;
+  createdAt: string;
+  customerId: string | null;
+  issueDate: string;
+  dueDate: string | null;
+  documentState: Exclude<InvoiceDocumentState, 'draft'>;
+  paymentStatus: InvoicePaymentStatus;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  notes: string | null;
+  snapshotHash: string;
+  itemsJson: string;
 };
 
 export type TaxProfile = SyncMetadata & {
@@ -780,8 +815,37 @@ export type InvoiceRow = {
   tax_amount: number;
   total_amount: number;
   status: InvoiceStatus;
+  document_state: InvoiceDocumentState;
+  payment_status: InvoicePaymentStatus;
+  version_number: number;
+  latest_version_id: string | null;
+  latest_snapshot_hash: string | null;
   notes: string | null;
   created_at: string;
+  sync_id: string;
+  last_modified: string;
+  sync_status: SyncStatus;
+  server_revision?: number;
+};
+
+export type InvoiceVersionRow = {
+  id: string;
+  invoice_id: string;
+  invoice_number: string;
+  version_number: number;
+  reason: string;
+  created_at: string;
+  customer_id: string | null;
+  issue_date: string;
+  due_date: string | null;
+  document_state: Exclude<InvoiceDocumentState, 'draft'>;
+  payment_status: InvoicePaymentStatus;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  notes: string | null;
+  snapshot_hash: string;
+  items_json: string;
   sync_id: string;
   last_modified: string;
   sync_status: SyncStatus;

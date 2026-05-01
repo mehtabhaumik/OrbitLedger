@@ -19,6 +19,8 @@ import type {
   InvoiceItem,
   InvoiceItemRow,
   InvoiceRow,
+  InvoiceVersion,
+  InvoiceVersionRow,
   LedgerTransaction,
   LedgerTransactionRow,
   PaymentReminder,
@@ -261,6 +263,11 @@ export function mapInvoice(row: InvoiceRow): Invoice {
     taxAmount: row.tax_amount,
     totalAmount: row.total_amount,
     status: row.status,
+    documentState: row.document_state,
+    paymentStatus: row.payment_status,
+    versionNumber: row.version_number,
+    latestVersionId: row.latest_version_id,
+    latestSnapshotHash: row.latest_snapshot_hash,
     notes: row.notes,
     createdAt: row.created_at,
   };
@@ -278,6 +285,29 @@ export function mapInvoiceItem(row: InvoiceItemRow): InvoiceItem {
     price: row.price,
     taxRate: row.tax_rate,
     total: row.total,
+  };
+}
+
+export function mapInvoiceVersion(row: InvoiceVersionRow): InvoiceVersion {
+  return {
+    ...mapSyncMetadata(row),
+    id: row.id,
+    invoiceId: row.invoice_id,
+    invoiceNumber: row.invoice_number,
+    versionNumber: row.version_number,
+    reason: row.reason,
+    createdAt: row.created_at,
+    customerId: row.customer_id,
+    issueDate: row.issue_date,
+    dueDate: row.due_date,
+    documentState: row.document_state,
+    paymentStatus: row.payment_status,
+    subtotal: row.subtotal,
+    taxAmount: row.tax_amount,
+    totalAmount: row.total_amount,
+    notes: row.notes,
+    snapshotHash: row.snapshot_hash,
+    itemsJson: row.items_json,
   };
 }
 

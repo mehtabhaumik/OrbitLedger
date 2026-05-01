@@ -1,6 +1,14 @@
 'use client';
 
 import {
+  deriveInvoicePaymentStatus,
+  legacyStatusForInvoiceLifecycle,
+  normalizeInvoiceDocumentState,
+  normalizeInvoicePaymentStatus,
+  type InvoiceDocumentState,
+  type InvoicePaymentStatus,
+} from '@orbit-ledger/core';
+import {
   addDoc,
   collection,
   doc,
@@ -13,7 +21,6 @@ import {
   orderBy,
   query,
   type QueryDocumentSnapshot,
-  updateDoc,
   where,
   writeBatch,
 } from 'firebase/firestore';
@@ -47,11 +54,16 @@ export type WorkspaceTransaction = {
 export type WorkspaceInvoice = {
   id: string;
   customerId: string | null;
+  customerName: string | null;
   invoiceNumber: string;
   issueDate: string;
   totalAmount: number;
   status: string;
+  documentState: InvoiceDocumentState;
+  paymentStatus: InvoicePaymentStatus;
+  versionNumber: number;
   serverRevision?: number;
+  versions?: WorkspaceInvoiceVersion[];
 };
 
 export type WorkspaceInvoiceItem = {
@@ -68,7 +80,32 @@ export type WorkspaceInvoiceItem = {
 
 export type WorkspaceInvoiceDetail = WorkspaceInvoice & {
   dueDate: string | null;
+  subtotal: number;
+  taxAmount: number;
   notes: string | null;
+  items: WorkspaceInvoiceItem[];
+  latestVersionId: string | null;
+  latestSnapshotHash: string | null;
+};
+
+export type WorkspaceInvoiceVersion = {
+  id: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  versionNumber: number;
+  createdAt: string;
+  reason: string;
+  customerId: string | null;
+  customerName: string | null;
+  issueDate: string;
+  dueDate: string | null;
+  documentState: InvoiceDocumentState;
+  paymentStatus: InvoicePaymentStatus;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  notes: string | null;
+  snapshotHash: string;
   items: WorkspaceInvoiceItem[];
 };
 
@@ -77,7 +114,9 @@ export type SaveWorkspaceInvoiceInput = {
   invoiceNumber: string;
   issueDate: string;
   dueDate: string | null;
-  status: string;
+  documentState?: InvoiceDocumentState;
+  paymentStatus?: InvoicePaymentStatus;
+  revisionReason?: string | null;
   notes: string | null;
   items: Array<{
     id?: string;
@@ -358,34 +397,25 @@ export async function createWorkspaceTransaction(
 }
 
 export async function listWorkspaceInvoices(workspaceId: string): Promise<WorkspaceInvoice[]> {
+  const firestore = getWebFirestore();
   const snapshot = await getDocs(
     query(
-      collection(getWebFirestore(), 'workspaces', workspaceId, 'invoices'),
+      collection(firestore, 'workspaces', workspaceId, 'invoices'),
       orderBy('issue_date', 'desc'),
       limitQuery(INVOICE_LIST_LIMIT)
     )
   );
-  return snapshot.docs
-    .map((entry) => {
-      const data = entry.data() as {
-        customer_id?: string | null;
-        invoice_number?: string;
-        issue_date?: string;
-        total_amount?: number;
-        status?: string;
-        server_revision?: number;
-      };
+  const invoices = snapshot.docs.map(mapWorkspaceInvoice);
+  const [customerNames, versionsByInvoice] = await Promise.all([
+    loadCustomerNamesForInvoices(firestore, workspaceId, invoices),
+    loadInvoiceVersionsForInvoices(firestore, workspaceId, invoices.map((invoice) => invoice.id)),
+  ]);
 
-      return {
-        id: entry.id,
-        customerId: data.customer_id ?? null,
-        invoiceNumber: data.invoice_number ?? entry.id.slice(0, 8).toUpperCase(),
-        issueDate: data.issue_date ?? '',
-        totalAmount: data.total_amount ?? 0,
-        status: data.status ?? 'draft',
-        serverRevision: data.server_revision ?? 1,
-      } satisfies WorkspaceInvoice;
-    });
+  return invoices.map((invoice) => ({
+    ...invoice,
+    customerName: invoice.customerId ? customerNames.get(invoice.customerId) ?? 'Customer' : null,
+    versions: versionsByInvoice.get(invoice.id) ?? [],
+  }));
 }
 
 export async function getWorkspaceInvoiceDetail(
@@ -393,11 +423,17 @@ export async function getWorkspaceInvoiceDetail(
   invoiceId: string
 ): Promise<WorkspaceInvoiceDetail | null> {
   const firestore = getWebFirestore();
-  const [invoiceSnapshot, itemSnapshot] = await Promise.all([
+  const [invoiceSnapshot, itemSnapshot, versionSnapshot] = await Promise.all([
     getDoc(doc(firestore, 'workspaces', workspaceId, 'invoices', invoiceId)),
     getDocs(
       query(
         collection(firestore, 'workspaces', workspaceId, 'invoice_items'),
+        where('invoice_id', '==', invoiceId)
+      )
+    ),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'invoice_versions'),
         where('invoice_id', '==', invoiceId)
       )
     ),
@@ -412,23 +448,46 @@ export async function getWorkspaceInvoiceDetail(
     invoice_number?: string;
     issue_date?: string;
     due_date?: string | null;
+    subtotal?: number;
+    tax_amount?: number;
     total_amount?: number;
     status?: string;
+    document_state?: string;
+    payment_status?: string;
+    version_number?: number;
+    latest_version_id?: string | null;
+    latest_snapshot_hash?: string | null;
     notes?: string | null;
     server_revision?: number;
   };
+  const documentState = normalizeInvoiceDocumentState(data.document_state ?? data.status);
+  const paymentStatus = normalizeInvoicePaymentStatus({
+    legacyStatus: data.status,
+    paymentStatus: data.payment_status,
+    dueDate: data.due_date,
+    totalAmount: data.total_amount,
+  });
 
   return {
     id: invoiceSnapshot.id,
     customerId: data.customer_id ?? null,
+    customerName: null,
     invoiceNumber: data.invoice_number ?? invoiceSnapshot.id.slice(0, 8).toUpperCase(),
     issueDate: data.issue_date ?? '',
     dueDate: data.due_date ?? null,
+    subtotal: data.subtotal ?? 0,
+    taxAmount: data.tax_amount ?? 0,
     totalAmount: data.total_amount ?? 0,
     status: data.status ?? 'draft',
+    documentState,
+    paymentStatus,
+    versionNumber: data.version_number ?? (documentState === 'draft' ? 0 : 1),
+    latestVersionId: data.latest_version_id ?? null,
+    latestSnapshotHash: data.latest_snapshot_hash ?? null,
     serverRevision: data.server_revision ?? 1,
     notes: data.notes ?? null,
     items: itemSnapshot.docs.map(mapInvoiceItem).sort((left, right) => left.name.localeCompare(right.name)),
+    versions: versionSnapshot.docs.map(mapWorkspaceInvoiceVersion).sort((left, right) => right.versionNumber - left.versionNumber),
   };
 }
 
@@ -439,12 +498,27 @@ export async function saveWorkspaceInvoiceDetail(
 ): Promise<WorkspaceInvoiceDetail> {
   const firestore = getWebFirestore();
   const invoiceRef = doc(firestore, 'workspaces', workspaceId, 'invoices', invoiceId);
-  const existingItems = await getDocs(
-    query(
-      collection(firestore, 'workspaces', workspaceId, 'invoice_items'),
-      where('invoice_id', '==', invoiceId)
-    )
-  );
+  const [invoiceSnapshot, existingItems, customerSnapshot] = await Promise.all([
+    getDoc(invoiceRef),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'invoice_items'),
+        where('invoice_id', '==', invoiceId)
+      )
+    ),
+    input.customerId ? getDoc(doc(firestore, 'workspaces', workspaceId, 'customers', input.customerId)) : null,
+  ]);
+  if (!invoiceSnapshot.exists()) {
+    throw new Error('Invoice could not be found.');
+  }
+  const current = invoiceSnapshot.data() as {
+    status?: string;
+    document_state?: string;
+    payment_status?: string;
+    version_number?: number;
+    latest_snapshot_hash?: string | null;
+    latest_version_id?: string | null;
+  };
   const now = new Date().toISOString();
   const cleanItems = input.items
     .map((item) => {
@@ -467,8 +541,69 @@ export async function saveWorkspaceInvoiceDetail(
   const subtotal = cleanItems.reduce((total, item) => total + item.quantity * item.price, 0);
   const taxAmount = cleanItems.reduce((total, item) => total + item.quantity * item.price * (item.taxRate / 100), 0);
   const totalAmount = subtotal + taxAmount;
+  const currentDocumentState = normalizeInvoiceDocumentState(current.document_state ?? current.status);
+  const requestedPaymentStatus = input.paymentStatus;
+  const paymentStatus = requestedPaymentStatus
+    ? normalizeInvoicePaymentStatus({ paymentStatus: requestedPaymentStatus })
+    : deriveInvoicePaymentStatus({
+        legacyStatus: current.status,
+        paymentStatus: current.payment_status,
+        dueDate: input.dueDate,
+        totalAmount,
+      });
+  const nextVersionNumber = Math.max(Number(current.version_number ?? 0), 0) + 1;
+  const requestedDocumentState = input.documentState;
+  const nextDocumentState: InvoiceDocumentState =
+    requestedDocumentState === 'cancelled'
+      ? 'cancelled'
+      : currentDocumentState === 'draft'
+      ? 'created'
+      : currentDocumentState === 'cancelled'
+        ? 'cancelled'
+        : nextVersionNumber > 1
+          ? 'revised'
+          : 'created';
+  const snapshot = buildInvoiceSnapshot({
+    invoiceId,
+    invoiceNumber: input.invoiceNumber.trim(),
+    customerId: input.customerId,
+    customerName: customerSnapshot?.exists() ? String(customerSnapshot.data().name ?? 'Customer') : null,
+    issueDate: input.issueDate,
+    dueDate: input.dueDate || null,
+    documentState: nextDocumentState,
+    paymentStatus,
+    subtotal,
+    taxAmount,
+    totalAmount,
+    notes: input.notes?.trim() || null,
+    items: cleanItems.map((item) => ({
+      id: item.id ?? '',
+      invoiceId,
+      productId: null,
+      name: item.name,
+      description: item.description,
+      quantity: item.quantity,
+      price: item.price,
+      taxRate: item.taxRate,
+      total: item.total,
+    })),
+  });
+  const snapshotHash = stableStringifyForInvoice(snapshot);
+  const hasMeaningfulChange = snapshotHash !== current.latest_snapshot_hash;
   const batch = writeBatch(firestore);
   const retainedIds = new Set(cleanItems.map((item) => item.id).filter(Boolean));
+  const versionRef = hasMeaningfulChange
+    ? doc(collection(firestore, 'workspaces', workspaceId, 'invoice_versions'))
+    : null;
+  const finalDocumentState = hasMeaningfulChange
+    ? nextDocumentState
+    : currentDocumentState === 'draft'
+      ? 'created'
+      : currentDocumentState;
+  const finalVersionNumber = hasMeaningfulChange ? nextVersionNumber : Math.max(Number(current.version_number ?? 0), 1);
+  const finalSnapshotHash = hasMeaningfulChange ? snapshotHash : current.latest_snapshot_hash ?? snapshotHash;
+  const finalLatestVersionId = versionRef?.id ?? current.latest_version_id ?? null;
+  const legacyStatus = legacyStatusForInvoiceLifecycle(finalDocumentState, paymentStatus);
 
   batch.update(invoiceRef, {
     customer_id: input.customerId,
@@ -478,11 +613,42 @@ export async function saveWorkspaceInvoiceDetail(
     subtotal,
     tax_amount: taxAmount,
     total_amount: totalAmount,
-    status: input.status,
+    status: legacyStatus,
+    document_state: finalDocumentState,
+    payment_status: paymentStatus,
+    version_number: finalVersionNumber,
+    latest_version_id: finalLatestVersionId,
+    latest_snapshot_hash: finalSnapshotHash,
     notes: input.notes?.trim() || null,
     server_revision: increment(1),
     last_modified: now,
   });
+
+  if (versionRef) {
+    batch.set(versionRef, {
+      invoice_id: invoiceId,
+      invoice_number: input.invoiceNumber.trim(),
+      version_number: nextVersionNumber,
+      reason: cleanVersionReason(input.revisionReason, nextVersionNumber),
+      created_at: now,
+      customer_id: input.customerId,
+      customer_name: snapshot.customerName,
+      issue_date: input.issueDate,
+      due_date: input.dueDate || null,
+      document_state: nextDocumentState,
+      payment_status: paymentStatus,
+      subtotal,
+      tax_amount: taxAmount,
+      total_amount: totalAmount,
+      notes: input.notes?.trim() || null,
+      snapshot_hash: snapshotHash,
+      items: snapshot.items,
+      pdf_file_name: null,
+      csv_file_name: null,
+      sync_status: 'synced',
+      server_revision: 1,
+    });
+  }
 
   for (const entry of existingItems.docs) {
     if (!retainedIds.has(entry.id)) {
@@ -575,6 +741,11 @@ export async function createDraftWorkspaceInvoice(workspaceId: string): Promise<
     tax_amount: 0,
     total_amount: 0,
     status: 'draft',
+    document_state: 'draft',
+    payment_status: 'unpaid',
+    version_number: 0,
+    latest_version_id: null,
+    latest_snapshot_hash: null,
     notes: null,
     created_at: now,
     last_modified: now,
@@ -586,11 +757,157 @@ export async function createDraftWorkspaceInvoice(workspaceId: string): Promise<
   return {
     id: ref.id,
     customerId: null,
+    customerName: null,
     invoiceNumber: payload.invoice_number,
     issueDate: payload.issue_date,
     totalAmount: 0,
     status: 'draft',
+    documentState: 'draft',
+    paymentStatus: 'unpaid',
+    versionNumber: 0,
+    versions: [],
     serverRevision: payload.server_revision,
+  };
+}
+
+function mapWorkspaceInvoice(entry: QueryDocumentSnapshot): WorkspaceInvoice {
+  const data = entry.data() as {
+    customer_id?: string | null;
+    customer_name?: string | null;
+    invoice_number?: string;
+    issue_date?: string;
+    total_amount?: number;
+    status?: string;
+    document_state?: string;
+    payment_status?: string;
+    due_date?: string | null;
+    version_number?: number;
+    server_revision?: number;
+  };
+  const documentState = normalizeInvoiceDocumentState(data.document_state ?? data.status);
+  const paymentStatus = normalizeInvoicePaymentStatus({
+    legacyStatus: data.status,
+    paymentStatus: data.payment_status,
+    dueDate: data.due_date,
+    totalAmount: data.total_amount,
+  });
+
+  return {
+    id: entry.id,
+    customerId: data.customer_id ?? null,
+    customerName: data.customer_name ?? null,
+    invoiceNumber: data.invoice_number ?? entry.id.slice(0, 8).toUpperCase(),
+    issueDate: data.issue_date ?? '',
+    totalAmount: data.total_amount ?? 0,
+    status: data.status ?? legacyStatusForInvoiceLifecycle(documentState, paymentStatus),
+    documentState,
+    paymentStatus,
+    versionNumber: data.version_number ?? (documentState === 'draft' ? 0 : 1),
+    serverRevision: data.server_revision ?? 1,
+  };
+}
+
+async function loadCustomerNamesForInvoices(
+  firestore: Firestore,
+  workspaceId: string,
+  invoices: WorkspaceInvoice[]
+): Promise<Map<string, string>> {
+  const customerIds = Array.from(new Set(invoices.map((invoice) => invoice.customerId).filter(Boolean))) as string[];
+  if (!customerIds.length) {
+    return new Map();
+  }
+
+  const snapshots = await Promise.all(
+    chunk(customerIds, FIRESTORE_IN_QUERY_LIMIT).map((ids) =>
+      getDocs(query(collection(firestore, 'workspaces', workspaceId, 'customers'), where(documentId(), 'in', ids)))
+    )
+  );
+
+  const names = new Map<string, string>();
+  for (const entry of snapshots.flatMap((snapshot) => snapshot.docs)) {
+    names.set(entry.id, String((entry.data() as { name?: string }).name ?? 'Customer'));
+  }
+  return names;
+}
+
+async function loadInvoiceVersionsForInvoices(
+  firestore: Firestore,
+  workspaceId: string,
+  invoiceIds: string[]
+): Promise<Map<string, WorkspaceInvoiceVersion[]>> {
+  if (!invoiceIds.length) {
+    return new Map();
+  }
+
+  const snapshots = await Promise.all(
+    chunk(invoiceIds, FIRESTORE_IN_QUERY_LIMIT).map((ids) =>
+      getDocs(
+        query(
+          collection(firestore, 'workspaces', workspaceId, 'invoice_versions'),
+          where('invoice_id', 'in', ids)
+        )
+      )
+    )
+  );
+  const versionsByInvoice = new Map<string, WorkspaceInvoiceVersion[]>();
+  for (const entry of snapshots.flatMap((snapshot) => snapshot.docs)) {
+    const version = mapWorkspaceInvoiceVersion(entry);
+    const current = versionsByInvoice.get(version.invoiceId) ?? [];
+    current.push(version);
+    versionsByInvoice.set(version.invoiceId, current);
+  }
+  for (const versions of versionsByInvoice.values()) {
+    versions.sort((left, right) => right.versionNumber - left.versionNumber);
+  }
+  return versionsByInvoice;
+}
+
+function mapWorkspaceInvoiceVersion(entry: QueryDocumentSnapshot): WorkspaceInvoiceVersion {
+  const data = entry.data() as {
+    invoice_id?: string;
+    invoice_number?: string;
+    version_number?: number;
+    created_at?: string;
+    reason?: string;
+    customer_id?: string | null;
+    customer_name?: string | null;
+    issue_date?: string;
+    due_date?: string | null;
+    document_state?: string;
+    payment_status?: string;
+    subtotal?: number;
+    tax_amount?: number;
+    total_amount?: number;
+    notes?: string | null;
+    snapshot_hash?: string;
+    items?: WorkspaceInvoiceItem[];
+  };
+  const documentState = normalizeInvoiceDocumentState(data.document_state);
+  const paymentStatus = normalizeInvoicePaymentStatus({
+    paymentStatus: data.payment_status,
+    dueDate: data.due_date,
+    totalAmount: data.total_amount,
+  });
+
+  return {
+    id: entry.id,
+    invoiceId: data.invoice_id ?? '',
+    invoiceNumber: data.invoice_number ?? entry.id.slice(0, 8).toUpperCase(),
+    versionNumber: data.version_number ?? 1,
+    createdAt: data.created_at ?? '',
+    reason: data.reason ?? 'Invoice updated',
+    customerId: data.customer_id ?? null,
+    customerName: data.customer_name ?? null,
+    issueDate: data.issue_date ?? '',
+    dueDate: data.due_date ?? null,
+    documentState,
+    paymentStatus,
+    subtotal: data.subtotal ?? 0,
+    taxAmount: data.tax_amount ?? 0,
+    totalAmount: data.total_amount ?? 0,
+    notes: data.notes ?? null,
+    snapshotHash: data.snapshot_hash ?? '',
+    items: Array.isArray(data.items) ? data.items : [],
   };
 }
 
@@ -654,6 +971,79 @@ function mapInvoiceItem(entry: QueryDocumentSnapshot): WorkspaceInvoiceItem {
     taxRate: data.tax_rate ?? 0,
     total: data.total ?? 0,
   };
+}
+
+function cleanVersionReason(value: string | null | undefined, versionNumber: number) {
+  const clean = value?.trim();
+  if (clean) {
+    return clean;
+  }
+
+  return versionNumber === 1 ? 'First saved invoice' : 'Invoice updated';
+}
+
+function buildInvoiceSnapshot(input: {
+  invoiceId: string;
+  invoiceNumber: string;
+  customerId: string | null;
+  customerName: string | null;
+  issueDate: string;
+  dueDate: string | null;
+  documentState: InvoiceDocumentState;
+  paymentStatus: InvoicePaymentStatus;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  notes: string | null;
+  items: WorkspaceInvoiceItem[];
+}) {
+  return {
+    invoiceId: input.invoiceId,
+    invoiceNumber: normalizeSnapshotText(input.invoiceNumber),
+    customerId: input.customerId ?? null,
+    customerName: normalizeSnapshotText(input.customerName ?? ''),
+    issueDate: input.issueDate,
+    dueDate: input.dueDate ?? null,
+    documentState: input.documentState,
+    paymentStatus: input.paymentStatus,
+    subtotal: roundMoney(input.subtotal),
+    taxAmount: roundMoney(input.taxAmount),
+    totalAmount: roundMoney(input.totalAmount),
+    notes: normalizeSnapshotText(input.notes ?? ''),
+    items: input.items
+      .map((item) => ({
+        name: normalizeSnapshotText(item.name),
+        description: normalizeSnapshotText(item.description ?? ''),
+        quantity: roundMoney(item.quantity),
+        price: roundMoney(item.price),
+        taxRate: roundMoney(item.taxRate),
+        total: roundMoney(item.total),
+      }))
+      .sort((left, right) => stableStringifyForInvoice(left).localeCompare(stableStringifyForInvoice(right))),
+  };
+}
+
+function stableStringifyForInvoice(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringifyForInvoice).join(',')}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringifyForInvoice(entryValue)}`)
+      .join(',')}}`;
+  }
+
+  return JSON.stringify(value);
+}
+
+function normalizeSnapshotText(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+function roundMoney(value: number): number {
+  return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
 }
 
 function normalizeCustomerNameKey(value: string): string {

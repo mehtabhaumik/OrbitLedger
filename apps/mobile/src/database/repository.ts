@@ -1,4 +1,12 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import {
+  deriveInvoicePaymentStatus,
+  legacyStatusForInvoiceLifecycle,
+  normalizeInvoiceDocumentState,
+  normalizeInvoicePaymentStatus,
+  type InvoiceDocumentState,
+  type InvoicePaymentStatus,
+} from '@orbit-ledger/core';
 
 import { calculateLedgerBalance } from './balance';
 import { getDatabase } from './client';
@@ -15,6 +23,7 @@ import {
   mapDocumentTemplate,
   mapInvoice,
   mapInvoiceItem,
+  mapInvoiceVersion,
   mapPaymentReminder,
   mapPaymentPromise,
   mapPaymentPromiseWithCustomer,
@@ -84,6 +93,8 @@ import type {
   InvoiceListOptions,
   InvoiceRow,
   InvoiceStatus,
+  InvoiceVersion,
+  InvoiceVersionRow,
   InvoiceWithItems,
   LedgerTransaction,
   LedgerTransactionRow,
@@ -216,6 +227,7 @@ type PreparedInvoiceTotals = {
 };
 
 const invoiceStatuses: InvoiceStatus[] = ['draft', 'issued', 'paid', 'overdue', 'cancelled'];
+const invoicePaymentStatuses: InvoicePaymentStatus[] = ['unpaid', 'partially_paid', 'paid', 'overdue'];
 const transactionTypes = ['credit', 'payment'] as const;
 const paymentPromiseStatuses: PaymentPromiseStatus[] = ['open', 'fulfilled', 'missed', 'cancelled'];
 const taxProfileSources: StoredTaxProfileSource[] = ['manual', 'remote', 'seed'];
@@ -1914,6 +1926,10 @@ export async function addInvoice(input: AddInvoiceInput): Promise<InvoiceWithIte
           throw new Error(`Unsupported invoice status: ${input.status}`);
         }
 
+        if (input.paymentStatus && !invoicePaymentStatuses.includes(input.paymentStatus)) {
+          throw new Error(`Unsupported invoice payment status: ${input.paymentStatus}`);
+        }
+
         if (customerId) {
           const customer = await getCustomerById(customerId);
           if (!customer) {
@@ -1923,6 +1939,27 @@ export async function addInvoice(input: AddInvoiceInput): Promise<InvoiceWithIte
 
         await db.withTransactionAsync(async () => {
           await applyProductStockReductions(db, prepared.items);
+          const paymentStatus = normalizeInvoicePaymentStatus({
+            paymentStatus: input.paymentStatus,
+            dueDate: cleanText(input.dueDate),
+            totalAmount: prepared.totalAmount,
+          });
+          const documentState: InvoiceDocumentState = input.documentState === 'cancelled' ? 'cancelled' : 'created';
+          const legacyStatus = legacyStatusForInvoiceLifecycle(documentState, paymentStatus);
+          const versionId = createEntityId('ivn');
+          const snapshotHash = buildInvoiceSnapshotHash({
+            invoiceNumber,
+            customerId,
+            issueDate: input.issueDate ?? toDateOnlyIso(),
+            dueDate: cleanText(input.dueDate),
+            documentState,
+            paymentStatus,
+            subtotal: prepared.subtotal,
+            taxAmount: prepared.taxAmount,
+            totalAmount: prepared.totalAmount,
+            notes: cleanText(input.notes),
+            items: prepared.items,
+          });
 
           await db.runAsync(
             `INSERT INTO invoices (
@@ -1935,12 +1972,17 @@ export async function addInvoice(input: AddInvoiceInput): Promise<InvoiceWithIte
               tax_amount,
               total_amount,
               status,
+              document_state,
+              payment_status,
+              version_number,
+              latest_version_id,
+              latest_snapshot_hash,
               notes,
               created_at,
               sync_id,
               last_modified,
               sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             customerId,
             invoiceNumber,
@@ -1949,13 +1991,37 @@ export async function addInvoice(input: AddInvoiceInput): Promise<InvoiceWithIte
             prepared.subtotal,
             prepared.taxAmount,
             prepared.totalAmount,
-            input.status ?? 'draft',
+            legacyStatus,
+            documentState,
+            paymentStatus,
+            1,
+            versionId,
+            snapshotHash,
             cleanText(input.notes),
             now,
             id,
             now,
             'pending'
           );
+          await insertInvoiceVersion(db, {
+            id: versionId,
+            invoiceId: id,
+            invoiceNumber,
+            versionNumber: 1,
+            reason: cleanVersionReason(input.revisionReason, 1),
+            createdAt: now,
+            customerId,
+            issueDate: input.issueDate ?? toDateOnlyIso(),
+            dueDate: cleanText(input.dueDate),
+            documentState,
+            paymentStatus,
+            subtotal: prepared.subtotal,
+            taxAmount: prepared.taxAmount,
+            totalAmount: prepared.totalAmount,
+            notes: cleanText(input.notes),
+            snapshotHash,
+            itemsJson: JSON.stringify(prepared.items),
+          });
 
           for (const item of prepared.items) {
             await db.runAsync(
@@ -2055,6 +2121,10 @@ export async function updateInvoice(
           throw new Error(`Unsupported invoice status: ${status}`);
         }
 
+        if (input.paymentStatus && !invoicePaymentStatuses.includes(input.paymentStatus)) {
+          throw new Error(`Unsupported invoice payment status: ${input.paymentStatus}`);
+        }
+
         if (customerId) {
           const customer = await getCustomerById(customerId);
           if (!customer) {
@@ -2065,6 +2135,48 @@ export async function updateInvoice(
         const prepared = prepareInvoiceTotals({ items: input.items }, id);
         const db = await getDatabase();
         const now = new Date().toISOString();
+        const issueDate = input.issueDate ?? existing.issueDate;
+        const dueDate = input.dueDate === undefined ? existing.dueDate : cleanText(input.dueDate);
+        const notes = input.notes === undefined ? existing.notes : cleanText(input.notes);
+        const currentDocumentState = normalizeInvoiceDocumentState(existing.documentState ?? existing.status);
+        const paymentStatus = input.paymentStatus
+          ? normalizeInvoicePaymentStatus({ paymentStatus: input.paymentStatus })
+          : deriveInvoicePaymentStatus({
+              legacyStatus: existing.status,
+              paymentStatus: existing.paymentStatus,
+              dueDate,
+              totalAmount: prepared.totalAmount,
+            });
+        const nextVersionNumber = Math.max(existing.versionNumber, 0) + 1;
+        const nextDocumentState: InvoiceDocumentState =
+          input.documentState === 'cancelled'
+            ? 'cancelled'
+            : currentDocumentState === 'cancelled'
+            ? 'cancelled'
+            : currentDocumentState === 'draft'
+              ? 'created'
+              : nextVersionNumber > 1
+                ? 'revised'
+                : 'created';
+        const snapshotHash = buildInvoiceSnapshotHash({
+          invoiceNumber,
+          customerId,
+          issueDate,
+          dueDate,
+          documentState: nextDocumentState,
+          paymentStatus,
+          subtotal: prepared.subtotal,
+          taxAmount: prepared.taxAmount,
+          totalAmount: prepared.totalAmount,
+          notes,
+          items: prepared.items,
+        });
+        const hasMeaningfulChange = snapshotHash !== existing.latestSnapshotHash;
+        const finalDocumentState = hasMeaningfulChange ? nextDocumentState : currentDocumentState;
+        const finalVersionNumber = hasMeaningfulChange ? nextVersionNumber : Math.max(existing.versionNumber, 1);
+        const finalSnapshotHash = hasMeaningfulChange ? snapshotHash : existing.latestSnapshotHash ?? snapshotHash;
+        const versionId = hasMeaningfulChange ? createEntityId('ivn') : existing.latestVersionId;
+        const legacyStatus = legacyStatusForInvoiceLifecycle(finalDocumentState, paymentStatus);
 
         await db.withTransactionAsync(async () => {
           await restoreProductStockReductions(db, existing.items);
@@ -2080,22 +2192,54 @@ export async function updateInvoice(
               tax_amount = ?,
               total_amount = ?,
               status = ?,
+              document_state = ?,
+              payment_status = ?,
+              version_number = ?,
+              latest_version_id = ?,
+              latest_snapshot_hash = ?,
               notes = ?,
               last_modified = ?,
               sync_status = 'pending'
              WHERE id = ?`,
             customerId,
             invoiceNumber,
-            input.issueDate ?? existing.issueDate,
-            input.dueDate === undefined ? existing.dueDate : cleanText(input.dueDate),
+            issueDate,
+            dueDate,
             prepared.subtotal,
             prepared.taxAmount,
             prepared.totalAmount,
-            status,
-            input.notes === undefined ? existing.notes : cleanText(input.notes),
+            legacyStatus,
+            finalDocumentState,
+            paymentStatus,
+            finalVersionNumber,
+            versionId,
+            finalSnapshotHash,
+            notes,
             now,
             id
           );
+
+          if (hasMeaningfulChange && versionId) {
+            await insertInvoiceVersion(db, {
+              id: versionId,
+              invoiceId: id,
+              invoiceNumber,
+              versionNumber: nextVersionNumber,
+              reason: cleanVersionReason(input.revisionReason, nextVersionNumber),
+              createdAt: now,
+              customerId,
+              issueDate,
+              dueDate,
+              documentState: nextDocumentState,
+              paymentStatus,
+              subtotal: prepared.subtotal,
+              taxAmount: prepared.taxAmount,
+              totalAmount: prepared.totalAmount,
+              notes,
+              snapshotHash,
+              itemsJson: JSON.stringify(prepared.items),
+            });
+          }
 
           await db.runAsync('DELETE FROM invoice_items WHERE invoice_id = ?', id);
 
@@ -2166,6 +2310,16 @@ export async function listInvoices(options: InvoiceListOptions = {}): Promise<In
       queryParams.push(options.status);
     }
 
+    if (options.documentState) {
+      whereClauses.push('document_state = ?');
+      queryParams.push(options.documentState);
+    }
+
+    if (options.paymentStatus) {
+      whereClauses.push('payment_status = ?');
+      queryParams.push(options.paymentStatus);
+    }
+
     const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
     const rows = await db.getAllAsync<InvoiceRow>(
       `SELECT * FROM invoices
@@ -2186,32 +2340,87 @@ export async function listInvoicesForCustomer(customerId: string, limit = 50): P
   return listInvoices({ customerId, limit });
 }
 
+export async function listInvoiceVersions(invoiceId: string): Promise<InvoiceVersion[]> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<InvoiceVersionRow>(
+      `SELECT *
+       FROM invoice_versions
+       WHERE invoice_id = ?
+       ORDER BY version_number DESC, created_at DESC`,
+      invoiceId
+    );
+    return rows.map(mapInvoiceVersion);
+  } catch (error) {
+    return throwDatabaseError('listInvoiceVersions', error);
+  }
+}
+
 export async function updateInvoiceStatus(
   id: string,
   status: InvoiceStatus
 ): Promise<InvoiceWithItems> {
   try {
-    const db = await getDatabase();
-    await db.runAsync(
-      `UPDATE invoices
-       SET status = ?,
-        last_modified = ?,
-        sync_status = 'pending'
-       WHERE id = ?`,
-      status,
-      new Date().toISOString(),
-      id
-    );
-
-    const invoice = await getInvoice(id);
-    if (!invoice) {
+    const existing = await getInvoice(id);
+    if (!existing) {
       throw new Error(`Invoice not found: ${id}`);
     }
 
-    return invoice;
+    return updateInvoice(id, {
+      customerId: existing.customerId,
+      invoiceNumber: existing.invoiceNumber,
+      issueDate: existing.issueDate,
+      dueDate: existing.dueDate,
+      status,
+      documentState: normalizeInvoiceDocumentState(status),
+      paymentStatus: normalizeInvoicePaymentStatus({
+        legacyStatus: status,
+        paymentStatus: existing.paymentStatus,
+        dueDate: existing.dueDate,
+        totalAmount: existing.totalAmount,
+      }),
+      revisionReason: status === 'cancelled' ? 'Invoice cancelled' : 'Invoice status updated',
+      notes: existing.notes,
+      items: existing.items.map((item) => ({
+        productId: item.productId,
+        name: item.name,
+        description: item.description,
+        quantity: item.quantity,
+        price: item.price,
+        taxRate: item.taxRate,
+      })),
+    });
   } catch (error) {
     return throwDatabaseError('updateInvoiceStatus', error);
   }
+}
+
+export async function updateInvoicePaymentStatus(
+  id: string,
+  paymentStatus: InvoicePaymentStatus
+): Promise<InvoiceWithItems> {
+  const existing = await getInvoice(id);
+  if (!existing) {
+    throw new Error(`Invoice not found: ${id}`);
+  }
+
+  return updateInvoice(id, {
+    customerId: existing.customerId,
+    invoiceNumber: existing.invoiceNumber,
+    issueDate: existing.issueDate,
+    dueDate: existing.dueDate,
+    notes: existing.notes,
+    paymentStatus,
+    revisionReason: paymentStatus === 'paid' ? 'Payment marked received' : 'Payment status updated',
+    items: existing.items.map((item) => ({
+      productId: item.productId,
+      name: item.name,
+      description: item.description,
+      quantity: item.quantity,
+      price: item.price,
+      taxRate: item.taxRate,
+    })),
+  });
 }
 
 export async function getCustomerLedger(customerId: string): Promise<CustomerLedger> {
@@ -3470,6 +3679,138 @@ function prepareInvoiceTotals(
     totalAmount: roundCurrency(subtotal + taxAmount),
     items,
   };
+}
+
+async function insertInvoiceVersion(
+  db: SQLiteDatabase,
+  input: {
+    id: string;
+    invoiceId: string;
+    invoiceNumber: string;
+    versionNumber: number;
+    reason: string;
+    createdAt: string;
+    customerId: string | null;
+    issueDate: string;
+    dueDate: string | null;
+    documentState: Exclude<InvoiceDocumentState, 'draft'>;
+    paymentStatus: InvoicePaymentStatus;
+    subtotal: number;
+    taxAmount: number;
+    totalAmount: number;
+    notes: string | null;
+    snapshotHash: string;
+    itemsJson: string;
+  }
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO invoice_versions (
+      id,
+      invoice_id,
+      invoice_number,
+      version_number,
+      reason,
+      created_at,
+      customer_id,
+      issue_date,
+      due_date,
+      document_state,
+      payment_status,
+      subtotal,
+      tax_amount,
+      total_amount,
+      notes,
+      snapshot_hash,
+      items_json,
+      sync_id,
+      last_modified,
+      sync_status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+    input.id,
+    input.invoiceId,
+    input.invoiceNumber,
+    input.versionNumber,
+    input.reason,
+    input.createdAt,
+    input.customerId,
+    input.issueDate,
+    input.dueDate,
+    input.documentState,
+    input.paymentStatus,
+    input.subtotal,
+    input.taxAmount,
+    input.totalAmount,
+    input.notes,
+    input.snapshotHash,
+    input.itemsJson,
+    input.id,
+    input.createdAt
+  );
+}
+
+function cleanVersionReason(value: string | null | undefined, versionNumber: number): string {
+  const clean = cleanText(value);
+  if (clean) {
+    return clean;
+  }
+
+  return versionNumber === 1 ? 'First saved invoice' : 'Invoice updated';
+}
+
+function buildInvoiceSnapshotHash(input: {
+  invoiceNumber: string;
+  customerId: string | null;
+  issueDate: string;
+  dueDate: string | null;
+  documentState: InvoiceDocumentState;
+  paymentStatus: InvoicePaymentStatus;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  notes: string | null;
+  items: PreparedInvoiceItem[];
+}): string {
+  return stableStringifyForInvoice({
+    invoiceNumber: normalizeSnapshotText(input.invoiceNumber),
+    customerId: input.customerId ?? null,
+    issueDate: input.issueDate,
+    dueDate: input.dueDate ?? null,
+    documentState: input.documentState,
+    paymentStatus: input.paymentStatus,
+    subtotal: roundCurrency(input.subtotal),
+    taxAmount: roundCurrency(input.taxAmount),
+    totalAmount: roundCurrency(input.totalAmount),
+    notes: normalizeSnapshotText(input.notes ?? ''),
+    items: input.items
+      .map((item) => ({
+        name: normalizeSnapshotText(item.name),
+        description: normalizeSnapshotText(item.description ?? ''),
+        quantity: roundCurrency(item.quantity),
+        price: roundCurrency(item.price),
+        taxRate: roundCurrency(item.taxRate),
+        total: roundCurrency(item.total),
+      }))
+      .sort((left, right) => stableStringifyForInvoice(left).localeCompare(stableStringifyForInvoice(right))),
+  });
+}
+
+function stableStringifyForInvoice(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringifyForInvoice).join(',')}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringifyForInvoice(entryValue)}`)
+      .join(',')}}`;
+  }
+
+  return JSON.stringify(value);
+}
+
+function normalizeSnapshotText(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
 }
 
 async function applyProductStockReductions(

@@ -1,4 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import {
+  getInvoiceDocumentStateLabel,
+  getInvoicePaymentStatusLabel,
+} from '@orbit-ledger/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -21,6 +25,8 @@ import {
   getBusinessSettings,
   getCustomerLedger,
   getInvoice,
+  updateInvoicePaymentStatus,
+  updateInvoiceStatus,
 } from '../database';
 import type { BusinessSettings, Customer, InvoiceWithItems } from '../database';
 import {
@@ -251,6 +257,35 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function markPaymentStatus(paymentStatus: 'paid' | 'unpaid') {
+    try {
+      setExportStatus(null);
+      await updateInvoicePaymentStatus(invoiceId, paymentStatus);
+      await loadInvoicePreview();
+      setExportStatus({
+        tone: 'success',
+        message: paymentStatus === 'paid' ? 'Invoice marked paid.' : 'Invoice marked unpaid.',
+      });
+    } catch {
+      Alert.alert('Invoice could not update', 'Please try again.');
+    }
+  }
+
+  function cancelInvoice() {
+    Alert.alert('Cancel invoice?', 'This keeps the history but marks the invoice as cancelled.', [
+      { text: 'Keep invoice', style: 'cancel' },
+      {
+        text: 'Cancel invoice',
+        style: 'destructive',
+        onPress: () => {
+          void updateInvoiceStatus(invoiceId, 'cancelled')
+            .then(() => loadInvoicePreview())
+            .catch(() => Alert.alert('Invoice could not update', 'Please try again.'));
+        },
+      },
+    ]);
   }
 
   async function sharePdf() {
@@ -544,7 +579,9 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
     );
   }
 
-  if (!data) {
+  const sourceInvoice = source?.invoice;
+
+  if (!data || !sourceInvoice) {
     return (
       <SafeAreaView style={styles.root}>
         <View style={styles.errorState}>
@@ -580,6 +617,27 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
         >
           Edit Invoice
         </PrimaryButton>
+
+        <View style={styles.lifecycleActions}>
+          <PrimaryButton
+            variant="secondary"
+            onPress={() => void markPaymentStatus('paid')}
+          >
+            Mark Paid
+          </PrimaryButton>
+          <PrimaryButton
+            variant="ghost"
+            onPress={() => void markPaymentStatus('unpaid')}
+          >
+            Mark Unpaid
+          </PrimaryButton>
+          <PrimaryButton
+            variant="ghost"
+            onPress={cancelInvoice}
+          >
+            Cancel Invoice
+          </PrimaryButton>
+        </View>
 
         {documentGates?.upgradeMessage && !isUpgradePromptDismissed ? (
           <View style={styles.upgradePromptCard}>
@@ -626,10 +684,12 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
               <Text style={styles.sectionTitle}>Invoice {data.metadata.invoiceNumber}</Text>
             </View>
             <View style={styles.reviewStatusPill}>
-              <Text style={styles.reviewStatusText}>{formatInvoiceStatus(data.metadata.status)}</Text>
+              <Text style={styles.reviewStatusText}>{getInvoicePaymentStatusLabel(sourceInvoice.paymentStatus)}</Text>
             </View>
           </View>
           <View style={styles.reviewLines}>
+            <ReviewLine label="Invoice state" value={getInvoiceDocumentStateLabel(sourceInvoice.documentState)} />
+            <ReviewLine label="Payment state" value={getInvoicePaymentStatusLabel(sourceInvoice.paymentStatus)} />
             <ReviewLine label="Customer" value={data.customerIdentity.name} />
             <ReviewLine label="Issue date" value={formatShortDate(data.metadata.issueDate)} />
             <ReviewLine
@@ -729,7 +789,7 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
               <Text style={styles.sectionTitle}>{data.metadata.invoiceNumber}</Text>
               <Text style={styles.muted}>Issued {data.metadata.issueDate}</Text>
               <Text style={styles.muted}>
-                Due {data.metadata.dueDate ?? 'not set'} - {formatInvoiceStatus(data.metadata.status)}
+                Due {data.metadata.dueDate ?? 'not set'} - {data.metadata.status}
               </Text>
             </View>
           </View>
@@ -962,10 +1022,6 @@ function SummaryLine({
   );
 }
 
-function formatInvoiceStatus(status: string): string {
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
 function formatItemCount(count: number): string {
   return count === 1 ? '1 item' : `${count} items`;
 }
@@ -1105,6 +1161,11 @@ const styles = StyleSheet.create({
     fontSize: typography.caption,
     fontWeight: '900',
     lineHeight: 16,
+  },
+  lifecycleActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   reviewCard: {
     backgroundColor: colors.surface,

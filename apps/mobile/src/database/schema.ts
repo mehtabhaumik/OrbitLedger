@@ -258,6 +258,13 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
       total_amount REAL NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
       status TEXT NOT NULL DEFAULT 'draft'
         CHECK (status IN ('draft', 'issued', 'paid', 'overdue', 'cancelled')),
+      document_state TEXT NOT NULL DEFAULT 'draft'
+        CHECK (document_state IN ('draft', 'created', 'revised', 'cancelled')),
+      payment_status TEXT NOT NULL DEFAULT 'unpaid'
+        CHECK (payment_status IN ('unpaid', 'partially_paid', 'paid', 'overdue')),
+      version_number INTEGER NOT NULL DEFAULT 0,
+      latest_version_id TEXT,
+      latest_snapshot_hash TEXT,
       notes TEXT,
       created_at TEXT NOT NULL,
       sync_id TEXT NOT NULL DEFAULT '',
@@ -289,6 +296,36 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
       FOREIGN KEY (product_id) REFERENCES products(id)
         ON UPDATE CASCADE
         ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS invoice_versions (
+      id TEXT PRIMARY KEY,
+      invoice_id TEXT NOT NULL,
+      invoice_number TEXT NOT NULL,
+      version_number INTEGER NOT NULL,
+      reason TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      customer_id TEXT,
+      issue_date TEXT NOT NULL,
+      due_date TEXT,
+      document_state TEXT NOT NULL
+        CHECK (document_state IN ('created', 'revised', 'cancelled')),
+      payment_status TEXT NOT NULL
+        CHECK (payment_status IN ('unpaid', 'partially_paid', 'paid', 'overdue')),
+      subtotal REAL NOT NULL DEFAULT 0 CHECK (subtotal >= 0),
+      tax_amount REAL NOT NULL DEFAULT 0 CHECK (tax_amount >= 0),
+      total_amount REAL NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
+      notes TEXT,
+      snapshot_hash TEXT NOT NULL,
+      items_json TEXT NOT NULL,
+      sync_id TEXT NOT NULL DEFAULT '',
+      last_modified TEXT NOT NULL DEFAULT '',
+      sync_status TEXT NOT NULL DEFAULT 'pending',
+      server_revision INTEGER NOT NULL DEFAULT 0,
+      UNIQUE (invoice_id, version_number),
+      FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS app_security (
@@ -407,6 +444,10 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
       ON invoices(status, issue_date DESC, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_invoices_customer_status_issue
       ON invoices(customer_id, status, issue_date DESC, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_invoices_document_state
+      ON invoices(document_state, issue_date DESC, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_invoices_payment_status
+      ON invoices(payment_status, issue_date DESC, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice
       ON invoice_items(invoice_id);
     CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_product
@@ -415,8 +456,25 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
       ON app_preferences(updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_sync_conflicts_workspace
       ON sync_conflicts(workspace_id, resolved_at, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_invoice_versions_invoice
+      ON invoice_versions(invoice_id, version_number DESC);
   `);
 
+  await ensureColumn(
+    db,
+    'invoices',
+    'document_state',
+    "TEXT NOT NULL DEFAULT 'draft' CHECK (document_state IN ('draft', 'created', 'revised', 'cancelled'))"
+  );
+  await ensureColumn(
+    db,
+    'invoices',
+    'payment_status',
+    "TEXT NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'partially_paid', 'paid', 'overdue'))"
+  );
+  await ensureColumn(db, 'invoices', 'version_number', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn(db, 'invoices', 'latest_version_id', 'TEXT');
+  await ensureColumn(db, 'invoices', 'latest_snapshot_hash', 'TEXT');
   await ensureColumn(db, 'invoice_items', 'product_id', 'TEXT');
   await ensureColumn(db, 'invoice_items', 'description', 'TEXT');
   await ensureColumn(
@@ -451,6 +509,21 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
   `);
   await ensureSyncMetadataColumns(db);
   await db.execAsync(`
+    UPDATE invoices
+    SET document_state = CASE
+        WHEN status = 'draft' THEN 'draft'
+        WHEN status = 'cancelled' THEN 'cancelled'
+        WHEN document_state IS NULL OR document_state = '' THEN 'created'
+        ELSE document_state
+      END,
+      payment_status = CASE
+        WHEN status = 'paid' THEN 'paid'
+        WHEN status = 'overdue' THEN 'overdue'
+        WHEN payment_status IS NULL OR payment_status = '' THEN 'unpaid'
+        ELSE payment_status
+      END;
+  `);
+  await db.execAsync(`
     CREATE INDEX IF NOT EXISTS idx_invoice_items_product
       ON invoice_items(product_id);
     CREATE INDEX IF NOT EXISTS idx_business_settings_sync_status
@@ -473,6 +546,8 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
       ON invoices(sync_status, last_modified);
     CREATE INDEX IF NOT EXISTS idx_invoice_items_sync_status
       ON invoice_items(sync_status, last_modified);
+    CREATE INDEX IF NOT EXISTS idx_invoice_versions_sync_status
+      ON invoice_versions(sync_status, last_modified);
   `);
 }
 
@@ -501,6 +576,7 @@ async function ensureSyncMetadataColumns(db: SQLiteDatabase): Promise<void> {
     { name: 'products', modifiedAtExpression: 'created_at' },
     { name: 'invoices', modifiedAtExpression: 'created_at' },
     { name: 'invoice_items', modifiedAtExpression: "datetime('now')" },
+    { name: 'invoice_versions', modifiedAtExpression: 'created_at' },
   ];
 
   for (const table of syncTables) {

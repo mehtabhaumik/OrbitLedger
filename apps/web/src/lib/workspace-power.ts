@@ -12,13 +12,11 @@ export type DateRangeFilter = {
 export type CustomerBalanceFilter = 'all' | 'outstanding' | 'advance' | 'settled';
 export type TransactionTypeFilter = 'all' | 'payment' | 'credit';
 
-export type InvoiceStatusFilter =
-  | 'all'
-  | 'draft'
-  | 'issued'
-  | 'paid'
-  | 'overdue'
-  | 'cancelled';
+export type InvoiceFilterSet = {
+  customerIds: string[];
+  documentStates: string[];
+  paymentStatuses: string[];
+};
 
 export type CsvCell = string | number | boolean | null | undefined;
 
@@ -81,18 +79,29 @@ export function filterWorkspaceInvoices(
   invoices: WorkspaceInvoice[],
   options: {
     query: string;
-    statusFilter: InvoiceStatusFilter;
+    filters: InvoiceFilterSet;
     range: DateRangeFilter;
   }
 ) {
   const query = options.query.trim().toLowerCase();
 
   return invoices.filter((invoice) => {
-    const matchesSearch = !query || invoice.invoiceNumber.toLowerCase().includes(query);
-    const matchesStatus = options.statusFilter === 'all' || invoice.status === options.statusFilter;
+    const matchesSearch =
+      !query ||
+      invoice.invoiceNumber.toLowerCase().includes(query) ||
+      (invoice.customerName ?? '').toLowerCase().includes(query);
+    const matchesCustomer =
+      !options.filters.customerIds.length ||
+      (invoice.customerId ? options.filters.customerIds.includes(invoice.customerId) : false);
+    const matchesDocumentState =
+      !options.filters.documentStates.length ||
+      options.filters.documentStates.includes(invoice.documentState);
+    const matchesPaymentStatus =
+      !options.filters.paymentStatuses.length ||
+      options.filters.paymentStatuses.includes(invoice.paymentStatus);
     const matchesRange = isDateWithinRange(invoice.issueDate, options.range);
 
-    return matchesSearch && matchesStatus && matchesRange;
+    return matchesSearch && matchesCustomer && matchesDocumentState && matchesPaymentStatus && matchesRange;
   });
 }
 

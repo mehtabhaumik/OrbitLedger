@@ -143,6 +143,11 @@ type InvoiceSyncRow = {
   tax_amount: number;
   total_amount: number;
   status: string;
+  document_state: string;
+  payment_status: string;
+  version_number: number;
+  latest_version_id: string | null;
+  latest_snapshot_hash: string | null;
   notes: string | null;
   created_at: string;
   sync_id: string;
@@ -666,6 +671,11 @@ function buildWorkspacePayload(entity: OrbitSyncEntityName, row: Record<string, 
         tax_amount: row.tax_amount,
         total_amount: row.total_amount,
         status: row.status,
+        document_state: row.document_state,
+        payment_status: row.payment_status,
+        version_number: row.version_number,
+        latest_version_id: row.latest_version_id ?? null,
+        latest_snapshot_hash: row.latest_snapshot_hash ?? null,
         notes: row.notes ?? null,
         created_at: row.created_at,
         last_modified: row.last_modified,
@@ -907,8 +917,9 @@ async function applyRemoteInvoices(
     await db.runAsync(
       `INSERT INTO invoices (
           id, customer_id, invoice_number, issue_date, due_date, subtotal, tax_amount,
-          total_amount, status, notes, created_at, sync_id, last_modified, sync_status, server_revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
+          total_amount, status, document_state, payment_status, version_number, latest_version_id,
+          latest_snapshot_hash, notes, created_at, sync_id, last_modified, sync_status, server_revision
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
         ON CONFLICT(id) DO UPDATE SET
           customer_id = excluded.customer_id,
           invoice_number = excluded.invoice_number,
@@ -918,6 +929,11 @@ async function applyRemoteInvoices(
           tax_amount = excluded.tax_amount,
           total_amount = excluded.total_amount,
           status = excluded.status,
+          document_state = excluded.document_state,
+          payment_status = excluded.payment_status,
+          version_number = excluded.version_number,
+          latest_version_id = excluded.latest_version_id,
+          latest_snapshot_hash = excluded.latest_snapshot_hash,
           notes = excluded.notes,
           created_at = excluded.created_at,
           sync_id = excluded.sync_id,
@@ -933,6 +949,11 @@ async function applyRemoteInvoices(
       record.tax_amount,
       record.total_amount,
       record.status,
+      record.document_state ?? legacyDocumentState(record.status),
+      record.payment_status ?? legacyPaymentStatus(record.status),
+      record.version_number ?? (record.status === 'draft' ? 0 : 1),
+      record.latest_version_id ?? null,
+      record.latest_snapshot_hash ?? null,
       record.notes ?? null,
       record.created_at,
       record.id,
@@ -997,6 +1018,30 @@ async function applyRemoteInvoiceItems(
     applied += 1;
   }
   return applied;
+}
+
+function legacyDocumentState(status: string): 'draft' | 'created' | 'revised' | 'cancelled' {
+  if (status === 'draft') {
+    return 'draft';
+  }
+
+  if (status === 'cancelled') {
+    return 'cancelled';
+  }
+
+  return 'created';
+}
+
+function legacyPaymentStatus(status: string): 'unpaid' | 'partially_paid' | 'paid' | 'overdue' {
+  if (status === 'paid') {
+    return 'paid';
+  }
+
+  if (status === 'overdue') {
+    return 'overdue';
+  }
+
+  return 'unpaid';
 }
 
 function mapConflictRow(row: ConflictRow): SyncConflict {

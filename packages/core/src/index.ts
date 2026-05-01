@@ -56,3 +56,21 @@ export {
   ORBIT_LEDGER_POSITIONING,
   ORBIT_LEDGER_SCREENSHOT_STORIES,
 } from './marketLaunch';
+
+export {
+  deriveInvoicePaymentStatus,
+  getGeneratedInvoiceDocumentLabel,
+  getInvoiceDocumentStateLabel,
+  getInvoicePaymentStatusLabel,
+  INVOICE_DOCUMENT_STATES,
+  INVOICE_PAYMENT_STATUSES,
+  legacyStatusForInvoiceLifecycle,
+  normalizeInvoiceDocumentState,
+  normalizeInvoicePaymentStatus,
+} from './invoiceLifecycle';
+export type {
+  InvoiceDocumentState,
+  InvoiceLifecycleInput,
+  InvoicePaymentStatus,
+  LegacyInvoiceStatus,
+} from './invoiceLifecycle';
