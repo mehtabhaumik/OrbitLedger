@@ -34,6 +34,7 @@ export default function PaymentsPage() {
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const projectId = getWebFirebaseProjectId();
   const webhookUrl = `https://asia-south1-${projectId}.cloudfunctions.net/providerWebhook`;
+  const [paymentPageUrl, setPaymentPageUrl] = useState(`https://${projectId}.web.app/pay`);
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -42,6 +43,10 @@ export default function PaymentsPage() {
     void loadPaymentAdminData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWorkspace?.workspaceId]);
+
+  useEffect(() => {
+    setPaymentPageUrl(`${window.location.origin}/pay`);
+  }, []);
 
   async function loadPaymentAdminData() {
     if (!activeWorkspace) {
@@ -130,6 +135,11 @@ export default function PaymentsPage() {
       )
     );
     showToast('Example payload copied.', 'success');
+  }
+
+  async function copyPaymentPageUrl() {
+    await navigator.clipboard.writeText(paymentPageUrl);
+    showToast('Payment page copied.', 'success');
   }
 
   async function applyEvent(event: WorkspacePaymentProviderEvent) {
@@ -226,11 +236,14 @@ export default function PaymentsPage() {
           <Review label="Provider URL" value={webhookUrl} />
           <Review label="Secret header" value="x-orbit-ledger-webhook-secret" />
           <Review label="Region" value="Asia South" />
-          <Review label="Hosted page" value="/pay" />
+          <Review label="Payment page" value={paymentPageUrl} />
         </div>
         <div className="ol-actions ol-actions--compact" style={{ marginTop: 16 }}>
           <button className="ol-button" type="button" onClick={() => void copyWebhookUrl()}>
             Copy provider URL
+          </button>
+          <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentPageUrl()}>
+            Copy payment page
           </button>
           <button className="ol-button-secondary" type="button" onClick={() => void copyExamplePayload()}>
             Copy sample data
@@ -238,6 +251,23 @@ export default function PaymentsPage() {
           <Link className="ol-button-secondary" href="/transactions">
             Record payment manually
           </Link>
+        </div>
+      </section>
+
+      <section className="ol-panel">
+        <div className="ol-panel-header">
+          <div>
+            <div className="ol-panel-title">Provider Setup Checklist</div>
+            <p className="ol-panel-copy" style={{ maxWidth: 720 }}>
+              Use this before accepting real payments so every paid, failed, pending, and refunded payment is handled cleanly.
+            </p>
+          </div>
+          <span className="ol-chip ol-chip--tax">Production checklist</span>
+        </div>
+        <div className="ol-review-grid">
+          {providerSetupChecklist.map((item) => (
+            <Review key={item.label} label={item.label} value={item.value} />
+          ))}
         </div>
       </section>
 
@@ -355,6 +385,33 @@ export default function PaymentsPage() {
     </AppShell>
   );
 }
+
+const providerSetupChecklist = [
+  {
+    label: 'Secure provider access',
+    value: 'Add the secret header inside the payment provider dashboard. Do not place it in the payment link.',
+  },
+  {
+    label: 'Success event',
+    value: 'Send one paid test payment and confirm the invoice payment amount updates once.',
+  },
+  {
+    label: 'Review event',
+    value: 'Send one unmatched payment and confirm it waits for owner review.',
+  },
+  {
+    label: 'Refund event',
+    value: 'Send one refund and confirm the ledger reversal appears without deleting the original payment.',
+  },
+  {
+    label: 'Customer page',
+    value: 'Open the payment page from an invoice and confirm the amount, customer, and invoice number are correct.',
+  },
+  {
+    label: 'Go live',
+    value: 'Keep provider test mode off only after the above checks pass.',
+  },
+];
 
 function Metric({
   label,
