@@ -8,6 +8,7 @@ import {
   buildInvoicePaymentLink,
   buildManualPaymentInstructionLines,
   getManualPaymentInstructionTemplate,
+  getManualPaymentVerificationPlan,
   getInvoiceDocumentStateLabel,
   getInvoicePaymentStatusLabel,
   getPaymentClearanceStatusLabel,
@@ -205,6 +206,14 @@ function InvoiceEditorContent() {
           })
         : null,
     [activeWorkspace, currency, dueAmount, dueDate, hostedPaymentPageUrl, invoiceNumber, paymentLinkDetails, selectedCustomer?.name, total]
+  );
+  const paymentVerificationPlan = useMemo(
+    () =>
+      getManualPaymentVerificationPlan({
+        allocationStrategy: 'selected_invoice',
+        clearanceStatus: paymentClearanceStatus,
+      }),
+    [paymentClearanceStatus]
   );
   const currentInvoiceDocument = useMemo(() => {
     if (!activeWorkspace || !invoice) {
@@ -419,14 +428,6 @@ function InvoiceEditorContent() {
     }
   }
 
-  async function markPaymentStatus(nextPaymentStatus: InvoicePaymentStatus) {
-    setPaymentStatus(nextPaymentStatus);
-    await saveInvoice(
-      nextPaymentStatus,
-      nextPaymentStatus === 'paid' ? 'Payment marked received' : 'Payment status updated'
-    );
-  }
-
   async function recordInvoicePayment(amountOverride?: number) {
     if (!activeWorkspace || !invoice) {
       return;
@@ -463,7 +464,7 @@ function InvoiceEditorContent() {
       setPaymentDetails({});
       setPaymentClearanceStatus('cleared');
       setPaymentAttachments([]);
-      showToast('Payment recorded and applied to this invoice.', 'success');
+      showToast(paymentVerificationPlan.successMessage, 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Payment could not be recorded.', 'danger');
     } finally {
@@ -545,7 +546,7 @@ function InvoiceEditorContent() {
           </button>
         ) : null}
         <button className="ol-button-secondary" type="button" onClick={() => void recordInvoicePayment(dueAmount)} disabled={isRecordingPayment || !invoice || dueAmount <= 0}>
-          Record full payment
+          Record due payment
         </button>
         <button className="ol-button-secondary" type="button" onClick={() => void cancelInvoice()} disabled={isSaving || !invoice || invoice.documentState === 'cancelled'}>
           Cancel invoice
@@ -853,11 +854,14 @@ function InvoiceEditorContent() {
               <div className="ol-field ol-field--action">
                 <span className="ol-field-label">Action</span>
                 <button className="ol-button" type="button" disabled={isRecordingPayment || dueAmount <= 0} onClick={() => void recordInvoicePayment()}>
-                  {isRecordingPayment ? 'Recording...' : 'Record payment'}
+                  {isRecordingPayment ? 'Recording...' : paymentVerificationPlan.actionLabel}
                 </button>
               </div>
             </div>
             <div className="ol-review-grid" style={{ marginTop: 16 }}>
+              <Review label="Verification" value={paymentVerificationPlan.statusLabel} />
+              <Review label="Invoice effect" value={paymentVerificationPlan.invoiceEffect} />
+              <Review label="Balance effect" value={paymentVerificationPlan.customerBalanceEffect} />
               <Review label="Allocated" value={formatCurrency(invoice.paidAmount, currency)} />
               <Review label="Still due" value={formatCurrency(Math.max(invoice.totalAmount - invoice.paidAmount, 0), currency)} />
               <Review label="Payment records" value={`${allocations.length}`} />
@@ -897,7 +901,7 @@ function InvoiceEditorContent() {
                       type="button"
                       onClick={() => void updateAllocationClearance(allocation.id, 'cleared')}
                     >
-                      Mark cleared
+                      Verify cleared
                     </button>
                     <button
                       className="ol-button-ghost"

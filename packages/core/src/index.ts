@@ -83,6 +83,7 @@ export {
   getPaymentModeConfig,
   getPaymentModeLabel,
   doesPaymentClearInvoice,
+  doesPaymentAwaitClearance,
   getPaymentClearanceStatusLabel,
   isInstrumentPaymentMode,
   normalizePaymentClearanceStatus,
@@ -125,6 +126,12 @@ export type {
   ManualPaymentInstructionField,
   ManualPaymentInstructionTemplate,
 } from './manualPaymentInstructions';
+export {
+  getManualPaymentVerificationPlan,
+} from './manualPaymentVerification';
+export type {
+  ManualPaymentVerificationPlan,
+} from './manualPaymentVerification';
 export {
   buildRazorpayNotes,
   buildRazorpayPaymentLinkDraft,

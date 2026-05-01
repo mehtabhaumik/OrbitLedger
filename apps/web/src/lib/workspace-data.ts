@@ -3,6 +3,7 @@
 import {
   buildCustomerHealthScore,
   deriveInvoicePaymentStatus,
+  doesPaymentAwaitClearance,
   doesPaymentClearInvoice,
   legacyStatusForInvoiceLifecycle,
   normalizePaymentClearanceStatus,
@@ -1534,7 +1535,7 @@ async function buildPaymentAllocationPlan(
       dueDate: invoice.dueDate,
       totalAmount: invoice.totalAmount,
       paidAmount: nextPaidAmount,
-      pendingAmount: doesPaymentClearInvoice(input.clearanceStatus) ? 0 : allocatedAmount,
+      pendingAmount: doesPaymentAwaitClearance(input.clearanceStatus) ? allocatedAmount : 0,
     });
     allocations.push({
       id: doc(collection(firestore, 'workspaces', workspaceId, 'payment_allocations')).id,

@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  getManualPaymentVerificationPlan,
+  getPaymentClearanceStatusLabel,
   getPaymentModeConfig,
   PAYMENT_MODE_CONFIGS,
   reconcileProviderPayment,
   summarizePaymentClearance,
   summarizePaymentMode,
+  type PaymentClearanceStatus,
   type PaymentProviderSource,
   type PaymentMode,
   type PaymentModeDetails,
@@ -46,6 +49,7 @@ export default function TransactionsPage() {
   const [type, setType] = useState<'credit' | 'payment'>('payment');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   const [paymentDetails, setPaymentDetails] = useState<PaymentModeDetails>({});
+  const [paymentClearanceStatus, setPaymentClearanceStatus] = useState<PaymentClearanceStatus>('cleared');
   const [allocationStrategy, setAllocationStrategy] = useState<'ledger_only' | 'oldest_invoice' | 'selected_invoice'>('ledger_only');
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const [customerInvoices, setCustomerInvoices] = useState<WorkspaceInvoice[]>([]);
@@ -146,6 +150,7 @@ export default function TransactionsPage() {
         effectiveDate,
         paymentMode: type === 'payment' ? paymentMode : null,
         paymentDetails: type === 'payment' ? reconciledPaymentDetails : null,
+        paymentClearanceStatus: type === 'payment' ? paymentClearanceStatus : null,
         allocationStrategy: type === 'payment' ? allocationStrategy : 'ledger_only',
         invoiceId: allocationStrategy === 'selected_invoice' ? selectedInvoiceId : null,
       });
@@ -154,6 +159,7 @@ export default function TransactionsPage() {
       setNote('');
       setPaymentMode('cash');
       setPaymentDetails({});
+      setPaymentClearanceStatus('cleared');
       setProviderReference('');
       setPayerName('');
       setEffectiveDate(new Date().toISOString().slice(0, 10));
@@ -165,7 +171,7 @@ export default function TransactionsPage() {
         type === 'payment'
           ? allocationStrategy === 'ledger_only'
             ? 'Payment saved as ledger entry.'
-            : 'Payment saved and invoice updated.'
+            : paymentVerificationPlan.successMessage
           : 'Credit saved. Balance updated.',
         'success'
       );
@@ -221,6 +227,14 @@ export default function TransactionsPage() {
   const transactionSummary = useMemo(
     () => sumTransactionAmounts(filteredTransactions),
     [filteredTransactions]
+  );
+  const paymentVerificationPlan = useMemo(
+    () =>
+      getManualPaymentVerificationPlan({
+        allocationStrategy,
+        clearanceStatus: paymentClearanceStatus,
+      }),
+    [allocationStrategy, paymentClearanceStatus]
   );
   const allVisibleSelected =
     filteredTransactions.length > 0 &&
@@ -472,6 +486,24 @@ export default function TransactionsPage() {
                   </select>
                 </label>
               ) : null}
+              <label className="ol-field">
+                <span className="ol-field-label">Verification</span>
+                <select
+                  className="ol-select"
+                  value={paymentClearanceStatus}
+                  onChange={(event) => setPaymentClearanceStatus(event.target.value as PaymentClearanceStatus)}
+                >
+                  {(['received', 'post_dated', 'deposited', 'cleared', 'bounced', 'cancelled'] as PaymentClearanceStatus[]).map((status) => (
+                    <option key={status} value={status}>
+                      {getPaymentClearanceStatusLabel(status)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="ol-message" style={{ margin: 0 }}>
+                <strong>{paymentVerificationPlan.statusLabel}</strong> · {paymentVerificationPlan.invoiceEffect}{' '}
+                {paymentVerificationPlan.customerBalanceEffect}
+              </div>
             </>
           ) : null}
           <label className="ol-field">
@@ -490,7 +522,7 @@ export default function TransactionsPage() {
           <div className="ol-field ol-field--action">
             <span className="ol-field-label">Action</span>
             <button className="ol-button" disabled={isSaving} type="button" onClick={() => void addTransaction()}>
-              {isSaving ? 'Saving...' : 'Save'}
+              {isSaving ? 'Saving...' : type === 'payment' ? paymentVerificationPlan.actionLabel : 'Save'}
             </button>
           </div>
         </div>

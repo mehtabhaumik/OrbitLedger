@@ -186,6 +186,10 @@ export function doesPaymentClearInvoice(status?: string | null): boolean {
   return status === 'cleared';
 }
 
+export function doesPaymentAwaitClearance(status?: string | null): boolean {
+  return status === 'received' || status === 'post_dated' || status === 'deposited';
+}
+
 export function getPaymentClearanceStatusLabel(status?: string | null): string {
   switch (status) {
     case 'post_dated':

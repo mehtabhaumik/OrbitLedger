@@ -30,7 +30,6 @@ import {
   getCustomerLedger,
   getInvoice,
   listInvoicePaymentAllocations,
-  updateInvoicePaymentStatus,
   updateInvoiceStatus,
 } from '../database';
 import type { BusinessSettings, Customer, InvoicePaymentAllocation, InvoiceWithItems } from '../database';
@@ -282,20 +281,6 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
       Alert.alert('Invoice PDF could not be saved', 'Please try again.');
     } finally {
       setIsSaving(false);
-    }
-  }
-
-  async function markPaymentStatus(paymentStatus: 'paid' | 'unpaid') {
-    try {
-      setExportStatus(null);
-      await updateInvoicePaymentStatus(invoiceId, paymentStatus);
-      await loadInvoicePreview();
-      setExportStatus({
-        tone: 'success',
-        message: paymentStatus === 'paid' ? 'Invoice marked paid.' : 'Invoice marked unpaid.',
-      });
-    } catch {
-      Alert.alert('Invoice could not update', 'Please try again.');
     }
   }
 
@@ -669,14 +654,6 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
           >
             Record Payment
           </PrimaryButton>
-          {sourceInvoice.paidAmount <= 0 ? (
-            <PrimaryButton
-              variant="ghost"
-              onPress={() => void markPaymentStatus('unpaid')}
-            >
-              Mark Unpaid
-            </PrimaryButton>
-          ) : null}
           <PrimaryButton
             variant="ghost"
             onPress={cancelInvoice}

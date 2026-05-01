@@ -2,6 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import {
   buildCustomerHealthScore,
   deriveInvoicePaymentStatus,
+  doesPaymentAwaitClearance,
   doesPaymentClearInvoice,
   legacyStatusForInvoiceLifecycle,
   normalizePaymentClearanceStatus,
@@ -3876,7 +3877,7 @@ async function allocatePaymentToInvoices(
 
     const paidDelta = doesPaymentClearInvoice(input.clearanceStatus) ? allocationAmount : 0;
     const nextPaidAmount = roundCurrency(invoice.paid_amount + paidDelta);
-    const pendingAmount = doesPaymentClearInvoice(input.clearanceStatus) ? 0 : allocationAmount;
+    const pendingAmount = doesPaymentAwaitClearance(input.clearanceStatus) ? allocationAmount : 0;
     const nextPaymentStatus = deriveInvoicePaymentStatus({
       dueDate: invoice.due_date,
       totalAmount: invoice.total_amount,

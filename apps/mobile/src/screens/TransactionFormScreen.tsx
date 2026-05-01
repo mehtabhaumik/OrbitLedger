@@ -22,6 +22,7 @@ import { z } from 'zod';
 import {
   getPaymentModeConfig,
   getPaymentClearanceStatusLabel,
+  getManualPaymentVerificationPlan,
   PAYMENT_MODE_CONFIGS,
   reconcileProviderPayment,
   type PaymentClearanceStatus,
@@ -112,6 +113,14 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
     initialInvoiceId ? 'selected_invoice' : 'ledger_only'
   );
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(initialInvoiceId ?? '');
+  const paymentVerificationPlan = useMemo(
+    () =>
+      getManualPaymentVerificationPlan({
+        allocationStrategy,
+        clearanceStatus: paymentClearanceStatus,
+      }),
+    [allocationStrategy, paymentClearanceStatus]
+  );
   const amountInputRef = useRef<TextInput>(null);
   const {
     control,
@@ -764,6 +773,17 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
                   );
                 })}
               </View>
+              <View style={styles.reconciliationCard}>
+                <View style={styles.choiceRow}>
+                  <Text style={styles.choiceText}>Verification</Text>
+                  <StatusChip
+                    label={paymentVerificationPlan.statusLabel}
+                    tone={paymentVerificationPlan.requiresFollowUp ? 'warning' : 'success'}
+                  />
+                </View>
+                <Text style={styles.choiceMeta}>{paymentVerificationPlan.invoiceEffect}</Text>
+                <Text style={styles.choiceMeta}>{paymentVerificationPlan.customerBalanceEffect}</Text>
+              </View>
               {paymentMode === 'cheque' || paymentMode === 'demand_draft' ? (
                 <View style={styles.attachmentActions}>
                   <PrimaryButton variant="secondary" onPress={() => void attachInstrumentImage('camera')}>
@@ -1200,6 +1220,12 @@ const styles = StyleSheet.create({
   choiceTextBlock: {
     flex: 1,
     gap: spacing.xs,
+  },
+  choiceRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
   },
   choiceMeta: {
     color: colors.textMuted,
