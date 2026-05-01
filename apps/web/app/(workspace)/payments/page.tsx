@@ -8,6 +8,7 @@ import {
   buildRazorpayPaymentLinkDraft,
   getManualPaymentVerificationPlan,
   getPaymentClearanceStatusLabel,
+  getPaymentProviderReadiness,
   summarizePaymentClearance,
   summarizePaymentMode,
   type PaymentClearanceStatus,
@@ -57,6 +58,11 @@ export default function PaymentsPage() {
   const providerPlan = getWebPaymentProviderPlan();
   const webhookUrl = `https://asia-south1-${projectId}.cloudfunctions.net/providerWebhook`;
   const [paymentPageUrl, setPaymentPageUrl] = useState(`https://${projectId}.web.app/pay`);
+  const providerReadiness = getPaymentProviderReadiness({
+    mode: providerPlan.mode,
+    paymentPageUrl,
+    webhookUrl,
+  });
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -397,6 +403,9 @@ export default function PaymentsPage() {
           <Review label="Region" value="Asia South" />
           <Review label="Payment page" value={paymentPageUrl} />
         </div>
+        <div className="ol-message" style={{ marginTop: 16 }}>
+          <strong>{providerReadiness.label}</strong> · {providerReadiness.launchMessage}
+        </div>
         <div className="ol-actions ol-actions--compact" style={{ marginTop: 16 }}>
           {providerPlan.mode !== 'manual' ? (
             <button className="ol-button" type="button" onClick={() => void copyWebhookUrl()}>
@@ -420,6 +429,30 @@ export default function PaymentsPage() {
             Record payment manually
           </Link>
         </div>
+      </section>
+
+      <section className="ol-panel">
+        <div className="ol-panel-header">
+          <div>
+            <div className="ol-panel-title">Provider Connection Gate</div>
+            <p className="ol-panel-copy" style={{ maxWidth: 720 }}>
+              Online checkout stays hidden until the provider setup is explicitly ready.
+            </p>
+          </div>
+          <span className={providerReadiness.canShowOnlineCheckout ? 'ol-chip ol-chip--success' : 'ol-chip ol-chip--warning'}>
+            {providerReadiness.canShowOnlineCheckout ? 'Checkout allowed' : 'Checkout blocked'}
+          </span>
+        </div>
+        <div className="ol-review-grid">
+          {providerReadiness.checks.map((check) => (
+            <Review key={check.label} label={check.label} value={check.ready ? 'Ready' : 'Needs attention'} />
+          ))}
+        </div>
+        {providerReadiness.blockers.length ? (
+          <div className="ol-message ol-message--warning" style={{ marginTop: 16 }}>
+            {providerReadiness.blockers.join(' ')}
+          </div>
+        ) : null}
       </section>
 
       <section className="ol-panel">

@@ -155,6 +155,13 @@ export type {
   PaymentProviderPlan,
 } from './paymentProviders';
 export {
+  getPaymentProviderReadiness,
+} from './paymentProviderReadiness';
+export type {
+  PaymentProviderReadiness,
+  PaymentProviderReadinessInput,
+} from './paymentProviderReadiness';
+export {
   normalizeProviderReference,
   reconcileProviderPayment,
 } from './paymentReconciliation';
