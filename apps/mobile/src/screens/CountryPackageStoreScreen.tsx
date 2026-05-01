@@ -47,6 +47,7 @@ type CountryPackageCatalogEntry = {
   name: string;
   description: string;
   requiredTier: 'free' | 'pro';
+  availability: 'available' | 'upcoming';
   highlights: string[];
 };
 
@@ -61,6 +62,7 @@ const starterCatalog: CountryPackageCatalogEntry[] = [
     name: 'India Starter Package',
     description: 'Starter GST labels, India invoice wording, statements, and practical summaries.',
     requiredTier: 'free',
+    availability: 'available',
     highlights: ['GST labels', 'Invoice and statement wording', 'Starter summaries'],
   },
   {
@@ -70,6 +72,7 @@ const starterCatalog: CountryPackageCatalogEntry[] = [
     name: 'United States Starter Package',
     description: 'Starter sales tax labels, document wording, and review summaries.',
     requiredTier: 'pro',
+    availability: 'upcoming',
     highlights: ['Sales tax labels', 'Document wording', 'Review summaries'],
   },
   {
@@ -79,6 +82,7 @@ const starterCatalog: CountryPackageCatalogEntry[] = [
     name: 'United Kingdom Starter Package',
     description: 'Starter VAT labels, statement wording, and review summaries.',
     requiredTier: 'pro',
+    availability: 'upcoming',
     highlights: ['VAT labels', 'Document wording', 'Review summaries'],
   },
 ];
@@ -155,6 +159,11 @@ export function CountryPackageStoreScreen({ navigation }: CountryPackageStorePro
 
   async function buyCountryPackage(entry: CountryPackageCatalogEntry) {
     if (busyPackageId) {
+      return;
+    }
+
+    if (entry.availability === 'upcoming') {
+      Alert.alert('Country pack coming soon', `${entry.name} is not available yet.`);
       return;
     }
 
@@ -490,6 +499,7 @@ function CountryPackageCard({
   updateStatus: CountryPackageUpdateCheckResult | null;
 }) {
   const isLocked = accessLabel === 'Locked';
+  const isUpcoming = entry.availability === 'upcoming';
   const hasUpdate = Boolean(updateStatus?.updateAvailable && updateStatus.candidate);
   const actionLabel = getPackageActionLabel({
     isActive,
@@ -506,7 +516,7 @@ function CountryPackageCard({
           <Text style={styles.packageRegion}>{entry.countryCode} / {entry.regionCode || 'All regions'}</Text>
         </View>
         <View style={styles.badgeWrap}>
-          <StatusChip label={accessLabel} tone={accessLabel === 'Locked' ? 'warning' : 'neutral'} />
+          <StatusChip label={isUpcoming ? 'Upcoming' : accessLabel} tone={isUpcoming || accessLabel === 'Locked' ? 'warning' : 'neutral'} />
           {installedPackage ? <StatusChip label={isActive ? 'Active' : 'Installed'} tone="success" /> : null}
           {hasUpdate ? <StatusChip label="Update available" tone="warning" /> : null}
         </View>
@@ -538,7 +548,7 @@ function CountryPackageCard({
           label="Latest online version"
           value={updateStatus?.latestVersion ? `v${updateStatus.latestVersion}` : 'Check when needed'}
         />
-        <MetaRow label="Store price" value={priceLabel ?? (entry.requiredTier === 'free' ? 'Included' : 'Configured in store')} />
+        <MetaRow label="Store price" value={isUpcoming ? 'Coming soon' : priceLabel ?? (entry.requiredTier === 'free' ? 'Included' : 'Configured in store')} />
       </View>
 
       {updateStatus ? (
@@ -548,7 +558,11 @@ function CountryPackageCard({
       ) : null}
 
       <View style={styles.packageActions}>
-        {isLocked ? (
+        {isUpcoming ? (
+          <PrimaryButton disabled onPress={() => {}}>
+            Coming soon
+          </PrimaryButton>
+        ) : isLocked ? (
           <PrimaryButton disabled={busy && !isPurchasing} loading={isPurchasing} onPress={onUnlock}>
             Buy Country Pack
           </PrimaryButton>
@@ -562,7 +576,7 @@ function CountryPackageCard({
           </PrimaryButton>
         )}
         <PrimaryButton
-          disabled={isLocked || isInstalling || (busy && !isChecking)}
+          disabled={isUpcoming || isLocked || isInstalling || (busy && !isChecking)}
           loading={isChecking}
           onPress={onCheckUpdate}
           variant="secondary"
@@ -599,6 +613,7 @@ function buildCountryPackageCatalog(
     name: `${currentCountryCode}${currentRegionCode ? `-${currentRegionCode}` : ''} Current Region Package`,
     description: 'An online package matched to your current business country and region.',
     requiredTier: isIncludedCountryPackage(currentCountryCode) ? 'free' : 'pro',
+    availability: isIncludedCountryPackage(currentCountryCode) ? 'available' : 'upcoming',
     highlights: ['Tax setup', 'Local document templates', 'Review summary structure'],
   };
 
@@ -619,6 +634,10 @@ function resolvePackageAccess(
   entry: CountryPackageCatalogEntry,
   countryPackEntitlements: CountryPackEntitlement[]
 ): { allowed: boolean; label: string } {
+  if (entry.availability === 'upcoming') {
+    return { allowed: false, label: 'Upcoming' };
+  }
+
   if (entry.requiredTier === 'free') {
     return { allowed: true, label: 'Included' };
   }

@@ -56,6 +56,13 @@ function InvoiceEditorContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [templateKey, setTemplateKey] = useState('');
+  const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
+  const selectedTemplate = invoiceTemplates.find((template) => template.key === templateKey) ?? invoiceTemplates[0];
+
+  const defaultTaxRate = useMemo(
+    () => getDefaultInvoiceTaxRate(activeWorkspace?.countryCode, selectedTemplate?.countryFormat),
+    [activeWorkspace?.countryCode, selectedTemplate?.countryFormat]
+  );
 
   useEffect(() => {
     if (!activeWorkspace || !invoiceId) {
@@ -80,6 +87,7 @@ function InvoiceEditorContent() {
         setDueDate(nextInvoice.dueDate ?? '');
         setStatus(nextInvoice.status);
         setNotes(nextInvoice.notes ?? '');
+        const nextDefaultTaxRate = getDefaultInvoiceTaxRate(activeWorkspace.countryCode);
         setItems(
           nextInvoice.items.length
             ? nextInvoice.items.map((item) => ({
@@ -88,9 +96,9 @@ function InvoiceEditorContent() {
                 description: item.description ?? '',
                 quantity: String(item.quantity),
                 price: String(item.price),
-                taxRate: String(item.taxRate),
+                taxRate: String(item.taxRate || nextDefaultTaxRate),
               }))
-            : [emptyItem()]
+            : [emptyItem(nextDefaultTaxRate)]
         );
       })
       .catch((error) => {
@@ -115,8 +123,6 @@ function InvoiceEditorContent() {
   const total = totals.subtotal + totals.tax;
   const currency = activeWorkspace?.currency ?? 'INR';
   const selectedCustomer = customers.find((customer) => customer.id === customerId) ?? null;
-  const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
-  const selectedTemplate = invoiceTemplates.find((template) => template.key === templateKey) ?? invoiceTemplates[0];
   const currentInvoiceDocument = useMemo(() => {
     if (!activeWorkspace || !invoice) {
       return null;
@@ -350,7 +356,7 @@ function InvoiceEditorContent() {
           <section className="ol-panel">
             <div className="ol-panel-header">
               <div className="ol-panel-title">Line items</div>
-              <button className="ol-button-secondary" type="button" onClick={() => setItems((current) => [...current, emptyItem()])}>
+              <button className="ol-button-secondary" type="button" onClick={() => setItems((current) => [...current, emptyItem(defaultTaxRate)])}>
                 Add item
               </button>
             </div>
@@ -380,11 +386,23 @@ function InvoiceEditorContent() {
                   <div className="ol-field ol-field--action">
                     <span className="ol-field-label">Line</span>
                     <div className="ol-inline-actions">
-                      <button className="ol-button-secondary" type="button" onClick={() => duplicateItem(index)}>
-                        Copy
+                      <button
+                        aria-label="Copy line"
+                        className="ol-button-secondary ol-icon-button"
+                        title="Copy line"
+                        type="button"
+                        onClick={() => duplicateItem(index)}
+                      >
+                        <CopyIcon />
                       </button>
-                      <button className="ol-button-secondary" type="button" onClick={() => removeItem(index)}>
-                        Remove
+                      <button
+                        aria-label="Remove line"
+                        className="ol-button-secondary ol-icon-button ol-icon-button--danger"
+                        title="Remove line"
+                        type="button"
+                        onClick={() => removeItem(index)}
+                      >
+                        <TrashIcon />
                       </button>
                     </div>
                   </div>
@@ -433,13 +451,28 @@ function InvoiceEditorShell({ message }: { message: string }) {
   );
 }
 
-function emptyItem(): EditableItem {
-  return { name: '', description: '', quantity: '1', price: '0', taxRate: '0' };
+function emptyItem(taxRate = 0): EditableItem {
+  return { name: '', description: '', quantity: '1', price: '0', taxRate: formatTaxRateInput(taxRate) };
 }
 
 function parseMoney(value: string) {
   const parsed = Number(value.replace(/[, ]+/g, ''));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getDefaultInvoiceTaxRate(countryCode?: string | null, countryFormat?: string | null): number {
+  const normalizedCountryCode = countryCode?.trim().toUpperCase();
+  if (normalizedCountryCode === 'IN' || countryFormat === 'india_gst') {
+    return 18;
+  }
+  if (normalizedCountryCode === 'GB' || countryFormat === 'uk_vat') {
+    return 20;
+  }
+  return 0;
+}
+
+function formatTaxRateInput(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone: 'primary' | 'warning' | 'success' }) {
@@ -458,6 +491,43 @@ function Review({ label, value }: { label: string; value: string }) {
       <span className="ol-review-label">{label}</span>
       <strong className="ol-review-value">{value}</strong>
     </div>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" focusable="false" viewBox="0 0 24 24">
+      <path
+        d="M8 8.5c0-1.1.9-2 2-2h7c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2h-7c-1.1 0-2-.9-2-2v-9Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+      <path
+        d="M5 15.5V6.75c0-1.24 1.01-2.25 2.25-2.25H15"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" focusable="false" viewBox="0 0 24 24">
+      <path d="M4 7h16" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+      <path
+        d="M6.5 7l.7 12.2A2 2 0 0 0 9.2 21h5.6a2 2 0 0 0 2-1.8L17.5 7M9 7l.6-2h4.8L15 7"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
   );
 }
 

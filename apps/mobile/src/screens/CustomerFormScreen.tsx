@@ -137,8 +137,15 @@ export function CustomerFormScreen({ navigation, route }: CustomerFormScreenProp
       await recordLedgerDataChangedForBackupNudge('customer');
       showSuccessFeedback('Customer added. You can start recording dues and payments.', 'Customer added');
       navigation.replace('CustomerDetail', { customerId: customer.id });
-    } catch {
-      Alert.alert('Customer could not be saved', 'Please check the details and try again.');
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.includes('same name and phone')
+          ? error.message
+          : 'Please check the details and try again.';
+      Alert.alert(
+        'Customer could not be saved',
+        message
+      );
     }
   }
 

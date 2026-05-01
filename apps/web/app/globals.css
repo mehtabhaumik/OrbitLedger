@@ -503,6 +503,25 @@ a:focus-visible {
   border-color: rgba(162, 190, 232, 0.54);
 }
 
+.ol-icon-button {
+  flex: 0 0 auto;
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+
+.ol-icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ol-icon-button--danger {
+  color: #a3344d;
+  border-color: rgba(218, 154, 168, 0.86);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 246, 248, 0.92) 100%);
+}
+
 .ol-page-content {
   display: grid;
   gap: 24px;
@@ -1623,6 +1642,7 @@ a:focus-visible {
 .ol-review-item {
   display: grid;
   gap: 6px;
+  min-width: 0;
   padding: 14px 16px;
   border-radius: 14px;
   border: 1px solid rgba(203, 214, 232, 0.78);
@@ -1698,6 +1718,9 @@ a:focus-visible {
 .ol-review-value {
   font-weight: 800;
   line-height: 1.5;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ol-market-grid {
@@ -1756,7 +1779,14 @@ a:focus-visible {
 .ol-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
+}
+
+.ol-actions .ol-button,
+.ol-actions .ol-button-secondary,
+.ol-actions .ol-button-ghost {
+  flex: 0 0 auto;
 }
 
 .ol-actions--compact {
@@ -1928,6 +1958,10 @@ a:focus-visible {
   .ol-field--action .ol-button-secondary,
   .ol-field--action .ol-button-ghost {
     width: 100%;
+  }
+
+  .ol-field--action .ol-icon-button {
+    width: 40px;
   }
 
   .ol-onboarding-insights {

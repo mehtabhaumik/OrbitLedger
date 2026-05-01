@@ -89,9 +89,10 @@ export default function CustomersPage() {
 
     setIsSaving(true);
     try {
+      const normalizedPhone = normalizePhoneForCountry(countryCode, newPhone) ?? newPhone.trim();
       const customer = await createWorkspaceCustomer(activeWorkspace.workspaceId, {
         name: newName.trim(),
-        phone: newPhone.trim(),
+        phone: normalizedPhone,
         openingBalance: parseAmount(openingBalance) ?? 0,
       });
       setCustomers((current) => [customer, ...current]);

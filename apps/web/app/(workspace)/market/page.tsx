@@ -121,7 +121,10 @@ export default function MarketPage() {
           <div className="ol-market-grid">
             {WEB_COUNTRY_PACK_PRODUCT_CATALOG.map((pack) => (
               <article className="ol-market-card" key={pack.productId}>
-                <div className="ol-market-title">{pack.title}</div>
+                <div className="ol-market-card-header">
+                  <div className="ol-market-title">{pack.title}</div>
+                  <span className="ol-chip ol-chip--warning">{pack.availabilityLabel}</span>
+                </div>
                 <div className="ol-market-price">{pack.fallbackPrice}</div>
                 <p>{pack.helper}</p>
               </article>

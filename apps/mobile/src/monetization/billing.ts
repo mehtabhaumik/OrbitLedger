@@ -273,6 +273,9 @@ export async function purchaseCountryPack(
   if (!product) {
     throw new Error(`No country pack product is configured for ${countryCode}.`);
   }
+  if (product.availability === 'upcoming') {
+    throw new Error(`${product.title} is coming soon.`);
+  }
 
   const available = await initializeBilling();
   if (!available) {

@@ -39,6 +39,8 @@ export type CountryPackCatalogItem = {
   productId: CountryPackProductId;
   title: string;
   fallbackPrice: string;
+  availability: 'upcoming';
+  availabilityLabel: string;
   helper: string;
 };
 
@@ -47,14 +49,18 @@ export const COUNTRY_PACK_PRODUCT_CATALOG: CountryPackCatalogItem[] = [
     countryCode: 'US',
     productId: 'com.rudraix.orbitledger.countrypack.us',
     title: 'United States Country Pack',
-    fallbackPrice: 'USD 9.99',
+    fallbackPrice: 'Coming soon',
+    availability: 'upcoming',
+    availabilityLabel: 'Upcoming',
     helper: 'Sales tax labels, document wording, and review summaries for US businesses.',
   },
   {
     countryCode: 'GB',
     productId: 'com.rudraix.orbitledger.countrypack.uk',
     title: 'United Kingdom Country Pack',
-    fallbackPrice: 'GBP 9.99',
+    fallbackPrice: 'Coming soon',
+    availability: 'upcoming',
+    availabilityLabel: 'Upcoming',
     helper: 'VAT labels, document wording, and review summaries for UK businesses.',
   },
 ];

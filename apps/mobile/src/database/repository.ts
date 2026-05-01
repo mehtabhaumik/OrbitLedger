@@ -139,6 +139,13 @@ type BalanceRow = {
   balance: number | null;
 };
 
+class DuplicateCustomerError extends Error {
+  constructor() {
+    super('This customer already exists with the same name and phone.');
+    this.name = 'DuplicateCustomerError';
+  }
+}
+
 type DashboardSummaryRow = {
   total_receivable: number | null;
   customers_with_outstanding_balance: number | null;
@@ -1298,6 +1305,10 @@ export async function addCustomer(input: AddCustomerInput): Promise<Customer> {
     const db = await getDatabase();
     const id = createEntityId('cus');
     const now = new Date().toISOString();
+    const name = requiredText(input.name);
+    const phone = cleanText(input.phone);
+
+    await assertCustomerIsUnique(db, name, phone, id);
 
     await db.runAsync(
       `INSERT INTO customers (
@@ -1315,8 +1326,8 @@ export async function addCustomer(input: AddCustomerInput): Promise<Customer> {
         sync_status
       ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
       id,
-      requiredText(input.name),
-      cleanText(input.phone),
+      name,
+      phone,
       cleanText(input.address),
       cleanText(input.notes),
       input.openingBalance ?? 0,
@@ -1334,6 +1345,9 @@ export async function addCustomer(input: AddCustomerInput): Promise<Customer> {
 
     return customer;
   } catch (error) {
+    if (error instanceof DuplicateCustomerError) {
+      throw error;
+    }
     return throwDatabaseError('addCustomer', error);
   }
 }
@@ -1347,6 +1361,10 @@ export async function updateCustomer(id: string, input: UpdateCustomerInput): Pr
 
     const db = await getDatabase();
     const now = new Date().toISOString();
+    const name = requiredText(input.name ?? existing.name);
+    const phone = input.phone === undefined ? existing.phone : cleanText(input.phone);
+
+    await assertCustomerIsUnique(db, name, phone, id);
 
     await db.runAsync(
       `UPDATE customers SET
@@ -1359,8 +1377,8 @@ export async function updateCustomer(id: string, input: UpdateCustomerInput): Pr
         last_modified = ?,
         sync_status = 'pending'
        WHERE id = ?`,
-      requiredText(input.name ?? existing.name),
-      input.phone === undefined ? existing.phone : cleanText(input.phone),
+      name,
+      phone,
       input.address === undefined ? existing.address : cleanText(input.address),
       input.notes === undefined ? existing.notes : cleanText(input.notes),
       input.openingBalance ?? existing.openingBalance,
@@ -1376,6 +1394,9 @@ export async function updateCustomer(id: string, input: UpdateCustomerInput): Pr
 
     return customer;
   } catch (error) {
+    if (error instanceof DuplicateCustomerError) {
+      throw error;
+    }
     return throwDatabaseError('updateCustomer', error);
   }
 }
@@ -3657,4 +3678,38 @@ async function getCustomerById(id: string): Promise<Customer | null> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<CustomerRow>('SELECT * FROM customers WHERE id = ? LIMIT 1', id);
   return row ? mapCustomer(row) : null;
+}
+
+async function assertCustomerIsUnique(
+  db: SQLiteDatabase,
+  name: string,
+  phone: string | null,
+  currentCustomerId?: string
+): Promise<void> {
+  const rows = await db.getAllAsync<CustomerRow>(
+    `SELECT *
+       FROM customers
+      WHERE is_archived = 0
+        AND id != ?`,
+    currentCustomerId ?? ''
+  );
+  const nameKey = normalizeCustomerNameKey(name);
+  const phoneKey = normalizeCustomerPhoneKey(phone);
+
+  const duplicate = rows.some(
+    (row) =>
+      normalizeCustomerNameKey(row.name) === nameKey &&
+      normalizeCustomerPhoneKey(row.phone) === phoneKey
+  );
+  if (duplicate) {
+    throw new DuplicateCustomerError();
+  }
+}
+
+function normalizeCustomerNameKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizeCustomerPhoneKey(value: string | null): string {
+  return (value ?? '').replace(/[^\d+]/g, '');
 }

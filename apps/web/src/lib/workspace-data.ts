@@ -163,9 +163,14 @@ export async function createWorkspaceCustomer(
   input: CreateWorkspaceCustomerInput
 ): Promise<WorkspaceCustomer> {
   const now = new Date().toISOString();
+  const name = input.name.trim();
+  const phone = input.phone?.trim() || null;
+  await assertWorkspaceCustomerIsUnique(workspaceId, name, phone);
   const payload = {
-    name: input.name.trim(),
-    phone: input.phone?.trim() || null,
+    name,
+    name_key: normalizeCustomerNameKey(name),
+    phone,
+    phone_key: normalizeCustomerPhoneKey(phone),
     address: input.address?.trim() || null,
     notes: input.notes?.trim() || null,
     opening_balance: Number.isFinite(input.openingBalance) ? Number(input.openingBalance) : 0,
@@ -191,6 +196,40 @@ export async function createWorkspaceCustomer(
     updatedAt: now,
     balance: payload.opening_balance,
   };
+}
+
+async function assertWorkspaceCustomerIsUnique(
+  workspaceId: string,
+  name: string,
+  phone: string | null
+): Promise<void> {
+  const firestore = getWebFirestore();
+  const customers = collection(firestore, 'workspaces', workspaceId, 'customers');
+  const phoneKey = normalizeCustomerPhoneKey(phone);
+  const nameKey = normalizeCustomerNameKey(name);
+  const snapshots = await Promise.all([
+    getDocs(query(customers, where('name', '==', name), limitQuery(10))),
+    phone ? getDocs(query(customers, where('phone', '==', phone), limitQuery(10))) : Promise.resolve(null),
+  ]);
+
+  for (const entry of snapshots.flatMap((snapshot) => snapshot?.docs ?? [])) {
+    const data = entry.data() as {
+      name?: string;
+      name_key?: string;
+      phone?: string | null;
+      phone_key?: string | null;
+      is_archived?: boolean;
+    };
+    if (data.is_archived) {
+      continue;
+    }
+
+    const existingNameKey = data.name_key ?? normalizeCustomerNameKey(data.name ?? '');
+    const existingPhoneKey = data.phone_key ?? normalizeCustomerPhoneKey(data.phone ?? null);
+    if (existingNameKey === nameKey && existingPhoneKey === phoneKey) {
+      throw new Error('This customer already exists with the same name and phone.');
+    }
+  }
 }
 
 export async function listWorkspaceTransactions(
@@ -608,4 +647,12 @@ function mapInvoiceItem(entry: QueryDocumentSnapshot): WorkspaceInvoiceItem {
     taxRate: data.tax_rate ?? 0,
     total: data.total ?? 0,
   };
+}
+
+function normalizeCustomerNameKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizeCustomerPhoneKey(value: string | null): string {
+  return (value ?? '').replace(/[^\d+]/g, '');
 }
