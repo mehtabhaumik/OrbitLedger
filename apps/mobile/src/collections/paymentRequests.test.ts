@@ -18,7 +18,7 @@ describe('payment request sharing', () => {
         { upiId: 'owner@okaxis', paymentNote: 'Use invoice number in note.' },
         'IN'
       )
-    ).toBe('Payment details: UPI: owner@okaxis · Use invoice number in note.');
+    ).toBe('Payment details: UPI ID: owner@okaxis · Use invoice number in note.');
   });
 
   it('builds truthful invoice payment copy', () => {
@@ -34,7 +34,7 @@ describe('payment request sharing', () => {
     });
 
     expect(message).toContain('invoice INV-001');
-    expect(message).toContain('UPI: owner@upi');
+    expect(message).toContain('UPI ID: owner@upi');
     expect(message).toContain('I will mark it received once I confirm it.');
     expect(message).not.toContain('payment received');
   });

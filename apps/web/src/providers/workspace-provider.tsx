@@ -97,6 +97,26 @@ function isWorkspaceSummary(value: unknown): value is OrbitWorkspaceSummary {
   return typeof workspace.workspaceId === 'string' && typeof workspace.businessName === 'string';
 }
 
+function withPaymentInstructionDefaults(workspace: OrbitWorkspaceSummary): OrbitWorkspaceSummary {
+  return {
+    ...workspace,
+    paymentInstructions: workspace.paymentInstructions ?? {
+      upiId: null,
+      paymentPageUrl: null,
+      paymentNote: null,
+      bankAccountName: null,
+      bankName: null,
+      bankAccountNumber: null,
+      bankIfsc: null,
+      bankBranch: null,
+      bankRoutingNumber: null,
+      bankSortCode: null,
+      bankIban: null,
+      bankSwift: null,
+    },
+  };
+}
+
 function readWorkspaceCache(userId: string): CachedWorkspaceState | null {
   if (typeof window === 'undefined') {
     return null;
@@ -112,7 +132,7 @@ function readWorkspaceCache(userId: string): CachedWorkspaceState | null {
     const cachedAt = typeof parsed.cachedAt === 'string' ? Date.parse(parsed.cachedAt) : NaN;
     const isFresh = Number.isFinite(cachedAt) && Date.now() - cachedAt <= WORKSPACE_CACHE_MAX_AGE_MS;
     const workspaces = Array.isArray(parsed.workspaces)
-      ? parsed.workspaces.filter(isWorkspaceSummary)
+      ? parsed.workspaces.filter(isWorkspaceSummary).map(withPaymentInstructionDefaults)
       : [];
     const state =
       parsed.state === WORKSPACE_STATE_HAS || parsed.state === WORKSPACE_STATE_NONE

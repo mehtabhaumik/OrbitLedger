@@ -1,4 +1,5 @@
 import type { OrbitCloudUser, OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
+import { normalizeManualPaymentInstructionDetails } from '@orbit-ledger/core';
 import { getFirebaseApp } from './firebase';
 import {
   collection,
@@ -51,6 +52,20 @@ function mapWorkspaceSummary(
     authorizedPersonName: String(data.authorized_person_name ?? ''),
     authorizedPersonTitle: String(data.authorized_person_title ?? ''),
     signatureUri: typeof data.signature_uri === 'string' ? data.signature_uri : null,
+    paymentInstructions: normalizeManualPaymentInstructionDetails({
+      upiId: stringValue(data.payment_upi_id),
+      paymentPageUrl: stringValue(data.payment_page_url),
+      paymentNote: stringValue(data.payment_note),
+      bankAccountName: stringValue(data.payment_bank_account_name),
+      bankName: stringValue(data.payment_bank_name),
+      bankAccountNumber: stringValue(data.payment_bank_account_number),
+      bankIfsc: stringValue(data.payment_bank_ifsc),
+      bankBranch: stringValue(data.payment_bank_branch),
+      bankRoutingNumber: stringValue(data.payment_bank_routing_number),
+      bankSortCode: stringValue(data.payment_bank_sort_code),
+      bankIban: stringValue(data.payment_bank_iban),
+      bankSwift: stringValue(data.payment_bank_swift),
+    }),
     createdAt: String(data.created_at ?? new Date().toISOString()),
     updatedAt: String(data.updated_at ?? new Date().toISOString()),
     serverRevision:
@@ -59,6 +74,10 @@ function mapWorkspaceSummary(
         : 0,
     dataState: data.data_state === 'full_dataset' ? 'full_dataset' : 'profile_only',
   };
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
 }
 
 function serializeProfileDraft(profile: WorkspaceProfileDraft, owner: OrbitCloudUser) {

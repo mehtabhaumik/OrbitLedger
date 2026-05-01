@@ -1,5 +1,6 @@
 import {
   appendPaymentLinkToMessage,
+  buildManualPaymentInstructionLines,
   buildInvoicePaymentLink,
   normalizeUpiId,
   type PaymentLinkDetails,
@@ -34,17 +35,7 @@ export function formatPaymentDetailsLine(
   paymentDetails: PaymentShareDetails | null | undefined,
   countryCode?: string | null
 ): string | null {
-  const upiId = normalizeUpiId(paymentDetails?.upiId);
-  const note = (paymentDetails?.paymentNote ?? '').trim();
-  const isIndia = (countryCode ?? '').trim().toUpperCase() === 'IN';
-  const parts: string[] = [];
-
-  if (isIndia && upiId) {
-    parts.push(`UPI: ${upiId}`);
-  }
-  if (note) {
-    parts.push(note);
-  }
+  const parts = buildManualPaymentInstructionLines(paymentDetails, countryCode);
 
   return parts.length ? `Payment details: ${parts.join(' · ')}` : null;
 }

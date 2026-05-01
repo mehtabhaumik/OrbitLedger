@@ -1,5 +1,7 @@
+import { normalizeManualPaymentInstructionDetails } from '@orbit-ledger/core';
+
 import { getDatabase } from '../database';
-import { normalizeUpiId, type PaymentShareDetails } from '../collections/paymentRequests';
+import type { PaymentShareDetails } from '../collections/paymentRequests';
 
 type AppPreferenceRow = {
   value: string;
@@ -32,21 +34,24 @@ export async function saveBusinessPaymentDetails(
 
 export function normalizeBusinessPaymentDetails(input: unknown): BusinessPaymentDetails {
   const record = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
-  const upiId = typeof record.upiId === 'string' ? normalizeUpiId(record.upiId) : null;
-  const paymentNote =
-    typeof record.paymentNote === 'string' && record.paymentNote.trim()
-      ? record.paymentNote.trim()
-      : null;
-  const paymentPageUrl =
-    typeof record.paymentPageUrl === 'string' && record.paymentPageUrl.trim()
-      ? record.paymentPageUrl.trim()
-      : null;
+  return normalizeManualPaymentInstructionDetails({
+    upiId: stringValue(record.upiId),
+    paymentPageUrl: stringValue(record.paymentPageUrl),
+    paymentNote: stringValue(record.paymentNote),
+    bankAccountName: stringValue(record.bankAccountName),
+    bankName: stringValue(record.bankName),
+    bankAccountNumber: stringValue(record.bankAccountNumber),
+    bankIfsc: stringValue(record.bankIfsc),
+    bankBranch: stringValue(record.bankBranch),
+    bankRoutingNumber: stringValue(record.bankRoutingNumber),
+    bankSortCode: stringValue(record.bankSortCode),
+    bankIban: stringValue(record.bankIban),
+    bankSwift: stringValue(record.bankSwift),
+  });
+}
 
-  return {
-    upiId,
-    paymentPageUrl,
-    paymentNote,
-  };
+function stringValue(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
 }
 
 async function getPreference(key: string): Promise<string | null> {

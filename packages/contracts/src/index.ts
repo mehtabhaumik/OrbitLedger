@@ -38,6 +38,20 @@ export type OrbitWorkspaceSummary = {
   authorizedPersonName: string;
   authorizedPersonTitle: string;
   signatureUri: string | null;
+  paymentInstructions: {
+    upiId?: string | null;
+    paymentPageUrl?: string | null;
+    paymentNote?: string | null;
+    bankAccountName?: string | null;
+    bankName?: string | null;
+    bankAccountNumber?: string | null;
+    bankIfsc?: string | null;
+    bankBranch?: string | null;
+    bankRoutingNumber?: string | null;
+    bankSortCode?: string | null;
+    bankIban?: string | null;
+    bankSwift?: string | null;
+  };
   createdAt: string;
   updatedAt: string;
   serverRevision: number;

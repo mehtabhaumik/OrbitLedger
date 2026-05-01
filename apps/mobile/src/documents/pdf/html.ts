@@ -304,6 +304,7 @@ async function buildInvoicePdfHtml(
       }
 
       ${data.paymentLink ? paymentLinkBlock(data.paymentLink) : ''}
+      ${data.manualPaymentInstructions.length ? manualPaymentInstructionBlock(data.manualPaymentInstructions) : ''}
 
       ${
         showTax
@@ -562,6 +563,14 @@ function paymentLinkBlock(link: NonNullable<InvoiceDocumentData['paymentLink']>)
     <h2>${escapeHtml(link.label)}</h2>
     <p>${escapeHtml(link.instruction)}</p>
     <a href="${escapeAttribute(link.url)}">${escapeHtml(link.url)}</a>
+  </section>`;
+}
+
+function manualPaymentInstructionBlock(lines: string[]): string {
+  return `<section class="payment-link-block">
+    <p class="label">Payment instructions</p>
+    <h2>Manual payment details</h2>
+    ${lines.map((line) => `<p>${escapeHtml(line)}</p>`).join('')}
   </section>`;
 }
 

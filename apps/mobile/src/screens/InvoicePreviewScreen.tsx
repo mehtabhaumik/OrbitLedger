@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   buildInvoicePaymentLink,
+  buildManualPaymentInstructionLines,
   getInvoiceDocumentStateLabel,
   getInvoicePaymentStatusLabel,
   summarizePaymentClearance,
@@ -156,6 +157,10 @@ export function InvoicePreviewScreen({ navigation, route }: InvoicePreviewScreen
             preferHostedPaymentPage: Boolean(process.env.EXPO_PUBLIC_ORBIT_LEDGER_PAYMENT_PAGE_URL),
           },
         }),
+        manualPaymentInstructions: buildManualPaymentInstructionLines(
+          paymentDetails,
+          source.businessProfile.countryCode
+        ),
         ...getInvoiceTaxDocumentLabels(source.invoiceTaxProfile),
       },
     });

@@ -223,6 +223,7 @@ export type InvoiceDocumentData = {
   items: InvoiceItemTableRow[];
   summary: InvoiceSummaryBlock;
   paymentLink: InvoicePaymentLink | null;
+  manualPaymentInstructions: string[];
   taxPlaceholder: DocumentTaxPlaceholderBlock;
   footer: DocumentFooterBlock;
   rendering: {
@@ -381,5 +382,6 @@ export type InvoiceDocumentInput = {
     taxPointLabel?: string;
     taxPointDate?: string | null;
     paymentLink?: InvoicePaymentLink | null;
+    manualPaymentInstructions?: string[];
   };
 };

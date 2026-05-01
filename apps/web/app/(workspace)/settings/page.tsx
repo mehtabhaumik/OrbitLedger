@@ -2,6 +2,10 @@
 
 import Link from 'next/link';
 import {
+  getManualPaymentInstructionTemplate,
+  type ManualPaymentInstructionDetails,
+} from '@orbit-ledger/core';
+import {
   useEffect,
   useRef,
   useState,
@@ -40,6 +44,8 @@ type ProfileFormState = {
   signatureUri: string | null;
 };
 
+type PaymentFieldKey = keyof ManualPaymentInstructionDetails;
+
 type ProfileFieldKey = keyof Omit<ProfileFormState, 'address' | 'logoUri' | 'signatureUri'>;
 
 export default function SettingsPage() {
@@ -76,6 +82,7 @@ export default function SettingsPage() {
   const [uploadingAsset, setUploadingAsset] = useState<WorkspaceIdentityAssetKind | null>(null);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState<string | null>(null);
+  const [paymentInstructions, setPaymentInstructions] = useState<ManualPaymentInstructionDetails>({});
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -106,6 +113,7 @@ export default function SettingsPage() {
       email: false,
       stateCode: false,
     });
+    setPaymentInstructions(activeWorkspace.paymentInstructions);
   }, [activeWorkspace]);
 
   if (!activeWorkspace) {
@@ -113,6 +121,7 @@ export default function SettingsPage() {
   }
 
   const workspace = activeWorkspace;
+  const paymentTemplate = getManualPaymentInstructionTemplate(workspace.countryCode);
 
   function validateField(field: ProfileFieldKey, candidate = profile) {
     if (field === 'businessName') {
@@ -155,8 +164,8 @@ export default function SettingsPage() {
     setFieldErrors((current) => ({ ...current, [field]: nextError }));
   }
 
-  async function saveWorkspaceProfile(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function saveWorkspaceProfile(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     const nextErrors: Record<ProfileFieldKey, string | null> = {
       businessName: validateField('businessName'),
       ownerName: validateField('ownerName'),
@@ -193,6 +202,7 @@ export default function SettingsPage() {
         authorizedPersonName: workspace.authorizedPersonName,
         authorizedPersonTitle: workspace.authorizedPersonTitle,
         signatureUri: profile.signatureUri,
+        paymentInstructions,
       });
       await refresh();
       showToast('Workspace profile saved.', 'success');
@@ -219,6 +229,7 @@ export default function SettingsPage() {
         authorizedPersonName: workspace.authorizedPersonName,
         authorizedPersonTitle: workspace.authorizedPersonTitle,
         signatureUri: nextProfile.signatureUri,
+        paymentInstructions,
       });
       await refresh();
       showToast(successMessage, 'success');
@@ -309,6 +320,10 @@ export default function SettingsPage() {
       setPinError('Current PIN is incorrect.');
       showToast(error instanceof Error ? error.message : 'Browser lock could not be changed.', 'danger');
     }
+  }
+
+  function updatePaymentInstruction(field: PaymentFieldKey, value: string) {
+    setPaymentInstructions((current) => ({ ...current, [field]: value }));
   }
 
   return (
@@ -436,6 +451,38 @@ export default function SettingsPage() {
             onPick={(file) => void handleAssetPicked('signature', file)}
             onRemove={() => void removeAsset('signature')}
           />
+        </div>
+      </section>
+
+      <section className="ol-panel-glass">
+        <div className="ol-panel-header">
+          <div>
+            <div className="ol-panel-title">{paymentTemplate.title}</div>
+            <p className="ol-panel-copy">
+              {paymentTemplate.helper} These details appear on invoices and payment messages.
+            </p>
+          </div>
+        </div>
+        <div className="ol-form-grid">
+          <div className="ol-form-row ol-form-row--3">
+            {paymentTemplate.fields.map((field) => (
+              <label className="ol-field" key={field.key}>
+                <span className="ol-field-label">{field.label}</span>
+                <input
+                  className="ol-input"
+                  placeholder={field.placeholder}
+                  value={String(paymentInstructions[field.key] ?? '')}
+                  onChange={(event) => updatePaymentInstruction(field.key, event.target.value)}
+                />
+                <span className="ol-field-help">{field.helper}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="ol-actions">
+          <button className="ol-button" disabled={isSaving} type="button" onClick={() => void saveWorkspaceProfile()}>
+            {isSaving ? 'Saving...' : 'Save payment details'}
+          </button>
         </div>
       </section>
 

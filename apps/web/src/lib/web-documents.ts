@@ -1,9 +1,11 @@
 import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
 import {
+  buildManualPaymentInstructionLines,
   getGeneratedInvoiceDocumentLabel,
   getLocalBusinessPack,
   normalizeInvoiceDocumentState,
   type InvoicePaymentLink,
+  type ManualPaymentInstructionDetails,
 } from '@orbit-ledger/core';
 
 import type {
@@ -52,6 +54,7 @@ type BuildInvoiceDocumentInput = {
     url: string;
   } | null;
   paymentLink?: InvoicePaymentLink | null;
+  manualPaymentInstructions?: string[];
 };
 
 type BuildStatementDocumentInput = {
@@ -378,6 +381,7 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
         ${signatureBlock(input.workspace, includeBranding)}
       </section>
       ${input.paymentLink ? paymentLinkBlock(input.paymentLink) : ''}
+      ${input.manualPaymentInstructions?.length ? manualPaymentInstructionBlock(input.manualPaymentInstructions) : ''}
       ${input.instrumentAttachment ? instrumentAttachmentBlock(input.instrumentAttachment) : ''}
       <section class="tax-note">
         <p class="label">${escapeHtml(template.taxLabel)} Details</p>
@@ -398,6 +402,7 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
     subscription,
     invoiceData,
     paymentLink: input.paymentLink ?? null,
+    manualPaymentInstructions: input.manualPaymentInstructions ?? [],
   };
 }
 
@@ -678,6 +683,16 @@ export async function downloadInvoicePdf(document: WebInvoiceDocument) {
     y += 76;
   }
 
+  if (document.manualPaymentInstructions.length) {
+    ensureSpace(82);
+    y += 14;
+    pdf.setFillColor(248, 251, 255);
+    pdf.roundedRect(margin, y, pageWidth - margin * 2, 70, 8, 8, 'FD');
+    addText('Payment instructions', margin + 14, y + 20, { size: 11, style: 'bold', maxWidth: pageWidth - margin * 2 - 28 });
+    addText(document.manualPaymentInstructions.join('   |   '), margin + 14, y + 42, { size: 8, maxWidth: pageWidth - margin * 2 - 28 });
+    y += 84;
+  }
+
   if (data.notes) {
     ensureSpace(42);
     y = addText(`Notes: ${data.notes}`, margin, y + 12, { size: 9, maxWidth: pageWidth - margin * 2 });
@@ -857,10 +872,14 @@ export function buildPaymentRequestMessage(input: {
   currency: string;
   documentLabel: string;
   documentNumber?: string;
+  countryCode?: string | null;
+  paymentDetails?: ManualPaymentInstructionDetails | null;
 }) {
   const amount = money(input.amount, input.currency);
   const reference = input.documentNumber ? ` for ${input.documentLabel} ${input.documentNumber}` : '';
-  return `Hello ${input.customerName}, please share the payment of ${amount}${reference} when convenient. Thank you, ${input.businessName}.`;
+  const lines = buildManualPaymentInstructionLines(input.paymentDetails, input.countryCode);
+  const details = lines.length ? `\n\nPayment details:\n${lines.join('\n')}` : '';
+  return `Hello ${input.customerName}, please share the payment of ${amount}${reference} when convenient.${details}\n\nThank you,\n${input.businessName}.`;
 }
 
 function invoiceTemplate(
@@ -1019,6 +1038,10 @@ function instrumentAttachmentBlock(attachment: { name: string; url: string }) {
 
 function paymentLinkBlock(link: InvoicePaymentLink) {
   return `<section class="payment-link-block"><div><p class="label">Payment link</p><h2>${escapeHtml(link.label)}</h2><p>${escapeHtml(link.instruction)}</p><a href="${escapeAttribute(link.url)}">${escapeHtml(link.url)}</a></div></section>`;
+}
+
+function manualPaymentInstructionBlock(lines: string[]) {
+  return `<section class="payment-link-block"><div><p class="label">Payment instructions</p><h2>Manual payment details</h2>${lines.map((line) => `<p>${escapeHtml(line)}</p>`).join('')}</div></section>`;
 }
 
 function invoiceTable(rows: Array<Record<string, string | number | null>>, columns: WebDocumentTemplate['columns']) {

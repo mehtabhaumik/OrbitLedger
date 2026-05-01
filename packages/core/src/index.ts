@@ -115,6 +115,17 @@ export type {
   PaymentLinkDetails,
 } from './paymentLinks';
 export {
+  buildManualPaymentInstructionLines,
+  buildManualPaymentInstructionText,
+  getManualPaymentInstructionTemplate,
+  normalizeManualPaymentInstructionDetails,
+} from './manualPaymentInstructions';
+export type {
+  ManualPaymentInstructionDetails,
+  ManualPaymentInstructionField,
+  ManualPaymentInstructionTemplate,
+} from './manualPaymentInstructions';
+export {
   buildRazorpayNotes,
   buildRazorpayPaymentLinkDraft,
 } from './paymentProviderSetup';

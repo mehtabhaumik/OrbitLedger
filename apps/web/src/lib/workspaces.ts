@@ -1,6 +1,7 @@
 'use client';
 
 import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
+import { normalizeManualPaymentInstructionDetails, type ManualPaymentInstructionDetails } from '@orbit-ledger/core';
 import {
   addDoc,
   collection,
@@ -34,6 +35,7 @@ export type WorkspaceProfileInput = {
   authorizedPersonName?: string | null;
   authorizedPersonTitle?: string | null;
   signatureUri?: string | null;
+  paymentInstructions?: ManualPaymentInstructionDetails | null;
 };
 
 type FirestoreWorkspaceDoc = {
@@ -49,6 +51,18 @@ type FirestoreWorkspaceDoc = {
   authorized_person_name?: string | null;
   authorized_person_title?: string | null;
   signature_uri?: string | null;
+  payment_upi_id?: string | null;
+  payment_page_url?: string | null;
+  payment_note?: string | null;
+  payment_bank_account_name?: string | null;
+  payment_bank_name?: string | null;
+  payment_bank_account_number?: string | null;
+  payment_bank_ifsc?: string | null;
+  payment_bank_branch?: string | null;
+  payment_bank_routing_number?: string | null;
+  payment_bank_sort_code?: string | null;
+  payment_bank_iban?: string | null;
+  payment_bank_swift?: string | null;
   owner_uid: string;
   owner_email?: string | null;
   data_state: 'profile_only' | 'full_dataset';
@@ -86,6 +100,7 @@ export async function createWorkspace(
     authorized_person_name: input.authorizedPersonName?.trim() ?? '',
     authorized_person_title: input.authorizedPersonTitle?.trim() ?? '',
     signature_uri: input.signatureUri ?? null,
+    ...paymentInstructionPayload(input.paymentInstructions),
     owner_uid: ownerId,
     owner_email: ownerEmail,
     data_state: 'profile_only',
@@ -133,6 +148,7 @@ export async function updateWorkspaceProfile(
       authorized_person_name: input.authorizedPersonName?.trim() ?? '',
       authorized_person_title: input.authorizedPersonTitle?.trim() ?? '',
       signature_uri: input.signatureUri ?? null,
+      ...paymentInstructionPayload(input.paymentInstructions),
       updated_at: serverTimestamp(),
       server_revision: currentRevision + 1,
     });
@@ -201,10 +217,42 @@ function mapWorkspace(id: string, data: FirestoreWorkspaceDoc): OrbitWorkspaceSu
     authorizedPersonName: data.authorized_person_name ?? '',
     authorizedPersonTitle: data.authorized_person_title ?? '',
     signatureUri: data.signature_uri ?? null,
+    paymentInstructions: normalizeManualPaymentInstructionDetails({
+      upiId: data.payment_upi_id,
+      paymentPageUrl: data.payment_page_url,
+      paymentNote: data.payment_note,
+      bankAccountName: data.payment_bank_account_name,
+      bankName: data.payment_bank_name,
+      bankAccountNumber: data.payment_bank_account_number,
+      bankIfsc: data.payment_bank_ifsc,
+      bankBranch: data.payment_bank_branch,
+      bankRoutingNumber: data.payment_bank_routing_number,
+      bankSortCode: data.payment_bank_sort_code,
+      bankIban: data.payment_bank_iban,
+      bankSwift: data.payment_bank_swift,
+    }),
     createdAt: toIsoString(data.created_at),
     updatedAt: toIsoString(data.updated_at),
     serverRevision: data.server_revision ?? 0,
     dataState: data.data_state ?? 'profile_only',
+  };
+}
+
+function paymentInstructionPayload(details?: ManualPaymentInstructionDetails | null) {
+  const normalized = normalizeManualPaymentInstructionDetails(details);
+  return {
+    payment_upi_id: normalized.upiId,
+    payment_page_url: normalized.paymentPageUrl,
+    payment_note: normalized.paymentNote,
+    payment_bank_account_name: normalized.bankAccountName,
+    payment_bank_name: normalized.bankName,
+    payment_bank_account_number: normalized.bankAccountNumber,
+    payment_bank_ifsc: normalized.bankIfsc,
+    payment_bank_branch: normalized.bankBranch,
+    payment_bank_routing_number: normalized.bankRoutingNumber,
+    payment_bank_sort_code: normalized.bankSortCode,
+    payment_bank_iban: normalized.bankIban,
+    payment_bank_swift: normalized.bankSwift,
   };
 }
 

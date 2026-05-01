@@ -92,6 +92,10 @@ import { PIN_INACTIVITY_TIMEOUT_OPTIONS } from '../security/pinLock';
 import { getSyncOverview, runWorkspaceSync } from '../sync';
 import { colors, shadows, spacing, touch, typography } from '../theme/theme';
 import type { OrbitCloudUser, OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
+import {
+  getManualPaymentInstructionTemplate,
+  type ManualPaymentInstructionDetails,
+} from '@orbit-ledger/core';
 import type { SyncOverview } from '@orbit-ledger/sync';
 
 const profileSchema = z.object({
@@ -194,6 +198,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
   });
   const values = watch();
   const regionOptions = getRegionOptions(values.countryCode);
+  const paymentTemplate = getManualPaymentInstructionTemplate(values.countryCode || settingsSnapshot?.countryCode);
 
   useEffect(() => {
     let isMounted = true;
@@ -526,6 +531,10 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
     } finally {
       setIsSavingProfile(false);
     }
+  }
+
+  function updatePaymentDetail(field: keyof ManualPaymentInstructionDetails, value: string) {
+    setPaymentDetails((current) => ({ ...current, [field]: value }));
   }
 
   async function handleTimeoutChange(nextTimeoutMs: number) {
@@ -1133,40 +1142,22 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
           </View>
 
           <View style={styles.formCard}>
-            <Text style={styles.sectionTitle}>Payment details</Text>
+            <Text style={styles.sectionTitle}>{paymentTemplate.title}</Text>
             <Text style={styles.countryPackageText}>
-              These details appear in payment request messages. Orbit Ledger does not process the payment.
+              {paymentTemplate.helper} Orbit Ledger does not process the payment.
             </Text>
-            <TextField
-              label="UPI ID"
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder="yourname@bank"
-              value={paymentDetails.upiId ?? ''}
-              onChangeText={(upiId) => setPaymentDetails((current) => ({ ...current, upiId }))}
-              helperText="Used for India payment requests when saved."
-            />
-            <TextField
-              label="Payment note"
-              autoCapitalize="sentences"
-              placeholder="Please mention invoice number while paying."
-              value={paymentDetails.paymentNote ?? ''}
-              onChangeText={(paymentNote) =>
-                setPaymentDetails((current) => ({ ...current, paymentNote }))
-              }
-              helperText="Optional note added to shared payment messages."
-            />
-            <TextField
-              label="Payment page"
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder="https://..."
-              value={paymentDetails.paymentPageUrl ?? ''}
-              onChangeText={(paymentPageUrl) =>
-                setPaymentDetails((current) => ({ ...current, paymentPageUrl }))
-              }
-              helperText="Optional secure payment page shown on invoice payment links."
-            />
+            {paymentTemplate.fields.map((field) => (
+              <TextField
+                key={field.key}
+                label={field.label}
+                autoCapitalize={field.key === 'paymentNote' ? 'sentences' : 'none'}
+                autoCorrect={false}
+                placeholder={field.placeholder}
+                value={String(paymentDetails[field.key] ?? '')}
+                onChangeText={(value) => updatePaymentDetail(field.key, value)}
+                helperText={field.helper}
+              />
+            ))}
           </View>
 
           <View style={styles.notice}>

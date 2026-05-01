@@ -4,6 +4,15 @@ export type PaymentLinkDetails = {
   hostedPaymentPageUrl?: string | null;
   preferHostedPaymentPage?: boolean | null;
   paymentNote?: string | null;
+  bankAccountName?: string | null;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIfsc?: string | null;
+  bankBranch?: string | null;
+  bankRoutingNumber?: string | null;
+  bankSortCode?: string | null;
+  bankIban?: string | null;
+  bankSwift?: string | null;
 };
 
 export type InvoicePaymentLinkInput = {

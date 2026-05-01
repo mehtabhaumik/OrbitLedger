@@ -6,6 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import {
   appendPaymentLinkToMessage,
   buildInvoicePaymentLink,
+  buildManualPaymentInstructionLines,
+  getManualPaymentInstructionTemplate,
   getInvoiceDocumentStateLabel,
   getInvoicePaymentStatusLabel,
   getPaymentClearanceStatusLabel,
@@ -89,7 +91,6 @@ function InvoiceEditorContent() {
   const [urgentPaymentRequired, setUrgentPaymentRequired] = useState(false);
   const [paymentLinkDetails, setPaymentLinkDetails] = useState<PaymentLinkDetails>({});
   const [includePaymentLinkInDocument, setIncludePaymentLinkInDocument] = useState(true);
-  const [paymentLinkDetailsLoaded, setPaymentLinkDetailsLoaded] = useState(false);
   const [allocations, setAllocations] = useState<WorkspaceInvoicePaymentAllocation[]>([]);
   const [revisionReason, setRevisionReason] = useState('');
   const [notes, setNotes] = useState('');
@@ -101,9 +102,7 @@ function InvoiceEditorContent() {
   const [templateKey, setTemplateKey] = useState('');
   const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
   const selectedTemplate = invoiceTemplates.find((template) => template.key === templateKey) ?? invoiceTemplates[0];
-  const paymentLinkStorageKey = activeWorkspace
-    ? `orbit-ledger:payment-link-details:${activeWorkspace.workspaceId}`
-    : null;
+  const paymentInstructionTemplate = getManualPaymentInstructionTemplate(activeWorkspace?.countryCode);
 
   const defaultTaxRate = useMemo(
     () => getDefaultInvoiceTaxRate(activeWorkspace?.countryCode, selectedTemplate?.countryFormat),
@@ -160,28 +159,10 @@ function InvoiceEditorContent() {
   }, [activeWorkspace, invoiceId]);
 
   useEffect(() => {
-    if (!paymentLinkStorageKey) {
-      return;
+    if (activeWorkspace) {
+      setPaymentLinkDetails(activeWorkspace.paymentInstructions);
     }
-    setPaymentLinkDetailsLoaded(false);
-    try {
-      const saved = window.localStorage.getItem(paymentLinkStorageKey);
-      if (saved) {
-        setPaymentLinkDetails(JSON.parse(saved) as PaymentLinkDetails);
-      }
-    } catch {
-      setPaymentLinkDetails({});
-    } finally {
-      setPaymentLinkDetailsLoaded(true);
-    }
-  }, [paymentLinkStorageKey]);
-
-  useEffect(() => {
-    if (!paymentLinkStorageKey || !paymentLinkDetailsLoaded) {
-      return;
-    }
-    window.localStorage.setItem(paymentLinkStorageKey, JSON.stringify(paymentLinkDetails));
-  }, [paymentLinkDetails, paymentLinkDetailsLoaded, paymentLinkStorageKey]);
+  }, [activeWorkspace]);
 
   const totals = useMemo(() => {
     return items.reduce(
@@ -272,8 +253,12 @@ function InvoiceEditorContent() {
           ? { name: documentInstrumentAttachment.name, url: documentInstrumentAttachment.url }
           : null,
       paymentLink: includePaymentLinkInDocument ? invoicePaymentLink : null,
+      manualPaymentInstructions: buildManualPaymentInstructionLines(
+        paymentLinkDetails,
+        activeWorkspace.countryCode
+      ),
     });
-  }, [activeWorkspace, customerId, documentInstrumentAttachment, dueDate, includeInstrumentInDocument, includePaymentLinkInDocument, invoice, invoiceNumber, invoicePaymentLink, issueDate, items, notes, paymentStatus, selectedCustomer, selectedTemplate?.key, total, urgentPaymentRequired]);
+  }, [activeWorkspace, customerId, documentInstrumentAttachment, dueDate, includeInstrumentInDocument, includePaymentLinkInDocument, invoice, invoiceNumber, invoicePaymentLink, issueDate, items, notes, paymentLinkDetails, paymentStatus, selectedCustomer, selectedTemplate?.key, total, urgentPaymentRequired]);
 
   async function saveInvoice(
     nextPaymentStatus = paymentStatus,
@@ -397,6 +382,8 @@ function InvoiceEditorContent() {
       currency,
       documentLabel: 'invoice',
       documentNumber: invoiceNumber,
+      countryCode: activeWorkspace.countryCode,
+      paymentDetails: paymentLinkDetails,
     });
     await navigator.clipboard.writeText(appendPaymentLinkToMessage(messageText, invoicePaymentLink));
     showToast('Payment message copied.', 'success');
@@ -816,33 +803,20 @@ function InvoiceEditorContent() {
                 />
                 <span>Add payment required urgently stamp</span>
               </label>
-              <label className="ol-field">
-                <span className="ol-field-label">UPI ID</span>
-                <input
-                  className="ol-input"
-                  placeholder="name@bank"
-                  value={paymentLinkDetails.upiId ?? ''}
-                  onChange={(event) => setPaymentLinkDetails((current) => ({ ...current, upiId: event.target.value }))}
-                />
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">Payment page</span>
-                <input
-                  className="ol-input"
-                  placeholder="https://..."
-                  value={paymentLinkDetails.paymentPageUrl ?? ''}
-                  onChange={(event) => setPaymentLinkDetails((current) => ({ ...current, paymentPageUrl: event.target.value }))}
-                />
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">Payment note</span>
-                <input
-                  className="ol-input"
-                  placeholder="Invoice payment reference"
-                  value={paymentLinkDetails.paymentNote ?? ''}
-                  onChange={(event) => setPaymentLinkDetails((current) => ({ ...current, paymentNote: event.target.value }))}
-                />
-              </label>
+              {paymentInstructionTemplate.fields.map((field) => (
+                <label className="ol-field" key={field.key}>
+                  <span className="ol-field-label">{field.label}</span>
+                  <input
+                    className="ol-input"
+                    placeholder={field.placeholder}
+                    value={String(paymentLinkDetails[field.key] ?? '')}
+                    onChange={(event) =>
+                      setPaymentLinkDetails((current) => ({ ...current, [field.key]: event.target.value }))
+                    }
+                  />
+                  <span className="ol-field-help">{field.helper}</span>
+                </label>
+              ))}
               <label className="ol-check-row">
                 <input
                   type="checkbox"

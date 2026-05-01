@@ -98,6 +98,7 @@ export function prepareInvoiceDocumentData(input: InvoiceDocumentInput): Invoice
       amountInWords: formatAmountInWords(input.invoice.totalAmount, currency),
     },
     paymentLink: input.documentOptions?.paymentLink ?? null,
+    manualPaymentInstructions: input.documentOptions?.manualPaymentInstructions ?? [],
     taxPlaceholder: {
       taxSection: {
         status: input.documentOptions?.taxRegistrationNumber || input.invoice.taxAmount > 0
