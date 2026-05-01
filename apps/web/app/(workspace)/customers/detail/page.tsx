@@ -6,6 +6,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 import { AppShell } from '@/components/app-shell';
+import { downloadCustomerProfilePdf } from '@/lib/customer-export';
 import {
   getWorkspaceCustomer,
   listWorkspaceCustomerTransactions,
@@ -146,6 +147,56 @@ function CustomerDetailContent() {
     showToast(`${exportRows.length} entr${exportRows.length === 1 ? 'y' : 'ies'} exported.`, 'success');
   }
 
+  function exportCustomerProfileCsv() {
+    if (!activeWorkspace || !customer) {
+      return;
+    }
+
+    const csv = buildCsv(
+      [
+        'Name',
+        'Phone',
+        'Address',
+        'Status',
+        'Health rank',
+        'Health score',
+        'Balance',
+        'Opening balance',
+        'Important information',
+        'Notes',
+        'Last updated',
+      ],
+      [[
+        customer.name,
+        customer.phone ?? '',
+        customer.address ?? '',
+        customer.isArchived ? 'Archived' : 'Active',
+        customer.health.label,
+        customer.health.score,
+        customer.balance,
+        customer.openingBalance,
+        customer.health.helper,
+        customer.notes ?? '',
+        customer.updatedAt,
+      ]]
+    );
+    downloadTextFile(makeExportFileName([activeWorkspace.businessName, customer.name, 'customer-profile']), csv);
+    showToast('Customer CSV downloaded.', 'success');
+  }
+
+  async function exportCustomerPdf() {
+    if (!activeWorkspace || !customer) {
+      return;
+    }
+
+    try {
+      await downloadCustomerProfilePdf({ workspace: activeWorkspace, customers: [customer] });
+      showToast('Customer PDF downloaded.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Customer PDF could not be downloaded.', 'danger');
+    }
+  }
+
   return (
     <AppShell title="Customer Detail" subtitle="Activity, balance, and follow-up context.">
       <div className="ol-actions ol-actions--sticky">
@@ -158,6 +209,12 @@ function CustomerDetailContent() {
         <Link className="ol-button-secondary" href={'/documents' as Route}>
           Create statement
         </Link>
+        <button className="ol-button-secondary" type="button" disabled={!customer} onClick={() => void exportCustomerPdf()}>
+          Export customer PDF
+        </button>
+        <button className="ol-button-secondary" type="button" disabled={!customer} onClick={exportCustomerProfileCsv}>
+          Export customer CSV
+        </button>
       </div>
 
       {status ? <div className="ol-message ol-message--danger">{status}</div> : null}
@@ -168,6 +225,7 @@ function CustomerDetailContent() {
             <Metric label="Balance" value={formatCurrency(customer.balance, currency)} tone="warning" />
             <Metric label="Credits" value={formatCurrency(totals.credits, currency)} tone="primary" />
             <Metric label="Payments" value={formatCurrency(totals.payments, currency)} tone="success" />
+            <Metric label="Health" value={`${customer.health.label} ${customer.health.score}/100`} tone={customer.health.tone === 'danger' ? 'warning' : customer.health.tone} />
           </section>
 
           <section className="ol-panel">

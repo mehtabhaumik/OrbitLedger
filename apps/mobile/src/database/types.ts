@@ -4,7 +4,7 @@ import type {
   OrbitSyncStatus,
   OrbitWorkspaceLink,
 } from '@orbit-ledger/contracts';
-import type { PaymentAllocationStrategy } from '@orbit-ledger/core';
+import type { CustomerHealthScore, PaymentAllocationStrategy } from '@orbit-ledger/core';
 
 export type TaxMode = 'not_configured' | 'manual' | 'exempt';
 
@@ -136,6 +136,7 @@ export type CustomerSummary = Customer & {
   balance: number;
   latestActivityAt: string;
   insight: CustomerPaymentInsight;
+  health: CustomerHealthScore;
 };
 
 export type CustomerSummaryFilter = 'all' | 'outstanding' | 'recent_activity' | 'archived';

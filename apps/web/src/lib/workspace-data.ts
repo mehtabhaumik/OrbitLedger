@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  buildCustomerHealthScore,
   deriveInvoicePaymentStatus,
   legacyStatusForInvoiceLifecycle,
   normalizeInvoiceDocumentState,
@@ -8,6 +9,7 @@ import {
   type InvoiceDocumentState,
   type InvoicePaymentStatus,
   type PaymentAllocationStrategy,
+  type CustomerHealthScore,
 } from '@orbit-ledger/core';
 import {
   addDoc,
@@ -39,6 +41,7 @@ export type WorkspaceCustomer = {
   createdAt: string;
   updatedAt: string;
   balance: number;
+  health: CustomerHealthScore;
 };
 
 export type WorkspaceTransaction = {
@@ -163,16 +166,27 @@ const INVOICE_LIST_LIMIT = 100;
 const FIRESTORE_IN_QUERY_LIMIT = 10;
 
 export async function listWorkspaceCustomers(workspaceId: string): Promise<WorkspaceCustomer[]> {
-  const customerSnapshot = await getDocs(
-    query(
-      collection(getWebFirestore(), 'workspaces', workspaceId, 'customers'),
-      orderBy('updated_at', 'desc'),
-      limitQuery(CUSTOMER_LIST_LIMIT)
-    )
-  );
+  const firestore = getWebFirestore();
+  const [customerSnapshot, transactionSnapshot] = await Promise.all([
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'customers'),
+        orderBy('updated_at', 'desc'),
+        limitQuery(CUSTOMER_LIST_LIMIT)
+      )
+    ),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'transactions'),
+        orderBy('created_at', 'desc'),
+        limitQuery(TRANSACTION_LIST_LIMIT)
+      )
+    ),
+  ]);
+  const healthStats = buildCustomerHealthStats(transactionSnapshot.docs);
 
   return customerSnapshot.docs
-    .map((entry) => mapCustomer(entry))
+    .map((entry) => mapCustomer(entry, undefined, healthStats.get(entry.id)))
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
 
@@ -197,6 +211,7 @@ export async function getWorkspaceCustomer(
   }
 
   const balanceDeltas = new Map<string, number>();
+  const healthStats = buildCustomerHealthStats(transactionSnapshot.docs);
   for (const entry of transactionSnapshot.docs) {
     const data = entry.data() as { type?: 'credit' | 'payment'; amount?: number };
     if (typeof data.amount !== 'number') {
@@ -208,7 +223,7 @@ export async function getWorkspaceCustomer(
     );
   }
 
-  return mapCustomer(customerSnapshot, balanceDeltas);
+  return mapCustomer(customerSnapshot, balanceDeltas, healthStats.get(customerId));
 }
 
 export async function createWorkspaceCustomer(
@@ -248,6 +263,7 @@ export async function createWorkspaceCustomer(
     createdAt: now,
     updatedAt: now,
     balance: payload.opening_balance,
+    health: buildCustomerHealthScore({ balance: payload.opening_balance, latestActivityAt: now }),
   };
 }
 
@@ -1097,7 +1113,14 @@ function mapWorkspaceInvoiceVersion(entry: QueryDocumentSnapshot): WorkspaceInvo
 
 function mapCustomer(
   entry: QueryDocumentSnapshot,
-  balanceDeltas?: Map<string, number>
+  balanceDeltas?: Map<string, number>,
+  healthStats?: {
+    totalCredit: number;
+    totalPayment: number;
+    paymentCount: number;
+    oldestCreditAt: string | null;
+    lastPaymentAt: string | null;
+  }
 ): WorkspaceCustomer {
   const data = entry.data() as {
     name?: string;
@@ -1119,6 +1142,8 @@ function mapCustomer(
       : typeof data.balance === 'number'
         ? data.balance
         : openingBalance;
+  const balance = balanceDeltas?.has(entry.id) ? openingBalance + (balanceDeltas.get(entry.id) ?? 0) : storedBalance;
+  const updatedAt = data.updated_at ?? data.created_at ?? '';
   return {
     id: entry.id,
     name: data.name ?? 'Unnamed customer',
@@ -1128,9 +1153,69 @@ function mapCustomer(
     openingBalance,
     isArchived: Boolean(data.is_archived),
     createdAt: data.created_at ?? '',
-    updatedAt: data.updated_at ?? data.created_at ?? '',
-    balance: balanceDeltas?.has(entry.id) ? openingBalance + (balanceDeltas.get(entry.id) ?? 0) : storedBalance,
+    updatedAt,
+    balance,
+    health: buildCustomerHealthScore({
+      balance,
+      totalCredit: healthStats?.totalCredit ?? null,
+      totalPayment: healthStats?.totalPayment ?? null,
+      paymentCount: healthStats?.paymentCount ?? null,
+      daysOutstanding: healthStats?.oldestCreditAt ? dayDifference(healthStats.oldestCreditAt) : null,
+      lastPaymentAt: healthStats?.lastPaymentAt ?? null,
+      latestActivityAt: updatedAt,
+    }),
   };
+}
+
+function buildCustomerHealthStats(transactions: QueryDocumentSnapshot[]) {
+  const stats = new Map<string, {
+    totalCredit: number;
+    totalPayment: number;
+    paymentCount: number;
+    oldestCreditAt: string | null;
+    lastPaymentAt: string | null;
+  }>();
+  for (const entry of transactions) {
+    const data = entry.data() as {
+      customer_id?: string;
+      type?: 'credit' | 'payment';
+      amount?: number;
+      effective_date?: string;
+    };
+    const customerId = data.customer_id;
+    if (!customerId || typeof data.amount !== 'number') {
+      continue;
+    }
+    const current = stats.get(customerId) ?? {
+      totalCredit: 0,
+      totalPayment: 0,
+      paymentCount: 0,
+      oldestCreditAt: null,
+      lastPaymentAt: null,
+    };
+    const date = data.effective_date ?? '';
+    if (data.type === 'credit') {
+      current.totalCredit += data.amount;
+      current.oldestCreditAt =
+        !current.oldestCreditAt || (date && date < current.oldestCreditAt) ? date : current.oldestCreditAt;
+    } else if (data.type === 'payment') {
+      current.totalPayment += data.amount;
+      current.paymentCount += 1;
+      current.lastPaymentAt =
+        !current.lastPaymentAt || (date && date > current.lastPaymentAt) ? date : current.lastPaymentAt;
+    }
+    stats.set(customerId, current);
+  }
+  return stats;
+}
+
+function dayDifference(value: string) {
+  const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return Math.max(0, Math.floor((Date.now() - parsed.getTime()) / (24 * 60 * 60 * 1000)));
 }
 
 function mapInvoiceItem(entry: QueryDocumentSnapshot): WorkspaceInvoiceItem {

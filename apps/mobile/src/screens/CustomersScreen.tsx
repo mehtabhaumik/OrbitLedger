@@ -24,6 +24,11 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { SkeletonCard } from '../components/SkeletonCard';
 import { StatusChip } from '../components/StatusChip';
 import { TextField } from '../components/TextField';
+import {
+  shareCustomerCsvExport,
+  shareCustomerPdfExport,
+  type CustomerExportProfile,
+} from '../customers/customerExport';
 import { getBusinessSettings, searchCustomerSummaries } from '../database';
 import type { CustomerSummary, CustomerSummaryFilter } from '../database';
 import { formatCurrency } from '../lib/format';
@@ -44,8 +49,10 @@ export function CustomersScreen({ navigation }: CustomersScreenProps) {
   const [filter, setFilter] = useState<CustomerSummaryFilter>('all');
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [currency, setCurrency] = useState('INR');
+  const [businessName, setBusinessName] = useState('Orbit Ledger');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [sharingFormat, setSharingFormat] = useState<'csv' | 'pdf' | null>(null);
   const searchRequestIdRef = useRef(0);
   const isFocusedRef = useRef(false);
   const queryRef = useRef(query);
@@ -65,6 +72,7 @@ export function CustomersScreen({ navigation }: CustomersScreenProps) {
       ]);
 
       if (requestId === searchRequestIdRef.current) {
+        setBusinessName(settings?.businessName ?? 'Orbit Ledger');
         setCurrency(settings?.currency ?? 'INR');
         setCustomers(results);
       }
@@ -144,6 +152,31 @@ export function CustomersScreen({ navigation }: CustomersScreenProps) {
     [navigation]
   );
 
+  async function shareCustomerExport(format: 'csv' | 'pdf') {
+    if (!customers.length) {
+      Alert.alert('No customers to export', 'Filter or add customers first.');
+      return;
+    }
+
+    const exportCustomers: CustomerExportProfile[] = customers.map((customer) => ({
+      ...customer,
+      latestActivityAt: customer.latestActivityAt,
+    }));
+
+    try {
+      setSharingFormat(format);
+      if (format === 'csv') {
+        await shareCustomerCsvExport({ businessName, currency, customers: exportCustomers });
+      } else {
+        await shareCustomerPdfExport({ businessName, currency, customers: exportCustomers });
+      }
+    } catch {
+      Alert.alert('Customer export failed', 'Please try again from this device.');
+    } finally {
+      setSharingFormat(null);
+    }
+  }
+
   const renderCustomer = useCallback<ListRenderItem<CustomerSummary>>(
     ({ item }) => (
       <CustomerRow
@@ -218,6 +251,24 @@ export function CustomersScreen({ navigation }: CustomersScreenProps) {
                   onPress={() => navigation.navigate('StatementBatch')}
                 >
                   Statement Batch
+                </PrimaryButton>
+                <PrimaryButton
+                  disabled={!customers.length || sharingFormat !== null}
+                  loading={sharingFormat === 'csv'}
+                  style={styles.customerToolButton}
+                  variant="secondary"
+                  onPress={() => void shareCustomerExport('csv')}
+                >
+                  Export CSV
+                </PrimaryButton>
+                <PrimaryButton
+                  disabled={!customers.length || sharingFormat !== null}
+                  loading={sharingFormat === 'pdf'}
+                  style={styles.customerToolButton}
+                  variant="secondary"
+                  onPress={() => void shareCustomerExport('pdf')}
+                >
+                  Export PDF
                 </PrimaryButton>
               </View>
             </Card>
@@ -330,6 +381,7 @@ const CustomerRow = memo(function CustomerRow({
         ) : null}
         <Text style={styles.activityText}>{activityText}</Text>
         <View style={styles.insightRow}>
+          <StatusChip label={item.health.label} tone={item.health.tone} />
           <StatusChip
             label={item.insight.behaviorLabel}
             tone={item.insight.behaviorTone === 'primary' ? 'primary' : item.insight.behaviorTone}

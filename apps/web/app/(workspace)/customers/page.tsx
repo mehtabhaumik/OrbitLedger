@@ -5,6 +5,7 @@ import type { Route } from 'next';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AppShell } from '@/components/app-shell';
+import { downloadCustomerProfilePdf } from '@/lib/customer-export';
 import {
   normalizePhoneForCountry,
   parseAmount,
@@ -196,12 +197,14 @@ export default function CustomersPage() {
       customer.phone ?? '',
       customer.address ?? '',
       customer.isArchived ? 'Archived' : 'Active',
+      customer.health.label,
+      customer.health.score,
       customer.balance,
       customer.openingBalance,
       customer.updatedAt,
     ]);
     const csv = buildCsv(
-      ['Name', 'Phone', 'Address', 'Status', 'Balance', 'Opening balance', 'Last updated'],
+      ['Name', 'Phone', 'Address', 'Status', 'Health rank', 'Health score', 'Balance', 'Opening balance', 'Last updated'],
       rows
     );
     downloadTextFile(
@@ -209,6 +212,20 @@ export default function CustomersPage() {
       csv
     );
     showToast(`${exportRows.length} customer${exportRows.length === 1 ? '' : 's'} exported.`, 'success');
+  }
+
+  async function exportCustomersPdf() {
+    if (!activeWorkspace) {
+      return;
+    }
+
+    const exportRows = selectedCustomers.length ? selectedCustomers : filteredCustomers;
+    try {
+      await downloadCustomerProfilePdf({ workspace: activeWorkspace, customers: exportRows });
+      showToast(`${exportRows.length} customer PDF page${exportRows.length === 1 ? '' : 's'} downloaded.`, 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Customer PDF could not be downloaded.', 'danger');
+    }
   }
 
   async function importCustomers(file: File | null) {
@@ -413,7 +430,10 @@ export default function CustomersPage() {
               Clear view
             </button>
             <button className="ol-button" type="button" disabled={!filteredCustomers.length} onClick={exportCustomers}>
-              Export {selectedCustomerIds.size ? 'selected' : 'view'}
+              Export CSV
+            </button>
+            <button className="ol-button-secondary" type="button" disabled={!filteredCustomers.length} onClick={() => void exportCustomersPdf()}>
+              Export PDF
             </button>
           </div>
         </div>
@@ -422,7 +442,7 @@ export default function CustomersPage() {
             ? `${selectedCustomers.length} selected from this view.`
             : 'Select rows for a focused export, or export the current view.'}
         </div>
-        <div className="ol-table-head" style={{ gridTemplateColumns: '44px 1.2fr 1fr 0.7fr' }}>
+        <div className="ol-table-head" style={{ gridTemplateColumns: '44px 1.2fr 1fr 0.7fr 0.7fr' }}>
           <span>
             <input
               aria-label="Select all visible customers"
@@ -434,13 +454,14 @@ export default function CustomersPage() {
           </span>
           <span>Name</span>
           <span>Phone</span>
+          <span>Health</span>
           <span style={{ textAlign: 'right' }}>Balance</span>
         </div>
         {filteredCustomers.map((customer) => (
           <div
             className="ol-table-row"
             key={customer.id}
-            style={{ gridTemplateColumns: '44px 1.2fr 1fr 0.7fr' }}
+            style={{ gridTemplateColumns: '44px 1.2fr 1fr 0.7fr 0.7fr' }}
           >
             <span>
               <input
@@ -458,6 +479,11 @@ export default function CustomersPage() {
               {customer.name}
             </Link>
             <span>{customer.phone || '—'}</span>
+            <span>
+              <span className={`ol-chip ol-chip--${customer.health.tone === 'danger' ? 'warning' : customer.health.tone}`}>
+                {customer.health.label}
+              </span>
+            </span>
             <span className="ol-amount" style={{ textAlign: 'right', fontWeight: 800 }}>
               {formatCurrency(customer.balance, activeWorkspace?.currency ?? 'INR')}
             </span>

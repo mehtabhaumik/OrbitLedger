@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import {
+  buildCustomerHealthScore,
   deriveInvoicePaymentStatus,
   legacyStatusForInvoiceLifecycle,
   normalizeInvoiceDocumentState,
@@ -4103,15 +4104,26 @@ function validateProductFields(
 }
 
 function mapCustomerSummary(row: CustomerSummaryRow): CustomerSummary {
+  const insight = buildCustomerPaymentInsight({
+    balance: row.balance,
+    latestActivityAt: row.latest_activity_at,
+    lastPaymentAt: row.last_payment_at,
+    oldestDueAt: row.oldest_credit_at,
+    paymentCount: row.payment_count ?? 0,
+    totalCredit: row.total_credit ?? 0,
+    totalPayment: row.total_payment ?? 0,
+  });
+
   return {
     ...mapCustomer(row),
     balance: row.balance,
     latestActivityAt: row.latest_activity_at,
-    insight: buildCustomerPaymentInsight({
+    insight,
+    health: buildCustomerHealthScore({
       balance: row.balance,
+      daysOutstanding: insight.daysOutstanding,
       latestActivityAt: row.latest_activity_at,
       lastPaymentAt: row.last_payment_at,
-      oldestDueAt: row.oldest_credit_at,
       paymentCount: row.payment_count ?? 0,
       totalCredit: row.total_credit ?? 0,
       totalPayment: row.total_payment ?? 0,

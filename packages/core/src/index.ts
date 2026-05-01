@@ -58,6 +58,15 @@ export {
 } from './marketLaunch';
 
 export {
+  buildCustomerHealthScore,
+} from './customerHealth';
+export type {
+  CustomerHealthInput,
+  CustomerHealthRank,
+  CustomerHealthScore,
+} from './customerHealth';
+
+export {
   deriveInvoicePaymentStatus,
   getGeneratedInvoiceDocumentLabel,
   getInvoiceDocumentStateLabel,

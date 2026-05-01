@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { buildCustomerHealthScore } from '@orbit-ledger/core';
 
 import {
   buildInvoiceWebDocument,
@@ -41,6 +42,7 @@ const customer: WorkspaceCustomer = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   balance: 350,
+  health: buildCustomerHealthScore({ balance: 350, totalCredit: 500, totalPayment: 150 }),
 };
 
 describe('web document parity', () => {

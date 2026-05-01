@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { buildCustomerHealthScore } from '@orbit-ledger/core';
 
 import {
   buildCsv,
@@ -139,6 +140,7 @@ function makeCustomer(overrides: Partial<WorkspaceCustomer>): WorkspaceCustomer 
     createdAt: '2026-04-01T00:00:00.000Z',
     updatedAt: '2026-04-01T00:00:00.000Z',
     balance: 0,
+    health: buildCustomerHealthScore({ balance: overrides.balance ?? 0 }),
     ...overrides,
   };
 }

@@ -1,5 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { buildCustomerHealthScore, type CustomerHealthScore } from '@orbit-ledger/core';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -31,6 +32,11 @@ import {
   type CustomerTrustTimelineEvent,
   type CustomerTrustTimelineFilter,
 } from '../customers/trustTimeline';
+import {
+  shareCustomerCsvExport,
+  shareCustomerPdfExport,
+  type CustomerExportProfile,
+} from '../customers/customerExport';
 import {
   addCustomerTimelineNote,
   addPaymentPromise,
@@ -88,6 +94,7 @@ type LedgerInsights = {
   lastTransactionDate: string | null;
   lastPaymentDate: string | null;
   paymentInsight: CustomerPaymentInsight;
+  health: CustomerHealthScore;
   balanceLabel: string;
   balanceHelper: string;
   balanceTone: 'due' | 'advance' | 'settled';
@@ -131,6 +138,7 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
   const [isSendingReminder, setIsSendingReminder] = useState(false);
   const [isSavingPromise, setIsSavingPromise] = useState(false);
   const [isSavingTimelineNote, setIsSavingTimelineNote] = useState(false);
+  const [sharingCustomerExport, setSharingCustomerExport] = useState<'csv' | 'pdf' | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [visibleLedgerGroupCount, setVisibleLedgerGroupCount] = useState(INITIAL_LEDGER_GROUP_COUNT);
@@ -412,6 +420,27 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
     }
   }
 
+  async function shareCustomerProfile(format: 'csv' | 'pdf') {
+    if (!ledger) {
+      return;
+    }
+
+    const profile = buildCustomerExportProfile(ledger, insights.health);
+
+    try {
+      setSharingCustomerExport(format);
+      if (format === 'csv') {
+        await shareCustomerCsvExport({ businessName, currency, customers: [profile] });
+      } else {
+        await shareCustomerPdfExport({ businessName, currency, customers: [profile] });
+      }
+    } catch {
+      Alert.alert('Customer export failed', 'Please try again from this device.');
+    } finally {
+      setSharingCustomerExport(null);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.root}>
       <ScrollView
@@ -522,6 +551,24 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
               >
                 Share Statement
               </PrimaryButton>
+              <PrimaryButton
+                disabled={sharingCustomerExport !== null}
+                loading={sharingCustomerExport === 'pdf'}
+                style={styles.quickActionButton}
+                variant="secondary"
+                onPress={() => void shareCustomerProfile('pdf')}
+              >
+                Export PDF
+              </PrimaryButton>
+              <PrimaryButton
+                disabled={sharingCustomerExport !== null}
+                loading={sharingCustomerExport === 'csv'}
+                style={styles.quickActionButton}
+                variant="secondary"
+                onPress={() => void shareCustomerProfile('csv')}
+              >
+                Export CSV
+              </PrimaryButton>
               {ledger.balance > 0 ? (
                 <PrimaryButton
                   style={styles.quickActionButton}
@@ -631,6 +678,12 @@ export function CustomerDetailScreen({ navigation, route }: CustomerDetailScreen
                 }
                 helper={insights.lastTransactionDate ?? 'Add a credit or payment.'}
                 tone="neutral"
+              />
+              <InsightCard
+                label="Customer health"
+                value={`${insights.health.label} ${insights.health.score}/100`}
+                helper={insights.health.helper}
+                tone={insights.health.tone}
               />
               <InsightCard
                 label="Due aging"
@@ -1143,6 +1196,15 @@ function createLedgerInsights(
     totalCredit,
     totalPayment,
   });
+  const health = buildCustomerHealthScore({
+    balance: ledger?.balance ?? 0,
+    daysOutstanding: paymentInsight.daysOutstanding,
+    latestActivityAt: lastTransaction?.createdAt ?? ledger?.customer.updatedAt ?? null,
+    lastPaymentAt: lastPayment?.effectiveDate ?? null,
+    paymentCount: paymentInsight.paymentCount,
+    totalCredit,
+    totalPayment,
+  });
 
   if (!ledger) {
     return {
@@ -1152,6 +1214,7 @@ function createLedgerInsights(
       lastTransactionDate: null,
       lastPaymentDate: null,
       paymentInsight,
+      health,
       balanceLabel: 'Settled',
       balanceHelper: 'No dues are outstanding.',
       balanceTone: 'settled',
@@ -1166,6 +1229,7 @@ function createLedgerInsights(
       lastTransactionDate: lastTransaction?.effectiveDate ?? null,
       lastPaymentDate: lastPayment?.effectiveDate ?? null,
       paymentInsight,
+      health,
       balanceLabel: 'Customer owes you',
       balanceHelper: `${ledger.customer.name} has outstanding dues.`,
       balanceTone: 'due',
@@ -1180,6 +1244,7 @@ function createLedgerInsights(
       lastTransactionDate: lastTransaction?.effectiveDate ?? null,
       lastPaymentDate: lastPayment?.effectiveDate ?? null,
       paymentInsight,
+      health,
       balanceLabel: 'You owe customer',
       balanceHelper: `${ledger.customer.name} has an advance balance.`,
       balanceTone: 'advance',
@@ -1193,9 +1258,31 @@ function createLedgerInsights(
     lastTransactionDate: lastTransaction?.effectiveDate ?? null,
     lastPaymentDate: lastPayment?.effectiveDate ?? null,
     paymentInsight,
+    health,
     balanceLabel: 'Settled',
     balanceHelper: 'No dues are outstanding.',
     balanceTone: 'settled',
+  };
+}
+
+function buildCustomerExportProfile(
+  ledger: CustomerLedger,
+  health: CustomerHealthScore
+): CustomerExportProfile {
+  const latestActivityAt = ledger.transactions[0]?.createdAt ?? ledger.customer.updatedAt;
+
+  return {
+    id: ledger.customer.id,
+    name: ledger.customer.name,
+    phone: ledger.customer.phone,
+    address: ledger.customer.address,
+    notes: ledger.customer.notes,
+    openingBalance: ledger.openingBalance,
+    balance: ledger.balance,
+    isArchived: ledger.customer.isArchived,
+    updatedAt: ledger.customer.updatedAt,
+    latestActivityAt,
+    health,
   };
 }
 
