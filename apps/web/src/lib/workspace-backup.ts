@@ -19,7 +19,8 @@ type BackupCollectionName =
   | 'transactions'
   | 'products'
   | 'invoices'
-  | 'invoice_items';
+  | 'invoice_items'
+  | 'payment_allocations';
 
 export type WebWorkspaceBackup = {
   backup_format_version: number;
@@ -52,6 +53,7 @@ const COLLECTIONS: BackupCollectionName[] = [
   'products',
   'invoices',
   'invoice_items',
+  'payment_allocations',
 ];
 
 export async function exportWorkspaceBackup(workspaceId: string): Promise<WebWorkspaceBackup> {
@@ -77,6 +79,7 @@ export async function exportWorkspaceBackup(workspaceId: string): Promise<WebWor
       products: entitySnapshots[2].docs.map(mapEntry),
       invoices: entitySnapshots[3].docs.map(mapEntry),
       invoice_items: entitySnapshots[4].docs.map(mapEntry),
+      payment_allocations: entitySnapshots[5].docs.map(mapEntry),
     },
     notes: {
       browser_lock_included: false,
@@ -145,6 +148,7 @@ export function summarizeWorkspaceBackup(backup: WebWorkspaceBackup): WebWorkspa
       products: backup.entities.products.length,
       invoices: backup.entities.invoices.length,
       invoice_items: backup.entities.invoice_items.length,
+      payment_allocations: backup.entities.payment_allocations.length,
     },
     browserLockIncluded: backup.notes.browser_lock_included,
   };

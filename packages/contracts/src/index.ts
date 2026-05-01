@@ -51,7 +51,8 @@ export type OrbitSyncEntityName =
   | 'tax_profiles'
   | 'products'
   | 'invoices'
-  | 'invoice_items';
+  | 'invoice_items'
+  | 'payment_allocations';
 
 export type OrbitSyncConnectionState =
   | 'not_configured'

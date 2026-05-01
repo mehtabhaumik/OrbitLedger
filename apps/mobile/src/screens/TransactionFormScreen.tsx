@@ -31,13 +31,14 @@ import {
   addTransaction,
   getBusinessSettings,
   getTransaction,
+  listInvoicesForCustomer,
   listOpenPaymentPromisesForCustomer,
   searchCustomerSummaries,
   updatePaymentPromiseStatus,
   updateTransaction,
 } from '../database';
 import { recordRatingPositiveMoment } from '../engagement';
-import type { CustomerSummary, LedgerTransaction, PaymentPromise, TransactionType } from '../database';
+import type { CustomerSummary, Invoice, LedgerTransaction, PaymentPromise, TransactionType } from '../database';
 import { showSuccessFeedback } from '../lib/feedback';
 import { formatCurrency } from '../lib/format';
 import {
@@ -80,7 +81,10 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
   const [isLoadingTransaction, setIsLoadingTransaction] = useState(Boolean(transactionId));
   const [loadedTransaction, setLoadedTransaction] = useState<LedgerTransaction | null>(null);
   const [openPromises, setOpenPromises] = useState<PaymentPromise[]>([]);
+  const [openInvoices, setOpenInvoices] = useState<Invoice[]>([]);
   const [selectedPromiseId, setSelectedPromiseId] = useState(initialPromiseId ?? '');
+  const [allocationStrategy, setAllocationStrategy] = useState<'ledger_only' | 'oldest_invoice' | 'selected_invoice'>('ledger_only');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const amountInputRef = useRef<TextInput>(null);
   const {
     control,
@@ -223,6 +227,43 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
     };
   }, [initialPromiseId, isEditing, selectedCustomerId, selectedPromiseId, selectedType, setValue, watch]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadInvoices() {
+      if (isEditing || selectedType !== 'payment' || !selectedCustomerId) {
+        if (isMounted) {
+          setOpenInvoices([]);
+          setSelectedInvoiceId('');
+          setAllocationStrategy('ledger_only');
+        }
+        return;
+      }
+
+      try {
+        const invoices = await listInvoicesForCustomer(selectedCustomerId, 30);
+        const unpaidInvoices = invoices.filter(
+          (invoice) => invoice.documentState !== 'cancelled' && invoice.totalAmount - invoice.paidAmount > 0
+        );
+        if (isMounted) {
+          setOpenInvoices(unpaidInvoices);
+          setSelectedInvoiceId((current) => current || unpaidInvoices[0]?.id || '');
+        }
+      } catch {
+        if (isMounted) {
+          setOpenInvoices([]);
+          setSelectedInvoiceId('');
+        }
+      }
+    }
+
+    void loadInvoices();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isEditing, selectedCustomerId, selectedType]);
+
   function selectCustomer(customerId: string) {
     setValue('customerId', customerId, {
       shouldDirty: true,
@@ -257,6 +298,8 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
         amount: Number(input.amount),
         note: input.note,
         effectiveDate: input.effectiveDate,
+        allocationStrategy: input.type === 'payment' ? allocationStrategy : 'ledger_only',
+        invoiceId: allocationStrategy === 'selected_invoice' ? selectedInvoiceId : null,
       });
       let promiseStatusMessage = '';
       if (input.type === 'payment' && selectedPromise) {
@@ -527,6 +570,69 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
                         </Text>
                       </View>
                       {selected ? <StatusChip label="Selected" tone="warning" /> : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </Section>
+          ) : null}
+
+          {!isEditing && selectedType === 'payment' && selectedCustomerId ? (
+            <Section title="Apply payment" subtitle="Choose how this payment should affect invoices.">
+              <View style={styles.promiseChoices}>
+                <Pressable
+                  accessibilityRole="button"
+                  hitSlop={touch.hitSlop}
+                  onPress={() => setAllocationStrategy('ledger_only')}
+                  pressRetentionOffset={touch.pressRetentionOffset}
+                  style={[
+                    styles.promiseChoice,
+                    allocationStrategy === 'ledger_only' ? styles.promiseChoiceSelected : null,
+                  ]}
+                >
+                  <View style={styles.choiceTextBlock}>
+                    <Text style={styles.choiceText}>Customer ledger only</Text>
+                    <Text style={styles.choiceMeta}>Keep this as a general payment or advance.</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  hitSlop={touch.hitSlop}
+                  onPress={() => setAllocationStrategy('oldest_invoice')}
+                  pressRetentionOffset={touch.pressRetentionOffset}
+                  style={[
+                    styles.promiseChoice,
+                    allocationStrategy === 'oldest_invoice' ? styles.promiseChoiceSelected : null,
+                  ]}
+                >
+                  <View style={styles.choiceTextBlock}>
+                    <Text style={styles.choiceText}>Oldest unpaid invoices</Text>
+                    <Text style={styles.choiceMeta}>Apply across unpaid invoices by oldest first.</Text>
+                  </View>
+                </Pressable>
+                {openInvoices.map((invoice) => {
+                  const selected = allocationStrategy === 'selected_invoice' && selectedInvoiceId === invoice.id;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      hitSlop={touch.hitSlop}
+                      key={invoice.id}
+                      onPress={() => {
+                        setAllocationStrategy('selected_invoice');
+                        setSelectedInvoiceId(invoice.id);
+                      }}
+                      pressRetentionOffset={touch.pressRetentionOffset}
+                      style={[styles.promiseChoice, selected ? styles.promiseChoiceSelected : null]}
+                    >
+                      <View style={styles.choiceTextBlock}>
+                        <Text style={[styles.choiceText, selected ? styles.choiceTextSelected : null]}>
+                          {invoice.invoiceNumber}
+                        </Text>
+                        <Text style={styles.choiceMeta}>
+                          Due {formatCurrency(Math.max(invoice.totalAmount - invoice.paidAmount, 0), currency)}
+                        </Text>
+                      </View>
+                      {selected ? <StatusChip label="Selected" tone="success" /> : null}
                     </Pressable>
                   );
                 })}

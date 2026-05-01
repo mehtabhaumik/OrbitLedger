@@ -174,6 +174,7 @@ const invoiceSchema = syncMetadataSchema.extend({
   subtotal: z.number().nonnegative(),
   taxAmount: z.number().nonnegative(),
   totalAmount: z.number().nonnegative(),
+  paidAmount: z.number().nonnegative().optional(),
   status: z.enum(['draft', 'issued', 'paid', 'overdue', 'cancelled']),
   notes: nullableString,
   createdAt: nonEmptyString,

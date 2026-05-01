@@ -7,6 +7,7 @@ import {
   normalizeInvoicePaymentStatus,
   type InvoiceDocumentState,
   type InvoicePaymentStatus,
+  type PaymentAllocationStrategy,
 } from '@orbit-ledger/core';
 import {
   addDoc,
@@ -58,6 +59,7 @@ export type WorkspaceInvoice = {
   invoiceNumber: string;
   issueDate: string;
   totalAmount: number;
+  paidAmount: number;
   status: string;
   documentState: InvoiceDocumentState;
   paymentStatus: InvoicePaymentStatus;
@@ -109,6 +111,15 @@ export type WorkspaceInvoiceVersion = {
   items: WorkspaceInvoiceItem[];
 };
 
+export type WorkspacePaymentAllocation = {
+  id: string;
+  transactionId: string;
+  invoiceId: string;
+  customerId: string;
+  amount: number;
+  createdAt: string;
+};
+
 export type SaveWorkspaceInvoiceInput = {
   customerId: string | null;
   invoiceNumber: string;
@@ -142,6 +153,8 @@ export type CreateWorkspaceTransactionInput = {
   amount: number;
   note?: string | null;
   effectiveDate?: string;
+  allocationStrategy?: PaymentAllocationStrategy;
+  invoiceId?: string | null;
 };
 
 const CUSTOMER_LIST_LIMIT = 100;
@@ -353,6 +366,9 @@ export async function createWorkspaceTransaction(
   workspaceId: string,
   input: CreateWorkspaceTransactionInput
 ): Promise<WorkspaceTransaction> {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    throw new Error('Enter a valid amount before saving.');
+  }
   const firestore = getWebFirestore();
   const customerRef = doc(firestore, 'workspaces', workspaceId, 'customers', input.customerId);
   const customerSnapshot = await getDoc(customerRef);
@@ -375,6 +391,17 @@ export async function createWorkspaceTransaction(
   };
 
   const transactionRef = doc(collection(firestore, 'workspaces', workspaceId, 'transactions'));
+  const allocationPlan =
+    input.type === 'payment'
+      ? await buildPaymentAllocationPlan(firestore, workspaceId, {
+          customerId: input.customerId,
+          amount: input.amount,
+          strategy: input.allocationStrategy ?? 'ledger_only',
+          invoiceId: input.invoiceId ?? null,
+          transactionId: transactionRef.id,
+          createdAt: now,
+        })
+      : [];
   const delta = input.type === 'credit' ? input.amount : -input.amount;
   const batch = writeBatch(firestore);
   batch.set(transactionRef, payload);
@@ -383,6 +410,25 @@ export async function createWorkspaceTransaction(
     updated_at: now,
     last_modified: now,
   });
+  for (const allocation of allocationPlan) {
+    batch.set(doc(firestore, 'workspaces', workspaceId, 'payment_allocations', allocation.id), {
+      transaction_id: allocation.transactionId,
+      invoice_id: allocation.invoiceId,
+      customer_id: allocation.customerId,
+      amount: allocation.amount,
+      created_at: allocation.createdAt,
+      last_modified: now,
+      sync_status: 'synced',
+      server_revision: 1,
+    });
+    batch.update(doc(firestore, 'workspaces', workspaceId, 'invoices', allocation.invoiceId), {
+      paid_amount: allocation.nextPaidAmount,
+      payment_status: allocation.nextPaymentStatus,
+      status: legacyStatusForInvoiceLifecycle(allocation.documentState, allocation.nextPaymentStatus),
+      last_modified: now,
+      server_revision: increment(1),
+    });
+  }
   await batch.commit();
   return {
     id: transactionRef.id,
@@ -415,6 +461,26 @@ export async function listWorkspaceInvoices(workspaceId: string): Promise<Worksp
     ...invoice,
     customerName: invoice.customerId ? customerNames.get(invoice.customerId) ?? 'Customer' : null,
     versions: versionsByInvoice.get(invoice.id) ?? [],
+  }));
+}
+
+export async function listWorkspaceInvoicesForCustomer(
+  workspaceId: string,
+  customerId: string
+): Promise<WorkspaceInvoice[]> {
+  const firestore = getWebFirestore();
+  const snapshot = await getDocs(
+    query(
+      collection(firestore, 'workspaces', workspaceId, 'invoices'),
+      where('customer_id', '==', customerId),
+      orderBy('issue_date', 'asc'),
+      limitQuery(INVOICE_LIST_LIMIT)
+    )
+  );
+  const invoices = snapshot.docs.map(mapWorkspaceInvoice);
+  return invoices.map((invoice) => ({
+    ...invoice,
+    customerName: invoice.customerName ?? null,
   }));
 }
 
@@ -451,6 +517,7 @@ export async function getWorkspaceInvoiceDetail(
     subtotal?: number;
     tax_amount?: number;
     total_amount?: number;
+    paid_amount?: number;
     status?: string;
     document_state?: string;
     payment_status?: string;
@@ -466,6 +533,7 @@ export async function getWorkspaceInvoiceDetail(
     paymentStatus: data.payment_status,
     dueDate: data.due_date,
     totalAmount: data.total_amount,
+    paidAmount: data.paid_amount,
   });
 
   return {
@@ -478,6 +546,7 @@ export async function getWorkspaceInvoiceDetail(
     subtotal: data.subtotal ?? 0,
     taxAmount: data.tax_amount ?? 0,
     totalAmount: data.total_amount ?? 0,
+    paidAmount: data.paid_amount ?? 0,
     status: data.status ?? 'draft',
     documentState,
     paymentStatus,
@@ -518,6 +587,7 @@ export async function saveWorkspaceInvoiceDetail(
     version_number?: number;
     latest_snapshot_hash?: string | null;
     latest_version_id?: string | null;
+    paid_amount?: number;
   };
   const now = new Date().toISOString();
   const cleanItems = input.items
@@ -550,6 +620,7 @@ export async function saveWorkspaceInvoiceDetail(
         paymentStatus: current.payment_status,
         dueDate: input.dueDate,
         totalAmount,
+        paidAmount: current.paid_amount,
       });
   const nextVersionNumber = Math.max(Number(current.version_number ?? 0), 0) + 1;
   const requestedDocumentState = input.documentState;
@@ -613,6 +684,7 @@ export async function saveWorkspaceInvoiceDetail(
     subtotal,
     tax_amount: taxAmount,
     total_amount: totalAmount,
+    paid_amount: current.paid_amount ?? 0,
     status: legacyStatus,
     document_state: finalDocumentState,
     payment_status: paymentStatus,
@@ -730,6 +802,113 @@ function chunk<T>(values: T[], size: number): T[][] {
   return chunks;
 }
 
+async function buildPaymentAllocationPlan(
+  firestore: Firestore,
+  workspaceId: string,
+  input: {
+    customerId: string;
+    amount: number;
+    strategy: PaymentAllocationStrategy;
+    invoiceId: string | null;
+    transactionId: string;
+    createdAt: string;
+  }
+): Promise<Array<WorkspacePaymentAllocation & {
+  nextPaidAmount: number;
+  nextPaymentStatus: InvoicePaymentStatus;
+  documentState: InvoiceDocumentState;
+}>> {
+  if (input.strategy === 'ledger_only') {
+    return [];
+  }
+
+  const invoiceSnapshot = await getDocs(
+    query(
+      collection(firestore, 'workspaces', workspaceId, 'invoices'),
+      where('customer_id', '==', input.customerId)
+    )
+  );
+  const invoices = invoiceSnapshot.docs
+    .map((entry) => {
+      const data = entry.data() as {
+        total_amount?: number;
+        paid_amount?: number;
+        issue_date?: string;
+        due_date?: string | null;
+        status?: string;
+        document_state?: string;
+        payment_status?: string;
+      };
+      const documentState = normalizeInvoiceDocumentState(data.document_state ?? data.status);
+      const paidAmount = data.paid_amount ?? 0;
+      const totalAmount = data.total_amount ?? 0;
+      return {
+        id: entry.id,
+        documentState,
+        issueDate: data.issue_date ?? '',
+        dueDate: data.due_date ?? null,
+        totalAmount,
+        paidAmount,
+        dueAmount: Math.max(totalAmount - paidAmount, 0),
+        paymentStatus: normalizeInvoicePaymentStatus({
+          legacyStatus: data.status,
+          paymentStatus: data.payment_status,
+          dueDate: data.due_date,
+          totalAmount,
+          paidAmount,
+        }),
+      };
+    })
+    .filter((invoice) => invoice.documentState !== 'cancelled' && invoice.dueAmount > 0)
+    .sort((left, right) => left.issueDate.localeCompare(right.issueDate) || left.id.localeCompare(right.id));
+
+  const targets =
+    input.strategy === 'selected_invoice'
+      ? invoices.filter((invoice) => invoice.id === input.invoiceId)
+      : invoices;
+
+  if (input.strategy === 'selected_invoice' && !targets.length) {
+    throw new Error('Choose an unpaid invoice before allocating this payment.');
+  }
+
+  let remainingAmount = input.amount;
+  const allocations: Array<WorkspacePaymentAllocation & {
+    nextPaidAmount: number;
+    nextPaymentStatus: InvoicePaymentStatus;
+    documentState: InvoiceDocumentState;
+  }> = [];
+  for (const invoice of targets) {
+    if (remainingAmount <= 0) {
+      break;
+    }
+
+    const allocatedAmount = roundMoney(Math.min(remainingAmount, invoice.dueAmount));
+    if (allocatedAmount <= 0) {
+      continue;
+    }
+    const nextPaidAmount = roundMoney(invoice.paidAmount + allocatedAmount);
+    const nextPaymentStatus = deriveInvoicePaymentStatus({
+      dueDate: invoice.dueDate,
+      totalAmount: invoice.totalAmount,
+      paidAmount: nextPaidAmount,
+    });
+    allocations.push({
+      id: doc(collection(firestore, 'workspaces', workspaceId, 'payment_allocations')).id,
+      transactionId: input.transactionId,
+      invoiceId: invoice.id,
+      customerId: input.customerId,
+      amount: allocatedAmount,
+      createdAt: input.createdAt,
+      nextPaidAmount,
+      nextPaymentStatus,
+      documentState: invoice.documentState,
+    });
+    remainingAmount = roundMoney(remainingAmount - allocatedAmount);
+  }
+
+  return allocations;
+}
+
 export async function createDraftWorkspaceInvoice(workspaceId: string): Promise<WorkspaceInvoice> {
   const now = new Date().toISOString();
   const payload = {
@@ -740,6 +919,7 @@ export async function createDraftWorkspaceInvoice(workspaceId: string): Promise<
     subtotal: 0,
     tax_amount: 0,
     total_amount: 0,
+    paid_amount: 0,
     status: 'draft',
     document_state: 'draft',
     payment_status: 'unpaid',
@@ -761,6 +941,7 @@ export async function createDraftWorkspaceInvoice(workspaceId: string): Promise<
     invoiceNumber: payload.invoice_number,
     issueDate: payload.issue_date,
     totalAmount: 0,
+    paidAmount: 0,
     status: 'draft',
     documentState: 'draft',
     paymentStatus: 'unpaid',
@@ -777,6 +958,7 @@ function mapWorkspaceInvoice(entry: QueryDocumentSnapshot): WorkspaceInvoice {
     invoice_number?: string;
     issue_date?: string;
     total_amount?: number;
+    paid_amount?: number;
     status?: string;
     document_state?: string;
     payment_status?: string;
@@ -790,6 +972,7 @@ function mapWorkspaceInvoice(entry: QueryDocumentSnapshot): WorkspaceInvoice {
     paymentStatus: data.payment_status,
     dueDate: data.due_date,
     totalAmount: data.total_amount,
+    paidAmount: data.paid_amount,
   });
 
   return {
@@ -799,6 +982,7 @@ function mapWorkspaceInvoice(entry: QueryDocumentSnapshot): WorkspaceInvoice {
     invoiceNumber: data.invoice_number ?? entry.id.slice(0, 8).toUpperCase(),
     issueDate: data.issue_date ?? '',
     totalAmount: data.total_amount ?? 0,
+    paidAmount: data.paid_amount ?? 0,
     status: data.status ?? legacyStatusForInvoiceLifecycle(documentState, paymentStatus),
     documentState,
     paymentStatus,

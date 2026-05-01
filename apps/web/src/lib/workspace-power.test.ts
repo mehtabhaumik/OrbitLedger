@@ -165,6 +165,7 @@ function makeInvoice(overrides: Partial<WorkspaceInvoice>): WorkspaceInvoice {
     invoiceNumber: 'INV',
     issueDate: '2026-04-01',
     totalAmount: 0,
+    paidAmount: 0,
     status: 'draft',
     documentState: 'draft',
     paymentStatus: 'unpaid',

@@ -119,6 +119,7 @@ export type {
   InvoicePaymentStatus,
   InvoiceStatus,
   InvoiceVersion,
+  PaymentAllocation,
   InvoiceWithItems,
   LedgerTransaction,
   ListComplianceReportsOptions,

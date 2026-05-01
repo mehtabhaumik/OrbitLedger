@@ -25,6 +25,7 @@ function makeBackup(overrides: Partial<WebWorkspaceBackup> = {}): WebWorkspaceBa
       products: [],
       invoices: [],
       invoice_items: [],
+      payment_allocations: [],
     },
     notes: {
       browser_lock_included: false,
@@ -56,6 +57,7 @@ describe('workspace backup parsing', () => {
         products: [],
         invoices: [],
         invoice_items: [],
+        payment_allocations: [],
       },
     });
 
@@ -70,6 +72,7 @@ describe('workspace backup parsing', () => {
         products: [],
         invoices: [],
         invoice_items: [],
+        payment_allocations: [],
       },
     });
 

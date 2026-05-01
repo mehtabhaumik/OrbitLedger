@@ -4,6 +4,8 @@ export type InvoicePaymentStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overd
 
 export type LegacyInvoiceStatus = 'draft' | 'issued' | 'paid' | 'overdue' | 'cancelled';
 
+export type PaymentAllocationStrategy = 'ledger_only' | 'oldest_invoice' | 'selected_invoice';
+
 export type InvoiceLifecycleInput = {
   legacyStatus?: string | null;
   documentState?: string | null;
@@ -26,6 +28,12 @@ export const INVOICE_PAYMENT_STATUSES: InvoicePaymentStatus[] = [
   'partially_paid',
   'paid',
   'overdue',
+];
+
+export const PAYMENT_ALLOCATION_STRATEGIES: PaymentAllocationStrategy[] = [
+  'ledger_only',
+  'oldest_invoice',
+  'selected_invoice',
 ];
 
 export function normalizeInvoiceDocumentState(value?: string | null): InvoiceDocumentState {

@@ -17,7 +17,8 @@ type SupportedWorkspaceEntity =
   | 'transactions'
   | 'products'
   | 'invoices'
-  | 'invoice_items';
+  | 'invoice_items'
+  | 'payment_allocations';
 
 export type RemoteWorkspaceRecord<TPayload extends Record<string, unknown>> = TPayload & {
   id: string;
@@ -67,6 +68,7 @@ export type RemoteWorkspaceDataset = {
       subtotal: number;
       tax_amount: number;
       total_amount: number;
+      paid_amount?: number;
       status: string;
       document_state?: string;
       payment_status?: string;
@@ -87,6 +89,15 @@ export type RemoteWorkspaceDataset = {
       price: number;
       tax_rate: number;
       total: number;
+    }>
+  >;
+  payment_allocations: Array<
+    RemoteWorkspaceRecord<{
+      transaction_id: string;
+      invoice_id: string;
+      customer_id: string;
+      amount: number;
+      created_at: string;
     }>
   >;
 };
@@ -111,6 +122,7 @@ const ENTITY_TO_COLLECTION: Record<SupportedWorkspaceEntity, string> = {
   products: 'products',
   invoices: 'invoices',
   invoice_items: 'invoice_items',
+  payment_allocations: 'payment_allocations',
 };
 
 function getWorkspaceRef(workspaceId: string) {
@@ -132,7 +144,8 @@ function assertSupportedEntity(entity: OrbitSyncEntityName): SupportedWorkspaceE
     entity === 'transactions' ||
     entity === 'products' ||
     entity === 'invoices' ||
-    entity === 'invoice_items'
+    entity === 'invoice_items' ||
+    entity === 'payment_allocations'
   ) {
     return entity;
   }
@@ -221,12 +234,13 @@ export async function upsertWorkspaceEntity(
 }
 
 export async function fetchWorkspaceDataset(workspaceId: string): Promise<RemoteWorkspaceDataset> {
-  const [customers, transactions, products, invoices, invoiceItems] = await Promise.all([
+  const [customers, transactions, products, invoices, invoiceItems, paymentAllocations] = await Promise.all([
     loadCollection(workspaceId, 'customers'),
     loadCollection(workspaceId, 'transactions'),
     loadCollection(workspaceId, 'products'),
     loadCollection(workspaceId, 'invoices'),
     loadCollection(workspaceId, 'invoice_items'),
+    loadCollection(workspaceId, 'payment_allocations'),
   ]);
 
   return {
@@ -235,6 +249,7 @@ export async function fetchWorkspaceDataset(workspaceId: string): Promise<Remote
     products,
     invoices,
     invoice_items: invoiceItems,
+    payment_allocations: paymentAllocations,
   } as RemoteWorkspaceDataset;
 }
 

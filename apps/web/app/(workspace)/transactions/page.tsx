@@ -6,9 +6,11 @@ import { AppShell } from '@/components/app-shell';
 import { parseAmount, validatePositiveAmount } from '@/lib/form-validation';
 import {
   createWorkspaceTransaction,
+  listWorkspaceInvoicesForCustomer,
   listWorkspaceCustomers,
   listWorkspaceTransactions,
   type WorkspaceCustomer,
+  type WorkspaceInvoice,
   type WorkspaceTransaction,
 } from '@/lib/workspace-data';
 import {
@@ -31,6 +33,9 @@ export default function TransactionsPage() {
   const [customerId, setCustomerId] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'credit' | 'payment'>('payment');
+  const [allocationStrategy, setAllocationStrategy] = useState<'ledger_only' | 'oldest_invoice' | 'selected_invoice'>('ledger_only');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
+  const [customerInvoices, setCustomerInvoices] = useState<WorkspaceInvoice[]>([]);
   const [note, setNote] = useState('');
   const [effectiveDate, setEffectiveDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [errors, setErrors] = useState<{
@@ -66,6 +71,27 @@ export default function TransactionsPage() {
     setSelectedTransactionIds(new Set());
   }, [activeWorkspace]);
 
+  useEffect(() => {
+    if (!activeWorkspace || !customerId || type !== 'payment') {
+      setCustomerInvoices([]);
+      setSelectedInvoiceId('');
+      return;
+    }
+
+    void listWorkspaceInvoicesForCustomer(activeWorkspace.workspaceId, customerId)
+      .then((invoices) => {
+        const unpaidInvoices = invoices.filter(
+          (invoice) => invoice.documentState !== 'cancelled' && invoice.totalAmount - invoice.paidAmount > 0
+        );
+        setCustomerInvoices(unpaidInvoices);
+        setSelectedInvoiceId((current) => current || unpaidInvoices[0]?.id || '');
+      })
+      .catch(() => {
+        setCustomerInvoices([]);
+        setSelectedInvoiceId('');
+      });
+  }, [activeWorkspace, customerId, type]);
+
   async function addTransaction() {
     if (!activeWorkspace) {
       return;
@@ -91,16 +117,22 @@ export default function TransactionsPage() {
         amount: parseAmount(amount) ?? 0,
         note,
         effectiveDate,
+        allocationStrategy: type === 'payment' ? allocationStrategy : 'ledger_only',
+        invoiceId: allocationStrategy === 'selected_invoice' ? selectedInvoiceId : null,
       });
       setTransactions((current) => [transaction, ...current]);
       setAmount('');
       setNote('');
       setEffectiveDate(new Date().toISOString().slice(0, 10));
+      setAllocationStrategy('ledger_only');
+      setSelectedInvoiceId('');
       setTouched({ customerId: false, amount: false });
       setErrors({ customerId: null, amount: null });
       showToast(
         type === 'payment'
-          ? 'Payment saved. Balance updated.'
+          ? allocationStrategy === 'ledger_only'
+            ? 'Payment saved as ledger entry.'
+            : 'Payment saved and invoice updated.'
           : 'Credit saved. Balance updated.',
         'success'
       );
@@ -262,6 +294,41 @@ export default function TransactionsPage() {
             />
             {errors.amount ? <span className="ol-field-error">{errors.amount}</span> : null}
           </label>
+          {type === 'payment' ? (
+            <>
+              <label className="ol-field">
+                <span className="ol-field-label">Apply payment</span>
+                <select
+                  className="ol-select"
+                  value={allocationStrategy}
+                  onChange={(event) =>
+                    setAllocationStrategy(event.target.value as typeof allocationStrategy)
+                  }
+                >
+                  <option value="ledger_only">Customer ledger only</option>
+                  <option value="oldest_invoice">Oldest unpaid invoices</option>
+                  <option value="selected_invoice">Selected invoice</option>
+                </select>
+              </label>
+              {allocationStrategy === 'selected_invoice' ? (
+                <label className="ol-field">
+                  <span className="ol-field-label">Invoice</span>
+                  <select
+                    className="ol-select"
+                    value={selectedInvoiceId}
+                    onChange={(event) => setSelectedInvoiceId(event.target.value)}
+                  >
+                    <option value="">Choose invoice</option>
+                    {customerInvoices.map((invoice) => (
+                      <option key={invoice.id} value={invoice.id}>
+                        {invoice.invoiceNumber} · {formatCurrency(Math.max(invoice.totalAmount - invoice.paidAmount, 0), activeWorkspace?.currency ?? 'INR')} due
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </>
+          ) : null}
           <label className="ol-field">
             <span className="ol-field-label">Date</span>
             <input

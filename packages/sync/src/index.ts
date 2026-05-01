@@ -6,6 +6,7 @@ import type {
 
 export const APPEND_SAFE_SYNC_ENTITIES: OrbitSyncEntityName[] = [
   'transactions',
+  'payment_allocations',
 ];
 
 export const REVISION_PROTECTED_SYNC_ENTITIES: OrbitSyncEntityName[] = [

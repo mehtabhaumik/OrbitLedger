@@ -68,6 +68,7 @@ describe('web document parity', () => {
       subtotal: 1000,
       taxAmount: 180,
       totalAmount: 1180,
+      paidAmount: 0,
       status: 'issued',
       documentState: 'created',
       paymentStatus: 'unpaid',

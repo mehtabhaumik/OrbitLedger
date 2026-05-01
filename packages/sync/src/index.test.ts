@@ -5,6 +5,7 @@ import { getSyncStrategy, isAppendSafeSyncEntity } from './index';
 describe('sync strategy', () => {
   it('keeps ledger transactions append-safe', () => {
     expect(getSyncStrategy('transactions')).toBe('append_safe');
+    expect(getSyncStrategy('payment_allocations')).toBe('append_safe');
     expect(isAppendSafeSyncEntity('transactions')).toBe(true);
   });
 

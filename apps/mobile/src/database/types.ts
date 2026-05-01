@@ -4,6 +4,7 @@ import type {
   OrbitSyncStatus,
   OrbitWorkspaceLink,
 } from '@orbit-ledger/contracts';
+import type { PaymentAllocationStrategy } from '@orbit-ledger/core';
 
 export type TaxMode = 'not_configured' | 'manual' | 'exempt';
 
@@ -172,6 +173,8 @@ export type AddTransactionInput = {
   amount: number;
   note?: string | null;
   effectiveDate?: string;
+  allocationStrategy?: PaymentAllocationStrategy;
+  invoiceId?: string | null;
 };
 
 export type UpdateTransactionInput = {
@@ -308,6 +311,7 @@ export type Invoice = SyncMetadata & {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  paidAmount: number;
   status: InvoiceStatus;
   documentState: InvoiceDocumentState;
   paymentStatus: InvoicePaymentStatus;
@@ -332,6 +336,15 @@ export type InvoiceItem = SyncMetadata & {
 
 export type InvoiceWithItems = Invoice & {
   items: InvoiceItem[];
+};
+
+export type PaymentAllocation = SyncMetadata & {
+  id: string;
+  transactionId: string;
+  invoiceId: string;
+  customerId: string;
+  amount: number;
+  createdAt: string;
 };
 
 export type AddInvoiceItemInput = {
@@ -814,6 +827,7 @@ export type InvoiceRow = {
   subtotal: number;
   tax_amount: number;
   total_amount: number;
+  paid_amount: number;
   status: InvoiceStatus;
   document_state: InvoiceDocumentState;
   payment_status: InvoicePaymentStatus;
@@ -821,6 +835,19 @@ export type InvoiceRow = {
   latest_version_id: string | null;
   latest_snapshot_hash: string | null;
   notes: string | null;
+  created_at: string;
+  sync_id: string;
+  last_modified: string;
+  sync_status: SyncStatus;
+  server_revision?: number;
+};
+
+export type PaymentAllocationRow = {
+  id: string;
+  transaction_id: string;
+  invoice_id: string;
+  customer_id: string;
+  amount: number;
   created_at: string;
   sync_id: string;
   last_modified: string;

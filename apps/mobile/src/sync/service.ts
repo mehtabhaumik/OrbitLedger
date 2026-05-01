@@ -30,6 +30,7 @@ const SYNC_TABLES: Record<OrbitSyncEntityName, string> = {
   products: 'products',
   invoices: 'invoices',
   invoice_items: 'invoice_items',
+  payment_allocations: 'payment_allocations',
   tax_profiles: 'tax_profiles',
 };
 
@@ -39,6 +40,7 @@ const WORKSPACE_SYNC_ORDER: OrbitSyncEntityName[] = [
   'products',
   'invoices',
   'invoice_items',
+  'payment_allocations',
   'transactions',
 ];
 
@@ -142,6 +144,7 @@ type InvoiceSyncRow = {
   subtotal: number;
   tax_amount: number;
   total_amount: number;
+  paid_amount: number;
   status: string;
   document_state: string;
   payment_status: string;
@@ -166,6 +169,19 @@ type InvoiceItemSyncRow = {
   price: number;
   tax_rate: number;
   total: number;
+  sync_id: string;
+  last_modified: string;
+  sync_status: 'pending' | 'synced' | 'conflict';
+  server_revision: number;
+};
+
+type PaymentAllocationSyncRow = {
+  id: string;
+  transaction_id: string;
+  invoice_id: string;
+  customer_id: string;
+  amount: number;
+  created_at: string;
   sync_id: string;
   last_modified: string;
   sync_status: 'pending' | 'synced' | 'conflict';
@@ -544,6 +560,7 @@ async function pullRemoteWorkspaceChanges(): Promise<SyncPullResult> {
     pulled += await applyRemoteProducts(db, workspace.workspaceId, dataset.products);
     pulled += await applyRemoteInvoices(db, workspace.workspaceId, dataset.invoices);
     pulled += await applyRemoteInvoiceItems(db, workspace.workspaceId, dataset.invoice_items);
+    pulled += await applyRemotePaymentAllocations(db, workspace.workspaceId, dataset.payment_allocations);
     pulled += await applyRemoteTransactions(db, workspace.workspaceId, dataset.transactions);
   });
 
@@ -609,19 +626,20 @@ function sortSyncChanges(changes: SyncRecordPointer[]) {
 
 function isWorkspaceEntity(
   entity: OrbitSyncEntityName
-): entity is 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' {
+): entity is 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' | 'payment_allocations' {
   return (
     entity === 'customers' ||
     entity === 'transactions' ||
     entity === 'products' ||
     entity === 'invoices' ||
-    entity === 'invoice_items'
+    entity === 'invoice_items' ||
+    entity === 'payment_allocations'
   );
 }
 
 async function getLocalRowForWorkspaceEntity(
   db: Awaited<ReturnType<typeof getDatabase>>,
-  entity: 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items',
+  entity: 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' | 'payment_allocations',
   localId: string
 ): Promise<Record<string, unknown> | null> {
   const tableName = SYNC_TABLES[entity];
@@ -670,6 +688,7 @@ function buildWorkspacePayload(entity: OrbitSyncEntityName, row: Record<string, 
         subtotal: row.subtotal,
         tax_amount: row.tax_amount,
         total_amount: row.total_amount,
+        paid_amount: row.paid_amount ?? 0,
         status: row.status,
         document_state: row.document_state,
         payment_status: row.payment_status,
@@ -692,6 +711,15 @@ function buildWorkspacePayload(entity: OrbitSyncEntityName, row: Record<string, 
         total: row.total,
         last_modified: row.last_modified,
       };
+    case 'payment_allocations':
+      return {
+        transaction_id: row.transaction_id,
+        invoice_id: row.invoice_id,
+        customer_id: row.customer_id,
+        amount: row.amount,
+        created_at: row.created_at,
+        last_modified: row.last_modified,
+      };
     default:
       throw new Error(`Unsupported workspace payload entity: ${entity}`);
   }
@@ -699,7 +727,7 @@ function buildWorkspacePayload(entity: OrbitSyncEntityName, row: Record<string, 
 
 async function getExistingLocalSyncRow(
   db: Awaited<ReturnType<typeof getDatabase>>,
-  entity: 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items',
+  entity: 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' | 'payment_allocations',
   remoteId: string
 ) {
   const tableName = SYNC_TABLES[entity];
@@ -722,7 +750,7 @@ async function getExistingLocalSyncRow(
 async function shouldSkipRemoteApply(
   db: Awaited<ReturnType<typeof getDatabase>>,
   workspaceId: string,
-  entity: 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items',
+  entity: 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' | 'payment_allocations',
   remoteRecord: { id: string; last_modified: string; server_revision: number }
 ) {
   const existing = await getExistingLocalSyncRow(db, entity, remoteRecord.id);
@@ -917,9 +945,9 @@ async function applyRemoteInvoices(
     await db.runAsync(
       `INSERT INTO invoices (
           id, customer_id, invoice_number, issue_date, due_date, subtotal, tax_amount,
-          total_amount, status, document_state, payment_status, version_number, latest_version_id,
+          total_amount, paid_amount, status, document_state, payment_status, version_number, latest_version_id,
           latest_snapshot_hash, notes, created_at, sync_id, last_modified, sync_status, server_revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
         ON CONFLICT(id) DO UPDATE SET
           customer_id = excluded.customer_id,
           invoice_number = excluded.invoice_number,
@@ -928,6 +956,7 @@ async function applyRemoteInvoices(
           subtotal = excluded.subtotal,
           tax_amount = excluded.tax_amount,
           total_amount = excluded.total_amount,
+          paid_amount = excluded.paid_amount,
           status = excluded.status,
           document_state = excluded.document_state,
           payment_status = excluded.payment_status,
@@ -948,6 +977,7 @@ async function applyRemoteInvoices(
       record.subtotal,
       record.tax_amount,
       record.total_amount,
+      record.paid_amount ?? 0,
       record.status,
       record.document_state ?? legacyDocumentState(record.status),
       record.payment_status ?? legacyPaymentStatus(record.status),
@@ -1011,6 +1041,56 @@ async function applyRemoteInvoiceItems(
       record.price,
       record.tax_rate,
       record.total,
+      record.id,
+      record.last_modified,
+      record.server_revision
+    );
+    applied += 1;
+  }
+  return applied;
+}
+
+async function applyRemotePaymentAllocations(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  workspaceId: string,
+  records: Awaited<ReturnType<typeof fetchWorkspaceDataset>>['payment_allocations']
+) {
+  let applied = 0;
+  for (const record of records) {
+    if (await shouldSkipRemoteApply(db, workspaceId, 'payment_allocations', record)) {
+      continue;
+    }
+
+    const [transactionExists, invoiceExists, customerExists] = await Promise.all([
+      db.getFirstAsync<{ id: string }>('SELECT id FROM transactions WHERE id = ? LIMIT 1', record.transaction_id),
+      db.getFirstAsync<{ id: string }>('SELECT id FROM invoices WHERE id = ? LIMIT 1', record.invoice_id),
+      db.getFirstAsync<{ id: string }>('SELECT id FROM customers WHERE id = ? LIMIT 1', record.customer_id),
+    ]);
+    if (!transactionExists || !invoiceExists || !customerExists) {
+      continue;
+    }
+
+    await db.runAsync(
+      `INSERT INTO payment_allocations (
+          id, transaction_id, invoice_id, customer_id, amount, created_at,
+          sync_id, last_modified, sync_status, server_revision
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
+        ON CONFLICT(id) DO UPDATE SET
+          transaction_id = excluded.transaction_id,
+          invoice_id = excluded.invoice_id,
+          customer_id = excluded.customer_id,
+          amount = excluded.amount,
+          created_at = excluded.created_at,
+          sync_id = excluded.sync_id,
+          last_modified = excluded.last_modified,
+          sync_status = 'synced',
+          server_revision = excluded.server_revision`,
+      record.id,
+      record.transaction_id,
+      record.invoice_id,
+      record.customer_id,
+      record.amount,
+      record.created_at,
       record.id,
       record.last_modified,
       record.server_revision

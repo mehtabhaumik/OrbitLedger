@@ -73,6 +73,7 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     subtotal: 2000,
     taxAmount: 360,
     totalAmount: 2360,
+    paidAmount: 0,
     status: 'issued',
     documentState: 'created',
     paymentStatus: 'unpaid',

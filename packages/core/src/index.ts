@@ -64,6 +64,7 @@ export {
   getInvoicePaymentStatusLabel,
   INVOICE_DOCUMENT_STATES,
   INVOICE_PAYMENT_STATUSES,
+  PAYMENT_ALLOCATION_STRATEGIES,
   legacyStatusForInvoiceLifecycle,
   normalizeInvoiceDocumentState,
   normalizeInvoicePaymentStatus,
@@ -73,4 +74,5 @@ export type {
   InvoiceLifecycleInput,
   InvoicePaymentStatus,
   LegacyInvoiceStatus,
+  PaymentAllocationStrategy,
 } from './invoiceLifecycle';

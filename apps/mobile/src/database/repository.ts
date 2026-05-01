@@ -6,6 +6,7 @@ import {
   normalizeInvoicePaymentStatus,
   type InvoiceDocumentState,
   type InvoicePaymentStatus,
+  type PaymentAllocationStrategy,
 } from '@orbit-ledger/core';
 
 import { calculateLedgerBalance } from './balance';
@@ -1450,30 +1451,43 @@ export async function addTransaction(input: AddTransactionInput): Promise<Ledger
         const id = createEntityId('txn');
         const now = new Date().toISOString();
 
-        await db.runAsync(
-          `INSERT INTO transactions (
+        await db.withTransactionAsync(async () => {
+          await db.runAsync(
+            `INSERT INTO transactions (
+              id,
+              customer_id,
+              type,
+              amount,
+              note,
+              effective_date,
+              created_at,
+              sync_id,
+              last_modified,
+              sync_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
-            customer_id,
-            type,
-            amount,
-            note,
-            effective_date,
-            created_at,
-            sync_id,
-            last_modified,
-            sync_status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          id,
-          input.customerId,
-          input.type,
-          input.amount,
-          cleanText(input.note),
-          input.effectiveDate ?? toDateOnlyIso(),
-          now,
-          id,
-          now,
-          'pending'
-        );
+            input.customerId,
+            input.type,
+            input.amount,
+            cleanText(input.note),
+            input.effectiveDate ?? toDateOnlyIso(),
+            now,
+            id,
+            now,
+            'pending'
+          );
+
+          if (input.type === 'payment') {
+            await allocatePaymentToInvoices(db, {
+              customerId: input.customerId,
+              transactionId: id,
+              amount: input.amount,
+              strategy: input.allocationStrategy ?? 'ledger_only',
+              invoiceId: input.invoiceId ?? null,
+              createdAt: now,
+            });
+          }
+        });
 
         const transaction = await db.getFirstAsync<LedgerTransactionRow>(
           'SELECT * FROM transactions WHERE id = ? LIMIT 1',
@@ -1971,6 +1985,7 @@ export async function addInvoice(input: AddInvoiceInput): Promise<InvoiceWithIte
               subtotal,
               tax_amount,
               total_amount,
+              paid_amount,
               status,
               document_state,
               payment_status,
@@ -1982,7 +1997,7 @@ export async function addInvoice(input: AddInvoiceInput): Promise<InvoiceWithIte
               sync_id,
               last_modified,
               sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             customerId,
             invoiceNumber,
@@ -1991,6 +2006,7 @@ export async function addInvoice(input: AddInvoiceInput): Promise<InvoiceWithIte
             prepared.subtotal,
             prepared.taxAmount,
             prepared.totalAmount,
+            0,
             legacyStatus,
             documentState,
             paymentStatus,
@@ -2146,6 +2162,7 @@ export async function updateInvoice(
               paymentStatus: existing.paymentStatus,
               dueDate,
               totalAmount: prepared.totalAmount,
+              paidAmount: existing.paidAmount,
             });
         const nextVersionNumber = Math.max(existing.versionNumber, 0) + 1;
         const nextDocumentState: InvoiceDocumentState =
@@ -2191,6 +2208,7 @@ export async function updateInvoice(
               subtotal = ?,
               tax_amount = ?,
               total_amount = ?,
+              paid_amount = ?,
               status = ?,
               document_state = ?,
               payment_status = ?,
@@ -2208,6 +2226,7 @@ export async function updateInvoice(
             prepared.subtotal,
             prepared.taxAmount,
             prepared.totalAmount,
+            existing.paidAmount,
             legacyStatus,
             finalDocumentState,
             paymentStatus,
@@ -3679,6 +3698,102 @@ function prepareInvoiceTotals(
     totalAmount: roundCurrency(subtotal + taxAmount),
     items,
   };
+}
+
+async function allocatePaymentToInvoices(
+  db: SQLiteDatabase,
+  input: {
+    customerId: string;
+    transactionId: string;
+    amount: number;
+    strategy: PaymentAllocationStrategy;
+    invoiceId: string | null;
+    createdAt: string;
+  }
+): Promise<void> {
+  if (input.strategy === 'ledger_only') {
+    return;
+  }
+
+  const rows = await db.getAllAsync<InvoiceRow>(
+    `SELECT *
+     FROM invoices
+     WHERE customer_id = ?
+      AND document_state != 'cancelled'
+      AND total_amount > paid_amount
+     ORDER BY issue_date ASC, created_at ASC`,
+    input.customerId
+  );
+  const targetRows =
+    input.strategy === 'selected_invoice'
+      ? rows.filter((row) => row.id === input.invoiceId)
+      : rows;
+
+  if (input.strategy === 'selected_invoice' && targetRows.length === 0) {
+    throw new Error('Choose an unpaid invoice before allocating this payment.');
+  }
+
+  let remainingAmount = roundCurrency(input.amount);
+  for (const invoice of targetRows) {
+    if (remainingAmount <= 0) {
+      break;
+    }
+
+    const dueAmount = roundCurrency(Math.max(invoice.total_amount - invoice.paid_amount, 0));
+    const allocationAmount = roundCurrency(Math.min(remainingAmount, dueAmount));
+    if (allocationAmount <= 0) {
+      continue;
+    }
+
+    const nextPaidAmount = roundCurrency(invoice.paid_amount + allocationAmount);
+    const nextPaymentStatus = deriveInvoicePaymentStatus({
+      dueDate: invoice.due_date,
+      totalAmount: invoice.total_amount,
+      paidAmount: nextPaidAmount,
+    });
+    const documentState = normalizeInvoiceDocumentState(invoice.document_state ?? invoice.status);
+    const legacyStatus = legacyStatusForInvoiceLifecycle(documentState, nextPaymentStatus);
+    const allocationId = createEntityId('pal');
+
+    await db.runAsync(
+      `INSERT INTO payment_allocations (
+        id,
+        transaction_id,
+        invoice_id,
+        customer_id,
+        amount,
+        created_at,
+        sync_id,
+        last_modified,
+        sync_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      allocationId,
+      input.transactionId,
+      invoice.id,
+      input.customerId,
+      allocationAmount,
+      input.createdAt,
+      allocationId,
+      input.createdAt
+    );
+
+    await db.runAsync(
+      `UPDATE invoices
+       SET paid_amount = ?,
+        payment_status = ?,
+        status = ?,
+        last_modified = ?,
+        sync_status = 'pending'
+       WHERE id = ?`,
+      nextPaidAmount,
+      nextPaymentStatus,
+      legacyStatus,
+      input.createdAt,
+      invoice.id
+    );
+
+    remainingAmount = roundCurrency(remainingAmount - allocationAmount);
+  }
 }
 
 async function insertInvoiceVersion(

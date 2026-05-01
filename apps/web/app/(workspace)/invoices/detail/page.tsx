@@ -147,6 +147,7 @@ function InvoiceEditorContent() {
       paymentStatus,
       notes,
       totalAmount: total,
+      paidAmount: invoice.paidAmount,
       items: items
         .filter((item) => item.name.trim())
         .map((item, index) => {

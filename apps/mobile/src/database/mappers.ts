@@ -29,6 +29,8 @@ import type {
   PaymentPromiseRow,
   PaymentPromiseWithCustomer,
   PaymentPromiseWithCustomerRow,
+  PaymentAllocation,
+  PaymentAllocationRow,
   Product,
   ProductRow,
   RecentTransaction,
@@ -262,6 +264,7 @@ export function mapInvoice(row: InvoiceRow): Invoice {
     subtotal: row.subtotal,
     taxAmount: row.tax_amount,
     totalAmount: row.total_amount,
+    paidAmount: row.paid_amount,
     status: row.status,
     documentState: row.document_state,
     paymentStatus: row.payment_status,
@@ -269,6 +272,18 @@ export function mapInvoice(row: InvoiceRow): Invoice {
     latestVersionId: row.latest_version_id,
     latestSnapshotHash: row.latest_snapshot_hash,
     notes: row.notes,
+    createdAt: row.created_at,
+  };
+}
+
+export function mapPaymentAllocation(row: PaymentAllocationRow): PaymentAllocation {
+  return {
+    ...mapSyncMetadata(row),
+    id: row.id,
+    transactionId: row.transaction_id,
+    invoiceId: row.invoice_id,
+    customerId: row.customer_id,
+    amount: row.amount,
     createdAt: row.created_at,
   };
 }
