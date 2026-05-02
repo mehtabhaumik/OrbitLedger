@@ -15,6 +15,7 @@ import {
 } from 'react';
 
 import { AppShell } from '@/components/app-shell';
+import { getWebDocumentTemplates, type WebDocumentTemplate } from '@/lib/web-documents';
 import {
   normalizePhoneForCountry,
   parseAmount,
@@ -186,6 +187,8 @@ export default function SettingsPage() {
 
   const workspace = activeWorkspace;
   const paymentTemplate = getManualPaymentInstructionTemplate(workspace.countryCode);
+  const invoiceTemplates = getWebDocumentTemplates(workspace, 'invoice');
+  const statementTemplates = getWebDocumentTemplates(workspace, 'statement');
 
   function validateField(field: ProfileFieldKey, candidate = profile) {
     if (field === 'businessName') {
@@ -537,8 +540,18 @@ export default function SettingsPage() {
               <ProfileField label="Default payment terms" value={profile.defaultPaymentTerms} onChange={(value) => handleFieldChange('defaultPaymentTerms', value)} />
               <ProfileField inputMode="numeric" label="Default due days" value={profile.defaultDueDays} onChange={(value) => handleFieldChange('defaultDueDays', value)} />
               <ProfileField inputMode="decimal" label="Default tax %" value={profile.defaultTaxRate} onChange={(value) => handleFieldChange('defaultTaxRate', value)} />
-              <ProfileField label="Default invoice template" value={profile.defaultInvoiceTemplate} onChange={(value) => handleFieldChange('defaultInvoiceTemplate', value)} />
-              <ProfileField label="Default statement template" value={profile.defaultStatementTemplate} onChange={(value) => handleFieldChange('defaultStatementTemplate', value)} />
+              <TemplateSelect
+                label="Default invoice template"
+                templates={invoiceTemplates}
+                value={profile.defaultInvoiceTemplate}
+                onChange={(value) => handleFieldChange('defaultInvoiceTemplate', value)}
+              />
+              <TemplateSelect
+                label="Default statement template"
+                templates={statementTemplates}
+                value={profile.defaultStatementTemplate}
+                onChange={(value) => handleFieldChange('defaultStatementTemplate', value)}
+              />
               <ProfileField label="Default language" value={profile.defaultLanguage} onChange={(value) => handleFieldChange('defaultLanguage', value)} />
             </div>
           </div>
@@ -752,6 +765,32 @@ function ProfileField({
         onChange={(event) => onChange(event.target.value)}
       />
       {error ? <span className="ol-field-error">{error}</span> : null}
+    </label>
+  );
+}
+
+function TemplateSelect({
+  label,
+  onChange,
+  templates,
+  value,
+}: {
+  label: string;
+  templates: WebDocumentTemplate[];
+  value: string;
+  onChange(value: string): void;
+}) {
+  return (
+    <label className="ol-field">
+      <span className="ol-field-label">{label}</span>
+      <select className="ol-select" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Use Orbit Ledger default</option>
+        {templates.map((template) => (
+          <option key={template.key} value={template.key}>
+            {template.tier === 'pro' ? `${template.label} · Pro` : `${template.label} · Free`}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }

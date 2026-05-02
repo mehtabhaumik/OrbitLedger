@@ -8,6 +8,7 @@ import { summarizePaymentClearance, summarizePaymentMode } from '@orbit-ledger/c
 
 import { AppShell } from '@/components/app-shell';
 import { downloadCustomerProfilePdf } from '@/lib/customer-export';
+import { getWebDocumentTemplates, type WebDocumentTemplate } from '@/lib/web-documents';
 import {
   normalizePhoneForCountry,
   parseAmount,
@@ -139,6 +140,7 @@ function CustomerDetailContent() {
     filteredTransactions.length > 0 &&
     filteredTransactions.every((transaction) => selectedTransactionIds.has(transaction.id));
   const currency = activeWorkspace?.currency ?? 'INR';
+  const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
 
   function updateProfileField(field: keyof CustomerProfileFormState, value: string) {
     setProfileDraft((current) => (current ? { ...current, [field]: value } : current));
@@ -463,7 +465,12 @@ function CustomerDetailContent() {
                     <CustomerField label="Credit limit" value={profileDraft.creditLimit} onChange={(value) => updateProfileField('creditLimit', value)} />
                     <CustomerField label="Payment terms" value={profileDraft.paymentTerms} onChange={(value) => updateProfileField('paymentTerms', value)} />
                     <CustomerField label="Preferred payment mode" value={profileDraft.preferredPaymentMode} onChange={(value) => updateProfileField('preferredPaymentMode', value)} />
-                    <CustomerField label="Preferred invoice template" value={profileDraft.preferredInvoiceTemplate} onChange={(value) => updateProfileField('preferredInvoiceTemplate', value)} />
+                    <CustomerTemplateSelect
+                      label="Preferred invoice template"
+                      templates={invoiceTemplates}
+                      value={profileDraft.preferredInvoiceTemplate}
+                      onChange={(value) => updateProfileField('preferredInvoiceTemplate', value)}
+                    />
                     <CustomerField label="Preferred language" value={profileDraft.preferredLanguage} onChange={(value) => updateProfileField('preferredLanguage', value)} />
                     <CustomerField label="Tags" value={profileDraft.tags} onChange={(value) => updateProfileField('tags', value)} />
                   </div>
@@ -631,6 +638,32 @@ function CustomerField({
     <label className="ol-field">
       <span className="ol-field-label">{label}</span>
       <input className="ol-input" value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function CustomerTemplateSelect({
+  label,
+  onChange,
+  templates,
+  value,
+}: {
+  label: string;
+  templates: WebDocumentTemplate[];
+  value: string;
+  onChange(value: string): void;
+}) {
+  return (
+    <label className="ol-field">
+      <span className="ol-field-label">{label}</span>
+      <select className="ol-select" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Use business default</option>
+        {templates.map((template) => (
+          <option key={template.key} value={template.key}>
+            {template.tier === 'pro' ? `${template.label} · Pro` : `${template.label} · Free`}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }

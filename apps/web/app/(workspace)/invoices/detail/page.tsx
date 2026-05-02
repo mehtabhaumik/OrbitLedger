@@ -47,6 +47,7 @@ import {
   downloadInvoicePdf,
   getWebDocumentTemplates,
   openPrintableDocument,
+  type WebDocumentTemplate,
 } from '@/lib/web-documents';
 import { getWebPaymentProviderPlan } from '@/lib/payment-provider-mode';
 import { createRazorpayCheckoutLink } from '@/lib/provider-checkout';
@@ -142,6 +143,13 @@ function InvoiceEditorContent() {
         setIssueDate(nextInvoice.issueDate);
         setDueDate(nextInvoice.dueDate ?? '');
         setPaymentStatus(nextInvoice.paymentStatus);
+        setTemplateKey(
+          resolveInvoiceTemplatePreference(
+            nextCustomers.find((customer) => customer.id === nextInvoice.customerId) ?? null,
+            activeWorkspace.defaultInvoiceTemplate,
+            getWebDocumentTemplates(activeWorkspace, 'invoice')
+          )
+        );
         setRevisionReason('');
         setNotes(nextInvoice.notes ?? '');
         const nextDefaultTaxRate = getDefaultInvoiceTaxRate(activeWorkspace.countryCode);
@@ -672,7 +680,21 @@ function InvoiceEditorContent() {
             <div className="ol-form-row ol-form-row--4">
               <label className="ol-field">
                 <span className="ol-field-label">Customer</span>
-                <select className="ol-select" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+                <select
+                  className="ol-select"
+                  value={customerId}
+                  onChange={(event) => {
+                    const nextCustomerId = event.target.value;
+                    setCustomerId(nextCustomerId);
+                    setTemplateKey(
+                      resolveInvoiceTemplatePreference(
+                        customers.find((customer) => customer.id === nextCustomerId) ?? null,
+                        activeWorkspace?.defaultInvoiceTemplate,
+                        invoiceTemplates
+                      )
+                    );
+                  }}
+                >
                   <option value="">No customer selected</option>
                   {customers.map((customer) => (
                     <option key={customer.id} value={customer.id}>
@@ -724,6 +746,11 @@ function InvoiceEditorContent() {
                 ))}
               </select>
             </label>
+            <TemplatePreviewGrid
+              selectedKey={selectedTemplate?.key ?? ''}
+              templates={invoiceTemplates}
+              onSelect={setTemplateKey}
+            />
             <label className="ol-field" style={{ marginTop: 16 }}>
               <span className="ol-field-label">Notes</span>
               <textarea className="ol-textarea" value={notes} onChange={(event) => setNotes(event.target.value)} />
@@ -1227,6 +1254,49 @@ function Review({ label, value }: { label: string; value: string }) {
       <strong className="ol-review-value">{value}</strong>
     </div>
   );
+}
+
+function TemplatePreviewGrid({
+  onSelect,
+  selectedKey,
+  templates,
+}: {
+  selectedKey: string;
+  templates: WebDocumentTemplate[];
+  onSelect(value: string): void;
+}) {
+  return (
+    <div className="ol-template-preview-grid">
+      {templates.map((template) => (
+        <button
+          className={`ol-template-preview-card${template.key === selectedKey ? ' is-selected' : ''}`}
+          key={template.key}
+          type="button"
+          onClick={() => onSelect(template.key)}
+        >
+          <span className={`ol-chip ${template.tier === 'pro' ? 'ol-chip--premium' : 'ol-chip--primary'}`}>
+            {template.tier === 'pro' ? 'Pro' : 'Free'}
+          </span>
+          <strong>{template.label}</strong>
+          <small>{template.description}</small>
+          <span className="ol-template-preview-lines" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function resolveInvoiceTemplatePreference(
+  customer: WorkspaceCustomer | null,
+  workspaceDefault: string | null | undefined,
+  templates: WebDocumentTemplate[]
+) {
+  const candidate = customer?.preferredInvoiceTemplate || workspaceDefault || '';
+  return templates.some((template) => template.key === candidate) ? candidate : '';
 }
 
 function CopyIcon() {
