@@ -260,6 +260,7 @@ export default function BackupPage() {
             <MetricCard label="Products" value={backupSummary.counts.products} />
             <MetricCard label="Invoices" value={backupSummary.counts.invoices} />
             <MetricCard label="Invoice items" value={backupSummary.counts.invoice_items} />
+            <MetricCard label="Payment reversals" value={backupSummary.counts.payment_reversals} />
           </div>
           <p className="ol-panel-copy">
             Restoring this backup will replace the current workspace after you type the business name.

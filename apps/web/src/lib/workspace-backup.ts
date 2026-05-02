@@ -20,7 +20,8 @@ type BackupCollectionName =
   | 'products'
   | 'invoices'
   | 'invoice_items'
-  | 'payment_allocations';
+  | 'payment_allocations'
+  | 'payment_reversals';
 
 export type WebWorkspaceBackup = {
   backup_format_version: number;
@@ -54,6 +55,7 @@ const COLLECTIONS: BackupCollectionName[] = [
   'invoices',
   'invoice_items',
   'payment_allocations',
+  'payment_reversals',
 ];
 
 export async function exportWorkspaceBackup(workspaceId: string): Promise<WebWorkspaceBackup> {
@@ -80,6 +82,7 @@ export async function exportWorkspaceBackup(workspaceId: string): Promise<WebWor
       invoices: entitySnapshots[3].docs.map(mapEntry),
       invoice_items: entitySnapshots[4].docs.map(mapEntry),
       payment_allocations: entitySnapshots[5].docs.map(mapEntry),
+      payment_reversals: entitySnapshots[6].docs.map(mapEntry),
     },
     notes: {
       browser_lock_included: false,
@@ -107,6 +110,8 @@ export function parseWorkspaceBackup(raw: string): WebWorkspaceBackup {
   if (!backup.workspace?.profile || !backup.entities) {
     throw new Error('Backup file is missing required workspace data.');
   }
+  const backupEntities = backup.entities as Partial<Record<BackupCollectionName, Array<Record<string, unknown> & { id: string }>>>;
+  backupEntities.payment_reversals ??= [];
 
   if (typeof backup.exported_at !== 'string' || Number.isNaN(Date.parse(backup.exported_at))) {
     throw new Error('Backup exported timestamp is invalid.');
@@ -149,6 +154,7 @@ export function summarizeWorkspaceBackup(backup: WebWorkspaceBackup): WebWorkspa
       invoices: backup.entities.invoices.length,
       invoice_items: backup.entities.invoice_items.length,
       payment_allocations: backup.entities.payment_allocations.length,
+      payment_reversals: backup.entities.payment_reversals.length,
     },
     browserLockIncluded: backup.notes.browser_lock_included,
   };

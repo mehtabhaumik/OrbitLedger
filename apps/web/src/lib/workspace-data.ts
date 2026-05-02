@@ -170,6 +170,10 @@ export type WorkspaceInvoicePaymentAllocation = WorkspacePaymentAllocation & {
   paymentDetails: PaymentModeDetails | null;
   paymentClearanceStatus: PaymentClearanceStatus | null;
   paymentAttachments: PaymentInstrumentAttachment[];
+  isReversed: boolean;
+  reversedAt: string | null;
+  reversalReason: string | null;
+  reversalTransactionId: string | null;
 };
 
 export type WorkspaceManualPaymentReviewItem = {
@@ -243,6 +247,10 @@ export type ReverseWorkspaceProviderEventInput = {
 
 export type UpdateWorkspacePaymentClearanceInput = {
   clearanceStatus: PaymentClearanceStatus;
+};
+
+export type ReverseWorkspaceInvoicePaymentInput = {
+  note?: string | null;
 };
 
 export type SaveWorkspaceInvoiceInput = {
@@ -830,6 +838,10 @@ export async function listWorkspaceInvoicePaymentAllocations(
         customer_id?: string;
         amount?: number;
         created_at?: string;
+        is_reversed?: boolean;
+        reversed_at?: string | null;
+        reversal_reason?: string | null;
+        reversal_transaction_id?: string | null;
       };
       const transaction = data.transaction_id ? transactions.get(data.transaction_id) : undefined;
       return {
@@ -845,6 +857,10 @@ export async function listWorkspaceInvoicePaymentAllocations(
         paymentDetails: transaction?.paymentDetails ?? null,
         paymentClearanceStatus: transaction?.paymentClearanceStatus ?? null,
         paymentAttachments: transaction?.paymentAttachments ?? [],
+        isReversed: Boolean(data.is_reversed),
+        reversedAt: data.reversed_at ?? null,
+        reversalReason: data.reversal_reason ?? null,
+        reversalTransactionId: data.reversal_transaction_id ?? null,
       };
     })
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
@@ -929,8 +945,9 @@ export async function listWorkspaceManualPaymentReviewItems(
       invoice_id?: string;
       amount?: number;
       created_at?: string;
+      is_reversed?: boolean;
     };
-    if (!allocation.transaction_id || !allocation.invoice_id) {
+    if (!allocation.transaction_id || !allocation.invoice_id || allocation.is_reversed) {
       continue;
     }
     invoiceIds.push(allocation.invoice_id);
@@ -1049,7 +1066,11 @@ export async function updateWorkspacePaymentClearance(
   const allocation = allocationSnapshot.data() as {
     transaction_id?: string;
     customer_id?: string;
+    is_reversed?: boolean;
   };
+  if (allocation.is_reversed) {
+    throw new Error('This payment allocation has already been reversed.');
+  }
   if (!allocation.transaction_id) {
     throw new Error('Payment record could not be found.');
   }
@@ -1097,8 +1118,9 @@ export async function updateWorkspacePaymentClearance(
     const data = related.data() as {
       invoice_id?: string;
       amount?: number;
+      is_reversed?: boolean;
     };
-    if (!data.invoice_id || typeof data.amount !== 'number') {
+    if (!data.invoice_id || typeof data.amount !== 'number' || data.is_reversed) {
       continue;
     }
     const invoiceRef = doc(firestore, 'workspaces', workspaceId, 'invoices', data.invoice_id);
@@ -1145,6 +1167,153 @@ export async function updateWorkspacePaymentClearance(
         last_modified: now,
       });
     }
+  }
+
+  await batch.commit();
+}
+
+export async function reverseWorkspaceInvoicePaymentAllocation(
+  workspaceId: string,
+  allocationId: string,
+  input: ReverseWorkspaceInvoicePaymentInput = {}
+): Promise<void> {
+  const firestore = getWebFirestore();
+  const allocationRef = doc(firestore, 'workspaces', workspaceId, 'payment_allocations', allocationId);
+  const allocationSnapshot = await getDoc(allocationRef);
+  if (!allocationSnapshot.exists()) {
+    throw new Error('Payment allocation could not be found.');
+  }
+
+  const allocation = allocationSnapshot.data() as {
+    transaction_id?: string;
+    invoice_id?: string;
+    customer_id?: string;
+    amount?: number;
+    is_reversed?: boolean;
+  };
+  if (allocation.is_reversed) {
+    throw new Error('This payment has already been reversed.');
+  }
+  if (!allocation.transaction_id || !allocation.invoice_id || !allocation.customer_id) {
+    throw new Error('Payment allocation is missing invoice or customer details.');
+  }
+  const allocationAmount = roundMoney(allocation.amount ?? 0);
+  if (allocationAmount <= 0) {
+    throw new Error('Payment allocation has no valid amount.');
+  }
+
+  const transactionRef = doc(firestore, 'workspaces', workspaceId, 'transactions', allocation.transaction_id);
+  const invoiceRef = doc(firestore, 'workspaces', workspaceId, 'invoices', allocation.invoice_id);
+  const [transactionSnapshot, invoiceSnapshot] = await Promise.all([getDoc(transactionRef), getDoc(invoiceRef)]);
+  if (!transactionSnapshot.exists()) {
+    throw new Error('Payment record could not be found.');
+  }
+  if (!invoiceSnapshot.exists()) {
+    throw new Error('Invoice for this payment could not be found.');
+  }
+
+  const transaction = transactionSnapshot.data() as {
+    payment_mode?: string | null;
+    payment_details?: PaymentModeDetails | null;
+    payment_details_json?: string | null;
+    payment_clearance_status?: string | null;
+  };
+  const invoice = invoiceSnapshot.data() as {
+    paid_amount?: number;
+    total_amount?: number;
+    due_date?: string | null;
+    status?: string;
+    document_state?: string;
+  };
+  const paymentMode = transaction.payment_mode ? normalizePaymentMode(transaction.payment_mode) : null;
+  const paymentDetails = normalizeStoredPaymentDetails(transaction);
+  const clearanceStatus = normalizePaymentClearanceStatus(
+    transaction.payment_clearance_status,
+    paymentMode,
+    paymentDetails
+  );
+  const paidDelta = doesPaymentClearInvoice(clearanceStatus)
+    ? roundMoney(Math.min(allocationAmount, invoice.paid_amount ?? 0))
+    : 0;
+  const balanceDelta = doesPaymentClearInvoice(clearanceStatus) ? allocationAmount : 0;
+  const nextPaidAmount = roundMoney(Math.max((invoice.paid_amount ?? 0) - paidDelta, 0));
+  const nextPaymentStatus = deriveInvoicePaymentStatus({
+    dueDate: invoice.due_date,
+    totalAmount: invoice.total_amount,
+    paidAmount: nextPaidAmount,
+  });
+  const documentState = normalizeInvoiceDocumentState(invoice.document_state ?? invoice.status);
+  const now = new Date().toISOString();
+  const reversalReason = input.note?.trim() || 'Payment reversed by owner correction.';
+  const reversalRef = doc(collection(firestore, 'workspaces', workspaceId, 'payment_reversals'));
+  const reversalTransactionRef =
+    balanceDelta > 0 ? doc(collection(firestore, 'workspaces', workspaceId, 'transactions')) : null;
+  const batch = writeBatch(firestore);
+
+  if (reversalTransactionRef) {
+    batch.set(reversalTransactionRef, {
+      customer_id: allocation.customer_id,
+      type: 'credit',
+      amount: balanceDelta,
+      note: reversalReason,
+      payment_mode: null,
+      payment_details: null,
+      payment_details_json: null,
+      payment_clearance_status: null,
+      payment_attachments: [],
+      payment_attachments_json: null,
+      effective_date: now.slice(0, 10),
+      created_at: now,
+      last_modified: now,
+      sync_status: 'synced',
+      server_revision: 1,
+      reversal_of_transaction_id: allocation.transaction_id,
+      reversal_of_allocation_id: allocationId,
+    });
+  }
+
+  batch.set(reversalRef, {
+    original_transaction_id: allocation.transaction_id,
+    reversal_transaction_id: reversalTransactionRef?.id ?? null,
+    allocation_id: allocationId,
+    invoice_id: allocation.invoice_id,
+    customer_id: allocation.customer_id,
+    amount: allocationAmount,
+    allocation_amount: allocationAmount,
+    balance_delta: balanceDelta,
+    reason: reversalReason,
+    created_at: now,
+    last_modified: now,
+    source: 'manual',
+  });
+  batch.update(allocationRef, {
+    is_reversed: true,
+    reversed_at: now,
+    reversal_reason: reversalReason,
+    reversal_id: reversalRef.id,
+    reversal_transaction_id: reversalTransactionRef?.id ?? null,
+    last_modified: now,
+    server_revision: increment(1),
+  });
+  batch.update(invoiceRef, {
+    paid_amount: nextPaidAmount,
+    payment_status: nextPaymentStatus,
+    status: legacyStatusForInvoiceLifecycle(documentState, nextPaymentStatus),
+    last_modified: now,
+    server_revision: increment(1),
+  });
+  batch.update(transactionRef, {
+    has_correction: true,
+    last_modified: now,
+    server_revision: increment(1),
+  });
+  if (balanceDelta > 0) {
+    batch.update(doc(firestore, 'workspaces', workspaceId, 'customers', allocation.customer_id), {
+      current_balance: increment(balanceDelta),
+      updated_at: now,
+      last_modified: now,
+      server_revision: increment(1),
+    });
   }
 
   await batch.commit();
@@ -1200,8 +1369,9 @@ export async function updateWorkspaceManualPaymentClearance(
     const data = related.data() as {
       invoice_id?: string;
       amount?: number;
+      is_reversed?: boolean;
     };
-    if (!data.invoice_id || typeof data.amount !== 'number') {
+    if (!data.invoice_id || typeof data.amount !== 'number' || data.is_reversed) {
       continue;
     }
     const invoiceRef = doc(firestore, 'workspaces', workspaceId, 'invoices', data.invoice_id);

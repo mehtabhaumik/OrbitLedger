@@ -87,7 +87,8 @@ export type OrbitSyncEntityName =
   | 'products'
   | 'invoices'
   | 'invoice_items'
-  | 'payment_allocations';
+  | 'payment_allocations'
+  | 'payment_reversals';
 
 export type OrbitSyncConnectionState =
   | 'not_configured'

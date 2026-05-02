@@ -33,6 +33,7 @@ import {
   getWorkspaceInvoiceDetail,
   listWorkspaceInvoicePaymentAllocations,
   listWorkspaceCustomers,
+  reverseWorkspaceInvoicePaymentAllocation,
   saveWorkspaceInvoiceDetail,
   updateWorkspacePaymentClearance,
   type WorkspaceCustomer,
@@ -517,6 +518,44 @@ function InvoiceEditorContent() {
     }
   }
 
+  async function reversePaymentAllocation(allocation: WorkspaceInvoicePaymentAllocation) {
+    if (!activeWorkspace || !invoice) {
+      return;
+    }
+    const note = window.prompt(
+      'Why are you reversing this payment?',
+      allocation.paymentClearanceStatus === 'bounced'
+        ? 'Payment bounced and must not count toward this invoice.'
+        : 'Payment recorded by mistake.'
+    );
+    if (note === null) {
+      return;
+    }
+    if (!window.confirm('Reverse this payment? The original record stays in history and invoice totals will be recalculated.')) {
+      return;
+    }
+
+    setIsRecordingPayment(true);
+    try {
+      await reverseWorkspaceInvoicePaymentAllocation(activeWorkspace.workspaceId, allocation.id, { note });
+      const [updatedInvoice, nextAllocations] = await Promise.all([
+        getWorkspaceInvoiceDetail(activeWorkspace.workspaceId, invoice.id),
+        listWorkspaceInvoicePaymentAllocations(activeWorkspace.workspaceId, invoice.id),
+      ]);
+      if (updatedInvoice) {
+        setInvoice(updatedInvoice);
+        setPaymentStatus(updatedInvoice.paymentStatus);
+        setPaymentAmount(formatAmountInput(Math.max(updatedInvoice.totalAmount - updatedInvoice.paidAmount, 0)));
+      }
+      setAllocations(nextAllocations);
+      showToast('Payment reversed and invoice balance updated.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Payment could not be reversed.', 'danger');
+    } finally {
+      setIsRecordingPayment(false);
+    }
+  }
+
   async function cancelInvoice() {
     if (!invoice || invoice.documentState === 'draft') {
       showToast('Delete an unsaved draft instead of cancelling it.', 'info');
@@ -939,10 +978,14 @@ function InvoiceEditorContent() {
                 <div className="ol-list-item" key={allocation.id}>
                   <div className="ol-list-icon">Pay</div>
                   <div className="ol-list-copy">
-                    <div className="ol-list-title">{formatCurrency(allocation.amount, currency)}</div>
+                    <div className="ol-list-title">
+                      {formatCurrency(allocation.amount, currency)}
+                      {allocation.isReversed ? <span className="ol-chip ol-chip--warning" style={{ marginLeft: 8 }}>Reversed</span> : null}
+                    </div>
                     <div className="ol-list-text">
                       {summarizePaymentMode(allocation.paymentMode, allocation.paymentDetails)} · {summarizePaymentClearance(allocation.paymentClearanceStatus, allocation.paymentDetails)} · {allocation.transactionEffectiveDate || allocation.createdAt.slice(0, 10)}
                       {allocation.transactionNote ? ` · ${allocation.transactionNote}` : ''}
+                      {allocation.reversalReason ? ` · ${allocation.reversalReason}` : ''}
                     </div>
                     {allocation.paymentAttachments.length ? (
                       <div className="ol-attachment-strip" style={{ marginTop: 10 }}>
@@ -965,7 +1008,7 @@ function InvoiceEditorContent() {
                   <div className="ol-inline-actions">
                     <button
                       className="ol-button-secondary"
-                      disabled={isRecordingPayment || allocation.paymentClearanceStatus === 'cleared'}
+                      disabled={isRecordingPayment || allocation.isReversed || allocation.paymentClearanceStatus === 'cleared'}
                       type="button"
                       onClick={() => void updateAllocationClearance(allocation.id, 'cleared')}
                     >
@@ -973,11 +1016,19 @@ function InvoiceEditorContent() {
                     </button>
                     <button
                       className="ol-button-ghost"
-                      disabled={isRecordingPayment || allocation.paymentClearanceStatus === 'bounced'}
+                      disabled={isRecordingPayment || allocation.isReversed || allocation.paymentClearanceStatus === 'bounced'}
                       type="button"
                       onClick={() => void updateAllocationClearance(allocation.id, 'bounced')}
                     >
                       Mark bounced
+                    </button>
+                    <button
+                      className="ol-button-ghost"
+                      disabled={isRecordingPayment || allocation.isReversed}
+                      type="button"
+                      onClick={() => void reversePaymentAllocation(allocation)}
+                    >
+                      Reverse
                     </button>
                   </div>
                 </div>
