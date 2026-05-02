@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { Route } from 'next';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   getInvoiceDocumentStateLabel,
@@ -391,7 +391,7 @@ function FilterGroup({
   const controlRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0, width: 220 });
+  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0, width: 220, maxHeight: 238 });
   const selectedLabels = options
     .filter((option) => selected.includes(option.value))
     .map((option) => option.label);
@@ -408,17 +408,33 @@ function FilterGroup({
     }
 
     const rect = control.getBoundingClientRect();
+    const viewportGap = 12;
+    const triggerGap = 8;
     const width = Math.min(Math.max(rect.width, 220), window.innerWidth - 24);
-    const left = Math.min(Math.max(rect.left, 12), window.innerWidth - width - 12);
-    const menuHeight = 238;
-    const canOpenUp = rect.top > menuHeight + 20;
-    const wouldOverflowBottom = rect.bottom + menuHeight + 20 > window.innerHeight;
+    const left = Math.min(Math.max(rect.left, viewportGap), window.innerWidth - width - viewportGap);
+    const measuredMenuHeight = menuRef.current?.scrollHeight ?? menuRef.current?.getBoundingClientRect().height ?? 238;
+    const desiredMenuHeight = Math.min(measuredMenuHeight, 320);
+    const spaceBelow = window.innerHeight - rect.bottom - triggerGap - viewportGap;
+    const spaceAbove = rect.top - triggerGap - viewportGap;
+    const openAbove = spaceBelow < desiredMenuHeight && spaceAbove > spaceBelow;
+    const availableSpace = Math.max(openAbove ? spaceAbove : spaceBelow, 120);
+    const maxHeight = Math.min(desiredMenuHeight, availableSpace);
+    const menuHeight = Math.min(measuredMenuHeight, maxHeight);
     setMenuPosition({
       left,
-      top: wouldOverflowBottom && canOpenUp ? rect.top - menuHeight - 8 : rect.bottom + 8,
+      top: openAbove
+        ? Math.max(viewportGap, rect.top - triggerGap - menuHeight)
+        : Math.min(rect.bottom + triggerGap, window.innerHeight - viewportGap - menuHeight),
       width,
+      maxHeight,
     });
   }
+
+  useLayoutEffect(() => {
+    if (isOpen) {
+      updateMenuPosition();
+    }
+  }, [isOpen, options.length, selected.length]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -481,6 +497,7 @@ function FilterGroup({
             role="menu"
             style={{
               left: menuPosition.left,
+              maxHeight: menuPosition.maxHeight,
               top: menuPosition.top,
               width: menuPosition.width,
             }}
