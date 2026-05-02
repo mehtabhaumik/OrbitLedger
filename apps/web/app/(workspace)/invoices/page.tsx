@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { Route } from 'next';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   getInvoiceDocumentStateLabel,
@@ -388,6 +388,10 @@ function FilterGroup({
   selected: string[];
   onToggle: (value: string) => void;
 }) {
+  const controlRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0, width: 220 });
   const selectedLabels = options
     .filter((option) => selected.includes(option.value))
     .map((option) => option.label);
@@ -397,31 +401,107 @@ function FilterGroup({
       : `${selectedLabels.length} selected`
     : 'All';
 
+  function updateMenuPosition() {
+    const control = controlRef.current;
+    if (!control) {
+      return;
+    }
+
+    const rect = control.getBoundingClientRect();
+    const width = Math.min(Math.max(rect.width, 220), window.innerWidth - 24);
+    const left = Math.min(Math.max(rect.left, 12), window.innerWidth - width - 12);
+    const menuHeight = 238;
+    const canOpenUp = rect.top > menuHeight + 20;
+    const wouldOverflowBottom = rect.bottom + menuHeight + 20 > window.innerHeight;
+    setMenuPosition({
+      left,
+      top: wouldOverflowBottom && canOpenUp ? rect.top - menuHeight - 8 : rect.bottom + 8,
+      width,
+    });
+  }
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    updateMenuPosition();
+
+    const closeIfOutside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (controlRef.current?.contains(target) || menuRef.current?.contains(target)) {
+        return;
+      }
+      setIsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+    const reposition = () => updateMenuPosition();
+
+    window.addEventListener('pointerdown', closeIfOutside);
+    window.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
+
+    return () => {
+      window.removeEventListener('pointerdown', closeIfOutside);
+      window.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
+    };
+  }, [isOpen]);
+
   return (
     <div className="ol-field">
       <span className="ol-field-label">{label}</span>
-      <details className="ol-multi-select">
-        <summary className="ol-multi-select-trigger">
+      <div className={`ol-multi-select${isOpen ? ' is-open' : ''}`}>
+        <button
+          aria-expanded={isOpen}
+          aria-haspopup="menu"
+          className="ol-multi-select-trigger"
+          ref={controlRef}
+          type="button"
+          onClick={() => {
+            if (!isOpen) {
+              updateMenuPosition();
+            }
+            setIsOpen((current) => !current);
+          }}
+        >
           <span>{summary}</span>
           <span className="ol-multi-select-count">{selected.length || 'All'}</span>
-        </summary>
-        <div className="ol-multi-select-menu">
-          {options.length ? (
-            options.map((option) => (
-              <label className="ol-multi-select-option" key={option.value}>
-                <input
-                  checked={selected.includes(option.value)}
-                  type="checkbox"
-                  onChange={() => onToggle(option.value)}
-                />
-                <span>{option.label}</span>
-              </label>
-            ))
-          ) : (
-            <span className="ol-filter-empty">No options yet</span>
-          )}
-        </div>
-      </details>
+        </button>
+        {isOpen ? (
+          <div
+            className="ol-multi-select-menu"
+            ref={menuRef}
+            role="menu"
+            style={{
+              left: menuPosition.left,
+              top: menuPosition.top,
+              width: menuPosition.width,
+            }}
+          >
+            {options.length ? (
+              options.map((option) => (
+                <label className="ol-multi-select-option" key={option.value}>
+                  <input
+                    checked={selected.includes(option.value)}
+                    type="checkbox"
+                    onChange={() => onToggle(option.value)}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))
+            ) : (
+              <span className="ol-filter-empty">No options yet</span>
+            )}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
