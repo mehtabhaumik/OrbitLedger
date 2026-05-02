@@ -545,18 +545,29 @@ export type WebInvoiceDocument = ReturnType<typeof buildInvoiceWebDocument>;
 export type WebStatementDocument = ReturnType<typeof buildStatementWebDocument>;
 
 export function openPrintableDocument(html: string) {
-  const target = window.open('', '_blank', 'width=960,height=720');
+  const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+  const target = window.open(blobUrl, '_blank', 'width=960,height=720');
   if (!target) {
+    URL.revokeObjectURL(blobUrl);
     throw new Error('Allow popups to view or save this PDF.');
   }
   try {
-    target.document.open();
-    target.document.write(html);
-    target.document.close();
-    target.focus();
-    window.setTimeout(() => target.print(), 450);
+    let didPrint = false;
+    const printDocument = () => {
+      if (didPrint || target.closed) {
+        return;
+      }
+      didPrint = true;
+      target.focus();
+      target.print();
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    };
+
+    target.addEventListener('load', () => window.setTimeout(printDocument, 250), { once: true });
+    window.setTimeout(printDocument, 1_000);
   } catch {
     target.close();
+    URL.revokeObjectURL(blobUrl);
     throw new Error('Invoice preview could not open. Try downloading the document instead.');
   }
 }
