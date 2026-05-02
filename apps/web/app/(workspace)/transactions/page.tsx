@@ -329,201 +329,237 @@ export default function TransactionsPage() {
           </div>
         </div>
 
-        <div className="ol-form-row ol-form-row--transaction-entry">
-          <label className={`ol-field${errors.customerId ? ' is-invalid' : ''}`}>
-            <span className="ol-field-label">Customer</span>
-            <select
-              className="ol-select"
-              value={customerId}
-              onBlur={() => {
-                setTouched((current) => ({ ...current, customerId: true }));
-                setErrors((current) => ({
-                  ...current,
-                  customerId: customerId ? null : 'Choose a customer.',
-                }));
-              }}
-              onChange={(event) => {
-                const next = event.target.value;
-                setCustomerId(next);
-                if (touched.customerId) {
-                  setErrors((current) => ({ ...current, customerId: next ? null : 'Choose a customer.' }));
-                }
-              }}
-            >
-              <option value="">Select customer</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
-            {errors.customerId ? <span className="ol-field-error">{errors.customerId}</span> : null}
-          </label>
-          <label className="ol-field">
-            <span className="ol-field-label">Type</span>
-            <select className="ol-select" value={type} onChange={(event) => setType(event.target.value as 'credit' | 'payment')}>
-              <option value="payment">Payment</option>
-              <option value="credit">Credit</option>
-            </select>
-          </label>
-          <label className={`ol-field${errors.amount ? ' is-invalid' : ''}`}>
-            <span className="ol-field-label">Amount</span>
-            <input
-              className="ol-input ol-amount"
-              inputMode="decimal"
-              value={amount}
-              onBlur={() => {
-                setTouched((current) => ({ ...current, amount: true }));
-                setErrors((current) => ({
-                  ...current,
-                  amount: validatePositiveAmount(amount, 'Amount'),
-                }));
-              }}
-              onChange={(event) => handleAmountChange(event.target.value)}
-            />
-            {errors.amount ? <span className="ol-field-error">{errors.amount}</span> : null}
-          </label>
-          {type === 'payment' ? (
-            <>
-              <label className="ol-field">
-                <span className="ol-field-label">Payment mode</span>
+        <div className="ol-form-stack">
+          <div className="ol-form-band">
+            <div className="ol-form-band-header">
+              <div>
+                <div className="ol-form-band-title">Entry details</div>
+                <p className="ol-form-band-copy">Choose who this entry belongs to and the amount to record.</p>
+              </div>
+            </div>
+            <div className="ol-form-band-grid">
+              <label className={`ol-field${errors.customerId ? ' is-invalid' : ''}`}>
+                <span className="ol-field-label">Customer</span>
                 <select
                   className="ol-select"
-                  value={paymentMode}
+                  value={customerId}
+                  onBlur={() => {
+                    setTouched((current) => ({ ...current, customerId: true }));
+                    setErrors((current) => ({
+                      ...current,
+                      customerId: customerId ? null : 'Choose a customer.',
+                    }));
+                  }}
                   onChange={(event) => {
-                    setPaymentMode(event.target.value as PaymentMode);
-                    setPaymentDetails({});
+                    const next = event.target.value;
+                    setCustomerId(next);
+                    if (touched.customerId) {
+                      setErrors((current) => ({ ...current, customerId: next ? null : 'Choose a customer.' }));
+                    }
                   }}
                 >
-                  {PAYMENT_MODE_CONFIGS.map((config) => (
-                    <option key={config.mode} value={config.mode}>
-                      {config.label}
+                  <option value="">Select customer</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name}
                     </option>
                   ))}
                 </select>
+                {errors.customerId ? <span className="ol-field-error">{errors.customerId}</span> : null}
               </label>
-              <PaymentModeFields details={paymentDetails} mode={paymentMode} onChange={setPaymentDetails} />
               <label className="ol-field">
-                <span className="ol-field-label">Match from</span>
-                <select
-                  className="ol-select"
-                  value={providerSource}
-                  onChange={(event) => setProviderSource(event.target.value as PaymentProviderSource)}
-                >
-                  <option value="upi">UPI</option>
-                  <option value="payment_page">Payment page</option>
-                  <option value="bank_transfer">Bank transfer</option>
-                  <option value="card">Card</option>
-                  <option value="wallet">Wallet</option>
-                  <option value="other">Other</option>
+                <span className="ol-field-label">Entry type</span>
+                <select className="ol-select" value={type} onChange={(event) => setType(event.target.value as 'credit' | 'payment')}>
+                  <option value="payment">Payment</option>
+                  <option value="credit">Credit</option>
                 </select>
               </label>
-              <label className="ol-field">
-                <span className="ol-field-label">Payment reference</span>
+              <label className={`ol-field${errors.amount ? ' is-invalid' : ''}`}>
+                <span className="ol-field-label">Amount</span>
                 <input
-                  className="ol-input"
-                  placeholder="Reference from app or bank"
-                  value={providerReference}
-                  onChange={(event) => setProviderReference(event.target.value)}
+                  className="ol-input ol-amount"
+                  inputMode="decimal"
+                  value={amount}
+                  onBlur={() => {
+                    setTouched((current) => ({ ...current, amount: true }));
+                    setErrors((current) => ({
+                      ...current,
+                      amount: validatePositiveAmount(amount, 'Amount'),
+                    }));
+                  }}
+                  onChange={(event) => handleAmountChange(event.target.value)}
                 />
+                {errors.amount ? <span className="ol-field-error">{errors.amount}</span> : null}
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Paid by</span>
+                <span className="ol-field-label">Date</span>
                 <input
                   className="ol-input"
-                  placeholder="Optional payer name"
-                  value={payerName}
-                  onChange={(event) => setPayerName(event.target.value)}
+                  type="date"
+                  value={effectiveDate}
+                  onChange={(event) => setEffectiveDate(event.target.value)}
                 />
               </label>
-              {reconciliationDecision && providerReference.trim() ? (
-                <div className={`ol-message ${reconciliationDecision.invoice ? 'ol-message--success' : ''}`} style={{ margin: 0 }}>
-                  <strong>{reconciliationDecision.message}</strong>
-                  {reconciliationDecision.invoice ? (
-                    <>
-                      {' '}
-                      {reconciliationDecision.invoice.customerName ?? 'Customer'} ·{' '}
-                      {formatCurrency(reconciliationDecision.dueAmount, activeWorkspace?.currency ?? 'INR')} due
-                    </>
-                  ) : null}
-                  {reconciliationDecision.allocationStrategy === 'selected_invoice' ? (
-                    <div style={{ marginTop: 10 }}>
-                      <button className="ol-button-secondary" type="button" onClick={applyReconciliationMatch}>
-                        Use this match
-                      </button>
+            </div>
+          </div>
+
+          {type === 'payment' ? (
+            <>
+              <div className="ol-form-band">
+                <div className="ol-form-band-header">
+                  <div>
+                    <div className="ol-form-band-title">Payment method</div>
+                    <p className="ol-form-band-copy">Add how the customer paid and the reference you may need later.</p>
+                  </div>
+                </div>
+                <div className="ol-form-band-grid ol-form-band-grid--compact">
+                  <label className="ol-field">
+                    <span className="ol-field-label">Payment mode</span>
+                    <select
+                      className="ol-select"
+                      value={paymentMode}
+                      onChange={(event) => {
+                        setPaymentMode(event.target.value as PaymentMode);
+                        setPaymentDetails({});
+                      }}
+                    >
+                      {PAYMENT_MODE_CONFIGS.map((config) => (
+                        <option key={config.mode} value={config.mode}>
+                          {config.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <PaymentModeFields details={paymentDetails} mode={paymentMode} onChange={setPaymentDetails} />
+                  <label className="ol-field">
+                    <span className="ol-field-label">Match from</span>
+                    <select
+                      className="ol-select"
+                      value={providerSource}
+                      onChange={(event) => setProviderSource(event.target.value as PaymentProviderSource)}
+                    >
+                      <option value="upi">UPI</option>
+                      <option value="payment_page">Payment page</option>
+                      <option value="bank_transfer">Bank transfer</option>
+                      <option value="card">Card</option>
+                      <option value="wallet">Wallet</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </label>
+                  <label className="ol-field">
+                    <span className="ol-field-label">Payment reference</span>
+                    <input
+                      className="ol-input"
+                      placeholder="Reference from app or bank"
+                      value={providerReference}
+                      onChange={(event) => setProviderReference(event.target.value)}
+                    />
+                  </label>
+                  <label className="ol-field">
+                    <span className="ol-field-label">Paid by</span>
+                    <input
+                      className="ol-input"
+                      placeholder="Optional payer name"
+                      value={payerName}
+                      onChange={(event) => setPayerName(event.target.value)}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="ol-form-band">
+                <div className="ol-form-band-header">
+                  <div>
+                    <div className="ol-form-band-title">Apply and verify</div>
+                    <p className="ol-form-band-copy">Choose whether this payment reduces the customer balance or pays an invoice.</p>
+                  </div>
+                </div>
+                <div className="ol-form-band-grid ol-form-band-grid--wide">
+                  {reconciliationDecision && providerReference.trim() ? (
+                    <div className={`ol-message ${reconciliationDecision.invoice ? 'ol-message--success' : ''}`} style={{ margin: 0 }}>
+                      <strong>{reconciliationDecision.message}</strong>
+                      {reconciliationDecision.invoice ? (
+                        <>
+                          {' '}
+                          {reconciliationDecision.invoice.customerName ?? 'Customer'} ·{' '}
+                          {formatCurrency(reconciliationDecision.dueAmount, activeWorkspace?.currency ?? 'INR')} due
+                        </>
+                      ) : null}
+                      {reconciliationDecision.allocationStrategy === 'selected_invoice' ? (
+                        <div style={{ marginTop: 10 }}>
+                          <button className="ol-button-secondary" type="button" onClick={applyReconciliationMatch}>
+                            Use this match
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
+                  <label className="ol-field">
+                    <span className="ol-field-label">Apply payment</span>
+                    <select
+                      className="ol-select"
+                      value={allocationStrategy}
+                      onChange={(event) =>
+                        setAllocationStrategy(event.target.value as typeof allocationStrategy)
+                      }
+                    >
+                      <option value="ledger_only">Customer ledger only</option>
+                      <option value="oldest_invoice">Oldest unpaid invoices</option>
+                      <option value="selected_invoice">Selected invoice</option>
+                    </select>
+                  </label>
+                  {allocationStrategy === 'selected_invoice' ? (
+                    <label className="ol-field">
+                      <span className="ol-field-label">Invoice</span>
+                      <select
+                        className="ol-select"
+                        value={selectedInvoiceId}
+                        onChange={(event) => setSelectedInvoiceId(event.target.value)}
+                      >
+                        <option value="">Choose invoice</option>
+                        {customerInvoices.map((invoice) => (
+                          <option key={invoice.id} value={invoice.id}>
+                            {invoice.invoiceNumber} · {formatCurrency(Math.max(invoice.totalAmount - invoice.paidAmount, 0), activeWorkspace?.currency ?? 'INR')} due
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  <label className="ol-field">
+                    <span className="ol-field-label">Verification</span>
+                    <select
+                      className="ol-select"
+                      value={paymentClearanceStatus}
+                      onChange={(event) => setPaymentClearanceStatus(event.target.value as PaymentClearanceStatus)}
+                    >
+                      {(['received', 'post_dated', 'deposited', 'cleared', 'bounced', 'cancelled'] as PaymentClearanceStatus[]).map((status) => (
+                        <option key={status} value={status}>
+                          {getPaymentClearanceStatusLabel(status)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="ol-message" style={{ margin: 0 }}>
+                    <strong>{paymentVerificationPlan.statusLabel}</strong> · {paymentVerificationPlan.invoiceEffect}{' '}
+                    {paymentVerificationPlan.customerBalanceEffect}
+                  </div>
                 </div>
-              ) : null}
-              <label className="ol-field">
-                <span className="ol-field-label">Apply payment</span>
-                <select
-                  className="ol-select"
-                  value={allocationStrategy}
-                  onChange={(event) =>
-                    setAllocationStrategy(event.target.value as typeof allocationStrategy)
-                  }
-                >
-                  <option value="ledger_only">Customer ledger only</option>
-                  <option value="oldest_invoice">Oldest unpaid invoices</option>
-                  <option value="selected_invoice">Selected invoice</option>
-                </select>
-              </label>
-              {allocationStrategy === 'selected_invoice' ? (
-                <label className="ol-field">
-                  <span className="ol-field-label">Invoice</span>
-                  <select
-                    className="ol-select"
-                    value={selectedInvoiceId}
-                    onChange={(event) => setSelectedInvoiceId(event.target.value)}
-                  >
-                    <option value="">Choose invoice</option>
-                    {customerInvoices.map((invoice) => (
-                      <option key={invoice.id} value={invoice.id}>
-                        {invoice.invoiceNumber} · {formatCurrency(Math.max(invoice.totalAmount - invoice.paidAmount, 0), activeWorkspace?.currency ?? 'INR')} due
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-              <label className="ol-field">
-                <span className="ol-field-label">Verification</span>
-                <select
-                  className="ol-select"
-                  value={paymentClearanceStatus}
-                  onChange={(event) => setPaymentClearanceStatus(event.target.value as PaymentClearanceStatus)}
-                >
-                  {(['received', 'post_dated', 'deposited', 'cleared', 'bounced', 'cancelled'] as PaymentClearanceStatus[]).map((status) => (
-                    <option key={status} value={status}>
-                      {getPaymentClearanceStatusLabel(status)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="ol-message" style={{ margin: 0 }}>
-                <strong>{paymentVerificationPlan.statusLabel}</strong> · {paymentVerificationPlan.invoiceEffect}{' '}
-                {paymentVerificationPlan.customerBalanceEffect}
               </div>
             </>
           ) : null}
-          <label className="ol-field">
-            <span className="ol-field-label">Date</span>
-            <input
-              className="ol-input"
-              type="date"
-              value={effectiveDate}
-              onChange={(event) => setEffectiveDate(event.target.value)}
-            />
-          </label>
-          <label className="ol-field">
-            <span className="ol-field-label">Note</span>
-            <input className="ol-input" value={note} onChange={(event) => setNote(event.target.value)} />
-          </label>
-          <div className="ol-field ol-field--action">
-            <span className="ol-field-label">Action</span>
-            <button className="ol-button" disabled={isSaving} type="button" onClick={() => void addTransaction()}>
-              {isSaving ? 'Saving...' : type === 'payment' ? paymentVerificationPlan.actionLabel : 'Save'}
-            </button>
+
+          <div className="ol-form-band">
+            <div className="ol-form-band-grid ol-form-band-grid--wide">
+              <label className="ol-field">
+                <span className="ol-field-label">Note</span>
+                <input className="ol-input" value={note} onChange={(event) => setNote(event.target.value)} />
+              </label>
+              <div className="ol-form-band-actions">
+                <button className="ol-button" disabled={isSaving} type="button" onClick={() => void addTransaction()}>
+                  {isSaving ? 'Saving...' : type === 'payment' ? paymentVerificationPlan.actionLabel : 'Save'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
