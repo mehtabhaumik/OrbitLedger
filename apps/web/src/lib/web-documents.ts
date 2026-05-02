@@ -135,6 +135,13 @@ type StatementDocumentData = {
 type JsPdfDocument = InstanceType<typeof import('jspdf').jsPDF>;
 
 const invoiceTemplates: WebDocumentTemplate[] = [
+  invoiceTemplate('IN_CLEAN_BASIC_FREE', 'IN', 'free', 'Clean Basic', 'Simple everyday invoice for quick service and trading work with clear totals and no heavy formatting.', 'modern_minimal', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
+    ['name', 'Item / Service', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Rate', 'right'],
+    ['taxRate', 'GST', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
   invoiceTemplate('IN_GST_STANDARD_FREE', 'IN', 'free', 'India GST Standard', 'Classic India invoice wording with GSTIN, HSN/SAC, CGST/SGST/IGST and amount in words.', 'classic_tax', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
     ['name', 'Description', 'left'],
     ['hsnSac', 'HSN/SAC', 'left'],
@@ -147,7 +154,33 @@ const invoiceTemplates: WebDocumentTemplate[] = [
     ['igst', 'IGST', 'right'],
     ['total', 'Total', 'right'],
   ]),
-  invoiceTemplate('IN_GST_LETTERHEAD_PRO', 'IN', 'pro', 'India GST Letterhead', 'Premium India letterhead with branding, GSTIN focus, signature and polished totals.', 'premium_letterhead', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
+  invoiceTemplate('IN_SIMPLE_SERVICE_FREE', 'IN', 'free', 'Simple Service Invoice', 'A clean free service invoice with compact line items, tax, notes, and payment instructions.', 'modern_minimal', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
+    ['name', 'Service', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Rate', 'right'],
+    ['taxableValue', 'Taxable', 'right'],
+    ['taxAmount', 'GST', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('IN_MODERN_BUSINESS_PRO', 'IN', 'pro', 'Modern Business', 'Polished Pro invoice for growing businesses with stronger identity, cleaner spacing, and branded totals.', 'premium_letterhead', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
+    ['name', 'Item / Service', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Rate', 'right'],
+    ['taxableValue', 'Taxable', 'right'],
+    ['taxAmount', 'GST', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('IN_RETAIL_GST_PRO', 'IN', 'pro', 'Retail GST', 'Pro retail layout with quantity, rate, GST split, and a compact total suitable for product-heavy invoices.', 'classic_tax', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
+    ['name', 'Product', 'left'],
+    ['hsnSac', 'HSN/SAC', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Rate', 'right'],
+    ['taxRate', 'GST', 'right'],
+    ['cgst', 'CGST', 'right'],
+    ['sgst', 'SGST', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('IN_GST_LETTERHEAD_PRO', 'IN', 'pro', 'Professional Letterhead', 'Premium India letterhead with branding, GSTIN focus, signature and polished totals.', 'premium_letterhead', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
     ['name', 'Item / Service', 'left'],
     ['hsnSac', 'HSN/SAC', 'left'],
     ['quantity', 'Qty', 'right'],
@@ -156,6 +189,29 @@ const invoiceTemplates: WebDocumentTemplate[] = [
     ['cgst', 'CGST', 'right'],
     ['sgst', 'SGST', 'right'],
     ['igst', 'IGST', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('IN_COMPACT_TABLE_PRO', 'IN', 'pro', 'Compact Table', 'Dense Pro layout for longer invoices where rows must stay readable and page count should stay low.', 'classic_tax', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
+    ['name', 'Item', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Rate', 'right'],
+    ['taxableValue', 'Taxable', 'right'],
+    ['taxRate', 'GST', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('IN_PAYMENT_FOCUSED_PRO', 'IN', 'pro', 'Payment-focused Invoice', 'Collection-ready Pro invoice with payment link, manual payment details, and amount due highlighted.', 'premium_letterhead', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
+    ['name', 'Item / Service', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['taxableValue', 'Taxable', 'right'],
+    ['taxAmount', 'GST', 'right'],
+    ['total', 'Amount due', 'right'],
+  ]),
+  invoiceTemplate('IN_BRANDED_ADVANCED_PRO', 'IN', 'pro', 'Branded Advanced', 'Highest-polish Pro invoice with premium branding, signature area, payment section, and refined tax summary.', 'premium_letterhead', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
+    ['name', 'Item / Service', 'left'],
+    ['description', 'Details', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['taxableValue', 'Taxable', 'right'],
+    ['taxAmount', 'GST', 'right'],
     ['total', 'Total', 'right'],
   ]),
   invoiceTemplate('US_SALES_STANDARD_FREE', 'US', 'free', 'US Sales Standard', 'Modern sales invoice with taxable subtotal, sales tax and item descriptions.', 'modern_minimal', 'us_sales_tax', 'Sales tax', 'Seller permit', 'en-US', [
@@ -197,10 +253,45 @@ const invoiceTemplates: WebDocumentTemplate[] = [
     ['taxRate', 'Tax', 'right'],
     ['total', 'Total', 'right'],
   ]),
-  invoiceTemplate('GENERIC_INVOICE_LETTERHEAD_PRO', 'GENERIC', 'pro', 'Premium Letterhead', 'Premium general invoice with richer branding and signature treatment.', 'premium_letterhead', 'generic_tax', 'Tax', 'Tax ID', undefined, [
+  invoiceTemplate('GENERIC_SIMPLE_SERVICE_FREE', 'GENERIC', 'free', 'Simple Service Invoice', 'Clean service invoice with notes, tax, and payment instructions for unsupported country packs.', 'modern_minimal', 'generic_tax', 'Tax', 'Tax ID', undefined, [
+    ['name', 'Service', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Rate', 'right'],
+    ['taxAmount', 'Tax', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('GENERIC_MODERN_BUSINESS_PRO', 'GENERIC', 'pro', 'Modern Business', 'Polished Pro invoice with cleaner spacing, branded totals, and stronger business identity.', 'premium_letterhead', 'generic_tax', 'Tax', 'Tax ID', undefined, [
+    ['name', 'Item / Service', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Rate', 'right'],
+    ['taxAmount', 'Tax', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('GENERIC_INVOICE_LETTERHEAD_PRO', 'GENERIC', 'pro', 'Professional Letterhead', 'Premium general invoice with richer branding and signature treatment.', 'premium_letterhead', 'generic_tax', 'Tax', 'Tax ID', undefined, [
     ['name', 'Item / Service', 'left'],
     ['quantity', 'Qty', 'right'],
     ['taxableValue', 'Taxable', 'right'],
+    ['taxAmount', 'Tax', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('GENERIC_COMPACT_TABLE_PRO', 'GENERIC', 'pro', 'Compact Table', 'Dense Pro invoice for longer documents where readable rows and lower page count matter.', 'classic_tax', 'generic_tax', 'Tax', 'Tax ID', undefined, [
+    ['name', 'Item', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['price', 'Rate', 'right'],
+    ['taxRate', 'Tax', 'right'],
+    ['total', 'Total', 'right'],
+  ]),
+  invoiceTemplate('GENERIC_PAYMENT_FOCUSED_PRO', 'GENERIC', 'pro', 'Payment-focused Invoice', 'Collection-ready Pro invoice with a stronger amount-due and payment details section.', 'premium_letterhead', 'generic_tax', 'Tax', 'Tax ID', undefined, [
+    ['name', 'Item / Service', 'left'],
+    ['quantity', 'Qty', 'right'],
+    ['taxableValue', 'Taxable', 'right'],
+    ['taxAmount', 'Tax', 'right'],
+    ['total', 'Amount due', 'right'],
+  ]),
+  invoiceTemplate('GENERIC_BRANDED_ADVANCED_PRO', 'GENERIC', 'pro', 'Branded Advanced', 'Highest-polish Pro invoice with premium branding, signature area, and payment section.', 'premium_letterhead', 'generic_tax', 'Tax', 'Tax ID', undefined, [
+    ['name', 'Item / Service', 'left'],
+    ['description', 'Details', 'left'],
+    ['quantity', 'Qty', 'right'],
     ['taxAmount', 'Tax', 'right'],
     ['total', 'Total', 'right'],
   ]),

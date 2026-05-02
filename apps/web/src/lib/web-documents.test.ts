@@ -94,7 +94,25 @@ describe('web document parity', () => {
       'IN_GST_LETTERHEAD_PRO',
       getDefaultWebSubscriptionStatus().isPro
     );
-    expect(selected.key).toBe('IN_GST_STANDARD_FREE');
+    expect(selected.key).toBe('IN_CLEAN_BASIC_FREE');
+  });
+
+  it('offers a clear free and Pro invoice template catalog', () => {
+    const templates = getWebDocumentTemplates(workspace, 'invoice');
+
+    expect(templates.filter((template) => template.tier === 'free').map((template) => template.label)).toEqual([
+      'Clean Basic',
+      'India GST Standard',
+      'Simple Service Invoice',
+    ]);
+    expect(templates.filter((template) => template.tier === 'pro').map((template) => template.label)).toEqual([
+      'Modern Business',
+      'Retail GST',
+      'Professional Letterhead',
+      'Compact Table',
+      'Payment-focused Invoice',
+      'Branded Advanced',
+    ]);
   });
 
   it('renders invoice tax labels and PDF file names from the selected market template', () => {
