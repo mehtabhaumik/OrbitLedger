@@ -388,25 +388,40 @@ function FilterGroup({
   selected: string[];
   onToggle: (value: string) => void;
 }) {
+  const selectedLabels = options
+    .filter((option) => selected.includes(option.value))
+    .map((option) => option.label);
+  const summary = selectedLabels.length
+    ? selectedLabels.length === 1
+      ? selectedLabels[0]
+      : `${selectedLabels.length} selected`
+    : 'All';
+
   return (
     <div className="ol-field">
       <span className="ol-field-label">{label}</span>
-      <div className="ol-filter-pills">
-        {options.length ? (
-          options.map((option) => (
-            <button
-              className={`ol-filter-pill${selected.includes(option.value) ? ' ol-filter-pill--active' : ''}`}
-              key={option.value}
-              type="button"
-              onClick={() => onToggle(option.value)}
-            >
-              {option.label}
-            </button>
-          ))
-        ) : (
-          <span className="ol-filter-empty">All</span>
-        )}
-      </div>
+      <details className="ol-multi-select">
+        <summary className="ol-multi-select-trigger">
+          <span>{summary}</span>
+          <span className="ol-multi-select-count">{selected.length || 'All'}</span>
+        </summary>
+        <div className="ol-multi-select-menu">
+          {options.length ? (
+            options.map((option) => (
+              <label className="ol-multi-select-option" key={option.value}>
+                <input
+                  checked={selected.includes(option.value)}
+                  type="checkbox"
+                  onChange={() => onToggle(option.value)}
+                />
+                <span>{option.label}</span>
+              </label>
+            ))
+          ) : (
+            <span className="ol-filter-empty">No options yet</span>
+          )}
+        </div>
+      </details>
     </div>
   );
 }
