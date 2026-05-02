@@ -17,6 +17,7 @@ import {
 import { AppShell } from '@/components/app-shell';
 import {
   normalizePhoneForCountry,
+  parseAmount,
   validateEmail,
   validateName,
   validatePhone,
@@ -35,10 +36,31 @@ import { useWorkspace } from '@/providers/workspace-provider';
 
 type ProfileFormState = {
   businessName: string;
+  legalName: string;
   ownerName: string;
+  contactPerson: string;
+  businessType: string;
   phone: string;
+  whatsapp: string;
   email: string;
+  website: string;
   address: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  postalCode: string;
+  gstin: string;
+  pan: string;
+  taxNumber: string;
+  registrationNumber: string;
+  placeOfSupply: string;
+  defaultTaxTreatment: string;
+  defaultPaymentTerms: string;
+  defaultDueDays: string;
+  defaultTaxRate: string;
+  defaultInvoiceTemplate: string;
+  defaultStatementTemplate: string;
+  defaultLanguage: string;
   stateCode: string;
   logoUri: string | null;
   signatureUri: string | null;
@@ -46,7 +68,7 @@ type ProfileFormState = {
 
 type PaymentFieldKey = keyof ManualPaymentInstructionDetails;
 
-type ProfileFieldKey = keyof Omit<ProfileFormState, 'address' | 'logoUri' | 'signatureUri'>;
+type ProfileFieldKey = 'businessName' | 'ownerName' | 'phone' | 'email' | 'stateCode';
 
 export default function SettingsPage() {
   const { activeWorkspace, refresh } = useWorkspace();
@@ -56,10 +78,31 @@ export default function SettingsPage() {
   const signatureInputRef = useRef<HTMLInputElement | null>(null);
   const [profile, setProfile] = useState<ProfileFormState>({
     businessName: '',
+    legalName: '',
     ownerName: '',
+    contactPerson: '',
+    businessType: '',
     phone: '',
+    whatsapp: '',
     email: '',
+    website: '',
     address: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    postalCode: '',
+    gstin: '',
+    pan: '',
+    taxNumber: '',
+    registrationNumber: '',
+    placeOfSupply: '',
+    defaultTaxTreatment: '',
+    defaultPaymentTerms: '',
+    defaultDueDays: '',
+    defaultTaxRate: '',
+    defaultInvoiceTemplate: '',
+    defaultStatementTemplate: '',
+    defaultLanguage: '',
     stateCode: 'GJ',
     logoUri: null,
     signatureUri: null,
@@ -91,10 +134,31 @@ export default function SettingsPage() {
 
     setProfile({
       businessName: activeWorkspace.businessName,
+      legalName: activeWorkspace.legalName ?? '',
       ownerName: activeWorkspace.ownerName,
+      contactPerson: activeWorkspace.contactPerson ?? '',
+      businessType: activeWorkspace.businessType ?? '',
       phone: activeWorkspace.phone,
+      whatsapp: activeWorkspace.whatsapp ?? '',
       email: activeWorkspace.email,
+      website: activeWorkspace.website ?? '',
       address: activeWorkspace.address,
+      addressLine1: activeWorkspace.addressLine1 ?? '',
+      addressLine2: activeWorkspace.addressLine2 ?? '',
+      city: activeWorkspace.city ?? '',
+      postalCode: activeWorkspace.postalCode ?? '',
+      gstin: activeWorkspace.gstin ?? '',
+      pan: activeWorkspace.pan ?? '',
+      taxNumber: activeWorkspace.taxNumber ?? '',
+      registrationNumber: activeWorkspace.registrationNumber ?? '',
+      placeOfSupply: activeWorkspace.placeOfSupply ?? '',
+      defaultTaxTreatment: activeWorkspace.defaultTaxTreatment ?? '',
+      defaultPaymentTerms: activeWorkspace.defaultPaymentTerms ?? '',
+      defaultDueDays: activeWorkspace.defaultDueDays !== null && activeWorkspace.defaultDueDays !== undefined ? String(activeWorkspace.defaultDueDays) : '',
+      defaultTaxRate: activeWorkspace.defaultTaxRate !== null && activeWorkspace.defaultTaxRate !== undefined ? String(activeWorkspace.defaultTaxRate) : '',
+      defaultInvoiceTemplate: activeWorkspace.defaultInvoiceTemplate ?? '',
+      defaultStatementTemplate: activeWorkspace.defaultStatementTemplate ?? '',
+      defaultLanguage: activeWorkspace.defaultLanguage ?? '',
       stateCode: activeWorkspace.stateCode || 'GJ',
       logoUri: activeWorkspace.logoUri,
       signatureUri: activeWorkspace.signatureUri,
@@ -164,6 +228,45 @@ export default function SettingsPage() {
     setFieldErrors((current) => ({ ...current, [field]: nextError }));
   }
 
+  function buildWorkspaceProfileInput(nextProfile = profile) {
+    return {
+      businessName: nextProfile.businessName.trim(),
+      legalName: nextProfile.legalName,
+      ownerName: nextProfile.ownerName.trim(),
+      contactPerson: nextProfile.contactPerson,
+      businessType: nextProfile.businessType,
+      phone: nextProfile.phone.trim(),
+      whatsapp: nextProfile.whatsapp,
+      email: nextProfile.email.trim(),
+      website: nextProfile.website,
+      address: nextProfile.address.trim(),
+      addressLine1: nextProfile.addressLine1,
+      addressLine2: nextProfile.addressLine2,
+      city: nextProfile.city,
+      postalCode: nextProfile.postalCode,
+      gstin: nextProfile.gstin,
+      pan: nextProfile.pan,
+      taxNumber: nextProfile.taxNumber,
+      registrationNumber: nextProfile.registrationNumber,
+      placeOfSupply: nextProfile.placeOfSupply,
+      defaultTaxTreatment: nextProfile.defaultTaxTreatment,
+      defaultPaymentTerms: nextProfile.defaultPaymentTerms,
+      defaultDueDays: parseAmount(nextProfile.defaultDueDays),
+      defaultTaxRate: parseAmount(nextProfile.defaultTaxRate),
+      defaultInvoiceTemplate: nextProfile.defaultInvoiceTemplate,
+      defaultStatementTemplate: nextProfile.defaultStatementTemplate,
+      defaultLanguage: nextProfile.defaultLanguage,
+      currency: INDIA_COUNTRY.currency,
+      countryCode: INDIA_COUNTRY.code,
+      stateCode: nextProfile.stateCode,
+      logoUri: nextProfile.logoUri,
+      authorizedPersonName: workspace.authorizedPersonName,
+      authorizedPersonTitle: workspace.authorizedPersonTitle,
+      signatureUri: nextProfile.signatureUri,
+      paymentInstructions,
+    };
+  }
+
   async function saveWorkspaceProfile(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const nextErrors: Record<ProfileFieldKey, string | null> = {
@@ -190,19 +293,7 @@ export default function SettingsPage() {
     setIsSaving(true);
     try {
       await updateWorkspaceProfile(workspace.workspaceId, workspace.serverRevision, {
-        businessName: profile.businessName.trim(),
-        ownerName: profile.ownerName.trim(),
-        phone: profile.phone.trim(),
-        email: profile.email.trim(),
-        address: profile.address.trim(),
-        currency: INDIA_COUNTRY.currency,
-        countryCode: INDIA_COUNTRY.code,
-        stateCode: profile.stateCode,
-        logoUri: profile.logoUri,
-        authorizedPersonName: workspace.authorizedPersonName,
-        authorizedPersonTitle: workspace.authorizedPersonTitle,
-        signatureUri: profile.signatureUri,
-        paymentInstructions,
+        ...buildWorkspaceProfileInput(profile),
       });
       await refresh();
       showToast('Workspace profile saved.', 'success');
@@ -217,19 +308,7 @@ export default function SettingsPage() {
     setIsSaving(true);
     try {
       await updateWorkspaceProfile(workspace.workspaceId, workspace.serverRevision, {
-        businessName: nextProfile.businessName.trim(),
-        ownerName: nextProfile.ownerName.trim(),
-        phone: nextProfile.phone.trim(),
-        email: nextProfile.email.trim(),
-        address: nextProfile.address.trim(),
-        currency: INDIA_COUNTRY.currency,
-        countryCode: INDIA_COUNTRY.code,
-        stateCode: nextProfile.stateCode,
-        logoUri: nextProfile.logoUri,
-        authorizedPersonName: workspace.authorizedPersonName,
-        authorizedPersonTitle: workspace.authorizedPersonTitle,
-        signatureUri: nextProfile.signatureUri,
-        paymentInstructions,
+        ...buildWorkspaceProfileInput(nextProfile),
       });
       await refresh();
       showToast(successMessage, 'success');
@@ -411,6 +490,57 @@ export default function SettingsPage() {
                 <span className="ol-field-error">{fieldErrors.stateCode}</span>
               ) : null}
             </label>
+          </div>
+          <div className="ol-form-band">
+            <div className="ol-form-band-header">
+              <div>
+                <div className="ol-form-band-title">Legal and contact details</div>
+                <p className="ol-form-band-copy">Optional details used on exports, invoices, statements, and payment pages.</p>
+              </div>
+            </div>
+            <div className="ol-form-band-grid">
+              <ProfileField label="Legal business name" value={profile.legalName} onChange={(value) => handleFieldChange('legalName', value)} />
+              <ProfileField label="Business type" value={profile.businessType} onChange={(value) => handleFieldChange('businessType', value)} />
+              <ProfileField label="Contact person" value={profile.contactPerson} onChange={(value) => handleFieldChange('contactPerson', value)} />
+              <ProfileField inputMode="tel" label="WhatsApp" value={profile.whatsapp} onChange={(value) => handleFieldChange('whatsapp', value)} />
+              <ProfileField label="Website" value={profile.website} onChange={(value) => handleFieldChange('website', value)} />
+            </div>
+          </div>
+          <div className="ol-form-band">
+            <div className="ol-form-band-header">
+              <div>
+                <div className="ol-form-band-title">Registered address</div>
+                <p className="ol-form-band-copy">Structured address fields keep documents and exports cleaner than one long address line.</p>
+              </div>
+            </div>
+            <div className="ol-form-band-grid">
+              <ProfileField label="Address line 1" value={profile.addressLine1} onChange={(value) => handleFieldChange('addressLine1', value)} />
+              <ProfileField label="Address line 2" value={profile.addressLine2} onChange={(value) => handleFieldChange('addressLine2', value)} />
+              <ProfileField label="City" value={profile.city} onChange={(value) => handleFieldChange('city', value)} />
+              <ProfileField label="PIN / postcode" value={profile.postalCode} onChange={(value) => handleFieldChange('postalCode', value)} />
+            </div>
+          </div>
+          <div className="ol-form-band">
+            <div className="ol-form-band-header">
+              <div>
+                <div className="ol-form-band-title">Tax and document defaults</div>
+                <p className="ol-form-band-copy">These are optional now, but they make invoices and customer reports more complete.</p>
+              </div>
+            </div>
+            <div className="ol-form-band-grid">
+              <ProfileField label="GSTIN" value={profile.gstin} onChange={(value) => handleFieldChange('gstin', value.toUpperCase())} />
+              <ProfileField label="PAN" value={profile.pan} onChange={(value) => handleFieldChange('pan', value.toUpperCase())} />
+              <ProfileField label="VAT / tax number" value={profile.taxNumber} onChange={(value) => handleFieldChange('taxNumber', value)} />
+              <ProfileField label="Registration number" value={profile.registrationNumber} onChange={(value) => handleFieldChange('registrationNumber', value)} />
+              <ProfileField label="Place of supply" value={profile.placeOfSupply} onChange={(value) => handleFieldChange('placeOfSupply', value)} />
+              <ProfileField label="Tax treatment" value={profile.defaultTaxTreatment} onChange={(value) => handleFieldChange('defaultTaxTreatment', value)} />
+              <ProfileField label="Default payment terms" value={profile.defaultPaymentTerms} onChange={(value) => handleFieldChange('defaultPaymentTerms', value)} />
+              <ProfileField inputMode="numeric" label="Default due days" value={profile.defaultDueDays} onChange={(value) => handleFieldChange('defaultDueDays', value)} />
+              <ProfileField inputMode="decimal" label="Default tax %" value={profile.defaultTaxRate} onChange={(value) => handleFieldChange('defaultTaxRate', value)} />
+              <ProfileField label="Default invoice template" value={profile.defaultInvoiceTemplate} onChange={(value) => handleFieldChange('defaultInvoiceTemplate', value)} />
+              <ProfileField label="Default statement template" value={profile.defaultStatementTemplate} onChange={(value) => handleFieldChange('defaultStatementTemplate', value)} />
+              <ProfileField label="Default language" value={profile.defaultLanguage} onChange={(value) => handleFieldChange('defaultLanguage', value)} />
+            </div>
           </div>
         </div>
 

@@ -5,6 +5,7 @@ import { getLocalBusinessPack } from '@orbit-ledger/core';
 import { AppShell } from '@/components/app-shell';
 import {
   WEB_COUNTRY_PACK_PRODUCT_CATALOG,
+  WEB_FREE_VS_PRO_COMPARISON,
   WEB_PRO_BRAND_THEMES,
   WEB_PRO_PLAN_CATALOG,
   getDefaultWebSubscriptionStatus,
@@ -34,12 +35,12 @@ export default function MarketPage() {
             <div>
               <div className="ol-panel-title">Orbit Ledger Pro</div>
               <p className="ol-panel-copy" style={{ maxWidth: 620 }}>
-                Pro improves presentation. Daily dues, payments, customers, basic PDF exports,
-                backups, and lock stay available on Free.
+                Free keeps daily ledger work useful. Pro helps you collect faster, look more
+                professional, and handle bigger office work with less cleanup.
               </p>
             </div>
             <span className={`ol-chip ${subscription.isPro ? 'ol-chip--premium' : 'ol-chip--primary'}`}>
-              {subscription.tierLabel}
+              Current plan: {subscription.tierLabel}
             </span>
           </div>
           <div className="ol-market-grid">
@@ -55,11 +56,11 @@ export default function MarketPage() {
                 </div>
                 <p>{plan.helper}</p>
                 <button
-                  className="ol-button-secondary"
+                  className={plan.isBestValue ? 'ol-button' : 'ol-button-secondary'}
                   type="button"
                   onClick={() => showToast('Purchase confirmation must finish before Pro turns on.', 'info')}
                 >
-                  View plan
+                  {subscription.isPro ? 'Current plan' : 'Upgrade to Pro'}
                 </button>
               </article>
             ))}
@@ -90,6 +91,32 @@ export default function MarketPage() {
             ))}
           </div>
         </article>
+      </section>
+
+      <section className="ol-panel">
+        <div className="ol-panel-header">
+          <div>
+            <div className="ol-panel-title">Free vs Pro</div>
+            <p className="ol-panel-copy">
+              See exactly what stays free and what Pro adds before you decide.
+            </p>
+          </div>
+          <span className="ol-chip ol-chip--premium">Pro is for collection speed and polished documents</span>
+        </div>
+        <div className="ol-plan-compare">
+          <div className="ol-plan-compare-row ol-plan-compare-row--head">
+            <span>Feature</span>
+            <span>Free</span>
+            <span>Pro</span>
+          </div>
+          {WEB_FREE_VS_PRO_COMPARISON.map((item) => (
+            <div className="ol-plan-compare-row" key={item.feature}>
+              <strong>{item.feature}</strong>
+              <span>{item.free}</span>
+              <span className={item.proHighlight ? 'ol-plan-compare-pro' : undefined}>{item.pro}</span>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="ol-panel">

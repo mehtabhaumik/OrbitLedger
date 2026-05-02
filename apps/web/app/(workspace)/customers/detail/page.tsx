@@ -9,8 +9,16 @@ import { summarizePaymentClearance, summarizePaymentMode } from '@orbit-ledger/c
 import { AppShell } from '@/components/app-shell';
 import { downloadCustomerProfilePdf } from '@/lib/customer-export';
 import {
+  normalizePhoneForCountry,
+  parseAmount,
+  validateEmail,
+  validateName,
+  validatePhone,
+} from '@/lib/form-validation';
+import {
   getWorkspaceCustomer,
   listWorkspaceCustomerTransactions,
+  updateWorkspaceCustomer,
   type WorkspaceCustomer,
   type WorkspaceTransaction,
 } from '@/lib/workspace-data';
@@ -24,6 +32,36 @@ import {
 } from '@/lib/workspace-power';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
+
+type CustomerProfileFormState = {
+  name: string;
+  legalName: string;
+  customerType: 'individual' | 'business';
+  contactPerson: string;
+  phone: string;
+  whatsapp: string;
+  email: string;
+  billingAddress: string;
+  shippingAddress: string;
+  city: string;
+  stateCode: string;
+  countryCode: string;
+  postalCode: string;
+  gstin: string;
+  pan: string;
+  taxNumber: string;
+  registrationNumber: string;
+  placeOfSupply: string;
+  defaultTaxTreatment: string;
+  openingBalance: string;
+  creditLimit: string;
+  paymentTerms: string;
+  preferredPaymentMode: string;
+  preferredInvoiceTemplate: string;
+  preferredLanguage: string;
+  tags: string;
+  notes: string;
+};
 
 export default function CustomerDetailPage() {
   return (
@@ -46,6 +84,8 @@ function CustomerDetailContent() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
+  const [profileDraft, setProfileDraft] = useState<CustomerProfileFormState | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   useEffect(() => {
     if (!activeWorkspace || !customerId) {
@@ -59,6 +99,7 @@ function CustomerDetailContent() {
     ])
       .then(([nextCustomer, nextTransactions]) => {
         setCustomer(nextCustomer);
+        setProfileDraft(nextCustomer ? customerToProfileDraft(nextCustomer, activeWorkspace.countryCode) : null);
         setTransactions(nextTransactions);
         setSelectedTransactionIds(new Set());
         if (!nextCustomer) {
@@ -98,6 +139,74 @@ function CustomerDetailContent() {
     filteredTransactions.length > 0 &&
     filteredTransactions.every((transaction) => selectedTransactionIds.has(transaction.id));
   const currency = activeWorkspace?.currency ?? 'INR';
+
+  function updateProfileField(field: keyof CustomerProfileFormState, value: string) {
+    setProfileDraft((current) => (current ? { ...current, [field]: value } : current));
+  }
+
+  async function saveCustomerProfile() {
+    if (!activeWorkspace || !customer || !profileDraft) {
+      return;
+    }
+
+    const nameError = validateName(profileDraft.name, 'Customer name', true);
+    const phoneError = validatePhone(profileDraft.phone, activeWorkspace.countryCode || 'IN', false);
+    const emailError = validateEmail(profileDraft.email, false);
+    const openingBalanceValue = parseAmount(profileDraft.openingBalance);
+    const creditLimitValue = parseAmount(profileDraft.creditLimit);
+    if (
+      nameError ||
+      phoneError ||
+      emailError ||
+      (profileDraft.openingBalance.trim() && openingBalanceValue === null) ||
+      (profileDraft.creditLimit.trim() && creditLimitValue === null)
+    ) {
+      showToast(nameError || phoneError || emailError || 'Fix the highlighted profile amounts before saving.', 'danger');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const countryCode = activeWorkspace.countryCode || 'IN';
+      const updated = await updateWorkspaceCustomer(activeWorkspace.workspaceId, customer.id, {
+        name: profileDraft.name,
+        legalName: profileDraft.legalName,
+        customerType: profileDraft.customerType,
+        contactPerson: profileDraft.contactPerson,
+        phone: normalizePhoneForCountry(countryCode, profileDraft.phone) ?? profileDraft.phone,
+        whatsapp: normalizePhoneForCountry(countryCode, profileDraft.whatsapp) ?? profileDraft.whatsapp,
+        email: profileDraft.email,
+        address: profileDraft.billingAddress,
+        billingAddress: profileDraft.billingAddress,
+        shippingAddress: profileDraft.shippingAddress,
+        city: profileDraft.city,
+        stateCode: profileDraft.stateCode,
+        countryCode: profileDraft.countryCode || countryCode,
+        postalCode: profileDraft.postalCode,
+        gstin: profileDraft.gstin,
+        pan: profileDraft.pan,
+        taxNumber: profileDraft.taxNumber,
+        registrationNumber: profileDraft.registrationNumber,
+        placeOfSupply: profileDraft.placeOfSupply,
+        defaultTaxTreatment: profileDraft.defaultTaxTreatment,
+        openingBalance: openingBalanceValue ?? 0,
+        creditLimit: creditLimitValue,
+        paymentTerms: profileDraft.paymentTerms,
+        preferredPaymentMode: profileDraft.preferredPaymentMode,
+        preferredInvoiceTemplate: profileDraft.preferredInvoiceTemplate,
+        preferredLanguage: profileDraft.preferredLanguage,
+        tags: splitTags(profileDraft.tags),
+        notes: profileDraft.notes,
+      });
+      setCustomer(updated);
+      setProfileDraft(customerToProfileDraft(updated, countryCode));
+      showToast('Customer profile saved.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Customer profile could not be saved.', 'danger');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }
 
   function toggleTransactionSelection(transactionId: string) {
     setSelectedTransactionIds((current) => {
@@ -159,8 +268,30 @@ function CustomerDetailContent() {
     const csv = buildCsv(
       [
         'Name',
+        'Legal name',
+        'Customer type',
+        'Contact person',
         'Phone',
-        'Address',
+        'WhatsApp',
+        'Email',
+        'Billing address',
+        'Shipping address',
+        'City',
+        'State',
+        'Country',
+        'PIN/postcode',
+        'GSTIN',
+        'PAN',
+        'VAT/tax number',
+        'Registration number',
+        'Place of supply',
+        'Tax treatment',
+        'Payment terms',
+        'Credit limit',
+        'Preferred payment mode',
+        'Preferred invoice template',
+        'Preferred language',
+        'Tags',
         'Status',
         'Health rank',
         'Health score',
@@ -172,8 +303,30 @@ function CustomerDetailContent() {
       ],
       [[
         customer.name,
+        customer.legalName ?? '',
+        customer.customerType ?? '',
+        customer.contactPerson ?? '',
         customer.phone ?? '',
-        customer.address ?? '',
+        customer.whatsapp ?? '',
+        customer.email ?? '',
+        customer.billingAddress ?? customer.address ?? '',
+        customer.shippingAddress ?? '',
+        customer.city ?? '',
+        customer.stateCode ?? '',
+        customer.countryCode ?? '',
+        customer.postalCode ?? '',
+        customer.gstin ?? '',
+        customer.pan ?? '',
+        customer.taxNumber ?? '',
+        customer.registrationNumber ?? '',
+        customer.placeOfSupply ?? '',
+        customer.defaultTaxTreatment ?? '',
+        customer.paymentTerms ?? '',
+        customer.creditLimit ?? '',
+        customer.preferredPaymentMode ?? '',
+        customer.preferredInvoiceTemplate ?? '',
+        customer.preferredLanguage ?? '',
+        customer.tags.join(', '),
         customer.isArchived ? 'Archived' : 'Active',
         customer.health.label,
         customer.health.score,
@@ -236,12 +389,92 @@ function CustomerDetailContent() {
             <div className="ol-panel-header">
               <div>
                 <div className="ol-panel-title">{customer.name}</div>
-                <p className="ol-panel-copy">{customer.phone || 'No phone saved'}</p>
+                <p className="ol-panel-copy">
+                  {[customer.phone, customer.email, customer.contactPerson].filter(Boolean).join(' · ') || 'No contact details saved'}
+                </p>
               </div>
               <span className="ol-chip ol-chip--primary">{customer.isArchived ? 'Archived' : 'Active'}</span>
             </div>
-            <p className="ol-panel-copy">{customer.address || 'No address saved yet.'}</p>
+            <div className="ol-review-grid">
+              <Review label="Legal name" value={customer.legalName ?? 'Not saved'} />
+              <Review label="Type" value={customer.customerType === 'individual' ? 'Individual' : customer.customerType === 'business' ? 'Business' : 'Not saved'} />
+              <Review label="WhatsApp" value={customer.whatsapp ?? 'Not saved'} />
+              <Review label="GSTIN" value={customer.gstin ?? 'Not saved'} />
+              <Review label="PAN" value={customer.pan ?? 'Not saved'} />
+              <Review label="Terms" value={customer.paymentTerms ?? 'Not saved'} />
+              <Review label="Credit limit" value={customer.creditLimit !== null ? formatCurrency(customer.creditLimit, currency) : 'Not saved'} />
+              <Review label="Tags" value={customer.tags.length ? customer.tags.join(', ') : 'Not saved'} />
+            </div>
+            <p className="ol-panel-copy" style={{ marginTop: 16 }}>{customer.billingAddress || customer.address || 'No address saved yet.'}</p>
           </section>
+
+          {profileDraft ? (
+            <section className="ol-panel-glass">
+              <div className="ol-panel-header">
+                <div>
+                  <div className="ol-panel-title">Customer profile</div>
+                  <p className="ol-panel-copy">Optional details used for exports, invoices, statements, and follow-up context.</p>
+                </div>
+                <button className="ol-button" type="button" disabled={isSavingProfile} onClick={() => void saveCustomerProfile()}>
+                  {isSavingProfile ? 'Saving...' : 'Save profile'}
+                </button>
+              </div>
+              <div className="ol-form-stack">
+                <div className="ol-form-band">
+                  <div className="ol-form-band-grid">
+                    <CustomerField label="Display name" value={profileDraft.name} onChange={(value) => updateProfileField('name', value)} />
+                    <CustomerField label="Legal / business name" value={profileDraft.legalName} onChange={(value) => updateProfileField('legalName', value)} />
+                    <label className="ol-field">
+                      <span className="ol-field-label">Customer type</span>
+                      <select className="ol-select" value={profileDraft.customerType} onChange={(event) => updateProfileField('customerType', event.target.value)}>
+                        <option value="business">Business</option>
+                        <option value="individual">Individual</option>
+                      </select>
+                    </label>
+                    <CustomerField label="Contact person" value={profileDraft.contactPerson} onChange={(value) => updateProfileField('contactPerson', value)} />
+                    <CustomerField label="Phone" value={profileDraft.phone} onChange={(value) => updateProfileField('phone', value)} />
+                    <CustomerField label="WhatsApp" value={profileDraft.whatsapp} onChange={(value) => updateProfileField('whatsapp', value)} />
+                    <CustomerField label="Email" value={profileDraft.email} onChange={(value) => updateProfileField('email', value)} />
+                  </div>
+                </div>
+                <div className="ol-form-band">
+                  <div className="ol-form-band-grid">
+                    <CustomerField label="Billing address" value={profileDraft.billingAddress} onChange={(value) => updateProfileField('billingAddress', value)} />
+                    <CustomerField label="Shipping address" value={profileDraft.shippingAddress} onChange={(value) => updateProfileField('shippingAddress', value)} />
+                    <CustomerField label="City" value={profileDraft.city} onChange={(value) => updateProfileField('city', value)} />
+                    <CustomerField label="State" value={profileDraft.stateCode} onChange={(value) => updateProfileField('stateCode', value.toUpperCase())} />
+                    <CustomerField label="Country" value={profileDraft.countryCode} onChange={(value) => updateProfileField('countryCode', value.toUpperCase())} />
+                    <CustomerField label="PIN / postcode" value={profileDraft.postalCode} onChange={(value) => updateProfileField('postalCode', value)} />
+                  </div>
+                </div>
+                <div className="ol-form-band">
+                  <div className="ol-form-band-grid">
+                    <CustomerField label="GSTIN" value={profileDraft.gstin} onChange={(value) => updateProfileField('gstin', value.toUpperCase())} />
+                    <CustomerField label="PAN" value={profileDraft.pan} onChange={(value) => updateProfileField('pan', value.toUpperCase())} />
+                    <CustomerField label="VAT / tax number" value={profileDraft.taxNumber} onChange={(value) => updateProfileField('taxNumber', value)} />
+                    <CustomerField label="Registration number" value={profileDraft.registrationNumber} onChange={(value) => updateProfileField('registrationNumber', value)} />
+                    <CustomerField label="Place of supply" value={profileDraft.placeOfSupply} onChange={(value) => updateProfileField('placeOfSupply', value)} />
+                    <CustomerField label="Tax treatment" value={profileDraft.defaultTaxTreatment} onChange={(value) => updateProfileField('defaultTaxTreatment', value)} />
+                  </div>
+                </div>
+                <div className="ol-form-band">
+                  <div className="ol-form-band-grid">
+                    <CustomerField label="Opening balance" value={profileDraft.openingBalance} onChange={(value) => updateProfileField('openingBalance', value)} />
+                    <CustomerField label="Credit limit" value={profileDraft.creditLimit} onChange={(value) => updateProfileField('creditLimit', value)} />
+                    <CustomerField label="Payment terms" value={profileDraft.paymentTerms} onChange={(value) => updateProfileField('paymentTerms', value)} />
+                    <CustomerField label="Preferred payment mode" value={profileDraft.preferredPaymentMode} onChange={(value) => updateProfileField('preferredPaymentMode', value)} />
+                    <CustomerField label="Preferred invoice template" value={profileDraft.preferredInvoiceTemplate} onChange={(value) => updateProfileField('preferredInvoiceTemplate', value)} />
+                    <CustomerField label="Preferred language" value={profileDraft.preferredLanguage} onChange={(value) => updateProfileField('preferredLanguage', value)} />
+                    <CustomerField label="Tags" value={profileDraft.tags} onChange={(value) => updateProfileField('tags', value)} />
+                  </div>
+                </div>
+                <label className="ol-field">
+                  <span className="ol-field-label">Notes</span>
+                  <textarea className="ol-textarea" value={profileDraft.notes} onChange={(event) => updateProfileField('notes', event.target.value)} />
+                </label>
+              </div>
+            </section>
+          ) : null}
 
           <section className="ol-table">
             <div className="ol-table-tools">
@@ -374,6 +607,76 @@ function Metric({
       <div className="ol-metric-helper">Current customer ledger.</div>
     </article>
   );
+}
+
+function Review({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="ol-review-item">
+      <span className="ol-review-label">{label}</span>
+      <strong className="ol-review-value">{value}</strong>
+    </div>
+  );
+}
+
+function CustomerField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange(value: string): void;
+}) {
+  return (
+    <label className="ol-field">
+      <span className="ol-field-label">{label}</span>
+      <input className="ol-input" value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function customerToProfileDraft(customer: WorkspaceCustomer, fallbackCountryCode = 'IN'): CustomerProfileFormState {
+  return {
+    name: customer.name,
+    legalName: customer.legalName ?? '',
+    customerType: customer.customerType ?? 'business',
+    contactPerson: customer.contactPerson ?? '',
+    phone: customer.phone ?? '',
+    whatsapp: customer.whatsapp ?? '',
+    email: customer.email ?? '',
+    billingAddress: customer.billingAddress ?? customer.address ?? '',
+    shippingAddress: customer.shippingAddress ?? '',
+    city: customer.city ?? '',
+    stateCode: customer.stateCode ?? '',
+    countryCode: customer.countryCode ?? fallbackCountryCode,
+    postalCode: customer.postalCode ?? '',
+    gstin: customer.gstin ?? '',
+    pan: customer.pan ?? '',
+    taxNumber: customer.taxNumber ?? '',
+    registrationNumber: customer.registrationNumber ?? '',
+    placeOfSupply: customer.placeOfSupply ?? '',
+    defaultTaxTreatment: customer.defaultTaxTreatment ?? '',
+    openingBalance: formatAmountInput(customer.openingBalance),
+    creditLimit: customer.creditLimit !== null ? formatAmountInput(customer.creditLimit) : '',
+    paymentTerms: customer.paymentTerms ?? '',
+    preferredPaymentMode: customer.preferredPaymentMode ?? '',
+    preferredInvoiceTemplate: customer.preferredInvoiceTemplate ?? '',
+    preferredLanguage: customer.preferredLanguage ?? '',
+    tags: customer.tags.join(', '),
+    notes: customer.notes ?? '',
+  };
+}
+
+function splitTags(value: string) {
+  return value
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+function formatAmountInput(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
 function formatCurrency(value: number, currency: string) {

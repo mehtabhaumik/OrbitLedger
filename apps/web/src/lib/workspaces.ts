@@ -24,10 +24,31 @@ import { getWebFirestore } from './firebase';
 
 export type WorkspaceProfileInput = {
   businessName: string;
+  legalName?: string | null;
   ownerName: string;
+  contactPerson?: string | null;
+  businessType?: string | null;
   phone: string;
+  whatsapp?: string | null;
   email: string;
+  website?: string | null;
   address: string;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  gstin?: string | null;
+  pan?: string | null;
+  taxNumber?: string | null;
+  registrationNumber?: string | null;
+  placeOfSupply?: string | null;
+  defaultTaxTreatment?: string | null;
+  defaultPaymentTerms?: string | null;
+  defaultDueDays?: number | null;
+  defaultTaxRate?: number | null;
+  defaultInvoiceTemplate?: string | null;
+  defaultStatementTemplate?: string | null;
+  defaultLanguage?: string | null;
   currency: string;
   countryCode: string;
   stateCode: string;
@@ -40,10 +61,31 @@ export type WorkspaceProfileInput = {
 
 type FirestoreWorkspaceDoc = {
   business_name: string;
+  legal_name?: string | null;
   owner_name: string;
+  contact_person?: string | null;
+  business_type?: string | null;
   phone: string;
+  whatsapp?: string | null;
   email: string;
+  website?: string | null;
   address: string;
+  address_line_1?: string | null;
+  address_line_2?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+  gstin?: string | null;
+  pan?: string | null;
+  tax_number?: string | null;
+  registration_number?: string | null;
+  place_of_supply?: string | null;
+  default_tax_treatment?: string | null;
+  default_payment_terms?: string | null;
+  default_due_days?: number | null;
+  default_tax_rate?: number | null;
+  default_invoice_template?: string | null;
+  default_statement_template?: string | null;
+  default_language?: string | null;
   currency: string;
   country_code: string;
   state_code: string;
@@ -89,6 +131,7 @@ export async function createWorkspace(
   const createdIso = new Date().toISOString();
   const payload: FirestoreWorkspaceDoc = {
     business_name: input.businessName.trim(),
+    ...workspaceProfileOptionalPayload(input),
     owner_name: input.ownerName.trim(),
     phone: input.phone.trim(),
     email: input.email.trim(),
@@ -137,6 +180,7 @@ export async function updateWorkspaceProfile(
 
     transaction.update(workspaceRef, {
       business_name: input.businessName.trim(),
+      ...workspaceProfileOptionalPayload(input),
       owner_name: input.ownerName.trim(),
       phone: input.phone.trim(),
       email: input.email.trim(),
@@ -206,10 +250,31 @@ function mapWorkspace(id: string, data: FirestoreWorkspaceDoc): OrbitWorkspaceSu
   return {
     workspaceId: id,
     businessName: data.business_name ?? '',
+    legalName: data.legal_name ?? null,
     ownerName: data.owner_name ?? '',
+    contactPerson: data.contact_person ?? null,
+    businessType: data.business_type ?? null,
     phone: data.phone ?? '',
+    whatsapp: data.whatsapp ?? null,
     email: data.email ?? '',
+    website: data.website ?? null,
     address: data.address ?? '',
+    addressLine1: data.address_line_1 ?? null,
+    addressLine2: data.address_line_2 ?? null,
+    city: data.city ?? null,
+    postalCode: data.postal_code ?? null,
+    gstin: data.gstin ?? null,
+    pan: data.pan ?? null,
+    taxNumber: data.tax_number ?? null,
+    registrationNumber: data.registration_number ?? null,
+    placeOfSupply: data.place_of_supply ?? null,
+    defaultTaxTreatment: data.default_tax_treatment ?? null,
+    defaultPaymentTerms: data.default_payment_terms ?? null,
+    defaultDueDays: typeof data.default_due_days === 'number' ? data.default_due_days : null,
+    defaultTaxRate: typeof data.default_tax_rate === 'number' ? data.default_tax_rate : null,
+    defaultInvoiceTemplate: data.default_invoice_template ?? null,
+    defaultStatementTemplate: data.default_statement_template ?? null,
+    defaultLanguage: data.default_language ?? null,
     currency: data.currency ?? 'INR',
     countryCode: data.country_code ?? 'IN',
     stateCode: data.state_code ?? '',
@@ -238,6 +303,38 @@ function mapWorkspace(id: string, data: FirestoreWorkspaceDoc): OrbitWorkspaceSu
   };
 }
 
+function workspaceProfileOptionalPayload(input: WorkspaceProfileInput) {
+  return {
+    legal_name: cleanOptional(input.legalName),
+    contact_person: cleanOptional(input.contactPerson),
+    business_type: cleanOptional(input.businessType),
+    whatsapp: cleanOptional(input.whatsapp),
+    website: cleanOptional(input.website),
+    address_line_1: cleanOptional(input.addressLine1),
+    address_line_2: cleanOptional(input.addressLine2),
+    city: cleanOptional(input.city),
+    postal_code: cleanOptional(input.postalCode),
+    gstin: cleanOptional(input.gstin)?.toUpperCase() ?? null,
+    pan: cleanOptional(input.pan)?.toUpperCase() ?? null,
+    tax_number: cleanOptional(input.taxNumber),
+    registration_number: cleanOptional(input.registrationNumber),
+    place_of_supply: cleanOptional(input.placeOfSupply),
+    default_tax_treatment: cleanOptional(input.defaultTaxTreatment),
+    default_payment_terms: cleanOptional(input.defaultPaymentTerms),
+    default_due_days:
+      typeof input.defaultDueDays === 'number' && Number.isFinite(input.defaultDueDays)
+        ? Math.max(0, Math.floor(input.defaultDueDays))
+        : null,
+    default_tax_rate:
+      typeof input.defaultTaxRate === 'number' && Number.isFinite(input.defaultTaxRate)
+        ? Math.max(0, input.defaultTaxRate)
+        : null,
+    default_invoice_template: cleanOptional(input.defaultInvoiceTemplate),
+    default_statement_template: cleanOptional(input.defaultStatementTemplate),
+    default_language: cleanOptional(input.defaultLanguage),
+  };
+}
+
 function paymentInstructionPayload(details?: ManualPaymentInstructionDetails | null) {
   const normalized = normalizeManualPaymentInstructionDetails(details);
   return {
@@ -254,6 +351,11 @@ function paymentInstructionPayload(details?: ManualPaymentInstructionDetails | n
     payment_bank_iban: normalized.bankIban,
     payment_bank_swift: normalized.bankSwift,
   };
+}
+
+function cleanOptional(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 function toIsoString(value: Timestamp | string | FieldValue | undefined): string {

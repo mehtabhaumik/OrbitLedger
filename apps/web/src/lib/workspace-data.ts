@@ -45,10 +45,33 @@ import { getWebFirestore } from './firebase';
 export type WorkspaceCustomer = {
   id: string;
   name: string;
+  legalName: string | null;
+  customerType: 'individual' | 'business' | null;
+  contactPerson: string | null;
   phone: string | null;
+  whatsapp: string | null;
+  email: string | null;
   address: string | null;
+  billingAddress: string | null;
+  shippingAddress: string | null;
+  city: string | null;
+  stateCode: string | null;
+  countryCode: string | null;
+  postalCode: string | null;
+  gstin: string | null;
+  pan: string | null;
+  taxNumber: string | null;
+  registrationNumber: string | null;
+  placeOfSupply: string | null;
+  defaultTaxTreatment: string | null;
   notes: string | null;
   openingBalance: number;
+  creditLimit: number | null;
+  paymentTerms: string | null;
+  preferredPaymentMode: string | null;
+  preferredInvoiceTemplate: string | null;
+  preferredLanguage: string | null;
+  tags: string[];
   isArchived: boolean;
   createdAt: string;
   updatedAt: string;
@@ -242,10 +265,33 @@ export type SaveWorkspaceInvoiceInput = {
 
 export type CreateWorkspaceCustomerInput = {
   name: string;
+  legalName?: string | null;
+  customerType?: 'individual' | 'business' | null;
+  contactPerson?: string | null;
   phone?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
   address?: string | null;
+  billingAddress?: string | null;
+  shippingAddress?: string | null;
+  city?: string | null;
+  stateCode?: string | null;
+  countryCode?: string | null;
+  postalCode?: string | null;
+  gstin?: string | null;
+  pan?: string | null;
+  taxNumber?: string | null;
+  registrationNumber?: string | null;
+  placeOfSupply?: string | null;
+  defaultTaxTreatment?: string | null;
   notes?: string | null;
   openingBalance?: number;
+  creditLimit?: number | null;
+  paymentTerms?: string | null;
+  preferredPaymentMode?: string | null;
+  preferredInvoiceTemplate?: string | null;
+  preferredLanguage?: string | null;
+  tags?: string[];
 };
 
 export type CreateWorkspaceTransactionInput = {
@@ -350,8 +396,7 @@ export async function createWorkspaceCustomer(
     name_key: normalizeCustomerNameKey(name),
     phone,
     phone_key: normalizeCustomerPhoneKey(phone),
-    address: input.address?.trim() || null,
-    notes: input.notes?.trim() || null,
+    ...customerProfilePayload(input),
     opening_balance: Number.isFinite(input.openingBalance) ? Number(input.openingBalance) : 0,
     current_balance: Number.isFinite(input.openingBalance) ? Number(input.openingBalance) : 0,
     is_archived: false,
@@ -366,16 +411,66 @@ export async function createWorkspaceCustomer(
   return {
     id: ref.id,
     name: payload.name,
+    legalName: payload.legal_name,
+    customerType: payload.customer_type,
+    contactPerson: payload.contact_person,
     phone: payload.phone,
+    whatsapp: payload.whatsapp,
+    email: payload.email,
     address: payload.address,
+    billingAddress: payload.billing_address,
+    shippingAddress: payload.shipping_address,
+    city: payload.city,
+    stateCode: payload.state_code,
+    countryCode: payload.country_code,
+    postalCode: payload.postal_code,
+    gstin: payload.gstin,
+    pan: payload.pan,
+    taxNumber: payload.tax_number,
+    registrationNumber: payload.registration_number,
+    placeOfSupply: payload.place_of_supply,
+    defaultTaxTreatment: payload.default_tax_treatment,
     notes: payload.notes,
     openingBalance: payload.opening_balance,
+    creditLimit: payload.credit_limit,
+    paymentTerms: payload.payment_terms,
+    preferredPaymentMode: payload.preferred_payment_mode,
+    preferredInvoiceTemplate: payload.preferred_invoice_template,
+    preferredLanguage: payload.preferred_language,
+    tags: payload.tags,
     isArchived: false,
     createdAt: now,
     updatedAt: now,
     balance: payload.opening_balance,
     health: buildCustomerHealthScore({ balance: payload.opening_balance, latestActivityAt: now }),
   };
+}
+
+export async function updateWorkspaceCustomer(
+  workspaceId: string,
+  customerId: string,
+  input: CreateWorkspaceCustomerInput
+): Promise<WorkspaceCustomer> {
+  const firestore = getWebFirestore();
+  const customerRef = doc(firestore, 'workspaces', workspaceId, 'customers', customerId);
+  const now = new Date().toISOString();
+  const name = input.name.trim();
+  const phone = input.phone?.trim() || null;
+  await updateDoc(customerRef, {
+    name,
+    name_key: normalizeCustomerNameKey(name),
+    phone,
+    phone_key: normalizeCustomerPhoneKey(phone),
+    ...customerProfilePayload(input),
+    updated_at: now,
+    last_modified: now,
+    server_revision: increment(1),
+  });
+  const updated = await getWorkspaceCustomer(workspaceId, customerId);
+  if (!updated) {
+    throw new Error('Customer could not be loaded after saving.');
+  }
+  return updated;
 }
 
 async function assertWorkspaceCustomerIsUnique(
@@ -410,6 +505,45 @@ async function assertWorkspaceCustomerIsUnique(
       throw new Error('This customer already exists with the same name and phone.');
     }
   }
+}
+
+function customerProfilePayload(input: CreateWorkspaceCustomerInput) {
+  const customerType =
+    input.customerType === 'individual' || input.customerType === 'business' ? input.customerType : null;
+  const creditLimit =
+    typeof input.creditLimit === 'number' && Number.isFinite(input.creditLimit)
+      ? Math.max(0, input.creditLimit)
+      : null;
+
+  return {
+    legal_name: cleanOptional(input.legalName),
+    customer_type: customerType,
+    contact_person: cleanOptional(input.contactPerson),
+    whatsapp: cleanOptional(input.whatsapp),
+    email: cleanOptional(input.email),
+    address: cleanOptional(input.address),
+    billing_address: cleanOptional(input.billingAddress) ?? cleanOptional(input.address),
+    shipping_address: cleanOptional(input.shippingAddress),
+    city: cleanOptional(input.city),
+    state_code: cleanOptional(input.stateCode)?.toUpperCase() ?? null,
+    country_code: cleanOptional(input.countryCode)?.toUpperCase() ?? null,
+    postal_code: cleanOptional(input.postalCode),
+    gstin: cleanOptional(input.gstin)?.toUpperCase() ?? null,
+    pan: cleanOptional(input.pan)?.toUpperCase() ?? null,
+    tax_number: cleanOptional(input.taxNumber),
+    registration_number: cleanOptional(input.registrationNumber),
+    place_of_supply: cleanOptional(input.placeOfSupply),
+    default_tax_treatment: cleanOptional(input.defaultTaxTreatment),
+    notes: cleanOptional(input.notes),
+    credit_limit: creditLimit,
+    payment_terms: cleanOptional(input.paymentTerms),
+    preferred_payment_mode: cleanOptional(input.preferredPaymentMode),
+    preferred_invoice_template: cleanOptional(input.preferredInvoiceTemplate),
+    preferred_language: cleanOptional(input.preferredLanguage),
+    tags: Array.isArray(input.tags)
+      ? input.tags.map((tag) => tag.trim()).filter(Boolean).slice(0, 12)
+      : [],
+  };
 }
 
 export async function listWorkspaceTransactions(
@@ -2174,10 +2308,33 @@ function mapCustomer(
 ): WorkspaceCustomer {
   const data = entry.data() as {
     name?: string;
+    legal_name?: string | null;
+    customer_type?: string | null;
+    contact_person?: string | null;
     phone?: string | null;
+    whatsapp?: string | null;
+    email?: string | null;
     address?: string | null;
+    billing_address?: string | null;
+    shipping_address?: string | null;
+    city?: string | null;
+    state_code?: string | null;
+    country_code?: string | null;
+    postal_code?: string | null;
+    gstin?: string | null;
+    pan?: string | null;
+    tax_number?: string | null;
+    registration_number?: string | null;
+    place_of_supply?: string | null;
+    default_tax_treatment?: string | null;
     notes?: string | null;
     opening_balance?: number;
+    credit_limit?: number | null;
+    payment_terms?: string | null;
+    preferred_payment_mode?: string | null;
+    preferred_invoice_template?: string | null;
+    preferred_language?: string | null;
+    tags?: string[];
     current_balance?: number;
     balance?: number;
     is_archived?: boolean;
@@ -2197,10 +2354,34 @@ function mapCustomer(
   return {
     id: entry.id,
     name: data.name ?? 'Unnamed customer',
+    legalName: data.legal_name ?? null,
+    customerType:
+      data.customer_type === 'individual' || data.customer_type === 'business' ? data.customer_type : null,
+    contactPerson: data.contact_person ?? null,
     phone: data.phone ?? null,
+    whatsapp: data.whatsapp ?? null,
+    email: data.email ?? null,
     address: data.address ?? null,
+    billingAddress: data.billing_address ?? data.address ?? null,
+    shippingAddress: data.shipping_address ?? null,
+    city: data.city ?? null,
+    stateCode: data.state_code ?? null,
+    countryCode: data.country_code ?? null,
+    postalCode: data.postal_code ?? null,
+    gstin: data.gstin ?? null,
+    pan: data.pan ?? null,
+    taxNumber: data.tax_number ?? null,
+    registrationNumber: data.registration_number ?? null,
+    placeOfSupply: data.place_of_supply ?? null,
+    defaultTaxTreatment: data.default_tax_treatment ?? null,
     notes: data.notes ?? null,
     openingBalance,
+    creditLimit: typeof data.credit_limit === 'number' ? data.credit_limit : null,
+    paymentTerms: data.payment_terms ?? null,
+    preferredPaymentMode: data.preferred_payment_mode ?? null,
+    preferredInvoiceTemplate: data.preferred_invoice_template ?? null,
+    preferredLanguage: data.preferred_language ?? null,
+    tags: Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === 'string') : [],
     isArchived: Boolean(data.is_archived),
     createdAt: data.created_at ?? '',
     updatedAt,
@@ -2419,6 +2600,11 @@ function stableStringifyForInvoice(value: unknown): string {
 
 function normalizeSnapshotText(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
+}
+
+function cleanOptional(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 function roundMoney(value: number): number {

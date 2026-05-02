@@ -57,6 +57,13 @@ export type WebProBrandTheme = {
   textColor: string;
 };
 
+export type WebPlanComparisonItem = {
+  feature: string;
+  free: string;
+  pro: string;
+  proHighlight?: boolean;
+};
+
 const freeTierFeatures: WebSubscriptionFeature[] = [
   'business_setup',
   'dashboard',
@@ -99,6 +106,66 @@ export const WEB_PRO_PLAN_CATALOG: WebPlanCatalogItem[] = [
     helper: 'Best value when polished documents are part of weekly business work.',
     entitlementDays: 365,
     isBestValue: true,
+  },
+];
+
+export const WEB_FREE_VS_PRO_COMPARISON: WebPlanComparisonItem[] = [
+  {
+    feature: 'Customers, ledger, and balances',
+    free: 'Included',
+    pro: 'Included',
+  },
+  {
+    feature: 'Basic invoices and statements',
+    free: 'Included',
+    pro: 'Included',
+  },
+  {
+    feature: 'PDF and CSV exports',
+    free: 'Basic export with Orbit Ledger footer',
+    pro: 'Polished branded exports without footer',
+    proHighlight: true,
+  },
+  {
+    feature: 'Invoice templates',
+    free: 'Clean basic templates',
+    pro: 'Premium templates and branding',
+    proHighlight: true,
+  },
+  {
+    feature: 'Customer reports',
+    free: 'Basic customer export',
+    pro: 'Detailed profile reports and bulk packs',
+    proHighlight: true,
+  },
+  {
+    feature: 'Collection follow-up',
+    free: 'Basic payment messages',
+    pro: 'Smarter follow-up copy and collection focus',
+    proHighlight: true,
+  },
+  {
+    feature: 'Customer health',
+    free: 'Basic health signal',
+    pro: 'Full customer ranking and insights',
+    proHighlight: true,
+  },
+  {
+    feature: 'Bulk office work',
+    free: 'One-at-a-time exports',
+    pro: 'Bulk PDF/CSV exports',
+    proHighlight: true,
+  },
+  {
+    feature: 'Multiple businesses',
+    free: 'One workspace',
+    pro: 'Multiple business profiles',
+    proHighlight: true,
+  },
+  {
+    feature: 'Backup and lock',
+    free: 'Included',
+    pro: 'Included',
   },
 ];
 

@@ -9,6 +9,7 @@ import { downloadCustomerProfilePdf } from '@/lib/customer-export';
 import {
   normalizePhoneForCountry,
   parseAmount,
+  validateEmail,
   validateName,
   validatePhone,
 } from '@/lib/form-validation';
@@ -36,20 +37,42 @@ export default function CustomersPage() {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [newName, setNewName] = useState('');
+  const [newLegalName, setNewLegalName] = useState('');
+  const [newCustomerType, setNewCustomerType] = useState<'individual' | 'business'>('business');
+  const [newContactPerson, setNewContactPerson] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const [newWhatsapp, setNewWhatsapp] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newBillingAddress, setNewBillingAddress] = useState('');
+  const [newShippingAddress, setNewShippingAddress] = useState('');
+  const [newCity, setNewCity] = useState('');
+  const [newStateCode, setNewStateCode] = useState(activeWorkspace?.stateCode ?? 'GJ');
+  const [newPostalCode, setNewPostalCode] = useState('');
+  const [newGstin, setNewGstin] = useState('');
+  const [newPan, setNewPan] = useState('');
+  const [newPaymentTerms, setNewPaymentTerms] = useState('');
+  const [newCreditLimit, setNewCreditLimit] = useState('');
+  const [newTags, setNewTags] = useState('');
+  const [newNotes, setNewNotes] = useState('');
   const [openingBalance, setOpeningBalance] = useState('');
   const [errors, setErrors] = useState<{
     name: string | null;
     phone: string | null;
+    email: string | null;
+    creditLimit: string | null;
     openingBalance: string | null;
   }>({
     name: null,
     phone: null,
+    email: null,
+    creditLimit: null,
     openingBalance: null,
   });
   const [touched, setTouched] = useState({
     name: false,
     phone: false,
+    email: false,
+    creditLimit: false,
     openingBalance: false,
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -63,6 +86,7 @@ export default function CustomersPage() {
       return;
     }
     void listWorkspaceCustomers(activeWorkspace.workspaceId).then(setCustomers);
+    setNewStateCode(activeWorkspace.stateCode || 'GJ');
     setSelectedCustomerIds(new Set());
   }, [activeWorkspace]);
 
@@ -75,12 +99,17 @@ export default function CustomersPage() {
     const nextErrors = {
       name: validateName(newName, 'Customer name', true),
       phone: validatePhone(newPhone, countryCode, false),
+      email: validateEmail(newEmail, false),
+      creditLimit:
+        newCreditLimit.trim() && parseAmount(newCreditLimit) === null
+          ? 'Credit limit must be a valid number.'
+          : null,
       openingBalance:
         openingBalance.trim() && parseAmount(openingBalance) === null
           ? 'Opening balance must be a valid number.'
           : null,
     };
-    setTouched({ name: true, phone: true, openingBalance: true });
+    setTouched({ name: true, phone: true, email: true, creditLimit: true, openingBalance: true });
     setErrors(nextErrors);
 
     if (nextErrors.name || nextErrors.phone || nextErrors.openingBalance) {
@@ -91,17 +120,52 @@ export default function CustomersPage() {
     setIsSaving(true);
     try {
       const normalizedPhone = normalizePhoneForCountry(countryCode, newPhone) ?? newPhone.trim();
+      const normalizedWhatsapp = normalizePhoneForCountry(countryCode, newWhatsapp) ?? newWhatsapp.trim();
       const customer = await createWorkspaceCustomer(activeWorkspace.workspaceId, {
         name: newName.trim(),
+        legalName: newLegalName,
+        customerType: newCustomerType,
+        contactPerson: newContactPerson,
         phone: normalizedPhone,
+        whatsapp: normalizedWhatsapp,
+        email: newEmail,
+        billingAddress: newBillingAddress,
+        address: newBillingAddress,
+        shippingAddress: newShippingAddress,
+        city: newCity,
+        stateCode: newStateCode,
+        countryCode,
+        postalCode: newPostalCode,
+        gstin: newGstin,
+        pan: newPan,
+        paymentTerms: newPaymentTerms,
+        creditLimit: parseAmount(newCreditLimit),
+        tags: splitTags(newTags),
+        notes: newNotes,
         openingBalance: parseAmount(openingBalance) ?? 0,
       });
       setCustomers((current) => [customer, ...current]);
       setNewName('');
+      setNewLegalName('');
+      setNewCustomerType('business');
+      setNewContactPerson('');
       setNewPhone('');
+      setNewWhatsapp('');
+      setNewEmail('');
+      setNewBillingAddress('');
+      setNewShippingAddress('');
+      setNewCity('');
+      setNewStateCode(activeWorkspace.stateCode || 'GJ');
+      setNewPostalCode('');
+      setNewGstin('');
+      setNewPan('');
+      setNewPaymentTerms('');
+      setNewCreditLimit('');
+      setNewTags('');
+      setNewNotes('');
       setOpeningBalance('');
-      setTouched({ name: false, phone: false, openingBalance: false });
-      setErrors({ name: null, phone: null, openingBalance: null });
+      setTouched({ name: false, phone: false, email: false, creditLimit: false, openingBalance: false });
+      setErrors({ name: null, phone: null, email: null, creditLimit: null, openingBalance: null });
       showToast('Customer saved.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Customer could not be saved.', 'danger');
@@ -194,8 +258,23 @@ export default function CustomersPage() {
     const exportRows = selectedCustomers.length ? selectedCustomers : filteredCustomers;
     const rows = exportRows.map((customer) => [
       customer.name,
+      customer.legalName ?? '',
+      customer.customerType ?? '',
+      customer.contactPerson ?? '',
       customer.phone ?? '',
+      customer.whatsapp ?? '',
+      customer.email ?? '',
       customer.address ?? '',
+      customer.shippingAddress ?? '',
+      customer.city ?? '',
+      customer.stateCode ?? '',
+      customer.countryCode ?? '',
+      customer.postalCode ?? '',
+      customer.gstin ?? '',
+      customer.pan ?? '',
+      customer.paymentTerms ?? '',
+      customer.creditLimit ?? '',
+      customer.tags.join(', '),
       customer.isArchived ? 'Archived' : 'Active',
       customer.health.label,
       customer.health.score,
@@ -204,7 +283,32 @@ export default function CustomersPage() {
       customer.updatedAt,
     ]);
     const csv = buildCsv(
-      ['Name', 'Phone', 'Address', 'Status', 'Health rank', 'Health score', 'Balance', 'Opening balance', 'Last updated'],
+      [
+        'Name',
+        'Legal name',
+        'Customer type',
+        'Contact person',
+        'Phone',
+        'WhatsApp',
+        'Email',
+        'Billing address',
+        'Shipping address',
+        'City',
+        'State',
+        'Country',
+        'PIN/postcode',
+        'GSTIN',
+        'PAN',
+        'Payment terms',
+        'Credit limit',
+        'Tags',
+        'Status',
+        'Health rank',
+        'Health score',
+        'Balance',
+        'Opening balance',
+        'Last updated',
+      ],
       rows
     );
     downloadTextFile(
@@ -268,9 +372,16 @@ export default function CustomersPage() {
             Add customer
           </div>
           <div className="ol-form-grid">
-            <div className="ol-form-row ol-form-row--3">
+            <div className="ol-form-band">
+              <div className="ol-form-band-header">
+                <div>
+                  <div className="ol-form-band-title">Core details</div>
+                  <p className="ol-form-band-copy">Only display name is required. Optional fields improve invoices and customer exports.</p>
+                </div>
+              </div>
+              <div className="ol-form-band-grid">
               <label className={`ol-field${errors.name ? ' is-invalid' : ''}`}>
-                <span className="ol-field-label">Customer name</span>
+                <span className="ol-field-label">Display name</span>
                 <input
                   autoComplete="name"
                   className="ol-input"
@@ -286,6 +397,25 @@ export default function CustomersPage() {
                 />
                 {errors.name ? <span className="ol-field-error">{errors.name}</span> : null}
               </label>
+              <label className="ol-field">
+                <span className="ol-field-label">Legal / business name</span>
+                <input className="ol-input" value={newLegalName} onChange={(event) => setNewLegalName(event.target.value)} />
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">Customer type</span>
+                <select className="ol-select" value={newCustomerType} onChange={(event) => setNewCustomerType(event.target.value as 'individual' | 'business')}>
+                  <option value="business">Business</option>
+                  <option value="individual">Individual</option>
+                </select>
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">Contact person</span>
+                <input className="ol-input" value={newContactPerson} onChange={(event) => setNewContactPerson(event.target.value)} />
+              </label>
+              </div>
+            </div>
+            <div className="ol-form-band">
+              <div className="ol-form-band-grid">
               <label className={`ol-field${errors.phone ? ' is-invalid' : ''}`}>
                 <span className="ol-field-label">Phone</span>
                 <input
@@ -296,6 +426,60 @@ export default function CustomersPage() {
                   onChange={(event) => handlePhoneChange(event.target.value)}
                 />
                 {errors.phone ? <span className="ol-field-error">{errors.phone}</span> : null}
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">WhatsApp</span>
+                <input className="ol-input" inputMode="tel" value={newWhatsapp} onChange={(event) => setNewWhatsapp(event.target.value)} />
+              </label>
+              <label className={`ol-field${errors.email ? ' is-invalid' : ''}`}>
+                <span className="ol-field-label">Email</span>
+                <input className="ol-input" inputMode="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} />
+                {errors.email ? <span className="ol-field-error">{errors.email}</span> : null}
+              </label>
+              </div>
+            </div>
+            <div className="ol-form-band">
+              <div className="ol-form-band-grid">
+              <label className="ol-field">
+                <span className="ol-field-label">Billing address</span>
+                <input className="ol-input" value={newBillingAddress} onChange={(event) => setNewBillingAddress(event.target.value)} />
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">Shipping address</span>
+                <input className="ol-input" value={newShippingAddress} onChange={(event) => setNewShippingAddress(event.target.value)} />
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">City</span>
+                <input className="ol-input" value={newCity} onChange={(event) => setNewCity(event.target.value)} />
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">State</span>
+                <input className="ol-input" value={newStateCode} onChange={(event) => setNewStateCode(event.target.value.toUpperCase())} />
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">PIN / postcode</span>
+                <input className="ol-input" value={newPostalCode} onChange={(event) => setNewPostalCode(event.target.value)} />
+              </label>
+              </div>
+            </div>
+            <div className="ol-form-band">
+              <div className="ol-form-band-grid">
+              <label className="ol-field">
+                <span className="ol-field-label">GSTIN</span>
+                <input className="ol-input" value={newGstin} onChange={(event) => setNewGstin(event.target.value.toUpperCase())} />
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">PAN</span>
+                <input className="ol-input" value={newPan} onChange={(event) => setNewPan(event.target.value.toUpperCase())} />
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">Payment terms</span>
+                <input className="ol-input" placeholder="Example: Net 15" value={newPaymentTerms} onChange={(event) => setNewPaymentTerms(event.target.value)} />
+              </label>
+              <label className={`ol-field${errors.creditLimit ? ' is-invalid' : ''}`}>
+                <span className="ol-field-label">Credit limit</span>
+                <input className="ol-input ol-amount" inputMode="decimal" value={newCreditLimit} onChange={(event) => setNewCreditLimit(event.target.value)} />
+                {errors.creditLimit ? <span className="ol-field-error">{errors.creditLimit}</span> : null}
               </label>
               <label className={`ol-field${errors.openingBalance ? ' is-invalid' : ''}`}>
                 <span className="ol-field-label">Opening balance</span>
@@ -319,7 +503,16 @@ export default function CustomersPage() {
                   <span className="ol-field-error">{errors.openingBalance}</span>
                 ) : null}
               </label>
+              <label className="ol-field">
+                <span className="ol-field-label">Tags</span>
+                <input className="ol-input" placeholder="VIP, wholesale, follow-up" value={newTags} onChange={(event) => setNewTags(event.target.value)} />
+              </label>
+              </div>
             </div>
+            <label className="ol-field">
+              <span className="ol-field-label">Notes</span>
+              <textarea className="ol-textarea" value={newNotes} onChange={(event) => setNewNotes(event.target.value)} />
+            </label>
             <div className="ol-actions">
               <button className="ol-button" disabled={isSaving} type="button" onClick={() => void addCustomer()}>
                 {isSaving ? 'Saving...' : 'Save customer'}
@@ -525,4 +718,12 @@ function formatCurrency(value: number, currency: string) {
     currency,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function splitTags(value: string) {
+  return value
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .slice(0, 12);
 }
