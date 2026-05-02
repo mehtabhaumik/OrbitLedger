@@ -45,6 +45,7 @@ export default function InvoicesPage() {
   const [dateTo, setDateTo] = useState('');
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
   const [expandedInvoiceIds, setExpandedInvoiceIds] = useState<Set<string>>(new Set());
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -76,14 +77,19 @@ export default function InvoicesPage() {
     }
   }
 
+  const visibleInvoices = useMemo(
+    () => (showArchived ? invoices : invoices.filter((invoice) => !invoice.isArchived)),
+    [invoices, showArchived]
+  );
+  const archivedInvoiceCount = invoices.filter((invoice) => invoice.isArchived).length;
   const filteredInvoices = useMemo(
     () =>
-      filterWorkspaceInvoices(invoices, {
+      filterWorkspaceInvoices(visibleInvoices, {
         query: search,
         filters,
         range: { from: dateFrom, to: dateTo },
       }),
-    [dateFrom, dateTo, filters, invoices, search]
+    [dateFrom, dateTo, filters, search, visibleInvoices]
   );
   const selectedInvoices = useMemo(
     () => pickSelectedRows(filteredInvoices, selectedInvoiceIds),
@@ -94,13 +100,13 @@ export default function InvoicesPage() {
     filteredInvoices.length > 0 && filteredInvoices.every((invoice) => selectedInvoiceIds.has(invoice.id));
   const customerOptions = useMemo(() => {
     const options = new Map<string, string>();
-    for (const invoice of invoices) {
+    for (const invoice of visibleInvoices) {
       if (invoice.customerId) {
         options.set(invoice.customerId, invoice.customerName ?? 'Customer');
       }
     }
     return Array.from(options.entries()).sort((left, right) => left[1].localeCompare(right[1]));
-  }, [invoices]);
+  }, [visibleInvoices]);
 
   function toggleInvoiceSelection(invoiceId: string) {
     setSelectedInvoiceIds((current) => {
@@ -283,6 +289,9 @@ export default function InvoicesPage() {
             }}>
               Clear view
             </button>
+            <button className="ol-button-secondary" type="button" onClick={() => setShowArchived((current) => !current)}>
+              {showArchived ? 'Hide archived' : `Show archived${archivedInvoiceCount ? ` (${archivedInvoiceCount})` : ''}`}
+            </button>
             <button className="ol-button" type="button" disabled={!filteredInvoices.length} onClick={exportInvoices}>
               Export {selectedInvoiceIds.size ? 'selected' : 'view'}
             </button>
@@ -332,6 +341,7 @@ export default function InvoicesPage() {
                 >
                   {invoice.invoiceNumber}
                 </Link>
+                {invoice.isArchived ? <span className="ol-chip ol-chip--tax" style={{ marginLeft: 8 }}>Archived</span> : null}
                 <button
                   className="ol-link-button"
                   type="button"

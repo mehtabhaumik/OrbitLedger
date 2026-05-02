@@ -107,6 +107,7 @@ export type WorkspaceInvoice = {
   paymentStatus: InvoicePaymentStatus;
   versionNumber: number;
   serverRevision?: number;
+  isArchived: boolean;
   versions?: WorkspaceInvoiceVersion[];
 };
 
@@ -1503,6 +1504,7 @@ export async function getWorkspaceInvoiceDetail(
     document_state?: string;
     payment_status?: string;
     version_number?: number;
+    is_archived?: boolean;
     latest_version_id?: string | null;
     latest_snapshot_hash?: string | null;
     notes?: string | null;
@@ -1532,6 +1534,7 @@ export async function getWorkspaceInvoiceDetail(
     documentState,
     paymentStatus,
     versionNumber: data.version_number ?? (documentState === 'draft' ? 0 : 1),
+    isArchived: Boolean(data.is_archived),
     latestVersionId: data.latest_version_id ?? null,
     latestSnapshotHash: data.latest_snapshot_hash ?? null,
     serverRevision: data.server_revision ?? 1,
@@ -2033,6 +2036,7 @@ export async function createDraftWorkspaceInvoice(workspaceId: string): Promise<
     version_number: 0,
     latest_version_id: null,
     latest_snapshot_hash: null,
+    is_archived: false,
     notes: null,
     created_at: now,
     last_modified: now,
@@ -2053,9 +2057,93 @@ export async function createDraftWorkspaceInvoice(workspaceId: string): Promise<
     documentState: 'draft',
     paymentStatus: 'unpaid',
     versionNumber: 0,
+    isArchived: false,
     versions: [],
     serverRevision: payload.server_revision,
   };
+}
+
+export async function deleteDraftWorkspaceInvoice(workspaceId: string, invoiceId: string): Promise<void> {
+  const firestore = getWebFirestore();
+  const invoiceRef = doc(firestore, 'workspaces', workspaceId, 'invoices', invoiceId);
+  const [invoiceSnapshot, itemSnapshot, versionSnapshot, allocationSnapshot] = await Promise.all([
+    getDoc(invoiceRef),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'invoice_items'),
+        where('invoice_id', '==', invoiceId)
+      )
+    ),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'invoice_versions'),
+        where('invoice_id', '==', invoiceId)
+      )
+    ),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'payment_allocations'),
+        where('invoice_id', '==', invoiceId)
+      )
+    ),
+  ]);
+
+  if (!invoiceSnapshot.exists()) {
+    throw new Error('Invoice could not be found.');
+  }
+
+  const data = invoiceSnapshot.data() as {
+    status?: string;
+    document_state?: string;
+    version_number?: number;
+  };
+  const documentState = normalizeInvoiceDocumentState(data.document_state ?? data.status);
+  if (documentState !== 'draft' || Number(data.version_number ?? 0) > 0 || versionSnapshot.size > 0) {
+    throw new Error('Only unsaved draft invoices can be deleted.');
+  }
+  if (allocationSnapshot.size > 0) {
+    throw new Error('This invoice has payment activity. Cancel or archive it instead.');
+  }
+
+  const batch = writeBatch(firestore);
+  itemSnapshot.docs.forEach((entry) => batch.delete(entry.ref));
+  batch.delete(invoiceRef);
+  await batch.commit();
+}
+
+export async function archiveWorkspaceInvoice(
+  workspaceId: string,
+  invoiceId: string,
+  isArchived: boolean
+): Promise<WorkspaceInvoiceDetail> {
+  const firestore = getWebFirestore();
+  const invoiceRef = doc(firestore, 'workspaces', workspaceId, 'invoices', invoiceId);
+  const invoiceSnapshot = await getDoc(invoiceRef);
+  if (!invoiceSnapshot.exists()) {
+    throw new Error('Invoice could not be found.');
+  }
+
+  const data = invoiceSnapshot.data() as {
+    status?: string;
+    document_state?: string;
+  };
+  const documentState = normalizeInvoiceDocumentState(data.document_state ?? data.status);
+  if (documentState === 'draft') {
+    throw new Error('Delete an unsaved draft instead of archiving it.');
+  }
+
+  const now = new Date().toISOString();
+  await updateDoc(invoiceRef, {
+    is_archived: isArchived,
+    last_modified: now,
+    server_revision: increment(1),
+  });
+
+  const updated = await getWorkspaceInvoiceDetail(workspaceId, invoiceId);
+  if (!updated) {
+    throw new Error('Invoice could not be loaded after updating archive state.');
+  }
+  return updated;
 }
 
 function mapWorkspaceInvoice(entry: QueryDocumentSnapshot): WorkspaceInvoice {
@@ -2071,6 +2159,7 @@ function mapWorkspaceInvoice(entry: QueryDocumentSnapshot): WorkspaceInvoice {
     payment_status?: string;
     due_date?: string | null;
     version_number?: number;
+    is_archived?: boolean;
     server_revision?: number;
   };
   const documentState = normalizeInvoiceDocumentState(data.document_state ?? data.status);
@@ -2094,6 +2183,7 @@ function mapWorkspaceInvoice(entry: QueryDocumentSnapshot): WorkspaceInvoice {
     documentState,
     paymentStatus,
     versionNumber: data.version_number ?? (documentState === 'draft' ? 0 : 1),
+    isArchived: Boolean(data.is_archived),
     serverRevision: data.server_revision ?? 1,
   };
 }

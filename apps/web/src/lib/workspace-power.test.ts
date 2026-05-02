@@ -187,7 +187,7 @@ function makeTransaction(overrides: Partial<WorkspaceTransaction>): WorkspaceTra
 }
 
 function makeInvoice(overrides: Partial<WorkspaceInvoice>): WorkspaceInvoice {
-  return {
+  const invoice: WorkspaceInvoice = {
     id: 'invoice',
     customerId: null,
     customerName: null,
@@ -199,7 +199,9 @@ function makeInvoice(overrides: Partial<WorkspaceInvoice>): WorkspaceInvoice {
     documentState: 'draft',
     paymentStatus: 'unpaid',
     versionNumber: 0,
+    isArchived: false,
     versions: [],
     ...overrides,
   };
+  return { ...invoice, isArchived: invoice.isArchived ?? false };
 }

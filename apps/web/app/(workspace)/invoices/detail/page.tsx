@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   appendPaymentLinkToMessage,
   buildInvoicePaymentLink,
@@ -27,7 +27,9 @@ import {
 
 import { AppShell } from '@/components/app-shell';
 import {
+  archiveWorkspaceInvoice,
   createWorkspaceInvoicePayment,
+  deleteDraftWorkspaceInvoice,
   getWorkspaceInvoiceDetail,
   listWorkspaceInvoicePaymentAllocations,
   listWorkspaceCustomers,
@@ -70,6 +72,7 @@ export default function InvoiceEditorPage() {
 
 function InvoiceEditorContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const invoiceId = searchParams.get('invoiceId') ?? '';
   const { activeWorkspace } = useWorkspace();
   const { showToast } = useToast();
@@ -515,11 +518,66 @@ function InvoiceEditorContent() {
   }
 
   async function cancelInvoice() {
+    if (!invoice || invoice.documentState === 'draft') {
+      showToast('Delete an unsaved draft instead of cancelling it.', 'info');
+      return;
+    }
     if (!window.confirm('Cancel this invoice? This keeps the history but marks the document as cancelled.')) {
       return;
     }
 
     await saveInvoice(paymentStatus, 'Invoice cancelled', 'cancelled');
+  }
+
+  async function deleteDraftInvoice() {
+    if (!activeWorkspace || !invoice) {
+      return;
+    }
+    if (invoice.documentState !== 'draft') {
+      showToast('Only unsaved drafts can be deleted.', 'info');
+      return;
+    }
+    if (!window.confirm('Delete this draft invoice? It was never final, so no invoice history will be kept.')) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await deleteDraftWorkspaceInvoice(activeWorkspace.workspaceId, invoice.id);
+      showToast('Draft invoice deleted.', 'success');
+      router.push('/invoices');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Draft invoice could not be deleted.', 'danger');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function toggleInvoiceArchive() {
+    if (!activeWorkspace || !invoice) {
+      return;
+    }
+    const nextArchived = !invoice.isArchived;
+    if (
+      !window.confirm(
+        nextArchived
+          ? 'Archive this invoice? It will be hidden from the active invoice list, but the history stays available.'
+          : 'Move this invoice back to the active invoice list?'
+      )
+    ) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const updated = await archiveWorkspaceInvoice(activeWorkspace.workspaceId, invoice.id, nextArchived);
+      setInvoice(updated);
+      showToast(nextArchived ? 'Invoice archived.' : 'Invoice restored to active list.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Invoice archive state could not be updated.', 'danger');
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -548,7 +606,16 @@ function InvoiceEditorContent() {
         <button className="ol-button-secondary" type="button" onClick={() => void recordInvoicePayment(dueAmount)} disabled={isRecordingPayment || !invoice || dueAmount <= 0}>
           Record due payment
         </button>
-        <button className="ol-button-secondary" type="button" onClick={() => void cancelInvoice()} disabled={isSaving || !invoice || invoice.documentState === 'cancelled'}>
+        {invoice?.documentState === 'draft' ? (
+          <button className="ol-button-secondary" type="button" onClick={() => void deleteDraftInvoice()} disabled={isSaving || !invoice}>
+            Delete draft
+          </button>
+        ) : (
+          <button className="ol-button-secondary" type="button" onClick={() => void toggleInvoiceArchive()} disabled={isSaving || !invoice}>
+            {invoice?.isArchived ? 'Unarchive invoice' : 'Archive invoice'}
+          </button>
+        )}
+        <button className="ol-button-secondary" type="button" onClick={() => void cancelInvoice()} disabled={isSaving || !invoice || invoice.documentState === 'draft' || invoice.documentState === 'cancelled'}>
           Cancel invoice
         </button>
         <button className="ol-button" type="button" onClick={() => void saveInvoice()} disabled={isSaving || !invoice}>
@@ -593,6 +660,7 @@ function InvoiceEditorContent() {
               <Review label="Payment state" value={getInvoicePaymentStatusLabel(paymentStatus)} />
               <Review label="Latest version" value={invoice.versionNumber ? `v${invoice.versionNumber}` : 'Not saved yet'} />
               <Review label="Saved history" value={`${invoice.versions?.length ?? 0} version${(invoice.versions?.length ?? 0) === 1 ? '' : 's'}`} />
+              <Review label="List visibility" value={invoice.isArchived ? 'Archived' : 'Active'} />
             </div>
             <label className="ol-field" style={{ marginTop: 16 }}>
               <span className="ol-field-label">Revision note</span>

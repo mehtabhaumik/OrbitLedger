@@ -112,6 +112,7 @@ describe('web document parity', () => {
       documentState: 'created',
       paymentStatus: 'unpaid',
       versionNumber: 3,
+      isArchived: false,
       latestVersionId: 'version-3',
       latestSnapshotHash: 'snapshot-3',
       customerName: customer.name,
