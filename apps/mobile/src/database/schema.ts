@@ -355,6 +355,26 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
         ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS payment_reversals (
+      id TEXT PRIMARY KEY,
+      original_transaction_id TEXT,
+      reversal_transaction_id TEXT,
+      allocation_id TEXT,
+      invoice_id TEXT,
+      customer_id TEXT,
+      amount REAL NOT NULL DEFAULT 0,
+      allocation_amount REAL NOT NULL DEFAULT 0,
+      balance_delta REAL NOT NULL DEFAULT 0,
+      reason TEXT,
+      source TEXT,
+      reference TEXT,
+      created_at TEXT NOT NULL,
+      sync_id TEXT NOT NULL DEFAULT '',
+      last_modified TEXT NOT NULL DEFAULT '',
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      server_revision INTEGER NOT NULL DEFAULT 0
+    );
+
     CREATE TABLE IF NOT EXISTS app_security (
       id TEXT PRIMARY KEY,
       pin_enabled INTEGER NOT NULL DEFAULT 0
@@ -586,6 +606,8 @@ export async function initializeSchema(db: SQLiteDatabase): Promise<void> {
       ON invoice_versions(sync_status, last_modified);
     CREATE INDEX IF NOT EXISTS idx_payment_allocations_sync_status
       ON payment_allocations(sync_status, last_modified);
+    CREATE INDEX IF NOT EXISTS idx_payment_reversals_sync_status
+      ON payment_reversals(sync_status, last_modified);
   `);
 }
 
@@ -616,6 +638,7 @@ async function ensureSyncMetadataColumns(db: SQLiteDatabase): Promise<void> {
     { name: 'invoice_items', modifiedAtExpression: "datetime('now')" },
     { name: 'invoice_versions', modifiedAtExpression: 'created_at' },
     { name: 'payment_allocations', modifiedAtExpression: 'created_at' },
+    { name: 'payment_reversals', modifiedAtExpression: 'created_at' },
   ];
 
   for (const table of syncTables) {

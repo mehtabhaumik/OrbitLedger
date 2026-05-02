@@ -18,7 +18,8 @@ type SupportedWorkspaceEntity =
   | 'products'
   | 'invoices'
   | 'invoice_items'
-  | 'payment_allocations';
+  | 'payment_allocations'
+  | 'payment_reversals';
 
 export type RemoteWorkspaceRecord<TPayload extends Record<string, unknown>> = TPayload & {
   id: string;
@@ -104,6 +105,7 @@ export type RemoteWorkspaceDataset = {
       created_at: string;
     }>
   >;
+  payment_reversals: Array<RemoteWorkspaceRecord<Record<string, unknown>>>;
 };
 
 export type RemoteWorkspaceUpsertInput = {
@@ -127,6 +129,7 @@ const ENTITY_TO_COLLECTION: Record<SupportedWorkspaceEntity, string> = {
   invoices: 'invoices',
   invoice_items: 'invoice_items',
   payment_allocations: 'payment_allocations',
+  payment_reversals: 'payment_reversals',
 };
 
 function getWorkspaceRef(workspaceId: string) {
@@ -149,7 +152,8 @@ function assertSupportedEntity(entity: OrbitSyncEntityName): SupportedWorkspaceE
     entity === 'products' ||
     entity === 'invoices' ||
     entity === 'invoice_items' ||
-    entity === 'payment_allocations'
+    entity === 'payment_allocations' ||
+    entity === 'payment_reversals'
   ) {
     return entity;
   }
@@ -238,13 +242,14 @@ export async function upsertWorkspaceEntity(
 }
 
 export async function fetchWorkspaceDataset(workspaceId: string): Promise<RemoteWorkspaceDataset> {
-  const [customers, transactions, products, invoices, invoiceItems, paymentAllocations] = await Promise.all([
+  const [customers, transactions, products, invoices, invoiceItems, paymentAllocations, paymentReversals] = await Promise.all([
     loadCollection(workspaceId, 'customers'),
     loadCollection(workspaceId, 'transactions'),
     loadCollection(workspaceId, 'products'),
     loadCollection(workspaceId, 'invoices'),
     loadCollection(workspaceId, 'invoice_items'),
     loadCollection(workspaceId, 'payment_allocations'),
+    loadCollection(workspaceId, 'payment_reversals'),
   ]);
 
   return {
@@ -254,6 +259,7 @@ export async function fetchWorkspaceDataset(workspaceId: string): Promise<Remote
     invoices,
     invoice_items: invoiceItems,
     payment_allocations: paymentAllocations,
+    payment_reversals: paymentReversals,
   } as RemoteWorkspaceDataset;
 }
 

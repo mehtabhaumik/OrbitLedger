@@ -31,6 +31,7 @@ const SYNC_TABLES: Record<OrbitSyncEntityName, string> = {
   invoices: 'invoices',
   invoice_items: 'invoice_items',
   payment_allocations: 'payment_allocations',
+  payment_reversals: 'payment_reversals',
   tax_profiles: 'tax_profiles',
 };
 
@@ -41,6 +42,7 @@ const WORKSPACE_SYNC_ORDER: OrbitSyncEntityName[] = [
   'invoices',
   'invoice_items',
   'payment_allocations',
+  'payment_reversals',
   'transactions',
 ];
 
@@ -565,6 +567,7 @@ async function pullRemoteWorkspaceChanges(): Promise<SyncPullResult> {
     pulled += await applyRemoteInvoices(db, workspace.workspaceId, dataset.invoices);
     pulled += await applyRemoteInvoiceItems(db, workspace.workspaceId, dataset.invoice_items);
     pulled += await applyRemotePaymentAllocations(db, workspace.workspaceId, dataset.payment_allocations);
+    pulled += await applyRemotePaymentReversals(db, workspace.workspaceId, dataset.payment_reversals);
     pulled += await applyRemoteTransactions(db, workspace.workspaceId, dataset.transactions);
   });
 
@@ -630,20 +633,21 @@ function sortSyncChanges(changes: SyncRecordPointer[]) {
 
 function isWorkspaceEntity(
   entity: OrbitSyncEntityName
-): entity is 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' | 'payment_allocations' {
+): entity is 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' | 'payment_allocations' | 'payment_reversals' {
   return (
     entity === 'customers' ||
     entity === 'transactions' ||
     entity === 'products' ||
     entity === 'invoices' ||
     entity === 'invoice_items' ||
-    entity === 'payment_allocations'
+    entity === 'payment_allocations' ||
+    entity === 'payment_reversals'
   );
 }
 
 async function getLocalRowForWorkspaceEntity(
   db: Awaited<ReturnType<typeof getDatabase>>,
-  entity: 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' | 'payment_allocations',
+  entity: 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' | 'payment_allocations' | 'payment_reversals',
   localId: string
 ): Promise<Record<string, unknown> | null> {
   const tableName = SYNC_TABLES[entity];
@@ -728,6 +732,11 @@ function buildWorkspacePayload(entity: OrbitSyncEntityName, row: Record<string, 
         created_at: row.created_at,
         last_modified: row.last_modified,
       };
+    case 'payment_reversals':
+      {
+        const { sync_id: _syncId, sync_status: _syncStatus, server_revision: _serverRevision, ...payload } = row;
+        return payload;
+      }
     default:
       throw new Error(`Unsupported workspace payload entity: ${entity}`);
   }
@@ -735,7 +744,7 @@ function buildWorkspacePayload(entity: OrbitSyncEntityName, row: Record<string, 
 
 async function getExistingLocalSyncRow(
   db: Awaited<ReturnType<typeof getDatabase>>,
-  entity: 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' | 'payment_allocations',
+  entity: 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' | 'payment_allocations' | 'payment_reversals',
   remoteId: string
 ) {
   const tableName = SYNC_TABLES[entity];
@@ -758,7 +767,7 @@ async function getExistingLocalSyncRow(
 async function shouldSkipRemoteApply(
   db: Awaited<ReturnType<typeof getDatabase>>,
   workspaceId: string,
-  entity: 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' | 'payment_allocations',
+  entity: 'customers' | 'transactions' | 'products' | 'invoices' | 'invoice_items' | 'payment_allocations' | 'payment_reversals',
   remoteRecord: { id: string; last_modified: string; server_revision: number }
 ) {
   const existing = await getExistingLocalSyncRow(db, entity, remoteRecord.id);
@@ -1115,6 +1124,66 @@ async function applyRemotePaymentAllocations(
     applied += 1;
   }
   return applied;
+}
+
+async function applyRemotePaymentReversals(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  workspaceId: string,
+  records: Awaited<ReturnType<typeof fetchWorkspaceDataset>>['payment_reversals']
+) {
+  let applied = 0;
+  for (const record of records) {
+    if (await shouldSkipRemoteApply(db, workspaceId, 'payment_reversals', record)) {
+      continue;
+    }
+
+    await db.runAsync(
+      `INSERT INTO payment_reversals (
+          id, original_transaction_id, reversal_transaction_id, allocation_id, invoice_id, customer_id,
+          amount, allocation_amount, balance_delta, reason, source, reference, created_at,
+          sync_id, last_modified, sync_status, server_revision
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
+        ON CONFLICT(id) DO UPDATE SET
+          original_transaction_id = excluded.original_transaction_id,
+          reversal_transaction_id = excluded.reversal_transaction_id,
+          allocation_id = excluded.allocation_id,
+          invoice_id = excluded.invoice_id,
+          customer_id = excluded.customer_id,
+          amount = excluded.amount,
+          allocation_amount = excluded.allocation_amount,
+          balance_delta = excluded.balance_delta,
+          reason = excluded.reason,
+          source = excluded.source,
+          reference = excluded.reference,
+          created_at = excluded.created_at,
+          sync_id = excluded.sync_id,
+          last_modified = excluded.last_modified,
+          sync_status = 'synced',
+          server_revision = excluded.server_revision`,
+      record.id,
+      stringOrNull(record.original_transaction_id),
+      stringOrNull(record.reversal_transaction_id),
+      stringOrNull(record.allocation_id),
+      stringOrNull(record.invoice_id),
+      stringOrNull(record.customer_id),
+      Number(record.amount ?? 0),
+      Number(record.allocation_amount ?? 0),
+      Number(record.balance_delta ?? 0),
+      stringOrNull(record.reason),
+      stringOrNull(record.source),
+      stringOrNull(record.reference),
+      stringOrNull(record.created_at) ?? record.last_modified,
+      record.id,
+      record.last_modified,
+      record.server_revision
+    );
+    applied += 1;
+  }
+  return applied;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
 }
 
 function legacyDocumentState(status: string): 'draft' | 'created' | 'revised' | 'cancelled' {
