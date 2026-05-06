@@ -57,12 +57,16 @@ import {
 } from '@/lib/purchase-launch-monitoring';
 import {
   WEB_BETA_FREE_ONLY,
+  WEB_OFFICE_INVITATION_SUBJECT,
   WEB_COUNTRY_PACK_PRODUCT_CATALOG,
   WEB_PRO_BRAND_THEMES,
   WEB_TIER_PLAN_COMPARISON,
+  buildWebOfficeInvitationMailto,
+  createDefaultWebOfficeInvitationMessage,
   getWebPaidPlanCatalogForCountry,
   getWebPurchaseStatusCopy,
   resolveWebPlanChangeRule,
+  validateWebOfficeInvitationInput,
 } from '@/lib/web-monetization';
 import { getWebDocumentTemplates } from '@/lib/web-documents';
 import { useAuth } from '@/providers/auth-provider';
@@ -95,6 +99,20 @@ export default function MarketPage() {
   const [isSavingRenewalChange, setIsSavingRenewalChange] = useState(false);
   const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false);
   const [billingDocumentActionId, setBillingDocumentActionId] = useState<string | null>(null);
+  const [officeInvitationOpen, setOfficeInvitationOpen] = useState(false);
+  const [officeInvitation, setOfficeInvitation] = useState({
+    fullName: '',
+    email: '',
+    bestContactNumber: '',
+    alternateContactNumber: '',
+    message: createDefaultWebOfficeInvitationMessage(activeWorkspace?.businessName),
+  });
+  const [officeInvitationErrors, setOfficeInvitationErrors] = useState({
+    fullName: null as string | null,
+    email: null as string | null,
+    bestContactNumber: null as string | null,
+    message: null as string | null,
+  });
   const purchaseStatus = getWebPurchaseStatusCopy(
     subscription,
     checkoutIntent,
@@ -137,6 +155,41 @@ export default function MarketPage() {
   );
   const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
   const statementTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'statement') : [];
+
+  function openOfficeInvitationForm() {
+    setOfficeInvitation({
+      fullName: user?.displayName ?? '',
+      email: user?.email ?? '',
+      bestContactNumber: activeWorkspace?.phone ?? '',
+      alternateContactNumber: '',
+      message: createDefaultWebOfficeInvitationMessage(activeWorkspace?.businessName),
+    });
+    setOfficeInvitationErrors({
+      fullName: null,
+      email: null,
+      bestContactNumber: null,
+      message: null,
+    });
+    setOfficeInvitationOpen(true);
+  }
+
+  function sendOfficeInvitationRequest() {
+    const input = {
+      ...officeInvitation,
+      businessName: activeWorkspace?.businessName,
+      userEmail: user?.email,
+    };
+    const validation = validateWebOfficeInvitationInput(input);
+    setOfficeInvitationErrors(validation.fieldErrors);
+    if (!validation.valid) {
+      showToast('Please complete the highlighted fields before sending the request.', 'danger');
+      return;
+    }
+
+    window.location.href = buildWebOfficeInvitationMailto(input);
+    setOfficeInvitationOpen(false);
+    showToast('Office invitation request opened in your email app.', 'success');
+  }
 
   async function prepareCheckout(planId: OrbitLedgerPaidPlanId, retryIntentId?: string) {
     if (WEB_BETA_FREE_ONLY) {
@@ -460,10 +513,18 @@ export default function MarketPage() {
             {paidPlanCatalog.map((plan) => {
               const planChange = resolveWebPlanChangeRule(subscription, plan.id, checkoutIntent);
               const isPreparingPlan = preparingPlanId === plan.id;
+              const isOfficePlan = plan.tier === 'office';
               const isPlanLocked = !planChange.canStartCheckout && !planChange.canQueueRenewalChange;
               const queuedRenewalChange = renewalChanges.find(
                 (item) => item.status === 'queued' && item.targetPlanId === plan.id
               );
+              const planButtonDisabled =
+                !isOfficePlan &&
+                (WEB_BETA_FREE_ONLY ||
+                  isPlanLocked ||
+                  Boolean(preparingPlanId) ||
+                  isSavingRenewalChange ||
+                  Boolean(queuedRenewalChange));
               return (
                 <article className="ol-market-card ol-pricing-card" key={plan.id}>
                   <div className="ol-market-card-header">
@@ -485,22 +546,28 @@ export default function MarketPage() {
                                 : 'ol-chip--primary'
                       }`}
                     >
-                      {plan.isBestValue && planChange.kind === 'new_purchase' ? 'Best value' : planChange.chip}
+                      {isOfficePlan
+                        ? 'Invitation only'
+                        : plan.isBestValue && planChange.kind === 'new_purchase'
+                          ? 'Best value'
+                          : planChange.chip}
                     </span>
                   </div>
                   <p>{plan.helper}</p>
-                  <p className="ol-muted">{planChange.helper}</p>
+                  <p className="ol-muted">
+                    {isOfficePlan
+                      ? 'Office is handled by invitation so team access, company setup, and onboarding stay properly reviewed.'
+                      : planChange.helper}
+                  </p>
                   <button
                     className={plan.isBestValue && !isPlanLocked ? 'ol-button' : 'ol-button-secondary'}
-                    disabled={
-                      WEB_BETA_FREE_ONLY ||
-                      isPlanLocked ||
-                      Boolean(preparingPlanId) ||
-                      isSavingRenewalChange ||
-                      Boolean(queuedRenewalChange)
-                    }
+                    disabled={planButtonDisabled}
                     type="button"
                     onClick={() => {
+                      if (isOfficePlan) {
+                        openOfficeInvitationForm();
+                        return;
+                      }
                       if (queuedRenewalChange) {
                         showToast('This renewal change is already queued.', 'info');
                         return;
@@ -516,7 +583,9 @@ export default function MarketPage() {
                       void prepareCheckout(plan.id);
                     }}
                   >
-                    {queuedRenewalChange
+                    {isOfficePlan
+                      ? 'Request invitation'
+                      : queuedRenewalChange
                       ? 'Queued for renewal'
                       : WEB_BETA_FREE_ONLY
                         ? 'Coming soon'
@@ -930,6 +999,117 @@ export default function MarketPage() {
           ))}
         </div>
       </section>
+      {officeInvitationOpen ? (
+        <div className="ol-dialog-backdrop" role="presentation" onMouseDown={() => setOfficeInvitationOpen(false)}>
+          <section
+            aria-modal="true"
+            className="ol-dialog-card"
+            role="dialog"
+            aria-labelledby="office-invitation-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="ol-dialog-header">
+              <div>
+                <div className="ol-panel-title" id="office-invitation-title">
+                  Request Office invitation
+                </div>
+                <p className="ol-panel-copy">
+                  Office is invitation only while team access is reviewed with each business. We will use this request to contact you.
+                </p>
+              </div>
+              <button className="ol-button-ghost" type="button" onClick={() => setOfficeInvitationOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="ol-dialog-list">
+              <div className="ol-message">
+                Subject: {WEB_OFFICE_INVITATION_SUBJECT}
+              </div>
+              <div className="ol-form-grid ol-form-grid--comfortable">
+                <label className={`ol-field${officeInvitationErrors.fullName ? ' is-invalid' : ''}`}>
+                  <span className="ol-field-label">Full name</span>
+                  <input
+                    className="ol-input"
+                    value={officeInvitation.fullName}
+                    onChange={(event) =>
+                      setOfficeInvitation((current) => ({ ...current, fullName: event.target.value }))
+                    }
+                  />
+                  {officeInvitationErrors.fullName ? (
+                    <span className="ol-field-error">{officeInvitationErrors.fullName}</span>
+                  ) : null}
+                </label>
+                <label className={`ol-field${officeInvitationErrors.email ? ' is-invalid' : ''}`}>
+                  <span className="ol-field-label">Email</span>
+                  <input
+                    className="ol-input"
+                    type="email"
+                    value={officeInvitation.email}
+                    onChange={(event) =>
+                      setOfficeInvitation((current) => ({ ...current, email: event.target.value }))
+                    }
+                  />
+                  {officeInvitationErrors.email ? (
+                    <span className="ol-field-error">{officeInvitationErrors.email}</span>
+                  ) : null}
+                </label>
+                <label className={`ol-field${officeInvitationErrors.bestContactNumber ? ' is-invalid' : ''}`}>
+                  <span className="ol-field-label">Best contact number</span>
+                  <input
+                    className="ol-input"
+                    inputMode="tel"
+                    value={officeInvitation.bestContactNumber}
+                    onChange={(event) =>
+                      setOfficeInvitation((current) => ({ ...current, bestContactNumber: event.target.value }))
+                    }
+                  />
+                  {officeInvitationErrors.bestContactNumber ? (
+                    <span className="ol-field-error">{officeInvitationErrors.bestContactNumber}</span>
+                  ) : null}
+                </label>
+                <label className="ol-field">
+                  <span className="ol-field-label">Alternate contact number</span>
+                  <input
+                    className="ol-input"
+                    inputMode="tel"
+                    value={officeInvitation.alternateContactNumber}
+                    onChange={(event) =>
+                      setOfficeInvitation((current) => ({ ...current, alternateContactNumber: event.target.value }))
+                    }
+                  />
+                  <span className="ol-field-help">Optional.</span>
+                </label>
+                <label className={`ol-field ol-field--wide${officeInvitationErrors.message ? ' is-invalid' : ''}`}>
+                  <span className="ol-field-label">Message</span>
+                  <textarea
+                    className="ol-textarea"
+                    rows={9}
+                    value={officeInvitation.message}
+                    onChange={(event) =>
+                      setOfficeInvitation((current) => ({ ...current, message: event.target.value }))
+                    }
+                  />
+                  {officeInvitationErrors.message ? (
+                    <span className="ol-field-error">{officeInvitationErrors.message}</span>
+                  ) : (
+                    <span className="ol-field-help" style={{ maxWidth: 'none' }}>
+                      You can use this message as-is or adjust it before sending.
+                    </span>
+                  )}
+                </label>
+              </div>
+              <div className="ol-actions">
+                <button className="ol-button" type="button" onClick={sendOfficeInvitationRequest}>
+                  Open email request
+                </button>
+                <button className="ol-button-secondary" type="button" onClick={() => setOfficeInvitationOpen(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </AppShell>
   );
 }

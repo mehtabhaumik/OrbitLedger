@@ -7,6 +7,11 @@ import {
   getWebPaidPlanCatalogForCountry,
   getWebPaidSubscriptionStatus,
   getWebPurchaseStatusCopy,
+  WEB_OFFICE_INVITATION_SUBJECT,
+  buildWebOfficeInvitationMailto,
+  createDefaultWebOfficeInvitationMessage,
+  resolveWebWorkspaceCreationAccess,
+  validateWebOfficeInvitationInput,
   attachWebCheckoutProvider,
   createWebStoredSubscriptionStatus,
   canActivateWebCheckoutIntent,
@@ -53,6 +58,10 @@ describe('web monetization feature gates', () => {
       allowed: true,
       requiredTier: 'pro',
     });
+    expect(resolveWebFeatureAccess(pro, 'multi_business_profiles')).toMatchObject({
+      allowed: true,
+      requiredTier: 'pro',
+    });
     expect(resolveWebFeatureAccess(pro, 'multi_user_workspace')).toMatchObject({
       allowed: false,
       requiredTier: 'office',
@@ -62,10 +71,56 @@ describe('web monetization feature gates', () => {
   it('unlocks Office-only workflows for Office', () => {
     const office = getWebPaidSubscriptionStatus('office_yearly');
 
+    expect(resolveWebFeatureAccess(office, 'multi_business_profiles')).toMatchObject({
+      allowed: true,
+      requiredTier: 'pro',
+    });
     expect(resolveWebFeatureAccess(office, 'accountant_exports')).toMatchObject({
       allowed: true,
       requiredTier: 'office',
     });
+  });
+
+  it('separates one-owner multi-company access from Office team access', () => {
+    const free = getDefaultWebSubscriptionStatus();
+    const plus = getWebPaidSubscriptionStatus('plus_yearly');
+    const pro = getWebPaidSubscriptionStatus('pro_yearly');
+    const office = getWebPaidSubscriptionStatus('office_yearly');
+
+    expect(resolveWebWorkspaceCreationAccess(free, 0)).toMatchObject({ allowed: true });
+    expect(resolveWebWorkspaceCreationAccess(free, 1)).toMatchObject({
+      allowed: false,
+      requiredTier: 'pro',
+      requiredPlanLabel: 'Pro Plus',
+    });
+    expect(resolveWebWorkspaceCreationAccess(plus, 1)).toMatchObject({ allowed: false });
+    expect(resolveWebWorkspaceCreationAccess(pro, 1)).toMatchObject({ allowed: true });
+    expect(resolveWebFeatureAccess(pro, 'multi_user_workspace')).toMatchObject({ allowed: false });
+    expect(resolveWebFeatureAccess(office, 'multi_user_workspace')).toMatchObject({ allowed: true });
+  });
+
+  it('keeps Office invitation requests separate from self-serve checkout', () => {
+    const message = createDefaultWebOfficeInvitationMessage('Rudraix PVT');
+    const input = {
+      fullName: 'Bhaumik Mehta',
+      email: 'owner@example.com',
+      bestContactNumber: '+91 90000 00000',
+      alternateContactNumber: '',
+      message,
+      businessName: 'Rudraix PVT',
+      userEmail: 'signed-in@example.com',
+    };
+
+    expect(message).toContain('Orbit Ledger Office');
+    expect(validateWebOfficeInvitationInput(input)).toMatchObject({ valid: true });
+    expect(validateWebOfficeInvitationInput({ ...input, email: 'bad' })).toMatchObject({
+      valid: false,
+    });
+
+    const mailto = buildWebOfficeInvitationMailto(input);
+    expect(mailto).toContain('mailto:support@rudraix.com');
+    expect(decodeURIComponent(mailto)).toContain(WEB_OFFICE_INVITATION_SUBJECT);
+    expect(decodeURIComponent(mailto)).toContain('Best contact number: +91 90000 00000');
   });
 
   it('returns consistent user-facing plan labels for locked features', () => {

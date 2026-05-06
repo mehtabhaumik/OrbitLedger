@@ -71,6 +71,7 @@ export default function InvoiceAutomationPage() {
   const [form, setForm] = useState<RecurringInvoiceFormState>(() => defaultRecurringForm());
   const [isSaving, setIsSaving] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const recurringRuleAccess = resolveWebFeatureAccess(subscription, 'recurring_invoice_rules');
   const recurringAutoEmailAccess = resolveWebFeatureAccess(subscription, 'recurring_auto_email');
   const editingRule = useMemo(() => rules.find((rule) => rule.id === ruleId) ?? null, [ruleId, rules]);
   const selectedCustomer = useMemo(
@@ -150,22 +151,31 @@ export default function InvoiceAutomationPage() {
     if (!activeWorkspace) {
       return;
     }
-    if (!recurringAutoEmailAccess.allowed) {
-      showToast(recurringAutoEmailAccess.message ?? 'Monthly auto email is not included in your plan.', 'info');
+    if (!recurringRuleAccess.allowed) {
+      showToast(recurringRuleAccess.message ?? 'Monthly recurring invoices are not included in your plan.', 'info');
       return;
     }
-
     setIsSaving(true);
     try {
       const saved = await saveWorkspaceRecurringInvoiceRule(
         activeWorkspace.workspaceId,
-        recurringFormToInput(form),
+        recurringFormToInput(form, recurringAutoEmailAccess.allowed),
         editingRule?.id
       );
-      showToast(saved.emailAutomationApproved ? 'Monthly auto email approved and saved.' : 'Monthly auto email saved for review.', 'success');
+      const emailWasStripped = form.emailEnabled && !recurringAutoEmailAccess.allowed;
+      showToast(
+        emailWasStripped
+          ? 'Monthly invoice rule saved without automatic email.'
+          : saved.emailEnabled
+          ? saved.emailAutomationApproved
+            ? 'Monthly auto email approved and saved.'
+            : 'Monthly auto email saved for review.'
+          : 'Monthly invoice rule saved.',
+        'success'
+      );
       router.push('/invoices' as Route);
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Monthly auto email could not be saved.', 'danger');
+      showToast(error instanceof Error ? error.message : 'Monthly rule could not be saved.', 'danger');
     } finally {
       setIsSaving(false);
     }
@@ -188,7 +198,7 @@ export default function InvoiceAutomationPage() {
   }
 
   return (
-    <AppShell title="Monthly auto email" subtitle="Create customer-specific monthly invoice and email rules.">
+    <AppShell title="Monthly invoices" subtitle="Create customer-specific recurring invoice rules and optional automatic email.">
       <div className="ol-inline-actions" style={{ marginBottom: 18 }}>
         <Link className="ol-button-secondary" href={'/invoices' as Route}>
           Back to invoices
@@ -198,17 +208,17 @@ export default function InvoiceAutomationPage() {
       <section className="ol-panel-glass">
         <div className="ol-section-heading">
           <div>
-            <div className="ol-panel-title">{editingRule ? 'View / edit auto email' : 'New auto email'}</div>
+            <div className="ol-panel-title">{editingRule ? 'View / edit monthly rule' : 'New monthly rule'}</div>
             <p className="ol-panel-copy">
-              Orbit Ledger prepares the invoice before the email date, then sends only after this rule is approved.
+              Orbit Ledger prepares monthly invoices from this rule. Pro Plus can also send approved customer emails automatically.
             </p>
           </div>
           <ApprovalSummary rule={editingRule} />
         </div>
 
-        {!recurringAutoEmailAccess.allowed ? (
+        {!recurringRuleAccess.allowed ? (
           <div className="ol-message" style={{ marginBottom: 18 }}>
-            {recurringAutoEmailAccess.message}
+            {recurringRuleAccess.message}
           </div>
         ) : null}
 
@@ -388,15 +398,22 @@ export default function InvoiceAutomationPage() {
             <input
               className="ol-checkbox"
               checked={form.emailEnabled}
+              disabled={!recurringAutoEmailAccess.allowed}
               type="checkbox"
               onChange={(event) => setForm((current) => ({ ...current, emailEnabled: event.target.checked, approveEmailAutomation: false }))}
             />
             <span>Send invoice email automatically</span>
           </label>
+          {!recurringAutoEmailAccess.allowed ? (
+            <div className="ol-message ol-field--wide">
+              {recurringAutoEmailAccess.message} Recurring invoice rules can still be saved without automatic email.
+            </div>
+          ) : null}
           <label className="ol-checkbox-row ol-field--wide">
             <input
               className="ol-checkbox"
               checked={form.emailCurrentMonthOnly}
+              disabled={!recurringAutoEmailAccess.allowed}
               type="checkbox"
               onChange={(event) => setForm((current) => ({ ...current, emailCurrentMonthOnly: event.target.checked, approveEmailAutomation: false }))}
             />
@@ -409,6 +426,7 @@ export default function InvoiceAutomationPage() {
             <span className="ol-field-label">Recipient email</span>
             <input
               className="ol-input"
+              disabled={!recurringAutoEmailAccess.allowed}
               value={form.emailRecipient}
               onChange={(event) => setForm((current) => ({ ...current, emailRecipient: event.target.value, approveEmailAutomation: false }))}
             />
@@ -417,6 +435,7 @@ export default function InvoiceAutomationPage() {
             <span className="ol-field-label">Send email on</span>
             <select
               className="ol-select"
+              disabled={!recurringAutoEmailAccess.allowed}
               value={form.emailDay}
               onChange={(event) => setForm((current) => ({ ...current, emailDay: event.target.value, approveEmailAutomation: false }))}
             >
@@ -432,6 +451,7 @@ export default function InvoiceAutomationPage() {
             <input
               className="ol-checkbox"
               checked={form.emailAttachPdf}
+              disabled={!recurringAutoEmailAccess.allowed}
               type="checkbox"
               onChange={(event) => setForm((current) => ({ ...current, emailAttachPdf: event.target.checked, approveEmailAutomation: false }))}
             />
@@ -441,6 +461,7 @@ export default function InvoiceAutomationPage() {
             <input
               className="ol-checkbox"
               checked={form.emailIncludePaymentLink}
+              disabled={!recurringAutoEmailAccess.allowed}
               type="checkbox"
               onChange={(event) => setForm((current) => ({ ...current, emailIncludePaymentLink: event.target.checked, approveEmailAutomation: false }))}
             />
@@ -450,6 +471,7 @@ export default function InvoiceAutomationPage() {
             <span className="ol-field-label">Email subject</span>
             <input
               className="ol-input"
+              disabled={!recurringAutoEmailAccess.allowed}
               value={form.emailSubject}
               onChange={(event) => setForm((current) => ({ ...current, emailSubject: event.target.value, approveEmailAutomation: false }))}
             />
@@ -458,6 +480,7 @@ export default function InvoiceAutomationPage() {
             <span className="ol-field-label">Email body</span>
             <textarea
               className="ol-textarea"
+              disabled={!recurringAutoEmailAccess.allowed}
               rows={8}
               value={form.emailBody}
               onChange={(event) => setForm((current) => ({ ...current, emailBody: event.target.value, approveEmailAutomation: false }))}
@@ -474,6 +497,7 @@ export default function InvoiceAutomationPage() {
           <input
             className="ol-checkbox"
             checked={form.approveEmailAutomation}
+            disabled={!recurringAutoEmailAccess.allowed || !form.emailEnabled}
             type="checkbox"
             onChange={(event) => setForm((current) => ({ ...current, approveEmailAutomation: event.target.checked }))}
           />
@@ -483,8 +507,8 @@ export default function InvoiceAutomationPage() {
           Automatic emails pause after meaningful changes until this approval is renewed.
         </p>
         <div className="ol-inline-actions" style={{ marginTop: 18 }}>
-          <button className="ol-button" disabled={isSaving || !recurringAutoEmailAccess.allowed} type="button" onClick={() => void saveAutomation()}>
-            {isSaving ? 'Saving...' : 'Save auto email'}
+          <button className="ol-button" disabled={isSaving || !recurringRuleAccess.allowed} type="button" onClick={() => void saveAutomation()}>
+            {isSaving ? 'Saving...' : form.emailEnabled && recurringAutoEmailAccess.allowed ? 'Save auto email' : 'Save monthly rule'}
           </button>
           {editingRule && editingRule.status === 'active' ? (
             <button className="ol-button-secondary" disabled={isCancelling} type="button" onClick={() => void pauseAutomation()}>
@@ -632,7 +656,11 @@ function emptyRecurringItem(): RecurringInvoiceFormItem {
   };
 }
 
-function recurringFormToInput(form: RecurringInvoiceFormState): SaveWorkspaceRecurringInvoiceRuleInput {
+function recurringFormToInput(
+  form: RecurringInvoiceFormState,
+  canUseAutomaticEmail: boolean
+): SaveWorkspaceRecurringInvoiceRuleInput {
+  const emailEnabled = canUseAutomaticEmail && form.emailEnabled;
   return {
     name: form.name,
     customerId: form.customerId,
@@ -642,15 +670,15 @@ function recurringFormToInput(form: RecurringInvoiceFormState): SaveWorkspaceRec
     dueDays: Number(form.dueDays || 0),
     invoiceNumberPrefix: form.invoiceNumberPrefix,
     notes: form.notes,
-    emailEnabled: form.emailEnabled,
-    emailRecipient: form.emailRecipient,
+    emailEnabled,
+    emailRecipient: emailEnabled ? form.emailRecipient : '',
     emailDay: Number(form.emailDay || form.invoiceDay),
-    emailSubject: form.emailSubject,
-    emailBody: form.emailBody,
-    emailIncludePaymentLink: form.emailIncludePaymentLink,
-    emailAttachPdf: form.emailAttachPdf,
-    emailCurrentMonthOnly: form.emailCurrentMonthOnly,
-    approveEmailAutomation: form.approveEmailAutomation,
+    emailSubject: emailEnabled ? form.emailSubject : '',
+    emailBody: emailEnabled ? form.emailBody : '',
+    emailIncludePaymentLink: emailEnabled && form.emailIncludePaymentLink,
+    emailAttachPdf: emailEnabled && form.emailAttachPdf,
+    emailCurrentMonthOnly: emailEnabled && form.emailCurrentMonthOnly,
+    approveEmailAutomation: emailEnabled && form.approveEmailAutomation,
     items: form.items.map((item) => ({
       id: item.id,
       productId: item.productId ?? null,

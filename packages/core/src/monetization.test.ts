@@ -124,6 +124,8 @@ describe('Orbit Ledger monetization model', () => {
     expect(canUseOrbitLedgerMonetizationFeature('plus', 'customer_health')).toBe(true);
     expect(canUseOrbitLedgerMonetizationFeature('plus', 'premium_templates')).toBe(false);
     expect(canUseOrbitLedgerMonetizationFeature('pro', 'premium_templates')).toBe(true);
+    expect(canUseOrbitLedgerMonetizationFeature('plus', 'multi_business_profiles')).toBe(false);
+    expect(canUseOrbitLedgerMonetizationFeature('pro', 'multi_business_profiles')).toBe(true);
     expect(canUseOrbitLedgerMonetizationFeature('pro', 'multi_user_workspace')).toBe(false);
     expect(canUseOrbitLedgerMonetizationFeature('office', 'multi_user_workspace')).toBe(true);
   });

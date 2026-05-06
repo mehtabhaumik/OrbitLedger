@@ -57,7 +57,7 @@ export default function InvoicesPage() {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
   const [expandedInvoiceIds, setExpandedInvoiceIds] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
-  const recurringAutoEmailAccess = resolveWebFeatureAccess(subscription, 'recurring_auto_email');
+  const recurringRuleAccess = resolveWebFeatureAccess(subscription, 'recurring_invoice_rules');
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -498,14 +498,14 @@ export default function InvoicesPage() {
       <section className="ol-panel-glass">
         <div className="ol-section-heading">
           <div>
-            <div className="ol-panel-title">Monthly auto email</div>
+            <div className="ol-panel-title">Monthly invoices and auto email</div>
             <p className="ol-panel-copy">
-              Customer-specific monthly invoice emails live here. Open a customer rule to review, approve, or pause it.
+              Customer-specific monthly invoice rules live here. Pro Plus can also send approved invoice emails automatically.
             </p>
           </div>
-          {recurringAutoEmailAccess.allowed ? (
+          {recurringRuleAccess.allowed ? (
             <Link className="ol-button" href={'/invoices/automation' as Route}>
-              New auto email
+              New monthly rule
             </Link>
           ) : (
             <Link className="ol-button-secondary" href={'/market' as Route}>
@@ -514,9 +514,9 @@ export default function InvoicesPage() {
           )}
         </div>
 
-        {!recurringAutoEmailAccess.allowed ? (
+        {!recurringRuleAccess.allowed ? (
           <div className="ol-message" style={{ marginTop: 14 }}>
-            {recurringAutoEmailAccess.message}
+            {recurringRuleAccess.message}
           </div>
         ) : null}
 

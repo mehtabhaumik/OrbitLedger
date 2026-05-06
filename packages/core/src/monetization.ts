@@ -184,6 +184,7 @@ export type OrbitLedgerMonetizationFeature =
   | 'tax_compliance_reports'
   | 'audit_ready_reports'
   | 'advanced_inventory'
+  | 'multi_business_profiles'
   | 'bulk_operations'
   | 'multi_user_workspace'
   | 'accountant_exports'
@@ -334,6 +335,7 @@ export const ORBIT_LEDGER_PLAN_DEFINITIONS: Record<OrbitLedgerPlanTier, OrbitLed
       'tax_compliance_reports',
       'audit_ready_reports',
       'advanced_inventory',
+      'multi_business_profiles',
     ],
   },
   office: {
@@ -365,6 +367,7 @@ export const ORBIT_LEDGER_PLAN_DEFINITIONS: Record<OrbitLedgerPlanTier, OrbitLed
       'tax_compliance_reports',
       'audit_ready_reports',
       'advanced_inventory',
+      'multi_business_profiles',
       'bulk_operations',
       'multi_user_workspace',
       'accountant_exports',
@@ -412,6 +415,7 @@ export const ORBIT_LEDGER_FEATURE_REQUIRED_TIER: Record<
   tax_compliance_reports: 'pro',
   audit_ready_reports: 'pro',
   advanced_inventory: 'pro',
+  multi_business_profiles: 'pro',
   bulk_operations: 'office',
   multi_user_workspace: 'office',
   accountant_exports: 'office',
@@ -472,6 +476,14 @@ export const ORBIT_LEDGER_PLAN_COMPARISON: OrbitLedgerPlanComparisonRow[] = [
     plus: 'Exportable summaries',
     pro: 'Compliance surfaces',
     office: 'Audit-ready packs',
+    highlightTier: 'pro',
+  },
+  {
+    feature: 'Business profiles and users',
+    free: 'One company',
+    plus: 'One company',
+    pro: 'Multiple companies for one owner',
+    office: 'Multiple companies and team users',
     highlightTier: 'pro',
   },
   {

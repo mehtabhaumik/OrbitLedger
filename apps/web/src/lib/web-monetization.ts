@@ -164,6 +164,35 @@ export type WebPlanChangeRule = {
   tone: 'default' | 'success' | 'warning' | 'locked';
 };
 
+export type WebWorkspaceCreationAccess = {
+  allowed: boolean;
+  existingWorkspaceCount: number;
+  currentTier: WebSubscriptionTier;
+  requiredTier: WebSubscriptionTier;
+  requiredPlanLabel: string;
+  message: string | null;
+};
+
+export type WebOfficeInvitationInput = {
+  fullName: string;
+  email: string;
+  bestContactNumber: string;
+  alternateContactNumber?: string | null;
+  message: string;
+  businessName?: string | null;
+  userEmail?: string | null;
+};
+
+export type WebOfficeInvitationValidation = {
+  valid: boolean;
+  fieldErrors: {
+    fullName: string | null;
+    email: string | null;
+    bestContactNumber: string | null;
+    message: string | null;
+  };
+};
+
 export type WebPlanCatalogItem = {
   id: OrbitLedgerPaidPlanId;
   tier: Exclude<WebSubscriptionTier, 'free'>;
@@ -215,6 +244,8 @@ export const WEB_SUBSCRIPTION_STATUS_VERSION = 1;
 export const WEB_SUBSCRIPTION_STORAGE_PREFIX = 'orbit-ledger:web-subscription-status:';
 export const WEB_CHECKOUT_INTENT_STORAGE_PREFIX = 'orbit-ledger:web-checkout-intent:';
 export const WEB_BETA_FREE_ONLY = true;
+export const WEB_OFFICE_INVITATION_SUBJECT = 'Orbit Ledger Office invitation request';
+export const WEB_OFFICE_INVITATION_SUPPORT_EMAIL = 'support@rudraix.com';
 
 const freeTierFeatures: WebSubscriptionFeature[] = [
   'business_setup',
@@ -490,6 +521,86 @@ export function getWebFeatureRequiredTier(feature: WebSubscriptionFeature): WebS
 
 export function getWebFeatureRequiredPlanLabel(feature: WebSubscriptionFeature): string {
   return getOrbitLedgerPlanDefinition(webFeatureRequiredTier[feature]).label;
+}
+
+export function resolveWebWorkspaceCreationAccess(
+  status: WebSubscriptionStatus,
+  existingWorkspaceCount: number
+): WebWorkspaceCreationAccess {
+  const normalizedCount = Math.max(0, Math.floor(existingWorkspaceCount));
+  const requiredTier = getWebFeatureRequiredTier('multi_business_profiles');
+  const requiredPlanLabel = getOrbitLedgerPlanDefinition(requiredTier).label;
+  const allowed =
+    normalizedCount === 0 || resolveWebFeatureAccess(status, 'multi_business_profiles').allowed;
+
+  return {
+    allowed,
+    existingWorkspaceCount: normalizedCount,
+    currentTier: status.tier,
+    requiredTier,
+    requiredPlanLabel,
+    message: allowed
+      ? null
+      : `Multiple companies are available with Orbit Ledger ${requiredPlanLabel}. This plan keeps one company workspace active.`,
+  };
+}
+
+export function createDefaultWebOfficeInvitationMessage(businessName?: string | null): string {
+  const businessLine = businessName?.trim()
+    ? `We are interested in Orbit Ledger Office for ${businessName.trim()}.`
+    : 'We are interested in Orbit Ledger Office.';
+
+  return [
+    'Hello Orbit Ledger team,',
+    '',
+    businessLine,
+    'Please contact us with invitation details, team access options, onboarding steps, and pricing.',
+    '',
+    'We are especially interested in:',
+    '- Multiple users for the same business',
+    '- Multiple company workspaces',
+    '- Accountant exports and office review controls',
+    '',
+    'Thank you.',
+  ].join('\n');
+}
+
+export function validateWebOfficeInvitationInput(
+  input: WebOfficeInvitationInput
+): WebOfficeInvitationValidation {
+  const fullName = input.fullName.trim();
+  const email = input.email.trim();
+  const bestContactNumber = input.bestContactNumber.trim();
+  const message = input.message.trim();
+  const fieldErrors = {
+    fullName: fullName.length < 2 ? 'Enter your full name.' : null,
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? null : 'Enter a valid email address.',
+    bestContactNumber: bestContactNumber.length < 7 ? 'Enter the best phone number to reach you.' : null,
+    message: message.length < 20 ? 'Add a short message so we know what you need.' : null,
+  };
+
+  return {
+    valid: !fieldErrors.fullName && !fieldErrors.email && !fieldErrors.bestContactNumber && !fieldErrors.message,
+    fieldErrors,
+  };
+}
+
+export function buildWebOfficeInvitationMailto(input: WebOfficeInvitationInput): string {
+  const body = [
+    input.message.trim(),
+    '',
+    '---',
+    `Full name: ${input.fullName.trim()}`,
+    `Email: ${input.email.trim()}`,
+    `Best contact number: ${input.bestContactNumber.trim()}`,
+    `Alternate contact number: ${input.alternateContactNumber?.trim() || 'Not provided'}`,
+    `Business: ${input.businessName?.trim() || 'Not provided'}`,
+    `Signed-in email: ${input.userEmail?.trim() || 'Not available'}`,
+  ].join('\n');
+
+  return `mailto:${WEB_OFFICE_INVITATION_SUPPORT_EMAIL}?subject=${encodeURIComponent(
+    WEB_OFFICE_INVITATION_SUBJECT
+  )}&body=${encodeURIComponent(body)}`;
 }
 
 export function getWebFeaturePlanChip(status: WebSubscriptionStatus, feature: WebSubscriptionFeature): string {

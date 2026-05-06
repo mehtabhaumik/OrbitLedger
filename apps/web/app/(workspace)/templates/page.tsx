@@ -49,7 +49,7 @@ function TemplateShowcaseCard({
           <p>{template.description}</p>
         </div>
         <span className={`ol-chip ${template.tier === 'pro' ? 'ol-chip--premium' : 'ol-chip--primary'}`}>
-          {template.tier === 'pro' ? 'Pro' : 'Free'}
+          {template.tier === 'pro' ? 'Pro Plus' : 'Free'}
         </span>
       </div>
       <iframe className="ol-template-showcase-frame" title={`${template.label} preview`} srcDoc={document.html} />
@@ -62,7 +62,7 @@ function TemplateShowcaseCard({
         Open preview
       </Link>
       {template.tier === 'pro' ? (
-        <p className="ol-template-lock-note">Pro sample only. Upgrade to use this layout on customer documents.</p>
+        <p className="ol-template-lock-note">Pro Plus sample only. Upgrade to use this layout on customer documents.</p>
       ) : (
         <p className="ol-template-lock-note">Included in Free. Preview uses fake data and cannot be printed from the preview tab.</p>
       )}
