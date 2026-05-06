@@ -17,6 +17,7 @@ import {
 import { AppShell } from '@/components/app-shell';
 import { getWebFirebaseProjectId } from '@/lib/firebase';
 import { getWebPaymentProviderPlan } from '@/lib/payment-provider-mode';
+import { resolveWebFeatureAccess } from '@/lib/web-monetization';
 import {
   applyWorkspaceProviderEventToInvoice,
   listWorkspaceCustomers,
@@ -33,6 +34,8 @@ import {
   type WorkspacePaymentProviderEvent,
   type WorkspaceTransaction,
 } from '@/lib/workspace-data';
+import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
+import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
@@ -41,7 +44,9 @@ type ManualPaymentFilter = 'needs_action' | 'pending' | 'bounced' | 'all';
 
 export default function PaymentsPage() {
   const { activeWorkspace } = useWorkspace();
+  const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
+  const { confirm } = useConfirmDialog();
   const [events, setEvents] = useState<WorkspacePaymentProviderEvent[]>([]);
   const [manualPayments, setManualPayments] = useState<WorkspaceManualPaymentReviewItem[]>([]);
   const [transactions, setTransactions] = useState<WorkspaceTransaction[]>([]);
@@ -56,6 +61,7 @@ export default function PaymentsPage() {
   const [busyManualPaymentId, setBusyManualPaymentId] = useState<string | null>(null);
   const projectId = getWebFirebaseProjectId();
   const providerPlan = getWebPaymentProviderPlan();
+  const paymentReversalAccess = resolveWebFeatureAccess(subscription, 'payment_reversals');
   const webhookUrl = `https://asia-south1-${projectId}.cloudfunctions.net/providerWebhook`;
   const [paymentPageUrl, setPaymentPageUrl] = useState(`https://${projectId}.web.app/pay`);
   const providerReadiness = getPaymentProviderReadiness({
@@ -309,12 +315,22 @@ export default function PaymentsPage() {
     if (!activeWorkspace) {
       return;
     }
+    if (!paymentReversalAccess.allowed) {
+      showToast(paymentReversalAccess.message ?? 'Payment reversals are not included in your plan.', 'info');
+      return;
+    }
     const invoiceId = selectedInvoices[event.id] || event.invoiceId || '';
     if (!event.applied && !invoiceId) {
       showToast('Choose an invoice before reversing this refund.', 'danger');
       return;
     }
-    if (!window.confirm('Reverse this payment? This adds a ledger correction and reduces the invoice paid amount.')) {
+    const confirmed = await confirm({
+      title: 'Reverse this payment?',
+      message: 'This adds a ledger correction and reduces the invoice paid amount.',
+      confirmLabel: 'Reverse payment',
+      tone: 'danger',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -376,14 +392,14 @@ export default function PaymentsPage() {
 
   return (
     <AppShell title="Payments" subtitle="Collect manually today, and connect online checkout when a provider is ready.">
-      <section className="ol-metric-grid">
+      <section className="ol-metric-grid" style={{ order: 1 }}>
         <Metric label="Events" value={String(stats.total)} helper="Received from payment providers." tone="primary" />
         <Metric label="Applied" value={String(stats.applied)} helper="Updated invoices automatically." tone="success" />
         <Metric label="Manual Review" value={String(stats.manualReview)} helper="Manual payments needing follow-up." tone="warning" />
         <Metric label="Pending" value={String(stats.pendingManual)} helper="Received, post-dated, or deposited." tone="warning" />
       </section>
 
-      <section className="ol-panel-dark">
+      <section className="ol-panel-dark" style={{ order: 5 }}>
         <div className="ol-panel-header">
           <div>
             <div className="ol-panel-title">Payment Collection</div>
@@ -431,7 +447,7 @@ export default function PaymentsPage() {
         </div>
       </section>
 
-      <section className="ol-panel">
+      <section className="ol-panel" style={{ order: 6 }}>
         <div className="ol-panel-header">
           <div>
             <div className="ol-panel-title">Provider Connection Gate</div>
@@ -455,7 +471,7 @@ export default function PaymentsPage() {
         ) : null}
       </section>
 
-      <section className="ol-panel">
+      <section className="ol-panel" style={{ order: 2 }}>
         <div className="ol-panel-header">
           <div>
             <div className="ol-panel-title">Payment Activity Timeline</div>
@@ -493,7 +509,7 @@ export default function PaymentsPage() {
         </div>
       </section>
 
-      <section className="ol-panel">
+      <section className="ol-panel" style={{ order: 7 }}>
         <div className="ol-panel-header">
           <div>
             <div className="ol-panel-title">Provider Setup Checklist</div>
@@ -510,7 +526,7 @@ export default function PaymentsPage() {
         </div>
       </section>
 
-      <section className="ol-table">
+      <section className="ol-table" style={{ order: 4 }}>
         <div className="ol-table-tools">
           <label className="ol-field">
             <span className="ol-field-label">Manual payment review</span>
@@ -547,6 +563,7 @@ export default function PaymentsPage() {
           const plan = getManualPaymentVerificationPlan({
             allocationStrategy: payment.invoiceId ? 'selected_invoice' : 'ledger_only',
             clearanceStatus: payment.paymentClearanceStatus,
+            paymentMode: payment.paymentMode,
           });
           return (
             <div
@@ -595,11 +612,11 @@ export default function PaymentsPage() {
               <span className="ol-inline-actions">
                 <button
                   className="ol-button"
-                  disabled={busyManualPaymentId === payment.transactionId}
+                  disabled={busyManualPaymentId === payment.transactionId || payment.paymentClearanceStatus === 'cleared'}
                   type="button"
                   onClick={() => void updateManualPayment(payment, 'cleared')}
                 >
-                  Verify cleared
+                  {payment.paymentClearanceStatus === 'cleared' ? 'Verified' : 'Verify cleared'}
                 </button>
                 <button
                   className="ol-button-ghost"
@@ -626,7 +643,7 @@ export default function PaymentsPage() {
         ) : null}
       </section>
 
-      <section className="ol-table">
+      <section className="ol-table" style={{ order: 3 }}>
         <div className="ol-table-tools">
           <label className="ol-field">
             <span className="ol-field-label">View</span>
@@ -716,7 +733,7 @@ export default function PaymentsPage() {
               </button>
               <button
                 className="ol-button-ghost"
-                disabled={event.reversed || busyEventId === event.id || (!event.applied && event.status !== 'refunded')}
+                disabled={event.reversed || busyEventId === event.id || (!event.applied && event.status !== 'refunded') || !paymentReversalAccess.allowed}
                 type="button"
                 onClick={() => void reverseEvent(event)}
               >

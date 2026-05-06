@@ -33,6 +33,8 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+firestore-debug.log
+artifacts/
 
 # macOS
 .DS_Store

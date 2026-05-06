@@ -29,10 +29,10 @@ export function resolveDocumentFeatureGates(
     includeCustomBranding: customBrandingAccess.allowed,
     pdfStyle: advancedPdfAccess.allowed ? 'advanced' : 'basic',
     lockedFeatures,
-    upgradeTitle: lockedFeatures.length > 0 ? 'Pro document enhancements' : null,
+    upgradeTitle: lockedFeatures.length > 0 ? 'Pro Plus document enhancements' : null,
     upgradeMessage:
       lockedFeatures.length > 0
-        ? 'Free statements use a clean basic PDF. Pro adds custom logo and signature branding, advanced PDF styling, and future document enhancements.'
+        ? 'Free statements use a clean basic PDF. Pro Plus adds custom logo and signature branding, advanced PDF styling, and future document enhancements.'
         : null,
   };
 }

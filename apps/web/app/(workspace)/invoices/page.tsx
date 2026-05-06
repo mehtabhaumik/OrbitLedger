@@ -14,8 +14,14 @@ import {
 import { AppShell } from '@/components/app-shell';
 import {
   createDraftWorkspaceInvoice,
+  cancelWorkspaceRecurringInvoiceRule,
   listWorkspaceInvoices,
+  listWorkspaceRecurringEmailQueue,
+  listWorkspaceRecurringInvoiceRules,
+  runDueWorkspaceRecurringInvoices,
   type WorkspaceInvoice,
+  type WorkspaceRecurringEmailQueueItem,
+  type WorkspaceRecurringInvoiceRule,
 } from '@/lib/workspace-data';
 import {
   buildCsv,
@@ -26,14 +32,19 @@ import {
   sumInvoiceTotals,
   type InvoiceFilterSet,
 } from '@/lib/workspace-power';
+import { resolveWebFeatureAccess } from '@/lib/web-monetization';
+import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function InvoicesPage() {
   const { activeWorkspace } = useWorkspace();
+  const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
   const router = useRouter();
   const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
+  const [recurringRules, setRecurringRules] = useState<WorkspaceRecurringInvoiceRule[]>([]);
+  const [emailQueue, setEmailQueue] = useState<WorkspaceRecurringEmailQueueItem[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<InvoiceFilterSet>({
@@ -46,18 +57,38 @@ export default function InvoicesPage() {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
   const [expandedInvoiceIds, setExpandedInvoiceIds] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
+  const recurringAutoEmailAccess = resolveWebFeatureAccess(subscription, 'recurring_auto_email');
 
   useEffect(() => {
     if (!activeWorkspace) {
       return;
     }
     setSelectedInvoiceIds(new Set());
-    void listWorkspaceInvoices(activeWorkspace.workspaceId)
-      .then(setInvoices)
+    void refreshInvoiceWorkspace(true)
       .catch((error) => {
         showToast(error instanceof Error ? error.message : 'Invoices could not be loaded.', 'danger');
       });
   }, [activeWorkspace, showToast]);
+
+  async function refreshInvoiceWorkspace(runRecurring = false) {
+    if (!activeWorkspace) {
+      return;
+    }
+    const generated = runRecurring
+      ? await runDueWorkspaceRecurringInvoices(activeWorkspace.workspaceId)
+      : [];
+    const [nextInvoices, nextRules, nextEmailQueue] = await Promise.all([
+      listWorkspaceInvoices(activeWorkspace.workspaceId),
+      listWorkspaceRecurringInvoiceRules(activeWorkspace.workspaceId),
+      listWorkspaceRecurringEmailQueue(activeWorkspace.workspaceId),
+    ]);
+    setInvoices(nextInvoices);
+    setRecurringRules(nextRules);
+    setEmailQueue(nextEmailQueue);
+    if (generated.length) {
+      showToast(`${generated.length} recurring invoice${generated.length === 1 ? '' : 's'} created.`, 'success');
+    }
+  }
 
   async function addDraftInvoice() {
     if (!activeWorkspace) {
@@ -66,7 +97,10 @@ export default function InvoicesPage() {
 
     setIsCreating(true);
     try {
-      const invoice = await createDraftWorkspaceInvoice(activeWorkspace.workspaceId);
+      const invoice = await createDraftWorkspaceInvoice(activeWorkspace.workspaceId, {
+        dueDays: activeWorkspace.defaultDueDays,
+        notes: activeWorkspace.defaultInvoiceNotes,
+      });
       setInvoices((current) => [invoice, ...current]);
       showToast(`Invoice ${invoice.invoiceNumber} created.`, 'success');
       router.push(`/invoices/detail?invoiceId=${encodeURIComponent(invoice.id)}` as Route);
@@ -74,6 +108,19 @@ export default function InvoicesPage() {
       showToast(error instanceof Error ? error.message : 'Invoice could not be created.', 'danger');
     } finally {
       setIsCreating(false);
+    }
+  }
+
+  async function cancelRecurringRule(ruleId: string) {
+    if (!activeWorkspace) {
+      return;
+    }
+    try {
+      const updated = await cancelWorkspaceRecurringInvoiceRule(activeWorkspace.workspaceId, ruleId);
+      setRecurringRules((current) => current.map((rule) => (rule.id === updated.id ? updated : rule)));
+      showToast('Automatic email paused.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Automatic email could not be paused.', 'danger');
     }
   }
 
@@ -107,6 +154,26 @@ export default function InvoicesPage() {
     }
     return Array.from(options.entries()).sort((left, right) => left[1].localeCompare(right[1]));
   }, [visibleInvoices]);
+  const automationWarnings = useMemo(
+    () => buildAutoEmailWarnings(recurringRules, invoices),
+    [invoices, recurringRules]
+  );
+  const upcomingEmailQueue = useMemo(
+    () =>
+      emailQueue
+        .filter((item) => ['scheduled', 'ready', 'sending'].includes(item.status))
+        .sort(compareQueueByScheduledDateAsc)
+        .slice(0, 8),
+    [emailQueue]
+  );
+  const emailSendHistory = useMemo(
+    () =>
+      emailQueue
+        .filter((item) => ['sent', 'failed', 'cancelled'].includes(item.status))
+        .sort(compareQueueByLastActivityDesc)
+        .slice(0, 8),
+    [emailQueue]
+  );
 
   function toggleInvoiceSelection(invoiceId: string) {
     setSelectedInvoiceIds((current) => {
@@ -242,6 +309,43 @@ export default function InvoicesPage() {
         />
       </section>
 
+      {automationWarnings.length ? (
+        <section className="ol-panel-glass">
+          <div className="ol-panel-title" style={{ marginBottom: 12 }}>
+            Auto email review
+          </div>
+          <div className="ol-list">
+            {automationWarnings.map((warning) => (
+              <article className="ol-list-item" key={warning.id}>
+                <div className="ol-list-icon">E</div>
+                <div className="ol-list-copy">
+                  <div className="ol-list-title">{warning.title}</div>
+                  <div className="ol-list-text">{warning.message}</div>
+                </div>
+                <div className="ol-inline-actions">
+                  {warning.invoiceId ? (
+                    <Link className="ol-button-secondary" href={`/invoices/detail?invoiceId=${encodeURIComponent(warning.invoiceId)}` as Route}>
+                      View invoice
+                    </Link>
+                  ) : null}
+                  <Link className="ol-button-secondary" href={`/invoices/automation?ruleId=${encodeURIComponent(warning.ruleId)}` as Route}>
+                    View auto email settings
+                  </Link>
+                  {warning.canUseInvoice && warning.invoiceId ? (
+                    <Link className="ol-button-secondary" href={`/invoices/detail?invoiceId=${encodeURIComponent(warning.invoiceId)}` as Route}>
+                      Use existing invoice
+                    </Link>
+                  ) : null}
+                  <button className="ol-button-secondary" type="button" onClick={() => void cancelRecurringRule(warning.ruleId)}>
+                    Pause this email
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="ol-table">
         <div className="ol-table-tools">
           <label className="ol-field">
@@ -342,6 +446,7 @@ export default function InvoicesPage() {
                   {invoice.invoiceNumber}
                 </Link>
                 {invoice.isArchived ? <span className="ol-chip ol-chip--tax" style={{ marginLeft: 8 }}>Archived</span> : null}
+                <AutoEmailInvoiceBadge invoice={invoice} />
                 <button
                   className="ol-link-button"
                   type="button"
@@ -366,10 +471,16 @@ export default function InvoicesPage() {
                     <span>{version.invoiceNumber}</span>
                     <span>{formatDateTime(version.createdAt)}</span>
                     <span>{version.reason}</span>
-                    <span>{getInvoicePaymentStatusLabel(version.paymentStatus)}</span>
+                    <span>
+                      {getInvoicePaymentStatusLabel(version.paymentStatus)}
+                      <AutoEmailVersionBadge version={version} />
+                    </span>
                     <span className="ol-amount">{formatCurrency(version.totalAmount, activeWorkspace?.currency ?? 'INR')}</span>
-                    <Link className="ol-button-secondary" href={`/invoices/detail?invoiceId=${encodeURIComponent(invoice.id)}` as Route}>
-                      View / update
+                    <Link
+                      className="ol-button-secondary"
+                      href={`/invoices/detail?invoiceId=${encodeURIComponent(invoice.id)}&versionId=${encodeURIComponent(version.id)}` as Route}
+                    >
+                      View
                     </Link>
                   </div>
                 ))}
@@ -383,7 +494,148 @@ export default function InvoicesPage() {
           </div>
         ) : null}
       </section>
+
+      <section className="ol-panel-glass">
+        <div className="ol-section-heading">
+          <div>
+            <div className="ol-panel-title">Monthly auto email</div>
+            <p className="ol-panel-copy">
+              Customer-specific monthly invoice emails live here. Open a customer rule to review, approve, or pause it.
+            </p>
+          </div>
+          {recurringAutoEmailAccess.allowed ? (
+            <Link className="ol-button" href={'/invoices/automation' as Route}>
+              New auto email
+            </Link>
+          ) : (
+            <Link className="ol-button-secondary" href={'/market' as Route}>
+              View plans
+            </Link>
+          )}
+        </div>
+
+        {!recurringAutoEmailAccess.allowed ? (
+          <div className="ol-message" style={{ marginTop: 14 }}>
+            {recurringAutoEmailAccess.message}
+          </div>
+        ) : null}
+
+        {recurringRules.length ? (
+          <div className="ol-list" style={{ marginTop: 18 }}>
+            {recurringRules.map((rule) => (
+              <div className="ol-list-item" key={rule.id}>
+                <div className="ol-list-icon">{rule.status === 'active' ? 'A' : 'P'}</div>
+                <div className="ol-list-copy">
+                  <div className="ol-list-title">
+                    {rule.customerName ?? 'Customer'} · {rule.name}
+                    <RuleApprovalBadge rule={rule} />
+                  </div>
+                  <div className="ol-list-text">
+                    Create day {rule.invoiceDay} · send day {rule.emailDay ?? rule.invoiceDay} · next preparation {rule.nextRunDate || 'not scheduled'}
+                    {rule.nextEmailDate ? ` · next email ${rule.nextEmailDate}` : ''}
+                  </div>
+                  <div className="ol-list-text">
+                    {rule.emailIncludePaymentLink ? 'Payment link included' : 'No payment link'} · {rule.emailAttachPdf ? 'PDF attached' : 'No PDF attachment'}
+                  </div>
+                </div>
+                <div className="ol-inline-actions">
+                  <Link
+                    className="ol-button-secondary"
+                    href={`/invoices/automation?ruleId=${encodeURIComponent(rule.id)}` as Route}
+                  >
+                    View / edit
+                  </Link>
+                  {rule.status === 'active' ? (
+                    <button className="ol-button-secondary" type="button" onClick={() => void cancelRecurringRule(rule.id)}>
+                      Pause
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="ol-empty" style={{ marginTop: 18 }}>
+            No monthly auto emails yet.
+          </div>
+        )}
+
+        <div className="ol-split-grid" style={{ marginTop: 18 }}>
+          <EmailQueuePanel
+            emptyCopy="No automatic invoice emails are waiting right now."
+            items={upcomingEmailQueue}
+            title="Queue preview"
+            variant="upcoming"
+          />
+          <EmailQueuePanel
+            emptyCopy="Sent and stopped automatic emails will appear here."
+            items={emailSendHistory}
+            title="Send history"
+            variant="history"
+          />
+        </div>
+      </section>
     </AppShell>
+  );
+}
+
+function EmailQueuePanel({
+  emptyCopy,
+  items,
+  title,
+  variant,
+}: {
+  emptyCopy: string;
+  items: WorkspaceRecurringEmailQueueItem[];
+  title: string;
+  variant: 'upcoming' | 'history';
+}) {
+  return (
+    <article className="ol-panel-glass">
+      <div className="ol-panel-title" style={{ marginBottom: 12 }}>
+        {title}
+      </div>
+      {items.length ? (
+        <div className="ol-list">
+          {items.map((item) => (
+            <div className="ol-list-item" key={item.id}>
+              <div className="ol-list-icon">{variant === 'upcoming' ? 'Q' : 'H'}</div>
+              <div className="ol-list-copy">
+                <div className="ol-list-title">
+                  {item.invoiceNumber ?? 'Invoice email'}
+                  <EmailQueueStatusBadge status={item.status} />
+                </div>
+                <div className="ol-list-text">
+                  {variant === 'upcoming'
+                    ? `Scheduled for ${formatQueueDate(item.scheduledFor)}`
+                    : `${formatEmailQueueStatus(item.status)} ${formatQueueDate(item.sentAt ?? item.lastModified ?? item.scheduledFor)}`}
+                  {item.recipientEmail ? ` · ${item.recipientEmail}` : ''}
+                </div>
+                {item.subject ? <div className="ol-list-text">Subject: {item.subject}</div> : null}
+                <div className="ol-list-text">
+                  {item.attachPdf ? 'PDF attached' : 'No PDF attachment'} · {item.includePaymentLink ? 'Payment link included' : 'No payment link'}
+                </div>
+                {item.lastError ? <div className="ol-list-text">Needs attention: {item.lastError}</div> : null}
+              </div>
+              <div className="ol-inline-actions">
+                {item.invoiceId ? (
+                  <Link className="ol-button-secondary" href={`/invoices/detail?invoiceId=${encodeURIComponent(item.invoiceId)}` as Route}>
+                    View invoice
+                  </Link>
+                ) : null}
+                {item.recurringRuleId ? (
+                  <Link className="ol-button-secondary" href={`/invoices/automation?ruleId=${encodeURIComponent(item.recurringRuleId)}` as Route}>
+                    View rule
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="ol-empty">{emptyCopy}</div>
+      )}
+    </article>
   );
 }
 
@@ -551,6 +803,197 @@ function Metric({
       <div className="ol-metric-helper">{helper}</div>
     </article>
   );
+}
+
+function AutoEmailInvoiceBadge({ invoice }: { invoice: WorkspaceInvoice }) {
+  const isScheduled =
+    invoice.latestAutoEmailStatus === 'scheduled' ||
+    Boolean(invoice.autoEmailScheduledFor && !invoice.latestAutoEmailSentAt);
+  const isSent =
+    invoice.latestAutoEmailStatus === 'sent' ||
+    Boolean(invoice.hasAutoEmailHistory || invoice.latestAutoEmailSentAt);
+
+  if (isScheduled) {
+    return <span className="ol-chip ol-chip--tax" style={{ marginLeft: 8 }}>Auto email scheduled</span>;
+  }
+  if (isSent) {
+    return <span className="ol-chip ol-chip--success" style={{ marginLeft: 8 }}>Auto email sent</span>;
+  }
+  return null;
+}
+
+function AutoEmailVersionBadge({ version }: { version: NonNullable<WorkspaceInvoice['versions']>[number] }) {
+  const isScheduled =
+    version.autoEmailStatus === 'scheduled' ||
+    Boolean(version.autoEmailScheduledFor && !version.autoEmailSentAt);
+  const isSent = version.autoEmailStatus === 'sent' || Boolean(version.autoEmailSentAt);
+
+  if (isScheduled) {
+    return <span className="ol-chip ol-chip--tax" style={{ marginLeft: 8 }}>Scheduled for auto email</span>;
+  }
+  if (isSent) {
+    return <span className="ol-chip ol-chip--success" style={{ marginLeft: 8 }}>Used for auto email</span>;
+  }
+  return null;
+}
+
+function EmailQueueStatusBadge({ status }: { status: string }) {
+  const className =
+    status === 'sent'
+      ? 'ol-chip ol-chip--success'
+      : status === 'failed' || status === 'cancelled'
+        ? 'ol-chip ol-chip--danger'
+        : 'ol-chip ol-chip--tax';
+  return (
+    <span className={className} style={{ marginLeft: 8 }}>
+      {formatEmailQueueStatus(status)}
+    </span>
+  );
+}
+
+function RuleApprovalBadge({ rule }: { rule: WorkspaceRecurringInvoiceRule }) {
+  if (rule.status !== 'active') {
+    return <span className="ol-chip ol-chip--tax" style={{ marginLeft: 8 }}>Paused</span>;
+  }
+  if (rule.emailApprovalRequired || !rule.emailAutomationApproved) {
+    return <span className="ol-chip ol-chip--tax" style={{ marginLeft: 8 }}>Needs approval</span>;
+  }
+  return <span className="ol-chip ol-chip--success" style={{ marginLeft: 8 }}>Approved</span>;
+}
+
+function compareQueueByScheduledDateAsc(
+  left: WorkspaceRecurringEmailQueueItem,
+  right: WorkspaceRecurringEmailQueueItem
+) {
+  return queueTime(left.scheduledFor ?? left.createdAt) - queueTime(right.scheduledFor ?? right.createdAt);
+}
+
+function compareQueueByLastActivityDesc(
+  left: WorkspaceRecurringEmailQueueItem,
+  right: WorkspaceRecurringEmailQueueItem
+) {
+  return queueTime(right.sentAt ?? right.lastModified ?? right.scheduledFor) - queueTime(left.sentAt ?? left.lastModified ?? left.scheduledFor);
+}
+
+function queueTime(value: string | null | undefined) {
+  if (!value) {
+    return 0;
+  }
+  const timestamp = Date.parse(value.includes('T') ? value : `${value}T00:00:00.000Z`);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function formatEmailQueueStatus(status: string) {
+  if (status === 'ready') {
+    return 'Ready to send';
+  }
+  if (status === 'sending') {
+    return 'Sending';
+  }
+  if (status === 'sent') {
+    return 'Sent';
+  }
+  if (status === 'failed') {
+    return 'Needs review';
+  }
+  if (status === 'cancelled') {
+    return 'Stopped';
+  }
+  return 'Scheduled';
+}
+
+function formatQueueDate(value: string | null | undefined) {
+  if (!value) {
+    return 'not scheduled';
+  }
+  const timestamp = Date.parse(value.includes('T') ? value : `${value}T00:00:00.000Z`);
+  if (!Number.isFinite(timestamp)) {
+    return value;
+  }
+  return new Intl.DateTimeFormat('en-IN', {
+    dateStyle: 'medium',
+    ...(value.includes('T') ? { timeStyle: 'short' as const } : {}),
+  }).format(new Date(timestamp));
+}
+
+type AutoEmailWarning = {
+  id: string;
+  ruleId: string;
+  invoiceId: string | null;
+  title: string;
+  message: string;
+  canUseInvoice: boolean;
+};
+
+function buildAutoEmailWarnings(
+  rules: WorkspaceRecurringInvoiceRule[],
+  invoices: WorkspaceInvoice[],
+  today = new Date().toISOString().slice(0, 10)
+): AutoEmailWarning[] {
+  return rules
+    .filter((rule) => rule.status === 'active' && rule.emailEnabled)
+    .flatMap<AutoEmailWarning>((rule) => {
+      const sendDate = rule.nextEmailDate;
+      if (!sendDate || daysBetween(today, sendDate) > 3) {
+        return [];
+      }
+      const billingMonth = sendDate.slice(0, 7);
+      const monthInvoices = invoices.filter(
+        (invoice) =>
+          invoice.customerId === rule.customerId &&
+          (invoice.billingMonth ?? invoice.issueDate.slice(0, 7)) === billingMonth &&
+          invoice.documentState !== 'cancelled' &&
+          !invoice.isArchived
+      );
+      const enabledInvoice = monthInvoices.find((invoice) => invoice.useForMonthlyAutoEmail);
+      if (rule.emailApprovalRequired || !rule.emailAutomationApproved) {
+        return [{
+          id: `${rule.id}-approval`,
+          ruleId: rule.id,
+          invoiceId: enabledInvoice?.id ?? monthInvoices[0]?.id ?? null,
+          title: `${rule.customerName ?? 'Customer'} auto email needs approval`,
+          message: 'Review and approve this customer email before automatic sending resumes.',
+          canUseInvoice: false,
+        }];
+      }
+      if (enabledInvoice) {
+        return [{
+          id: `${rule.id}-selected`,
+          ruleId: rule.id,
+          invoiceId: enabledInvoice.id,
+          title: `${rule.customerName ?? 'Customer'} email is scheduled`,
+          message: `An invoice is already selected for this month. The latest saved version will be sent on ${sendDate}.`,
+          canUseInvoice: false,
+        }];
+      }
+      if (monthInvoices.length) {
+        return [{
+          id: `${rule.id}-manual-invoice`,
+          ruleId: rule.id,
+          invoiceId: monthInvoices[0].id,
+          title: `${rule.customerName ?? 'Customer'} has an invoice not enabled for auto email`,
+          message: 'Enable it for monthly auto email, or Orbit Ledger will prepare a monthly invoice before the scheduled email.',
+          canUseInvoice: true,
+        }];
+      }
+      return [{
+        id: `${rule.id}-prepare`,
+        ruleId: rule.id,
+        invoiceId: null,
+        title: `${rule.customerName ?? 'Customer'} monthly invoice will be prepared`,
+        message: `No invoice is selected for ${billingMonth}. Orbit Ledger will prepare it before the ${sendDate} email.`,
+        canUseInvoice: false,
+      }];
+    });
+}
+
+function daysBetween(from: string, to: string): number {
+  const fromTime = Date.parse(`${from}T00:00:00.000Z`);
+  const toTime = Date.parse(`${to}T00:00:00.000Z`);
+  if (!Number.isFinite(fromTime) || !Number.isFinite(toTime)) {
+    return 0;
+  }
+  return Math.ceil((toTime - fromTime) / 86_400_000);
 }
 
 function formatCurrency(value: number, currency: string) {

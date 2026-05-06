@@ -1,3 +1,10 @@
+import {
+  getDefaultSharedDocumentTemplate,
+  getSharedDocumentTemplate,
+  getSharedDocumentTemplateCatalog,
+  type SharedDocumentTemplate,
+} from '@orbit-ledger/core';
+
 import type { BusinessSettings, DocumentTemplateType } from '../database';
 import { getDatabase } from '../database';
 import type {
@@ -24,7 +31,7 @@ export type DocumentTemplateCatalogItem = DocumentTemplateRuntime & {
 
 const TEMPLATE_SELECTION_KEY_PREFIX = 'document_template_selection';
 
-const invoiceCatalog: Record<InvoiceTemplateKey, DocumentTemplateCatalogItem> = {
+const invoiceCatalog: Partial<Record<InvoiceTemplateKey, DocumentTemplateCatalogItem>> = {
   IN_GST_STANDARD_FREE: {
     key: 'IN_GST_STANDARD_FREE',
     documentType: 'invoice',
@@ -277,18 +284,17 @@ export function getBuiltInDocumentTemplateCatalog(
   businessSettings: BusinessSettings,
   templateType: DocumentTemplateType
 ): DocumentTemplateCatalogItem[] {
-  const countryCode = normalizeSupportedCountry(businessSettings.countryCode);
-  const catalog = templateType === 'invoice' ? Object.values(invoiceCatalog) : Object.values(statementCatalog);
-  const countryItems = catalog.filter((template) => template.countryCode === countryCode);
-  const fallbackItems = catalog.filter((template) => template.countryCode === 'GENERIC');
-
-  return countryItems.length ? countryItems : fallbackItems;
+  return getSharedDocumentTemplateCatalog({
+    countryCode: businessSettings.countryCode,
+    templateType,
+  }).map(toMobileTemplateItem);
 }
 
 export function getBuiltInDocumentTemplate(
   key: DocumentTemplateKey
 ): DocumentTemplateCatalogItem | null {
-  return invoiceCatalog[key as InvoiceTemplateKey] ?? statementCatalog[key as StatementTemplateKey] ?? null;
+  const template = getSharedDocumentTemplate(key);
+  return template ? toMobileTemplateItem(template) : null;
 }
 
 export async function getPreferredDocumentTemplateKey(
@@ -319,13 +325,30 @@ export function getDefaultDocumentTemplate(
   templateType: DocumentTemplateType,
   isPro: boolean
 ): DocumentTemplateCatalogItem {
-  const catalog = getBuiltInDocumentTemplateCatalog(businessSettings, templateType);
-  const targetTier: DocumentTemplateTier = isPro ? 'pro' : 'free';
-  return catalog.find((template) => template.tier === targetTier) ?? catalog[0];
+  return toMobileTemplateItem(
+    getDefaultSharedDocumentTemplate(
+      {
+        countryCode: businessSettings.countryCode,
+        templateType,
+      },
+      isPro
+    )
+  );
 }
 
 export function canUseTemplate(template: DocumentTemplateCatalogItem, isPro: boolean): boolean {
   return template.tier === 'free' || isPro;
+}
+
+function toMobileTemplateItem(template: SharedDocumentTemplate): DocumentTemplateCatalogItem {
+  return {
+    ...template,
+    key: template.key as DocumentTemplateKey,
+    documentType: template.documentType,
+    visualStyle: template.visualStyle as DocumentTemplateRuntime['visualStyle'],
+    countryFormat: template.countryFormat,
+    config: template.config as DocumentTemplateConfig,
+  };
 }
 
 function invoiceConfig(input: {

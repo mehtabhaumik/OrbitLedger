@@ -1531,6 +1531,7 @@ export async function addTransaction(input: AddTransactionInput): Promise<Ledger
               invoiceId: input.invoiceId ?? null,
               createdAt: now,
               clearanceStatus: paymentClearanceStatus,
+              paymentMode,
             });
           }
         });
@@ -3839,6 +3840,7 @@ async function allocatePaymentToInvoices(
     invoiceId: string | null;
     createdAt: string;
     clearanceStatus: PaymentClearanceStatus | null;
+    paymentMode: PaymentMode | null;
   }
 ): Promise<void> {
   if (input.strategy === 'ledger_only') {
@@ -3875,9 +3877,9 @@ async function allocatePaymentToInvoices(
       continue;
     }
 
-    const paidDelta = doesPaymentClearInvoice(input.clearanceStatus) ? allocationAmount : 0;
+    const paidDelta = doesPaymentClearInvoice(input.clearanceStatus, input.paymentMode) ? allocationAmount : 0;
     const nextPaidAmount = roundCurrency(invoice.paid_amount + paidDelta);
-    const pendingAmount = doesPaymentAwaitClearance(input.clearanceStatus) ? allocationAmount : 0;
+    const pendingAmount = doesPaymentAwaitClearance(input.clearanceStatus, input.paymentMode) ? allocationAmount : 0;
     const nextPaymentStatus = deriveInvoicePaymentStatus({
       dueDate: invoice.due_date,
       totalAmount: invoice.total_amount,

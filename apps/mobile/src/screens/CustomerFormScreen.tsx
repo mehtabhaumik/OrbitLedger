@@ -18,18 +18,22 @@ import { z } from 'zod';
 import { recordLedgerDataChangedForBackupNudge } from '../backup';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { addCustomer, getCustomerLedger, updateCustomer } from '../database';
+import { COUNTRY_OPTIONS, getCityOptions, getDefaultCity, getDefaultRegionCode, getRegionOptions } from '../data/regions';
 import { composeAddress, parseAddress } from '../forms/address';
 import {
-  businessNameSchema,
   normalizeDigitsAndPhoneSymbols,
   normalizeSignedDecimalInput,
   optionalAddressLineSchema,
   optionalPhoneSchema,
   optionalPostalCodeSchema,
+  personNameSchema,
   requiredAddressLineSchema,
   requiredCitySchema,
+  countryCodeSchema,
+  regionCodeSchema,
   signedMoneyInputSchema,
 } from '../forms/validation';
 import { showSuccessFeedback } from '../lib/feedback';
@@ -39,10 +43,13 @@ import { colors, shadows, spacing, typography } from '../theme/theme';
 type CustomerFormScreenProps = NativeStackScreenProps<RootStackParamList, 'CustomerForm'>;
 
 const customerSchema = z.object({
-  name: businessNameSchema('customer name'),
+  name: personNameSchema('customer name'),
   phone: optionalPhoneSchema,
   addressLine1: requiredAddressLineSchema,
   addressLine2: optionalAddressLineSchema,
+  town: optionalAddressLineSchema,
+  countryCode: countryCodeSchema,
+  stateCode: regionCodeSchema,
   city: requiredCitySchema,
   postalCode: optionalPostalCodeSchema,
   notes: z.string().trim().optional(),
@@ -56,6 +63,9 @@ const defaultValues: CustomerFormValues = {
   phone: '',
   addressLine1: '',
   addressLine2: '',
+  town: '',
+  countryCode: 'IN',
+  stateCode: 'GJ',
   city: '',
   postalCode: '',
   notes: '',
@@ -70,12 +80,18 @@ export function CustomerFormScreen({ navigation, route }: CustomerFormScreenProp
     formState: { errors, isSubmitting, isValid },
     handleSubmit,
     reset,
+    setValue,
+    watch,
   } = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
     defaultValues,
     mode: 'onTouched',
     reValidateMode: 'onChange',
   });
+  const values = watch();
+  const countryOptions = COUNTRY_OPTIONS.filter((country) => country.code === 'IN');
+  const regionOptions = getRegionOptions(values.countryCode || 'IN');
+  const cityOptions = getCityOptions(values.countryCode || 'IN', values.stateCode || 'GJ');
 
   useEffect(() => {
     let isMounted = true;
@@ -94,6 +110,9 @@ export function CustomerFormScreen({ navigation, route }: CustomerFormScreenProp
             phone: ledger.customer.phone ?? '',
             addressLine1: address.addressLine1,
             addressLine2: address.addressLine2,
+            town: address.town ?? '',
+            countryCode: address.countryCode || 'IN',
+            stateCode: address.stateCode || 'GJ',
             city: address.city,
             postalCode: address.postalCode,
             notes: ledger.customer.notes ?? '',
@@ -231,19 +250,84 @@ export function CustomerFormScreen({ navigation, route }: CustomerFormScreenProp
                 />
               )}
             />
+            <Controller
+              control={control}
+              name="town"
+              render={({ field: { onBlur, onChange, value } }) => (
+                <TextField
+                  label="Town or village"
+                  value={value ?? ''}
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  placeholder="Optional local town or village"
+                  error={errors.town?.message}
+                />
+              )}
+            />
+            <View style={styles.twoColumn}>
+              <Controller
+                control={control}
+                name="countryCode"
+                render={({ field: { onChange, value } }) => (
+                  <SelectField
+                    label="Country"
+                    value={value}
+                    options={countryOptions.map((country) => ({
+                      label: country.name,
+                      value: country.code,
+                      description: 'Active at launch',
+                    }))}
+                    onChange={(countryCode) => {
+                      const lockedCountry = countryCode || 'IN';
+                      onChange(lockedCountry);
+                      const nextRegion = getDefaultRegionCode(lockedCountry);
+                      setValue('stateCode', nextRegion, { shouldDirty: true, shouldValidate: true });
+                      setValue('city', getDefaultCity(lockedCountry, nextRegion), { shouldDirty: true, shouldValidate: true });
+                    }}
+                    error={errors.countryCode?.message}
+                    helperText="India is active for launch."
+                  />
+                )}
+              />
+              <Controller
+                control={control}
+                name="stateCode"
+                render={({ field: { onChange, value } }) => (
+                  <SelectField
+                    label="State"
+                    value={value}
+                    options={regionOptions.map((region) => ({
+                      label: region.name,
+                      value: region.code,
+                      description: region.code,
+                    }))}
+                    onChange={(stateCode) => {
+                      onChange(stateCode);
+                      setValue('city', getDefaultCity(values.countryCode || 'IN', stateCode), {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }}
+                    error={errors.stateCode?.message}
+                  />
+                )}
+              />
+            </View>
             <View style={styles.twoColumn}>
               <Controller
                 control={control}
                 name="city"
-                render={({ field: { onBlur, onChange, value } }) => (
-                  <TextField
+                render={({ field: { onChange, value } }) => (
+                  <SelectField
                     label="City"
                     value={value}
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    placeholder="Ahmedabad"
+                    options={cityOptions.map((city) => ({
+                      label: city,
+                      value: city,
+                      description: values.stateCode,
+                    }))}
+                    onChange={onChange}
                     error={errors.city?.message}
-                    style={styles.flexInput}
                   />
                 )}
               />

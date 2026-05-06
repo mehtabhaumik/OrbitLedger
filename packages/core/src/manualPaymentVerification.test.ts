@@ -8,6 +8,7 @@ describe('manual payment verification', () => {
     const plan = getManualPaymentVerificationPlan({
       allocationStrategy: 'selected_invoice',
       clearanceStatus: 'cleared',
+      paymentMode: 'upi',
     });
 
     expect(plan.statusLabel).toBe('Verified');
@@ -19,20 +20,33 @@ describe('manual payment verification', () => {
     const plan = getManualPaymentVerificationPlan({
       allocationStrategy: 'selected_invoice',
       clearanceStatus: 'received',
+      paymentMode: 'cheque',
     });
 
-    expect(doesPaymentAwaitClearance('received')).toBe(true);
+    expect(doesPaymentAwaitClearance('received', 'cheque')).toBe(true);
     expect(plan.requiresFollowUp).toBe(true);
     expect(plan.customerBalanceEffect).toContain('does not reduce');
   });
 
-  it('does not let bounced payment reduce invoice amount', () => {
+  it('does not let errored electronic payment reduce invoice amount', () => {
     const plan = getManualPaymentVerificationPlan({
       allocationStrategy: 'selected_invoice',
-      clearanceStatus: 'bounced',
+      clearanceStatus: 'errored',
+      paymentMode: 'upi',
     });
 
-    expect(doesPaymentAwaitClearance('bounced')).toBe(false);
+    expect(doesPaymentAwaitClearance('errored')).toBe(false);
     expect(plan.invoiceEffect).toContain('does not reduce');
+  });
+
+  it('treats received cash as verified because cash has no separate clearing step', () => {
+    const plan = getManualPaymentVerificationPlan({
+      allocationStrategy: 'selected_invoice',
+      clearanceStatus: 'received',
+      paymentMode: 'cash',
+    });
+
+    expect(plan.statusLabel).toBe('Verified');
+    expect(plan.requiresFollowUp).toBe(false);
   });
 });

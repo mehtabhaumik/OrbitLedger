@@ -4,7 +4,10 @@ import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 
 import { AuthProvider } from './auth-provider';
+import { ConfirmDialogProvider } from './confirm-dialog-provider';
+import { DeviceSettingsProvider } from './device-settings-provider';
 import { ToastProvider } from './toast-provider';
+import { SubscriptionProvider } from './subscription-provider';
 import { WebLockProvider } from './web-lock-provider';
 import { WorkspaceProvider } from './workspace-provider';
 
@@ -27,9 +30,15 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
       <WorkspaceProvider>
-        <WebLockProvider>
-          <ToastProvider>{children}</ToastProvider>
-        </WebLockProvider>
+        <SubscriptionProvider>
+          <DeviceSettingsProvider>
+            <WebLockProvider>
+              <ToastProvider>
+                <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+              </ToastProvider>
+            </WebLockProvider>
+          </DeviceSettingsProvider>
+        </SubscriptionProvider>
       </WorkspaceProvider>
     </AuthProvider>
   );

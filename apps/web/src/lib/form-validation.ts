@@ -15,6 +15,14 @@ export function isValidName(value: string) {
   return /^[A-Za-z]+(?:[A-Za-z '&,.-]*[A-Za-z])?$/.test(normalized);
 }
 
+export function isValidBusinessName(value: string) {
+  const normalized = value.trim();
+  if (normalized.length < 2) {
+    return false;
+  }
+  return /^[A-Za-z0-9]+(?:[A-Za-z0-9 '&,./()-]*[A-Za-z0-9])?$/.test(normalized);
+}
+
 export function validateName(value: string, label: string, required = true) {
   const normalized = value.trim();
   if (!normalized) {
@@ -22,6 +30,17 @@ export function validateName(value: string, label: string, required = true) {
   }
   if (!isValidName(normalized)) {
     return `${label} must use letters only.`;
+  }
+  return null;
+}
+
+export function validateBusinessName(value: string, label: string, required = true) {
+  const normalized = value.trim();
+  if (!normalized) {
+    return required ? `${label} is required.` : null;
+  }
+  if (!isValidBusinessName(normalized)) {
+    return `${label} can use letters, numbers, spaces, and simple business punctuation only.`;
   }
   return null;
 }

@@ -31,6 +31,16 @@ service cloud.firestore {
         request.resource.data.owner_uid == resource.data.owner_uid;
     }
 
+    function clientManagedWorkspaceCollection(collectionName) {
+      return collectionName != 'subscription_checkouts' &&
+        collectionName != 'subscription_events' &&
+        collectionName != 'subscription_billing_email_requests' &&
+        collectionName != 'subscription_renewal_changes' &&
+        collectionName != 'subscription_billing_portal_sessions' &&
+        collectionName != 'subscription_admin_queue' &&
+        collectionName != 'subscription_renewal_audit';
+    }
+
     match /workspaces/{workspaceId} {
       allow create: if createsOwnWorkspace();
       allow read: if signedIn() && resource.data.owner_uid == request.auth.uid;
@@ -38,8 +48,54 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.owner_uid == request.auth.uid;
 
       match /{collectionName}/{recordId} {
-        allow read, create, update, delete: if ownsWorkspace(workspaceId);
+        allow read, create, update, delete: if ownsWorkspace(workspaceId) &&
+          clientManagedWorkspaceCollection(collectionName);
       }
+
+      match /subscription_renewal_changes/{changeId} {
+        allow read: if ownsWorkspace(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /subscription_checkouts/{checkoutId} {
+        allow read: if ownsWorkspace(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /subscription_events/{eventId} {
+        allow read: if ownsWorkspace(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /subscription_billing_email_requests/{requestId} {
+        allow read: if ownsWorkspace(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /subscription_billing_portal_sessions/{sessionId} {
+        allow read: if ownsWorkspace(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /subscription_admin_queue/{queueId} {
+        allow read: if ownsWorkspace(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /subscription_renewal_audit/{auditId} {
+        allow read: if ownsWorkspace(workspaceId);
+        allow create, update, delete: if false;
+      }
+    }
+
+    match /users/{userId}/subscription_entitlements/{workspaceId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create, update, delete: if false;
+    }
+
+    match /users/{userId}/subscription_entitlement_audit/{auditId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create, update, delete: if false;
     }
 
     match /{document=**} {

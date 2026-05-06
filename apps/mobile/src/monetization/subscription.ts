@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { getDatabase } from '../database/client';
+import { getSubscriptionPlanTier } from './products';
 import type {
   SaveSubscriptionStatusInput,
   StoredSubscriptionStatus,
@@ -30,15 +31,26 @@ type SubscriptionPreferenceRow = {
 
 const storedSubscriptionSchema = z.object({
   version: z.literal(CURRENT_SUBSCRIPTION_STATUS_VERSION),
-  tier: z.enum(['free', 'pro']),
+  tier: z.enum(['free', 'plus', 'pro', 'office']),
   source: z
     .enum(['local_default', 'manual', 'purchase_cache', 'restore_cache', 'development'])
     .default('manual'),
   updatedAt: z.string().nullable().default(null),
   validUntil: z.string().nullable().default(null),
-  planId: z.enum(['pro_monthly', 'pro_yearly']).nullable().optional().default(null),
+  planId: z
+    .enum(['plus_monthly', 'plus_yearly', 'pro_monthly', 'pro_yearly', 'office_monthly', 'office_yearly'])
+    .nullable()
+    .optional()
+    .default(null),
   productId: z
-    .enum(['com.rudraix.orbitledger.pro.monthly', 'com.rudraix.orbitledger.pro.yearly'])
+    .enum([
+      'com.rudraix.orbitledger.plus.monthly',
+      'com.rudraix.orbitledger.plus.yearly',
+      'com.rudraix.orbitledger.pro.monthly',
+      'com.rudraix.orbitledger.pro.yearly',
+      'com.rudraix.orbitledger.office.monthly',
+      'com.rudraix.orbitledger.office.yearly',
+    ])
     .nullable()
     .optional()
     .default(null),
@@ -154,14 +166,15 @@ function createDefaultStoredStatus(): StoredSubscriptionStatus {
 function hydrateSubscriptionStatus(
   status: StoredSubscriptionStatus
 ): SubscriptionStatus {
+  const storedTier = status.planId ? getSubscriptionPlanTier(status.planId) : status.tier;
   const effectiveTier =
-    status.tier === 'pro' && isExpired(status.validUntil) ? 'free' : status.tier;
+    storedTier !== 'free' && isExpired(status.validUntil) ? 'free' : storedTier;
   const definition = SUBSCRIPTION_TIER_DEFINITIONS[effectiveTier];
 
   return {
     ...status,
     tier: effectiveTier,
-    isPro: effectiveTier === 'pro',
+    isPro: effectiveTier === 'pro' || effectiveTier === 'office',
     tierLabel: definition.label,
     includedFeatures: definition.includedFeatures,
   };

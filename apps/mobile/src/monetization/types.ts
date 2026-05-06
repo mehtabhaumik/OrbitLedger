@@ -1,13 +1,23 @@
 export const SUBSCRIPTION_STATUS_KEY = 'monetization_subscription_status';
 export const CURRENT_SUBSCRIPTION_STATUS_VERSION = 1;
 
-export type SubscriptionTier = 'free' | 'pro';
+export type SubscriptionTier = 'free' | 'plus' | 'pro' | 'office';
 
-export type SubscriptionPlanId = 'pro_monthly' | 'pro_yearly';
+export type SubscriptionPlanId =
+  | 'plus_monthly'
+  | 'plus_yearly'
+  | 'pro_monthly'
+  | 'pro_yearly'
+  | 'office_monthly'
+  | 'office_yearly';
 
 export type SubscriptionProductId =
+  | 'com.rudraix.orbitledger.plus.monthly'
+  | 'com.rudraix.orbitledger.plus.yearly'
   | 'com.rudraix.orbitledger.pro.monthly'
-  | 'com.rudraix.orbitledger.pro.yearly';
+  | 'com.rudraix.orbitledger.pro.yearly'
+  | 'com.rudraix.orbitledger.office.monthly'
+  | 'com.rudraix.orbitledger.office.yearly';
 
 export type CountryPackProductId =
   | 'com.rudraix.orbitledger.countrypack.us'
@@ -50,9 +60,28 @@ export type ProTierFeature =
   | 'tax_ready_documents'
   | 'bulk_document_export'
   | 'multi_business_profiles'
-  | 'advanced_insights';
+  | 'advanced_insights'
+  | 'recurring_auto_email'
+  | 'payment_reconciliation'
+  | 'payment_reversals'
+  | 'audit_ready_reports';
 
-export type SubscriptionFeature = FreeTierFeature | ProTierFeature;
+export type PlusTierFeature =
+  | 'customer_health'
+  | 'customer_profile_exports'
+  | 'payment_links'
+  | 'payment_proof_attachments'
+  | 'branded_invoice_basics'
+  | 'batch_statements'
+  | 'recurring_invoice_rules';
+
+export type OfficeTierFeature =
+  | 'bulk_operations'
+  | 'multi_user_workspace'
+  | 'accountant_exports'
+  | 'priority_support';
+
+export type SubscriptionFeature = FreeTierFeature | PlusTierFeature | ProTierFeature | OfficeTierFeature;
 
 export type StoredSubscriptionStatus = {
   version: typeof CURRENT_SUBSCRIPTION_STATUS_VERSION;

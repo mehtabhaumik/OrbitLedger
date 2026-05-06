@@ -1,10 +1,16 @@
 import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
 import {
   buildManualPaymentInstructionLines,
+  getAccessibleSharedDocumentTemplate,
+  getDefaultSharedDocumentTemplate,
   getGeneratedInvoiceDocumentLabel,
+  getInvoicePaymentStatusLabel,
   getLocalBusinessPack,
+  getSharedDocumentTemplateCatalog,
   normalizeInvoiceDocumentState,
+  type SharedDocumentTemplate,
   type InvoicePaymentLink,
+  type InvoicePaymentStatus,
   type ManualPaymentInstructionDetails,
 } from '@orbit-ledger/core';
 
@@ -23,22 +29,34 @@ import {
 } from './web-monetization';
 
 export type WebDocumentKind = 'invoice' | 'statement';
-export type WebDocumentTier = 'free' | 'pro';
-export type WebDocumentTemplateRole = 'invoice' | 'statement';
+export type WebDocumentTier = SharedDocumentTemplate['tier'];
+export type WebDocumentTemplateRole = SharedDocumentTemplate['role'];
+export type WebDocumentTemplate = Pick<
+  SharedDocumentTemplate,
+  | 'key'
+  | 'role'
+  | 'countryCode'
+  | 'tier'
+  | 'label'
+  | 'description'
+  | 'visualStyle'
+  | 'countryFormat'
+  | 'taxLabel'
+  | 'taxRegistrationLabel'
+  | 'locale'
+  | 'columns'
+>;
 
-export type WebDocumentTemplate = {
-  key: string;
-  role: WebDocumentTemplateRole;
-  countryCode: 'IN' | 'US' | 'GB' | 'GENERIC';
-  tier: WebDocumentTier;
-  label: string;
-  description: string;
-  visualStyle: 'classic_tax' | 'modern_minimal' | 'premium_letterhead' | 'balance_forward' | 'account_letterhead';
-  countryFormat?: 'india_gst' | 'us_sales_tax' | 'uk_vat' | 'generic_tax';
-  taxLabel: string;
-  taxRegistrationLabel: string;
-  locale?: string;
-  columns: Array<{ key: string; label: string; align: 'left' | 'right' }>;
+type WatermarkWorkspace = OrbitWorkspaceSummary & {
+  documentWatermarkType?: 'none' | 'text' | 'logo' | 'image' | null;
+  documentWatermarkText?: string | null;
+  documentWatermarkImageUri?: string | null;
+  documentWatermarkOpacity?: number | null;
+  documentFilenameFormat?: string | null;
+  documentFooterPreference?: string | null;
+  documentBrandHeaderColor?: string | null;
+  documentBrandBackgroundColor?: string | null;
+  documentBrandFontColor?: string | null;
 };
 
 type BuildInvoiceDocumentInput = {
@@ -48,13 +66,19 @@ type BuildInvoiceDocumentInput = {
   subscription?: WebSubscriptionStatus;
   templateKey?: string | null;
   proTheme?: WebProBrandTheme | null;
+  brandWatermarkText?: string | null;
+  brandWatermarkImageUrl?: string | null;
+  brandWatermarkOpacity?: number | null;
   urgentPaymentRequired?: boolean;
   instrumentAttachment?: {
     name: string;
     url: string;
+    contentType?: string | null;
   } | null;
   paymentLink?: InvoicePaymentLink | null;
   manualPaymentInstructions?: string[];
+  paymentModeLine?: string | null;
+  paymentStatusLine?: string | null;
 };
 
 type BuildStatementDocumentInput = {
@@ -66,6 +90,9 @@ type BuildStatementDocumentInput = {
   subscription?: WebSubscriptionStatus;
   templateKey?: string | null;
   proTheme?: WebProBrandTheme | null;
+  brandWatermarkText?: string | null;
+  brandWatermarkImageUrl?: string | null;
+  brandWatermarkOpacity?: number | null;
 };
 
 type InvoiceDocumentLine = {
@@ -94,6 +121,10 @@ type InvoiceDocumentData = {
   issueDate: string;
   dueDate: string | null;
   status: string;
+  paymentStatus: InvoicePaymentStatus;
+  paymentStatusLabel: string;
+  paymentModeLine: string | null;
+  paymentStatusLine: string | null;
   countryCode: string;
   revisionNumber: number;
   taxLabel: string;
@@ -309,10 +340,10 @@ const statementTemplates: WebDocumentTemplate[] = [
 ];
 
 export function getWebDocumentTemplates(workspace: OrbitWorkspaceSummary, role: WebDocumentTemplateRole) {
-  const countryCode = normalizeSupportedCountry(workspace.countryCode);
-  const templates = role === 'invoice' ? invoiceTemplates : statementTemplates;
-  const localTemplates = templates.filter((template) => template.countryCode === countryCode);
-  return localTemplates.length ? localTemplates : templates.filter((template) => template.countryCode === 'GENERIC');
+  return getSharedDocumentTemplateCatalog({
+    countryCode: workspace.countryCode,
+    templateType: role,
+  });
 }
 
 export function getDefaultWebDocumentTemplate(
@@ -320,8 +351,13 @@ export function getDefaultWebDocumentTemplate(
   role: WebDocumentTemplateRole,
   isPro: boolean
 ) {
-  const templates = getWebDocumentTemplates(workspace, role);
-  return templates.find((template) => template.tier === (isPro ? 'pro' : 'free')) ?? templates[0];
+  return getDefaultSharedDocumentTemplate(
+    {
+      countryCode: workspace.countryCode,
+      templateType: role,
+    },
+    isPro
+  );
 }
 
 export function getWebDocumentTemplate(
@@ -330,16 +366,31 @@ export function getWebDocumentTemplate(
   key: string | null | undefined,
   isPro: boolean
 ) {
-  const templates = getWebDocumentTemplates(workspace, role);
-  const selected = key ? templates.find((template) => template.key === key) : null;
-  if (selected && canUseWebTemplate(selected, isPro)) {
-    return selected;
-  }
-  return getDefaultWebDocumentTemplate(workspace, role, isPro);
+  return getAccessibleSharedDocumentTemplate(
+    {
+      countryCode: workspace.countryCode,
+      templateType: role,
+      key,
+    },
+    isPro
+  );
 }
 
 export function canUseWebTemplate(template: WebDocumentTemplate, isPro: boolean) {
   return template.tier === 'free' || isPro;
+}
+
+export function getWebTemplateAccessError(
+  workspace: OrbitWorkspaceSummary,
+  role: WebDocumentTemplateRole,
+  key: string | null | undefined,
+  isPro: boolean
+) {
+  const selected = key ? getWebDocumentTemplates(workspace, role).find((template) => template.key === key) : null;
+  if (selected?.tier === 'pro' && !isPro) {
+    return `${selected.label} is a Pro Plus template. Upgrade to use it for view, print, PDF, or CSV export.`;
+  }
+  return null;
 }
 
 export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
@@ -348,11 +399,16 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
   const template = getWebDocumentTemplate(input.workspace, 'invoice', input.templateKey, subscription.isPro);
   const pdfStyle = template.tier === 'pro' && access.allowed ? 'advanced' : 'basic';
   const includeBranding = resolveWebFeatureAccess(subscription, 'custom_document_branding').allowed;
+  const includePaymentLink = resolveWebFeatureAccess(subscription, 'payment_links').allowed;
+  const includePaymentProof = resolveWebFeatureAccess(subscription, 'payment_proof_attachments').allowed;
+  const paymentLink = includePaymentLink ? input.paymentLink ?? null : null;
+  const instrumentAttachment = includePaymentProof ? input.instrumentAttachment ?? null : null;
   const pack = getLocalBusinessPack({
     countryCode: input.workspace.countryCode,
     regionCode: input.workspace.stateCode,
   });
-  const proTheme = pdfStyle === 'advanced' ? input.proTheme ?? getWebProBrandTheme() : null;
+  const proTheme = pdfStyle === 'advanced' ? input.proTheme ?? getWorkspaceProBrandTheme(input.workspace) : null;
+  const workspaceWatermark = getWorkspaceWatermark(input.workspace);
   const subtotal = input.invoice.items.reduce((total, item) => total + item.quantity * item.price, 0);
   const taxAmount = input.invoice.items.reduce((total, item) => total + item.quantity * item.price * (item.taxRate / 100), 0);
   const total = subtotal + taxAmount;
@@ -400,12 +456,18 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
     input.invoice.invoiceNumber,
     input.invoice.issueDate,
     revisionNumber,
-    countryCode
+    countryCode,
+    (input.workspace as WatermarkWorkspace).documentFilenameFormat
   );
   const amountWords = amountInWords(total, input.workspace.currency);
   const documentStatusLabel = getGeneratedInvoiceDocumentLabel(
     normalizeInvoiceDocumentState(input.invoice.documentState ?? input.invoice.status)
   );
+  const paymentStatus = input.invoice.paymentStatus;
+  const paymentStatusLabel = getInvoicePaymentStatusLabel(paymentStatus);
+  const paymentStatusLine =
+    input.paymentStatusLine ??
+    (input.invoice.paymentStatusReason ? `Unpaid - ${input.invoice.paymentStatusReason}` : null);
   const invoiceData: InvoiceDocumentData = {
     title: pack.documents.invoiceTitle,
     businessName: input.workspace.businessName,
@@ -418,6 +480,10 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
     issueDate: input.invoice.issueDate,
     dueDate: input.invoice.dueDate,
     status: documentStatusLabel,
+    paymentStatus,
+    paymentStatusLabel,
+    paymentModeLine: input.paymentModeLine ?? null,
+    paymentStatusLine,
     countryCode,
     revisionNumber,
     taxLabel: template.taxLabel,
@@ -430,18 +496,23 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
   };
   const html = documentShell({
     title: `Invoice - ${input.invoice.invoiceNumber}`,
-    bodyClass: `document-invoice style-${pdfStyle} template-${template.visualStyle} template-${template.countryFormat}`,
+    bodyClass: `document-invoice style-${pdfStyle} template-${template.visualStyle} template-${template.countryFormat} template-key-${template.key.toLowerCase()}`,
     proTheme,
+    watermarkText: pdfStyle === 'advanced' ? input.brandWatermarkText ?? workspaceWatermark.text : null,
+    watermarkImageUrl: pdfStyle === 'advanced' ? input.brandWatermarkImageUrl ?? workspaceWatermark.imageUrl : null,
+    watermarkOpacity: pdfStyle === 'advanced' ? input.brandWatermarkOpacity ?? workspaceWatermark.opacity : null,
     content: `
       ${headerBlock({
         workspace: input.workspace,
         title: pack.documents.invoiceTitle,
         strong: input.invoice.invoiceNumber,
-        meta: `${template.label} · ${documentStatusLabel}`,
+        meta: documentStatusLabel,
         includeBranding,
         template,
+        showTemplateName: false,
       })}
       ${input.urgentPaymentRequired ? urgentPaymentStamp() : ''}
+      ${invoicePaymentStatusBlock(paymentStatus, paymentStatusLabel, input.paymentModeLine ?? null, paymentStatusLine)}
       <section class="identity-grid">
         <div class="panel">
           <p class="label">${escapeHtml(pack.documents.buyerLabel)}</p>
@@ -471,16 +542,16 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
         </div>
         ${signatureBlock(input.workspace, includeBranding)}
       </section>
-      ${input.paymentLink ? paymentLinkBlock(input.paymentLink) : ''}
+      ${paymentLink ? paymentLinkBlock(paymentLink) : ''}
       ${input.manualPaymentInstructions?.length ? manualPaymentInstructionBlock(input.manualPaymentInstructions) : ''}
-      ${input.instrumentAttachment ? instrumentAttachmentBlock(input.instrumentAttachment) : ''}
+      ${instrumentAttachment ? instrumentAttachmentBlock(instrumentAttachment) : ''}
       <section class="tax-note">
         <p class="label">${escapeHtml(template.taxLabel)} Details</p>
         <p>${escapeHtml(taxAmount > 0 ? `${template.taxLabel} is included from saved invoice item rates.` : `No ${template.taxLabel.toLowerCase()} amount is applied to this invoice.`)}</p>
         ${taxBreakdownList(taxBreakdown)}
         <p>${escapeHtml(pack.compliance.disclaimer)}</p>
       </section>
-      ${pdfStyle === 'advanced' ? proFooter('Prepared with custom invoice branding') : freeFooter()}
+      ${documentFooter(pdfStyle, input.workspace, 'Prepared with custom invoice branding')}
     `,
   });
   return {
@@ -492,8 +563,9 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
     pdfStyle,
     subscription,
     invoiceData,
-    paymentLink: input.paymentLink ?? null,
+    paymentLink,
     manualPaymentInstructions: input.manualPaymentInstructions ?? [],
+    pdfFooterText: documentPdfFooterText(pdfStyle, input.workspace),
   };
 }
 
@@ -502,7 +574,8 @@ export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
   const template = getWebDocumentTemplate(input.workspace, 'statement', input.templateKey, subscription.isPro);
   const pdfStyle = template.tier === 'pro' && subscription.isPro ? 'advanced' : 'basic';
   const includeBranding = resolveWebFeatureAccess(subscription, 'custom_document_branding').allowed;
-  const proTheme = pdfStyle === 'advanced' ? input.proTheme ?? getWebProBrandTheme() : null;
+  const proTheme = pdfStyle === 'advanced' ? input.proTheme ?? getWorkspaceProBrandTheme(input.workspace) : null;
+  const workspaceWatermark = getWorkspaceWatermark(input.workspace);
   const sortedTransactions = [...input.transactions].sort((left, right) =>
     `${left.effectiveDate}${left.createdAt}`.localeCompare(`${right.effectiveDate}${right.createdAt}`)
   );
@@ -580,6 +653,9 @@ export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
     title: `Statement - ${input.customer.name}`,
     bodyClass: `document-statement style-${pdfStyle} template-${template.visualStyle}`,
     proTheme,
+    watermarkText: pdfStyle === 'advanced' ? input.brandWatermarkText ?? workspaceWatermark.text : null,
+    watermarkImageUrl: pdfStyle === 'advanced' ? input.brandWatermarkImageUrl ?? workspaceWatermark.imageUrl : null,
+    watermarkOpacity: pdfStyle === 'advanced' ? input.brandWatermarkOpacity ?? workspaceWatermark.opacity : null,
     content: `
       ${headerBlock({
         workspace: input.workspace,
@@ -626,10 +702,19 @@ export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
         <p>Customer statements summarize ledger dues and payments. Invoice tax totals are handled in invoice documents and reports.</p>
         <p>Please review this statement and contact us if anything looks incorrect.</p>
       </section>
-      ${pdfStyle === 'advanced' ? proFooter('Prepared with custom document branding') : freeFooter()}
+      ${documentFooter(pdfStyle, input.workspace, 'Prepared with custom document branding')}
     `,
   });
-  return { kind: 'statement' as const, html, fileName, template, pdfStyle, subscription, statementData };
+  return {
+    kind: 'statement' as const,
+    html,
+    fileName,
+    template,
+    pdfStyle,
+    subscription,
+    statementData,
+    pdfFooterText: documentPdfFooterText(pdfStyle, input.workspace),
+  };
 }
 
 export type WebInvoiceDocument = ReturnType<typeof buildInvoiceWebDocument>;
@@ -702,8 +787,40 @@ export async function downloadInvoicePdf(document: WebInvoiceDocument) {
   addText(data.businessContact, margin + 16, y + 2, { size: 9, maxWidth: 260 });
   addText(data.title, pageWidth - margin - 16, margin + 24, { size: 10, style: 'bold', align: 'right', maxWidth: 230 });
   addText(data.invoiceNumber, pageWidth - margin - 16, margin + 44, { size: 16, style: 'bold', align: 'right', maxWidth: 230 });
-  addText(`${document.template.label} · ${data.status}`, pageWidth - margin - 16, margin + 62, { size: 9, align: 'right', maxWidth: 230 });
+  addText(data.status, pageWidth - margin - 16, margin + 62, { size: 9, align: 'right', maxWidth: 230 });
   y = margin + 98;
+
+  if (data.paymentStatus === 'paid') {
+    pdf.setDrawColor(43, 138, 94);
+    pdf.setTextColor(32, 125, 83);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(15);
+    pdf.roundedRect(pageWidth - margin - 116, y - 2, 76, 28, 7, 7, 'S');
+    pdf.text('PAID', pageWidth - margin - 78, y + 17, { align: 'center' });
+    pdf.setTextColor(24, 35, 31);
+    y += 12;
+    const paymentLines = [data.paymentModeLine, data.paymentStatusLine].filter(Boolean);
+    if (paymentLines.length) {
+      y = addText(paymentLines.join('\n'), pageWidth - margin, y + 2, {
+        size: 9,
+        style: 'bold',
+        align: 'right',
+        maxWidth: 230,
+      });
+    }
+  } else {
+    pdf.setTextColor(24, 35, 31);
+    const paymentStatusText = [
+      data.paymentModeLine,
+      data.paymentStatusLine ?? data.paymentStatusLabel,
+    ].filter(Boolean).join('\n');
+    y = addText(`Payment status: ${paymentStatusText}`, pageWidth - margin, y + 6, {
+      size: 10,
+      style: 'bold',
+      align: 'right',
+      maxWidth: 230,
+    });
+  }
 
   ensureSpace(96);
   const halfWidth = (pageWidth - margin * 2 - 14) / 2;
@@ -881,7 +998,9 @@ export async function downloadStatementPdf(document: WebStatementDocument) {
     if (y + height <= pageHeight - margin - 34) {
       return;
     }
-    addDocumentFooter(pdf, document.pdfStyle === 'advanced' ? 'Prepared with Orbit Ledger Pro' : 'Generated using Orbit Ledger', `${data.from} to ${data.to}`);
+    if (document.pdfFooterText) {
+      addDocumentFooter(pdf, document.pdfFooterText, `${data.from} to ${data.to}`);
+    }
     pdf.addPage();
     y = margin;
   };
@@ -963,8 +1082,136 @@ export async function downloadStatementPdf(document: WebStatementDocument) {
     addText('No transactions in this statement period.', margin + 8, y + 18, { size: 9 });
   }
 
-  addDocumentFooter(pdf, document.pdfStyle === 'advanced' ? 'Prepared with Orbit Ledger Pro' : 'Generated using Orbit Ledger', `${data.from} to ${data.to}`);
+  if (document.pdfFooterText) {
+    addDocumentFooter(pdf, document.pdfFooterText, `${data.from} to ${data.to}`);
+  }
   pdf.save(document.fileName);
+}
+
+export async function downloadStatementBatchPdf(documents: WebStatementDocument[]) {
+  if (!documents.length) {
+    throw new Error('Choose at least one customer before creating a statement batch.');
+  }
+
+  const { jsPDF } = await import('jspdf');
+  const pdf = new jsPDF({ format: 'a4', unit: 'pt' });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 40;
+
+  documents.forEach((document, index) => {
+    if (index > 0) {
+      pdf.addPage();
+    }
+
+    const data = document.statementData;
+    let y = margin;
+    const addText = (
+      text: string,
+      x: number,
+      currentY: number,
+      options: { size?: number; style?: 'normal' | 'bold'; maxWidth?: number; align?: 'left' | 'right' | 'center' } = {}
+    ) => {
+      pdf.setFont('helvetica', options.style ?? 'normal');
+      pdf.setFontSize(options.size ?? 10);
+      const lines = pdf.splitTextToSize(text, options.maxWidth ?? pageWidth - margin * 2) as string[];
+      pdf.text(lines, x, currentY, { align: options.align ?? 'left' });
+      return currentY + lines.length * ((options.size ?? 10) + 4);
+    };
+
+    pdf.setDrawColor(214, 226, 242);
+    pdf.setFillColor(247, 250, 255);
+    pdf.roundedRect(margin, y, pageWidth - margin * 2, 76, 8, 8, 'FD');
+    y = addText(data.businessName, margin + 16, y + 24, { size: 16, style: 'bold', maxWidth: 280 });
+    y = addText(data.businessAddress, margin + 16, y + 2, { size: 9, maxWidth: 280 });
+    addText(data.businessContact, margin + 16, y + 2, { size: 9, maxWidth: 280 });
+    addText('Statement Batch', pageWidth - margin - 16, margin + 24, { size: 10, style: 'bold', align: 'right', maxWidth: 230 });
+    addText(`${data.from} to ${data.to}`, pageWidth - margin - 16, margin + 46, { size: 13, style: 'bold', align: 'right', maxWidth: 230 });
+    addText(`Page ${index + 1} of ${documents.length}`, pageWidth - margin - 16, margin + 64, { size: 9, align: 'right', maxWidth: 230 });
+    y = margin + 105;
+
+    const halfWidth = (pageWidth - margin * 2 - 14) / 2;
+    pdf.setFillColor(251, 253, 255);
+    pdf.roundedRect(margin, y, halfWidth, 96, 8, 8, 'FD');
+    pdf.roundedRect(margin + halfWidth + 14, y, halfWidth, 96, 8, 8, 'FD');
+    addText('Customer', margin + 14, y + 20, { size: 8, style: 'bold' });
+    addText(data.customerName, margin + 14, y + 42, { size: 14, style: 'bold', maxWidth: halfWidth - 28 });
+    addText([data.customerPhone, data.customerAddress].filter(Boolean).join(' · ') || 'No customer contact saved', margin + 14, y + 62, { size: 9, maxWidth: halfWidth - 28 });
+    addText('Account summary', margin + halfWidth + 28, y + 20, { size: 8, style: 'bold' });
+    addText(`Amount due: ${formatPlainAmount(data.amountDue)}`, margin + halfWidth + 28, y + 42, { size: 13, style: 'bold', maxWidth: halfWidth - 28 });
+    addText(data.dueMessage, margin + halfWidth + 28, y + 62, { size: 9, maxWidth: halfWidth - 28 });
+    y += 122;
+
+    pdf.setFillColor(251, 253, 255);
+    pdf.roundedRect(margin, y, pageWidth - margin * 2, 84, 8, 8, 'FD');
+    addSummaryLine(pdf, 'Opening balance', formatPlainAmount(data.openingBalance), margin + 14, y + 26, pageWidth - margin * 2 - 28);
+    addSummaryLine(pdf, 'Credit / charges', formatPlainAmount(data.totalCredit), margin + 14, y + 44, pageWidth - margin * 2 - 28);
+    addSummaryLine(pdf, 'Payments received', formatPlainAmount(data.totalPayment), margin + 14, y + 62, pageWidth - margin * 2 - 28);
+    addSummaryLine(pdf, 'Closing balance', formatPlainAmount(data.closingBalance), margin + 14, y + 80, pageWidth - margin * 2 - 28, true);
+    y += 112;
+
+    y = addText('Recent activity', margin, y, { size: 12, style: 'bold' }) + 8;
+    const columns = [
+      { label: 'Date', width: 76, align: 'left' as const },
+      { label: 'Details', width: 210, align: 'left' as const },
+      { label: 'Credit', width: 76, align: 'right' as const },
+      { label: 'Payment', width: 76, align: 'right' as const },
+      { label: 'Balance', width: 82, align: 'right' as const },
+    ];
+    const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
+    pdf.setFillColor(244, 248, 252);
+    pdf.rect(margin, y, tableWidth, 24, 'F');
+    let x = margin;
+    for (const column of columns) {
+      addText(column.label, column.align === 'right' ? x + column.width - 6 : x + 6, y + 16, {
+        size: 8,
+        style: 'bold',
+        align: column.align,
+        maxWidth: column.width - 10,
+      });
+      x += column.width;
+    }
+    y += 28;
+
+    const visibleRows = data.rows.slice(-12);
+    for (const row of visibleRows) {
+      const rowHeight = Math.max(30, (pdf.splitTextToSize(row.description, columns[1].width - 12) as string[]).length * 11 + 12);
+      if (y + rowHeight > pageHeight - margin - 46) {
+        break;
+      }
+      pdf.setDrawColor(228, 236, 246);
+      pdf.line(margin, y + rowHeight, margin + tableWidth, y + rowHeight);
+      x = margin;
+      [
+        row.date,
+        row.description,
+        row.creditAmount ? formatPlainAmount(row.creditAmount) : '-',
+        row.paymentAmount ? formatPlainAmount(row.paymentAmount) : '-',
+        formatPlainAmount(row.runningBalance),
+      ].forEach((value, columnIndex) => {
+        const column = columns[columnIndex];
+        addText(value, column.align === 'right' ? x + column.width - 6 : x + 6, y + 15, {
+          size: 8.5,
+          align: column.align,
+          maxWidth: column.width - 12,
+        });
+        x += column.width;
+      });
+      y += rowHeight;
+    }
+
+    if (!data.rows.length) {
+      addText('No transactions in this statement period.', margin + 8, y + 18, { size: 9 });
+    } else if (data.rows.length > visibleRows.length) {
+      addText(`${data.rows.length - visibleRows.length} older entries are summarized above. Open the single customer statement for full activity.`, margin + 8, y + 18, { size: 9 });
+    }
+
+    if (document.pdfFooterText) {
+      addDocumentFooter(pdf, document.pdfFooterText, data.customerName);
+    }
+  });
+
+  pdf.save(`Customer_Statements_${today()}.pdf`);
 }
 
 export function buildPaymentRequestMessage(input: {
@@ -985,7 +1232,7 @@ export function buildPaymentRequestMessage(input: {
 }
 
 function invoiceTemplate(
-  key: string,
+  key: WebDocumentTemplate['key'],
   countryCode: WebDocumentTemplate['countryCode'],
   tier: WebDocumentTier,
   label: string,
@@ -1014,7 +1261,7 @@ function invoiceTemplate(
 }
 
 function statementTemplate(
-  key: string,
+  key: WebDocumentTemplate['key'],
   countryCode: WebDocumentTemplate['countryCode'],
   tier: WebDocumentTier,
   label: string,
@@ -1105,8 +1352,21 @@ function buildTaxBreakdown(amount: number, mode: string, currency: string, local
   return [{ label: 'Tax', amount: money(rounded, currency, locale) }];
 }
 
-function documentShell(input: { title: string; bodyClass: string; proTheme: WebProBrandTheme | null; content: string }) {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(input.title)}</title><style>${pdfStyles}</style></head><body class="${escapeAttribute(input.bodyClass)}"${proThemeStyle(input.proTheme)}><main class="page">${input.content}</main></body></html>`;
+function documentShell(input: {
+  title: string;
+  bodyClass: string;
+  proTheme: WebProBrandTheme | null;
+  watermarkText?: string | null;
+  watermarkImageUrl?: string | null;
+  watermarkOpacity?: number | null;
+  content: string;
+}) {
+  const watermark = input.watermarkImageUrl
+    ? `<img class="brand-watermark brand-watermark-image" src="${escapeAttribute(input.watermarkImageUrl)}" alt="">`
+    : input.watermarkText?.trim()
+      ? `<div class="brand-watermark">${escapeHtml(input.watermarkText.trim())}</div>`
+      : '';
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(input.title)}</title><style>${pdfStyles}</style></head><body class="${escapeAttribute(input.bodyClass)}"${proThemeStyle(input.proTheme, input.watermarkOpacity)}><main class="page">${watermark}${input.content}</main></body></html>`;
 }
 
 function headerBlock(input: {
@@ -1116,11 +1376,15 @@ function headerBlock(input: {
   meta: string;
   includeBranding: boolean;
   template: WebDocumentTemplate;
+  showTemplateName?: boolean;
 }) {
   const logo = input.includeBranding && input.workspace.logoUri
     ? `<img class="logo" src="${escapeAttribute(input.workspace.logoUri)}" alt="${escapeAttribute(input.workspace.businessName)} logo">`
     : `<div class="logo-fallback">${escapeHtml(initials(input.workspace.businessName))}</div>`;
-  return `<header class="document-header"><div class="brand-row">${logo}<div class="business-copy"><h1>${escapeHtml(input.workspace.businessName)}</h1><p>${escapeHtml(input.workspace.address)}</p><p class="business-contact">${escapeHtml(input.workspace.phone)} | ${escapeHtml(input.workspace.email)}</p></div></div><div class="statement-title"><p class="label">${escapeHtml(input.title)}</p><strong>${escapeHtml(input.strong)}</strong><span>${escapeHtml(input.meta)}</span><em class="style-badge">${escapeHtml(input.template.tier === 'pro' ? `${input.template.label} · Pro` : input.template.label)}</em></div></header>`;
+  const templateBadge = input.showTemplateName === false
+    ? ''
+    : `<em class="style-badge">${escapeHtml(input.template.tier === 'pro' ? `${input.template.label} · Pro` : input.template.label)}</em>`;
+  return `<header class="document-header"><div class="brand-row">${logo}<div class="business-copy"><h1>${escapeHtml(input.workspace.businessName)}</h1><p>${escapeHtml(input.workspace.address)}</p><p class="business-contact">${escapeHtml(input.workspace.phone)} | ${escapeHtml(input.workspace.email)}</p></div></div><div class="statement-title"><p class="label">${escapeHtml(input.title)}</p><strong>${escapeHtml(input.strong)}</strong><span>${escapeHtml(input.meta)}</span>${templateBadge}</div></header>`;
 }
 
 function signatureBlock(workspace: OrbitWorkspaceSummary, includeBranding: boolean) {
@@ -1134,8 +1398,26 @@ function urgentPaymentStamp() {
   return '<section class="urgent-stamp">Payment required urgently</section>';
 }
 
-function instrumentAttachmentBlock(attachment: { name: string; url: string }) {
-  return `<section class="instrument-proof"><div><p class="label">Payment instrument proof</p><h2>${escapeHtml(attachment.name)}</h2><p>Included by the business for payment review.</p></div><img src="${escapeAttribute(attachment.url)}" alt="${escapeAttribute(attachment.name)}"></section>`;
+function invoicePaymentStatusBlock(
+  status: InvoicePaymentStatus,
+  label: string,
+  modeLine?: string | null,
+  statusLine?: string | null
+) {
+  const detailRows = [modeLine, statusLine].filter(Boolean);
+  if (status === 'paid') {
+    return `<section class="invoice-paid-group"><div class="invoice-paid-stamp">Paid</div>${detailRows.length ? `<div class="invoice-payment-status invoice-payment-status--stacked">${detailRows.map((row) => `<strong>${escapeHtml(row ?? '')}</strong>`).join('')}</div>` : ''}</section>`;
+  }
+  const displayLabel = statusLine ?? label;
+  return `<section class="invoice-payment-status invoice-payment-status--stacked"><span>Payment status</span>${modeLine ? `<strong>${escapeHtml(modeLine)}</strong>` : ''}<strong>${escapeHtml(displayLabel)}</strong></section>`;
+}
+
+function instrumentAttachmentBlock(attachment: { name: string; url: string; contentType?: string | null }) {
+  const isPdf = attachment.contentType === 'application/pdf' || /\.pdf($|\?)/i.test(attachment.name);
+  const preview = isPdf
+    ? `<a class="instrument-proof-file" href="${escapeAttribute(attachment.url)}" target="_blank" rel="noreferrer">PDF proof</a>`
+    : `<img src="${escapeAttribute(attachment.url)}" alt="${escapeAttribute(attachment.name)}">`;
+  return `<section class="instrument-proof"><div><p class="label">Payment proof</p><h2>${escapeHtml(attachment.name)}</h2><p>Included by the business for payment review.</p></div>${preview}</section>`;
 }
 
 function paymentLinkBlock(link: InvoicePaymentLink) {
@@ -1183,6 +1465,34 @@ function freeFooter() {
   return '<section class="brand-footer brand-footer--free"><span>Generated using Orbit Ledger</span><span>Clear records for serious small businesses</span></section>';
 }
 
+function documentFooter(pdfStyle: 'basic' | 'advanced', workspace: OrbitWorkspaceSummary, proMessage: string) {
+  const preference = (workspace as WatermarkWorkspace).documentFooterPreference ?? 'auto';
+  if (pdfStyle !== 'advanced') {
+    return freeFooter();
+  }
+  if (preference === 'hide_when_pro') {
+    return '';
+  }
+  if (preference === 'always_show') {
+    return freeFooter();
+  }
+  return proFooter(proMessage);
+}
+
+function documentPdfFooterText(pdfStyle: 'basic' | 'advanced', workspace: OrbitWorkspaceSummary) {
+  const preference = (workspace as WatermarkWorkspace).documentFooterPreference ?? 'auto';
+  if (pdfStyle !== 'advanced') {
+    return 'Generated using Orbit Ledger';
+  }
+  if (preference === 'always_show') {
+    return 'Generated using Orbit Ledger';
+  }
+  if (preference === 'hide_when_pro') {
+    return '';
+  }
+  return 'Prepared with Orbit Ledger Pro';
+}
+
 function addSummaryLine(
   pdf: JsPdfDocument,
   label: string,
@@ -1199,9 +1509,12 @@ function addSummaryLine(
 }
 
 function addPdfFooter(pdf: JsPdfDocument, document: WebInvoiceDocument) {
+  if (!document.pdfFooterText) {
+    return;
+  }
   addDocumentFooter(
     pdf,
-    document.pdfStyle === 'advanced' ? 'Prepared with Orbit Ledger Pro' : 'Generated using Orbit Ledger',
+    document.pdfFooterText,
     `${document.invoiceData.invoiceNumber} · ${document.invoiceData.countryCode}`
   );
 }
@@ -1220,11 +1533,54 @@ function addDocumentFooter(pdf: JsPdfDocument, footerText: string, rightText: st
   pdf.setTextColor(24, 35, 31);
 }
 
-function proThemeStyle(theme: WebProBrandTheme | null) {
+function proThemeStyle(theme: WebProBrandTheme | null, watermarkOpacity?: number | null) {
+  const opacity = normalizeWatermarkOpacity(watermarkOpacity);
   if (!theme) {
-    return '';
+    return opacity ? ` style="--pro-watermark-opacity:${escapeAttribute(String(opacity))}"` : '';
   }
-  return ` style="--pro-accent:${escapeAttribute(theme.accentColor)};--pro-surface:${escapeAttribute(theme.surfaceColor)};--pro-line:${escapeAttribute(theme.lineColor)};--pro-text:${escapeAttribute(theme.textColor)}"`;
+  return ` style="--pro-accent:${escapeAttribute(theme.accentColor)};--pro-surface:${escapeAttribute(theme.surfaceColor)};--pro-line:${escapeAttribute(theme.lineColor)};--pro-text:${escapeAttribute(theme.textColor)};--pro-watermark-opacity:${escapeAttribute(String(opacity ?? 0.08))}"`;
+}
+
+function getWorkspaceProBrandTheme(workspace: OrbitWorkspaceSummary): WebProBrandTheme {
+  const branded = workspace as WatermarkWorkspace;
+  const fallback = getWebProBrandTheme();
+  return {
+    key: fallback.key,
+    label: fallback.label,
+    description: fallback.description,
+    accentColor: normalizeHexColor(branded.documentBrandHeaderColor) ?? fallback.accentColor,
+    surfaceColor: normalizeHexColor(branded.documentBrandBackgroundColor) ?? fallback.surfaceColor,
+    lineColor: fallback.lineColor,
+    textColor: normalizeHexColor(branded.documentBrandFontColor) ?? fallback.textColor,
+  };
+}
+
+function getWorkspaceWatermark(workspace: OrbitWorkspaceSummary) {
+  const branded = workspace as WatermarkWorkspace;
+  const type = branded.documentWatermarkType ?? 'none';
+  const opacity = normalizeWatermarkOpacity(branded.documentWatermarkOpacity) ?? 0.08;
+  if (type === 'text' && branded.documentWatermarkText?.trim()) {
+    return { text: branded.documentWatermarkText.trim(), imageUrl: null, opacity };
+  }
+  if (type === 'logo' && workspace.logoUri) {
+    return { text: null, imageUrl: workspace.logoUri, opacity };
+  }
+  if (type === 'image' && branded.documentWatermarkImageUri) {
+    return { text: null, imageUrl: branded.documentWatermarkImageUri, opacity };
+  }
+  return { text: null, imageUrl: null, opacity };
+}
+
+function normalizeWatermarkOpacity(value?: number | null) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+  return Math.min(0.3, Math.max(0.02, value));
+}
+
+function normalizeHexColor(value?: string | null) {
+  const normalized = value?.trim();
+  return normalized && /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : null;
 }
 
 function buildInvoicePdfFileName(
@@ -1232,9 +1588,21 @@ function buildInvoicePdfFileName(
   invoiceNumber: string,
   issueDate: string,
   revisionNumber: number,
-  countryCode: string
+  countryCode: string,
+  format?: string | null
 ) {
-  return `${fileNamePart(customerName, 'Customer')}_${fileNamePart(invoiceNumber, 'Invoice')}_${fileNamePart(issueDate, today())}_${fileNamePart(String(revisionNumber), '1')}_${fileNamePart(countryCode, 'GENERIC')}.pdf`;
+  const customer = fileNamePart(customerName, 'Customer');
+  const invoice = fileNamePart(invoiceNumber, 'Invoice');
+  const date = fileNamePart(issueDate, today());
+  const revision = fileNamePart(String(revisionNumber), '1');
+  const country = fileNamePart(countryCode, 'GENERIC');
+  if (format === 'invoice_customer_date') {
+    return `${invoice}_${customer}_${date}.pdf`;
+  }
+  if (format === 'date_customer_invoice') {
+    return `${date}_${customer}_${invoice}.pdf`;
+  }
+  return `${customer}_${invoice}_${date}_${revision}_${country}.pdf`;
 }
 
 function buildStatementPdfFileName(customerName: string, from: string, to: string) {
@@ -1380,7 +1748,10 @@ const pdfStyles = `
   :root{--pro-accent:#145C52;--pro-surface:#E5F1ED;--pro-line:#D6E0DA;--pro-text:#18231F}
   *{box-sizing:border-box}
   body{margin:0;background:#edf2f7;color:#18231f;font-family:Inter,Arial,sans-serif}
-  .page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:18mm;box-shadow:0 20px 60px rgba(20,32,51,.16)}
+  .page{position:relative;overflow:hidden;width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:18mm;box-shadow:0 20px 60px rgba(20,32,51,.16)}
+  .brand-watermark{position:absolute;inset:0;z-index:4;pointer-events:none;display:grid;place-items:center;color:var(--pro-accent);font-size:70px;font-weight:900;letter-spacing:.08em;opacity:var(--pro-watermark-opacity,.08);text-transform:uppercase;transform:rotate(-20deg)}
+  .brand-watermark-image{inset:22%;margin:auto;max-width:52%;max-height:52%;object-fit:contain;transform:rotate(-16deg)}
+  .page>*:not(.brand-watermark){position:relative;z-index:1}
   .document-header{display:flex;justify-content:space-between;gap:24px;border-bottom:2px solid #dce6f2;padding-bottom:18px;margin-bottom:20px}
   .brand-row{display:flex;gap:14px;align-items:flex-start;min-width:0}
   .logo,.logo-fallback{width:58px;height:58px;border-radius:16px;object-fit:contain;flex:0 0 auto}
@@ -1393,11 +1764,71 @@ const pdfStyles = `
   .table-section{margin:18px 0}.table-section h2{font-size:15px;margin-bottom:10px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border-bottom:1px solid #e2eaf4;padding:9px 8px;text-align:left;vertical-align:top}th{background:#f4f8fc;color:#516173;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.numeric{text-align:right}.description{font-weight:700}.empty-table{border:1px dashed #cdd8e8;border-radius:14px;padding:18px;color:#66758a}
   .summary-line{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid #e5edf6;font-size:12px}.summary-line.emphasized{font-size:15px;font-weight:900;color:#145C52;border-bottom:0}.amount-words{font-size:11px;line-height:1.5;margin-top:10px;color:#516173}
   .signature-box{height:60px;border:1px dashed #cad6e6;border-radius:12px;display:grid;place-items:center;color:#8390a3;margin:12px 0}.signature{max-width:100%;max-height:52px;object-fit:contain}.signature-line{height:1px;background:#aebace;margin-bottom:8px}
-  .urgent-stamp{margin:0 0 14px auto;width:max-content;max-width:100%;border:2px solid #b42318;color:#b42318;border-radius:12px;padding:8px 14px;text-transform:uppercase;font-weight:900;letter-spacing:.08em;transform:rotate(-1deg)}
-  .instrument-proof{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:16px;align-items:center;border:1px solid #dce6f2;border-radius:16px;padding:14px;background:#fbfdff;margin:16px 0;break-inside:avoid}.instrument-proof h2{font-size:15px;margin:6px 0}.instrument-proof p{font-size:11px;color:#516173}.instrument-proof img{width:100%;max-height:140px;object-fit:contain;border:1px solid #dce6f2;border-radius:12px;background:#fff}
+  .urgent-stamp{margin:0 0 12px auto;width:max-content;max-width:100%;border:1.6px solid #b42318;color:#b42318;border-radius:10px;padding:6px 11px;text-transform:uppercase;font-size:11px;font-weight:900;letter-spacing:.07em;transform:rotate(-1deg)}
+  .invoice-paid-group{display:flex;flex-direction:column;align-items:flex-end;gap:7px;margin:0 0 12px auto}
+  .invoice-paid-stamp{width:max-content;max-width:100%;border:2px solid #2b8a5e;color:#207d53;border-radius:10px;padding:6px 18px;text-transform:uppercase;font-size:16px;font-weight:950;letter-spacing:.14em;transform:rotate(-2deg);background:rgba(234,250,244,.72)}
+  .invoice-payment-status{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:0 0 12px auto;color:#18231f;font-size:12px}.invoice-payment-status span{color:#66758a;font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.invoice-payment-status strong{font-size:13px;font-weight:950}.invoice-payment-status--stacked{align-items:flex-end;flex-direction:column;gap:3px;text-align:right}.invoice-paid-group .invoice-payment-status{margin:0}
+  .instrument-proof{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:16px;align-items:center;border:1px solid #dce6f2;border-radius:16px;padding:14px;background:#fbfdff;margin:16px 0;break-inside:avoid}.instrument-proof h2{font-size:15px;margin:6px 0}.instrument-proof p{font-size:11px;color:#516173}.instrument-proof img,.instrument-proof-file{width:100%;max-height:140px;border:1px solid #dce6f2;border-radius:12px;background:#fff}.instrument-proof img{object-fit:contain}.instrument-proof-file{min-height:112px;display:grid;place-items:center;color:#245db5;font-size:15px;font-weight:900;text-decoration:none}
   .payment-link-block{border:1px solid #b9d7ff;border-radius:16px;padding:14px;background:#f4f8ff;margin:16px 0;break-inside:avoid}.payment-link-block h2{font-size:16px;margin:6px 0;color:#1a62d3}.payment-link-block p,.payment-link-block a{font-size:11px;line-height:1.5;word-break:break-word}.payment-link-block a{color:#1a62d3;font-weight:800}
   .tax-note{font-size:11px;color:#516173;line-height:1.55}.tax-breakdown{margin:8px 0}.account-summary-panel h2{font-size:26px;color:#b56a18}
-  .style-advanced .page{border-top:8px solid var(--pro-accent)}.style-advanced .logo-fallback,.style-advanced .style-badge{background:var(--pro-surface);color:var(--pro-accent);border-color:var(--pro-line)}.style-advanced .statement-title strong,.style-advanced .summary-line.emphasized{color:var(--pro-accent)}
+  .style-advanced .page{border-top:8px solid var(--pro-accent);color:var(--pro-text)}.style-advanced .logo-fallback,.style-advanced .style-badge{background:var(--pro-surface);color:var(--pro-accent);border-color:var(--pro-line)}.style-advanced .statement-title strong,.style-advanced .summary-line.emphasized{color:var(--pro-accent)}
+  .template-classic_tax .document-header{border-bottom:3px solid #20314d}.template-classic_tax th{background:#eef3f8;color:#20314d}.template-classic_tax .summary-card{border-left:4px solid #c07a24}
+  .template-modern_minimal .page{padding-top:22mm}.template-modern_minimal .document-header{border-bottom:0}.template-modern_minimal .panel,.template-modern_minimal .summary-card,.template-modern_minimal .signature-card,.template-modern_minimal .tax-note{border-radius:10px;background:#fff}.template-modern_minimal th{background:#f7f9fb}
+  .template-premium_letterhead .page{background:linear-gradient(180deg,var(--pro-surface),#fff 24%)}.template-premium_letterhead .document-header{border-bottom:0;padding-bottom:26px}.template-premium_letterhead .statement-title strong{font-size:28px}.template-premium_letterhead .summary-card{background:#fff;border-color:var(--pro-line);box-shadow:0 12px 28px rgba(20,92,82,.08)}
+  .template-key-in_clean_basic_free .page{padding:20mm 19mm 16mm;border:1px solid #e5edf6;box-shadow:0 10px 34px rgba(29,45,68,.08)}
+  .template-key-in_clean_basic_free .document-header{align-items:flex-start;margin-bottom:24px;padding-bottom:8px}
+  .template-key-in_clean_basic_free .logo,.template-key-in_clean_basic_free .logo-fallback{width:46px;height:46px;border-radius:12px}
+  .template-key-in_clean_basic_free .business-copy h1{font-size:22px}.template-key-in_clean_basic_free .statement-title strong{font-size:20px}
+  .template-key-in_clean_basic_free .identity-grid,.template-key-in_clean_basic_free .summary-signature{gap:12px}
+  .template-key-in_clean_basic_free .panel,.template-key-in_clean_basic_free .summary-card,.template-key-in_clean_basic_free .signature-card,.template-key-in_clean_basic_free .tax-note{border-color:#edf2f7;background:#fff;border-radius:8px}
+  .template-key-in_clean_basic_free th{background:#fff;border-top:1px solid #e5edf6}.template-key-in_clean_basic_free .brand-footer--free{border-radius:10px}
+  .template-key-in_gst_standard_free .page{border:1px solid #9fb0c6;padding:15mm}
+  .template-key-in_gst_standard_free .document-header{border:2px solid #20314d;border-radius:0;padding:13px;margin-bottom:14px}
+  .template-key-in_gst_standard_free .logo,.template-key-in_gst_standard_free .logo-fallback{border-radius:4px;background:#eef3f8;color:#20314d}
+  .template-key-in_gst_standard_free .style-badge{border-radius:4px;background:#fff;color:#20314d}
+  .template-key-in_gst_standard_free .panel,.template-key-in_gst_standard_free .summary-card,.template-key-in_gst_standard_free .signature-card,.template-key-in_gst_standard_free .tax-note{border-color:#9fb0c6;border-radius:0;background:#fff}
+  .template-key-in_gst_standard_free table{border:1px solid #9fb0c6}.template-key-in_gst_standard_free th,.template-key-in_gst_standard_free td{border:1px solid #c3cedd}
+  .template-key-in_gst_standard_free .tax-note{border-left:6px solid #20314d}
+  .template-key-in_simple_service_free .page{padding:22mm 18mm 16mm;background:linear-gradient(180deg,#fff,#fbfdff)}
+  .template-key-in_simple_service_free .document-header{display:grid;grid-template-columns:1fr;gap:14px}
+  .template-key-in_simple_service_free .statement-title{justify-items:start;text-align:left;border-top:1px solid #e5edf6;padding-top:14px}
+  .template-key-in_simple_service_free .statement-title strong{font-size:30px}.template-key-in_simple_service_free .identity-grid{grid-template-columns:1.35fr .65fr}
+  .template-key-in_simple_service_free .table-section h2{font-size:18px}.template-key-in_simple_service_free td.description{font-size:12px}
+  .template-key-in_simple_service_free .payment-link-block,.template-key-in_simple_service_free .tax-note{background:#fff;border-style:dashed}
+  .template-key-in_modern_business_pro .page{padding:16mm 17mm;border-top:0;background:linear-gradient(90deg,var(--pro-accent) 0 9mm,#fff 9mm)}
+  .template-key-in_modern_business_pro .document-header{background:var(--pro-accent);color:#fff;border-radius:20px;padding:22px;margin-left:3mm;margin-bottom:22px;box-shadow:0 20px 45px rgba(20,92,82,.2)}
+  .template-key-in_modern_business_pro .document-header p,.template-key-in_modern_business_pro .document-header span,.template-key-in_modern_business_pro .document-header .label{color:rgba(255,255,255,.78)}
+  .template-key-in_modern_business_pro .document-header h1,.template-key-in_modern_business_pro .document-header strong{color:#fff}.template-key-in_modern_business_pro .style-badge{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.34);color:#fff}
+  .template-key-in_modern_business_pro .logo-fallback{background:#fff;color:var(--pro-accent)}.template-key-in_modern_business_pro .panel,.template-key-in_modern_business_pro .summary-card,.template-key-in_modern_business_pro .signature-card{box-shadow:0 12px 28px rgba(20,32,51,.08)}
+  .template-key-in_modern_business_pro th{background:var(--pro-surface);color:var(--pro-accent)}
+  .template-key-in_retail_gst_pro .page{padding:13mm}.template-key-in_retail_gst_pro .document-header{border:1px solid var(--pro-line);border-bottom:6px solid var(--pro-line);padding:12px}
+  .template-key-in_retail_gst_pro .identity-grid{gap:8px;margin:10px 0}.template-key-in_retail_gst_pro .panel,.template-key-in_retail_gst_pro .summary-card,.template-key-in_retail_gst_pro .signature-card,.template-key-in_retail_gst_pro .tax-note{border-radius:6px;padding:10px}
+  .template-key-in_retail_gst_pro .table-section{margin:12px 0}.template-key-in_retail_gst_pro table{font-size:9.4px;border:1px solid var(--pro-line)}.template-key-in_retail_gst_pro th,.template-key-in_retail_gst_pro td{padding:6px 5px;border:1px solid var(--pro-line)}
+  .template-key-in_retail_gst_pro .summary-signature{grid-template-columns:1.1fr .9fr;gap:9px}.template-key-in_retail_gst_pro .summary-line{padding:5px 0}
+  .template-key-in_gst_letterhead_pro .page{padding:0 16mm 15mm;background:linear-gradient(180deg,var(--pro-surface) 0 35mm,#fff 35mm)}
+  .template-key-in_gst_letterhead_pro .document-header{padding:17mm 0 12mm;margin:0 0 14px;border-bottom:1px solid var(--pro-line)}
+  .template-key-in_gst_letterhead_pro .brand-row{align-items:center}.template-key-in_gst_letterhead_pro .logo,.template-key-in_gst_letterhead_pro .logo-fallback{width:68px;height:68px;border-radius:18px;background:#fff;box-shadow:0 12px 24px rgba(20,92,82,.14)}
+  .template-key-in_gst_letterhead_pro .business-copy h1{font-size:28px}.template-key-in_gst_letterhead_pro .signature-card{background:linear-gradient(180deg,#fff,var(--pro-surface));border-color:var(--pro-line)}
+  .template-key-in_gst_letterhead_pro .signature-box{height:82px;background:#fff}.template-key-in_gst_letterhead_pro .brand-footer{background:#fff}
+  .template-key-in_compact_table_pro .page{padding:12mm 13mm}.template-key-in_compact_table_pro .document-header{margin-bottom:10px;padding-bottom:10px}
+  .template-key-in_compact_table_pro .logo,.template-key-in_compact_table_pro .logo-fallback{width:42px;height:42px;border-radius:10px}.template-key-in_compact_table_pro .business-copy h1{font-size:19px}.template-key-in_compact_table_pro .statement-title strong{font-size:19px}
+  .template-key-in_compact_table_pro .identity-grid,.template-key-in_compact_table_pro .summary-signature{gap:8px;margin:10px 0}.template-key-in_compact_table_pro .panel,.template-key-in_compact_table_pro .summary-card,.template-key-in_compact_table_pro .signature-card,.template-key-in_compact_table_pro .tax-note{padding:9px;border-radius:8px}
+  .template-key-in_compact_table_pro table{font-size:9.5px}.template-key-in_compact_table_pro th,.template-key-in_compact_table_pro td{padding:5px}.template-key-in_compact_table_pro .payment-link-block,.template-key-in_compact_table_pro .instrument-proof{padding:9px;margin:9px 0}
+  .template-key-in_payment_focused_pro .page{padding:16mm;background:linear-gradient(180deg,#fff 0,var(--pro-surface) 100%)}
+  .template-key-in_payment_focused_pro .document-header{background:#fff;border:1px solid var(--pro-line);border-radius:22px;padding:18px;margin-bottom:14px}
+  .template-key-in_payment_focused_pro .summary-signature{grid-template-columns:1.35fr .65fr}.template-key-in_payment_focused_pro .summary-card{border:2px solid var(--pro-line);border-left:12px solid var(--pro-accent);padding:18px;background:#fff}
+  .template-key-in_payment_focused_pro .summary-card h2{font-size:14px}.template-key-in_payment_focused_pro .summary-line.emphasized{font-size:22px}
+  .template-key-in_payment_focused_pro .payment-link-block{border:2px solid var(--pro-line);background:#fff;border-radius:22px;padding:18px;box-shadow:0 16px 36px rgba(20,92,82,.12)}
+  .template-key-in_payment_focused_pro .payment-link-block h2{font-size:22px;color:var(--pro-accent)}
+  .template-key-in_payment_focused_pro .urgent-stamp{background:#fff6ed}
+  .template-key-in_branded_advanced_pro .page{padding:15mm;border:1px solid var(--pro-line);background:radial-gradient(circle at top right,var(--pro-surface),transparent 38%),#fff}
+  .template-key-in_branded_advanced_pro .document-header{display:grid;grid-template-columns:1.2fr .8fr;background:linear-gradient(135deg,var(--pro-accent),#1b3f3a);color:#fff;border:0;border-radius:24px;padding:24px;margin-bottom:22px}
+  .template-key-in_branded_advanced_pro .document-header p,.template-key-in_branded_advanced_pro .document-header span,.template-key-in_branded_advanced_pro .document-header .label{color:rgba(255,255,255,.76)}
+  .template-key-in_branded_advanced_pro .document-header h1,.template-key-in_branded_advanced_pro .document-header strong{color:#fff}.template-key-in_branded_advanced_pro .logo,.template-key-in_branded_advanced_pro .logo-fallback{width:76px;height:76px;border-radius:24px;background:#fff;color:var(--pro-accent)}
+  .template-key-in_branded_advanced_pro .style-badge{background:#fff;color:var(--pro-accent);border:0}.template-key-in_branded_advanced_pro .panel,.template-key-in_branded_advanced_pro .summary-card,.template-key-in_branded_advanced_pro .signature-card,.template-key-in_branded_advanced_pro .tax-note,.template-key-in_branded_advanced_pro .payment-link-block{background:rgba(255,255,255,.94);border-color:var(--pro-line);box-shadow:0 14px 34px rgba(20,32,51,.08)}
+  .template-key-in_branded_advanced_pro th{background:var(--pro-accent);color:#fff}.template-key-in_branded_advanced_pro .brand-footer{background:var(--pro-surface);border-radius:999px;padding:9px 12px}
+  .style-advanced .document-header,.style-advanced .panel,.style-advanced .summary-card,.style-advanced .signature-card,.style-advanced .tax-note,.style-advanced .payment-link-block,.style-advanced .instrument-proof,.style-advanced .style-badge,.style-advanced table,.style-advanced th,.style-advanced td{border-color:var(--pro-line)}
+  .style-advanced .summary-line{border-bottom-color:var(--pro-line)}.style-advanced .signature-line{background:var(--pro-line)}
   .brand-footer{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid var(--pro-line);font-size:10px;font-weight:800;color:var(--pro-accent)}
   .brand-footer--free{border:1px solid #dce6f2;border-radius:999px;padding:9px 12px;background:#f7faff;color:#516173}
   @media print{body{background:#fff}.page{width:auto;min-height:auto;margin:0;box-shadow:none;padding:12mm}@page{size:A4;margin:10mm}}

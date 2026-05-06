@@ -3,7 +3,9 @@ import {
   doesPaymentAwaitClearance,
   doesPaymentClearInvoice,
   getPaymentClearanceStatusLabel,
+  normalizePaymentClearanceStatus,
   type PaymentClearanceStatus,
+  type PaymentMode,
 } from './paymentModes';
 
 export type ManualPaymentVerificationPlan = {
@@ -17,13 +19,14 @@ export type ManualPaymentVerificationPlan = {
 
 export function getManualPaymentVerificationPlan(input: {
   clearanceStatus?: PaymentClearanceStatus | string | null;
+  paymentMode?: PaymentMode | string | null;
   allocationStrategy?: PaymentAllocationStrategy | string | null;
 }): ManualPaymentVerificationPlan {
-  const status = input.clearanceStatus ?? 'cleared';
+  const status = normalizePaymentClearanceStatus(input.clearanceStatus, input.paymentMode);
   const isMatchedToInvoice = input.allocationStrategy === 'oldest_invoice' || input.allocationStrategy === 'selected_invoice';
   const target = isMatchedToInvoice ? 'matched invoice' : 'customer ledger';
 
-  if (doesPaymentClearInvoice(status)) {
+  if (doesPaymentClearInvoice(status, input.paymentMode)) {
     return {
       statusLabel: 'Verified',
       actionLabel: isMatchedToInvoice ? 'Record verified payment' : 'Record verified ledger payment',
@@ -38,7 +41,7 @@ export function getManualPaymentVerificationPlan(input: {
     };
   }
 
-  if (doesPaymentAwaitClearance(status)) {
+  if (doesPaymentAwaitClearance(status, input.paymentMode)) {
     return {
       statusLabel: getPaymentClearanceStatusLabel(status),
       actionLabel: isMatchedToInvoice ? 'Record pending payment' : 'Record pending ledger payment',

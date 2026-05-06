@@ -1,6 +1,16 @@
 import { useFocusEffect } from '@react-navigation/native';
+import {
+  buildLocalBusinessIntelligence,
+  buildMistakeRecoveryMode,
+  buildVoiceWhatsAppFastEntryDraft,
+  type FastEntryDraft,
+  type LocalBusinessIntelligenceActionTarget,
+  type LocalBusinessIntelligenceItem,
+  type MistakeRecoveryAction,
+  type MistakeRecoverySignal,
+} from '@orbit-ledger/core';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +22,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -101,6 +112,7 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
   const [paymentDetails, setPaymentDetails] = useState<BusinessPaymentDetails>({});
   const [isSendingReminder, setIsSendingReminder] = useState(false);
   const [dismissedRetentionNudges, setDismissedRetentionNudges] = useState<RetentionNudgeId[]>([]);
+  const [fastEntryText, setFastEntryText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingSecondary, setIsLoadingSecondary] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -332,6 +344,39 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
     topDueCustomers,
     upcomingPromises,
   });
+  const mistakeRecovery = buildMistakeRecoveryMode({
+    businessName: business?.businessName,
+    signals: buildMobileMistakeRecoverySignals({
+      lowStockProducts,
+      recentTransactions,
+    }),
+  });
+  const localBusinessIntelligence = buildLocalBusinessIntelligence({
+    businessName: business?.businessName,
+    signal: {
+      countryCode: business?.countryCode,
+      stateCode: business?.stateCode,
+      month: new Date().getMonth() + 1,
+      hasTaxProfile: Boolean(business?.taxMode && business.taxMode !== 'not_configured'),
+      hasLocalPaymentDetails: Boolean(
+        paymentDetails.upiId ||
+          paymentDetails.bankAccountNumber ||
+          paymentDetails.paymentPageUrl
+      ),
+      hasInvoiceTemplate: false,
+      overdueCustomerCount: topDueCustomers.length,
+      unpaidInvoiceCount: summary?.followUpCustomerCount ?? 0,
+      taxInvoiceCount: business?.taxMode && business.taxMode !== 'not_configured' ? summary?.recentActivityCount ?? 0 : 0,
+      localCurrency: currency,
+    },
+  });
+  const fastEntryDraft = useMemo(
+    () =>
+      fastEntryText.trim()
+        ? buildVoiceWhatsAppFastEntryDraft({ channel: 'typed', text: fastEntryText })
+        : null,
+    [fastEntryText]
+  );
   const receivableTone = (summary?.totalReceivable ?? 0) > 0 ? 'warning' : 'success';
   const todayInput = new Date().toISOString().slice(0, 10);
   const duePromiseRows = upcomingPromises.filter(
@@ -423,6 +468,69 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
         return;
       default:
         navigation.navigate('Dashboard');
+    }
+  }
+
+  function openMistakeRecoveryTarget(target: MistakeRecoveryAction['target']) {
+    switch (target) {
+      case 'correct_payment':
+      case 'move_payment':
+      case 'reverse_payment':
+        navigation.navigate('PaymentProviderEvents');
+        return;
+      case 'edit_draft':
+      case 'create_invoice_revision':
+      case 'restore_invoice_version':
+      case 'cancel_invoice':
+      case 'send_corrected_document':
+        navigation.navigate('Invoices');
+        return;
+      case 'add_ledger_correction':
+      case 'merge_customer':
+      case 'mark_customer_inactive':
+        navigation.navigate('Customers');
+        return;
+      case 'adjust_stock':
+        navigation.navigate('Products');
+        return;
+      case 'open_restore_review':
+        navigation.navigate('BackupRestore');
+        return;
+      case 'review_setting_audit':
+      default:
+        navigation.navigate('BusinessProfileSettings');
+    }
+  }
+
+  function openFastEntryDraft(draft: FastEntryDraft) {
+    switch (draft.intent) {
+      case 'record_payment':
+        navigation.navigate('TransactionForm', {
+          amount: draft.extracted.amount,
+          type: 'payment',
+        });
+        return;
+      case 'record_credit':
+        navigation.navigate('TransactionForm', {
+          amount: draft.extracted.amount,
+          type: 'credit',
+        });
+        return;
+      case 'create_invoice_draft':
+        navigation.navigate('InvoiceForm');
+        return;
+      case 'send_payment_reminder':
+      case 'record_payment_promise':
+        navigation.navigate('GetPaid');
+        return;
+      case 'add_customer':
+        navigation.navigate('CustomerForm');
+        return;
+      case 'add_product':
+        navigation.navigate('Products');
+        return;
+      default:
+        navigation.navigate('TransactionForm');
     }
   }
 
@@ -537,6 +645,33 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
           </QuickActionGrid>
         </Section>
 
+        <Section
+          title="Voice & WhatsApp capture"
+          subtitle="Type or paste a quick business note. Orbit Ledger prepares a review draft first."
+        >
+          <Card compact accent={fastEntryDraft ? getFastEntryAccent(fastEntryDraft.confidence) : 'primary'}>
+            <TextInput
+              multiline
+              onChangeText={setFastEntryText}
+              placeholder="Example: Sonali Traders paid 1500 by UPI"
+              placeholderTextColor={colors.textMuted}
+              style={styles.fastEntryInput}
+              value={fastEntryText}
+            />
+            {fastEntryDraft ? (
+              <FastEntryDraftCard
+                draft={fastEntryDraft}
+                onOpen={() => openFastEntryDraft(fastEntryDraft)}
+              />
+            ) : (
+              <Text style={styles.fastEntryHelper}>
+                Payments, credits, invoices, reminders, promises, customers, and products are
+                supported.
+              </Text>
+            )}
+          </Card>
+        </Section>
+
         <View style={styles.summaryGrid}>
           <SummaryCard
             label="Recent payments"
@@ -585,6 +720,66 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
               </View>
             </Card>
           )}
+        </Section>
+
+        <Section title="Mistake Recovery" subtitle="Correct payments, invoices, balances, and stock without losing history.">
+          <Card compact accent={mistakeRecovery.actions.length > 0 ? 'warning' : 'success'}>
+            <View style={styles.recoveryHeader}>
+              <View style={styles.recoveryHeaderText}>
+                <Text style={styles.recoveryTitle}>
+                  {mistakeRecovery.actions.length > 0
+                    ? `${mistakeRecovery.actions.length} safe fix${mistakeRecovery.actions.length === 1 ? '' : 'es'} suggested`
+                    : 'No risky correction waiting'}
+                </Text>
+                <Text style={styles.recoveryMessage}>{mistakeRecovery.summary}</Text>
+              </View>
+              <StatusChip
+                label={mistakeRecovery.actions.length > 0 ? 'Review' : 'Clear'}
+                tone={mistakeRecovery.actions.length > 0 ? 'warning' : 'success'}
+              />
+            </View>
+            <View style={styles.recoveryList}>
+              {(mistakeRecovery.actions.length ? mistakeRecovery.actions.slice(0, 3) : buildMobileRecoveryEmptyActions()).map((action) => (
+                <Pressable
+                  accessibilityRole="button"
+                  hitSlop={touch.hitSlop}
+                  key={action.id}
+                  onPress={() => openMistakeRecoveryTarget(action.target)}
+                  pressRetentionOffset={touch.pressRetentionOffset}
+                  style={({ pressed }) => [
+                    styles.recoveryItem,
+                    pressed ? styles.recoveryItemPressed : null,
+                  ]}
+                >
+                  <View style={styles.recoveryItemText}>
+                    <Text style={styles.recoveryItemTitle}>{action.title}</Text>
+                    <Text style={styles.recoveryItemMessage}>{action.message}</Text>
+                    <Text style={styles.recoveryMeta}>
+                      {formatMobileRecoveryRisk(action.risk)}
+                      {action.requiresReason ? ' · Reason required' : ''}
+                      {action.preservesHistory ? ' · History kept' : ''}
+                    </Text>
+                  </View>
+                  <Text style={styles.recoveryActionLabel}>{action.primaryAction}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </Card>
+        </Section>
+
+        <Section title="Local Business Intelligence" subtitle={localBusinessIntelligence.summary}>
+          <View style={styles.localInsightList}>
+            {(localBusinessIntelligence.items.length
+              ? localBusinessIntelligence.items.slice(0, 3)
+              : buildMobileLocalEmptyItems(business?.countryCode)
+            ).map((item) => (
+              <LocalInsightCard
+                item={item}
+                key={item.id}
+                onPress={() => openLocalInsightTarget(item.actionTarget, navigation)}
+              />
+            ))}
+          </View>
         </Section>
 
         {nudges.length > 0 ? (
@@ -767,6 +962,12 @@ export function DashboardScreen({ navigation }: DashboardScreenProps) {
               tone="warning"
               onPress={() => navigation.navigate('GetPaid')}
             />
+            <ModuleLink
+              label="Payment Review"
+              description="Review provider events and checkout readiness."
+              tone="primary"
+              onPress={() => navigation.navigate('PaymentProviderEvents')}
+            />
             {invoicesEnabled ? (
               <ModuleLink
                 label="Invoices"
@@ -928,6 +1129,114 @@ function getDashboardNudges({
   return nudges.slice(0, 2);
 }
 
+function buildMobileMistakeRecoverySignals({
+  lowStockProducts,
+  recentTransactions,
+}: {
+  lowStockProducts: Product[];
+  recentTransactions: RecentTransaction[];
+}): MistakeRecoverySignal[] {
+  const signals: MistakeRecoverySignal[] = [];
+  const bouncedPayment = recentTransactions.find(
+    (transaction) =>
+      transaction.type === 'payment' &&
+      ['bounced', 'cancelled', 'errored'].includes(transaction.paymentClearanceStatus ?? '')
+  );
+  if (bouncedPayment) {
+    signals.push({
+      id: bouncedPayment.id,
+      area: 'payments',
+      kind: 'payment_bounced_or_refunded',
+      amount: bouncedPayment.amount,
+      hasPaymentAllocation: true,
+    });
+  }
+
+  const pendingPayment = recentTransactions.find(
+    (transaction) =>
+      transaction.type === 'payment' &&
+      transaction.paymentClearanceStatus &&
+      transaction.paymentClearanceStatus !== 'cleared'
+  );
+  if (pendingPayment) {
+    signals.push({
+      id: pendingPayment.id,
+      area: 'payments',
+      kind: 'payment_applied_wrong_invoice',
+      amount: pendingPayment.amount,
+      hasPaymentAllocation: true,
+    });
+  }
+
+  const correctionEntry = recentTransactions.find((transaction) =>
+    /\b(correct|correction|wrong|mistake|reverse|reversal|bounced)\b/i.test(transaction.note ?? '')
+  );
+  if (correctionEntry) {
+    signals.push({
+      id: correctionEntry.id,
+      area: 'customer_ledger',
+      kind: 'customer_balance_wrong',
+      amount: correctionEntry.amount,
+      hasAuditImpact: true,
+    });
+  }
+
+  const negativeStock = lowStockProducts.find((product) => product.stockQuantity < 0);
+  if (negativeStock) {
+    signals.push({
+      id: negativeStock.id,
+      area: 'inventory',
+      kind: 'stock_count_wrong',
+      hasAuditImpact: true,
+    });
+  }
+
+  return uniqueMobileRecoverySignals(signals).slice(0, 4);
+}
+
+function uniqueMobileRecoverySignals(signals: MistakeRecoverySignal[]) {
+  const seen = new Set<string>();
+  return signals.filter((signal) => {
+    const key = `${signal.kind}:${signal.id}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildMobileRecoveryEmptyActions(): MistakeRecoveryAction[] {
+  return [
+    {
+      id: 'empty-recovery',
+      area: 'settings',
+      title: 'No protected fix needed',
+      message: 'Recovery guidance appears here when a payment, invoice, balance, stock count, or restore needs safe correction.',
+      primaryAction: 'Review settings',
+      target: 'review_setting_audit',
+      risk: 'low',
+      tone: 'success',
+      requiresReason: false,
+      preservesHistory: true,
+      guardrails: [],
+    },
+  ];
+}
+
+function formatMobileRecoveryRisk(risk: MistakeRecoveryAction['risk']) {
+  if (risk === 'blocked') {
+    return 'Blocked';
+  }
+  if (risk === 'protected') {
+    return 'Protected';
+  }
+  if (risk === 'review') {
+    return 'Review';
+  }
+  return 'Low risk';
+}
+
 function getActivityTrend(summary: DashboardSummary | null): {
   label: string;
   helper: string;
@@ -1002,6 +1311,110 @@ function DailyCommandCard({
   );
 }
 
+function LocalInsightCard({
+  item,
+  onPress,
+}: {
+  item: LocalBusinessIntelligenceItem;
+  onPress: () => void;
+}) {
+  return (
+    <Card compact accent={localInsightAccent(item.tone)}>
+      <View style={styles.localInsightHeader}>
+        <Text style={styles.localInsightIcon}>{formatLocalInsightIcon(item.id)}</Text>
+        <StatusChip
+          label={item.localityLabel}
+          tone={item.priority === 'critical' ? 'warning' : item.tone === 'success' ? 'success' : 'primary'}
+        />
+      </View>
+      <View style={styles.localInsightCopy}>
+        <Text style={styles.localInsightTitle}>{item.title}</Text>
+        <Text style={styles.localInsightMessage}>{item.message}</Text>
+        <Text style={styles.localInsightHelper}>{item.helper}</Text>
+      </View>
+      <PrimaryButton variant="secondary" onPress={onPress}>
+        {item.actionLabel}
+      </PrimaryButton>
+    </Card>
+  );
+}
+
+function buildMobileLocalEmptyItems(countryCode?: string | null): LocalBusinessIntelligenceItem[] {
+  const country = countryCode?.trim().toUpperCase() || 'IN';
+  return [
+    {
+      id: 'regional_formatting',
+      title: 'Local settings look ready',
+      message: 'Country, currency, document, and payment basics look ready for this workspace.',
+      helper: 'Local guidance will appear here when a setting or review needs attention.',
+      priority: 'low',
+      score: 0,
+      tone: 'success',
+      actionLabel: 'Review settings',
+      actionTarget: 'open_settings',
+      countryCode: country,
+      localityLabel: country,
+    },
+  ];
+}
+
+function openLocalInsightTarget(
+  target: LocalBusinessIntelligenceActionTarget,
+  navigation: DashboardScreenProps['navigation']
+) {
+  switch (target) {
+    case 'open_tax_setup':
+      navigation.navigate('TaxSetup');
+      return;
+    case 'open_payment_settings':
+    case 'open_document_settings':
+    case 'open_settings':
+      navigation.navigate('BusinessProfileSettings');
+      return;
+    case 'open_collection_coach':
+      navigation.navigate('GetPaid');
+      return;
+    case 'open_reports':
+    default:
+      navigation.navigate('Reports');
+  }
+}
+
+function localInsightAccent(tone: LocalBusinessIntelligenceItem['tone']) {
+  if (tone === 'danger') {
+    return 'danger';
+  }
+  if (tone === 'warning') {
+    return 'warning';
+  }
+  if (tone === 'success') {
+    return 'success';
+  }
+  if (tone === 'neutral') {
+    return 'tax';
+  }
+  return 'primary';
+}
+
+function formatLocalInsightIcon(area: LocalBusinessIntelligenceItem['id']) {
+  if (area === 'tax_labels' || area === 'compliance_review') {
+    return 'TAX';
+  }
+  if (area === 'payment_wording') {
+    return 'PAY';
+  }
+  if (area === 'document_pack') {
+    return 'DOC';
+  }
+  if (area === 'collection_timing') {
+    return 'DUE';
+  }
+  if (area === 'seasonal_nudge') {
+    return 'CAL';
+  }
+  return 'LOC';
+}
+
 function formatCommandLabel(id: DailyCommandCardModel['id']) {
   switch (id) {
     case 'collect_today':
@@ -1019,6 +1432,67 @@ function formatCommandLabel(id: DailyCommandCardModel['id']) {
     default:
       return 'Today';
   }
+}
+
+function FastEntryDraftCard({
+  draft,
+  onOpen,
+}: {
+  draft: FastEntryDraft;
+  onOpen: () => void;
+}) {
+  return (
+    <View style={styles.fastEntryReview}>
+      <View style={styles.fastEntryReviewHeader}>
+        <View style={styles.fastEntryReviewText}>
+          <Text style={styles.fastEntryTitle}>{draft.title}</Text>
+          <Text style={styles.fastEntrySummary}>{draft.summary}</Text>
+        </View>
+        <StatusChip label={formatFastEntryConfidence(draft.confidence)} tone={getFastEntryTone(draft.confidence)} />
+      </View>
+      {draft.missingFields.length > 0 ? (
+        <Text style={styles.fastEntryMissing}>
+          Missing: {draft.missingFields.join(', ')}
+        </Text>
+      ) : null}
+      <Text style={styles.fastEntrySafety}>
+        Review required. This capture will not be saved until you confirm it.
+      </Text>
+      <PrimaryButton variant="secondary" onPress={onOpen}>
+        {draft.suggestedAction}
+      </PrimaryButton>
+    </View>
+  );
+}
+
+function getFastEntryAccent(confidence: FastEntryDraft['confidence']) {
+  if (confidence === 'high') {
+    return 'success';
+  }
+  if (confidence === 'medium') {
+    return 'warning';
+  }
+  return 'danger';
+}
+
+function getFastEntryTone(confidence: FastEntryDraft['confidence']) {
+  if (confidence === 'high') {
+    return 'success';
+  }
+  if (confidence === 'medium') {
+    return 'warning';
+  }
+  return 'danger';
+}
+
+function formatFastEntryConfidence(confidence: FastEntryDraft['confidence']) {
+  if (confidence === 'high') {
+    return 'High confidence';
+  }
+  if (confidence === 'medium') {
+    return 'Needs check';
+  }
+  return 'Review carefully';
 }
 
 function ModuleLink({
@@ -1163,6 +1637,73 @@ const styles = StyleSheet.create({
     flexBasis: '30%',
     minWidth: 148,
   },
+  fastEntryInput: {
+    minHeight: 104,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '800',
+    lineHeight: 22,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    textAlignVertical: 'top',
+  },
+  fastEntryHelper: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 18,
+  },
+  fastEntryReview: {
+    gap: spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(248, 251, 255, 0.9)',
+    padding: spacing.md,
+  },
+  fastEntryReviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  fastEntryReviewText: {
+    flex: 1,
+    gap: spacing.xs,
+    minWidth: 0,
+  },
+  fastEntryTitle: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '900',
+    lineHeight: 22,
+  },
+  fastEntrySummary: {
+    color: colors.textMuted,
+    fontSize: typography.label,
+    lineHeight: 20,
+  },
+  fastEntryMissing: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.warningBorder,
+    backgroundColor: colors.warningSurface,
+    color: colors.warning,
+    fontSize: typography.caption,
+    fontWeight: '800',
+    lineHeight: 18,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  fastEntrySafety: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
   summaryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1242,6 +1783,108 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   attentionHelper: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 18,
+  },
+  recoveryHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  recoveryHeaderText: {
+    flex: 1,
+    gap: spacing.xs,
+    minWidth: 0,
+  },
+  recoveryTitle: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '900',
+    lineHeight: 22,
+  },
+  recoveryMessage: {
+    color: colors.textMuted,
+    fontSize: typography.label,
+    lineHeight: 20,
+  },
+  recoveryList: {
+    gap: spacing.sm,
+  },
+  recoveryItem: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(255, 255, 255, 0.82)',
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  recoveryItemPressed: {
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(239, 246, 255, 0.96)',
+  },
+  recoveryItemText: {
+    gap: spacing.xs,
+  },
+  recoveryItemTitle: {
+    color: colors.text,
+    fontSize: typography.label,
+    fontWeight: '900',
+    lineHeight: 20,
+  },
+  recoveryItemMessage: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 18,
+  },
+  recoveryMeta: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  recoveryActionLabel: {
+    alignSelf: 'flex-start',
+    color: colors.primary,
+    fontSize: typography.caption,
+    fontWeight: '900',
+  },
+  localInsightList: {
+    gap: spacing.md,
+  },
+  localInsightHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  localInsightIcon: {
+    backgroundColor: colors.primarySurface,
+    borderRadius: 8,
+    color: colors.primary,
+    fontSize: typography.caption,
+    fontWeight: '900',
+    overflow: 'hidden',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  localInsightCopy: {
+    gap: spacing.xs,
+  },
+  localInsightTitle: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '900',
+    lineHeight: 22,
+  },
+  localInsightMessage: {
+    color: colors.textMuted,
+    fontSize: typography.label,
+    lineHeight: 20,
+  },
+  localInsightHelper: {
     color: colors.textMuted,
     fontSize: typography.caption,
     lineHeight: 18,

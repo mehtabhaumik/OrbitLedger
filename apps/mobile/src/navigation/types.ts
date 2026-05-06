@@ -3,7 +3,9 @@ export type RootStackParamList = {
   CloudAuth: { returnTo: 'Setup' | 'BusinessProfileSettings' };
   Dashboard: undefined;
   GetPaid: undefined;
+  PaymentProviderEvents: undefined;
   Invoices: undefined;
+  RecurringInvoiceEmail: undefined;
   Products: undefined;
   Reports: undefined;
   RuntimeQA: undefined;

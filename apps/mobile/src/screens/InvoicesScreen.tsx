@@ -139,16 +139,6 @@ export function InvoicesScreen({ navigation }: InvoicesScreenProps) {
           />
         ) : (
           <>
-            <Card glass elevated accent="tax">
-              <View style={styles.actionCopy}>
-                <Text style={styles.sectionTitle}>Invoice Work</Text>
-                <Text style={styles.emptyText}>Create invoices without changing customer ledger balances.</Text>
-              </View>
-              <PrimaryButton onPress={() => navigation.navigate('InvoiceForm')}>
-                Create Invoice
-              </PrimaryButton>
-            </Card>
-
             {invoices.length === 0 ? (
               <EmptyState
                 title="No invoices yet"
@@ -190,6 +180,23 @@ export function InvoicesScreen({ navigation }: InvoicesScreenProps) {
                 ))}
               </View>
             )}
+
+            <Card glass elevated accent="tax">
+              <View style={styles.actionCopy}>
+                <Text style={styles.sectionTitle}>Invoice Work</Text>
+                <Text style={styles.emptyText}>
+                  Create invoices, or set up monthly auto email for fixed customer services.
+                </Text>
+              </View>
+              <View style={styles.buttonRow}>
+                <PrimaryButton onPress={() => navigation.navigate('InvoiceForm')}>
+                  Create Invoice
+                </PrimaryButton>
+                <PrimaryButton variant="secondary" onPress={() => navigation.navigate('RecurringInvoiceEmail')}>
+                  Monthly Auto Email
+                </PrimaryButton>
+              </View>
+            </Card>
           </>
         )}
         <FounderFooterLink />
@@ -235,6 +242,11 @@ const styles = StyleSheet.create({
   },
   actionCopy: {
     gap: spacing.xs,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
   },
   sectionTitle: {
     color: colors.text,

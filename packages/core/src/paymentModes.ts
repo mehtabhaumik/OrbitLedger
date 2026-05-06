@@ -20,12 +20,27 @@ export type PaymentModeDetails = {
 };
 
 export type PaymentClearanceStatus =
+  | 'pending'
   | 'received'
   | 'post_dated'
   | 'deposited'
+  | 'initiated'
   | 'cleared'
   | 'bounced'
+  | 'errored'
   | 'cancelled';
+
+export const PAYMENT_CLEARANCE_STATUSES: PaymentClearanceStatus[] = [
+  'pending',
+  'received',
+  'post_dated',
+  'deposited',
+  'initiated',
+  'cleared',
+  'bounced',
+  'errored',
+  'cancelled',
+];
 
 export type PaymentInstrumentAttachment = {
   id: string;
@@ -163,43 +178,237 @@ export function normalizePaymentClearanceStatus(
   details?: PaymentModeDetails | null,
   today = todayDate()
 ): PaymentClearanceStatus {
-  if (
-    value === 'received' ||
-    value === 'post_dated' ||
-    value === 'deposited' ||
-    value === 'cleared' ||
-    value === 'bounced' ||
-    value === 'cancelled'
-  ) {
+  const allowedStatuses = getPaymentClearanceStatusesForMode(mode);
+  if (isPaymentClearanceStatus(value) && allowedStatuses.includes(value)) {
     return value;
   }
 
-  if (!isInstrumentPaymentMode(mode)) {
-    return 'cleared';
+  const normalizedMode = normalizePaymentMode(mode);
+  if (normalizedMode === 'cash') {
+    return 'received';
+  }
+
+  if (normalizedMode !== 'cheque' && normalizedMode !== 'demand_draft') {
+    return 'pending';
+  }
+
+  if (normalizedMode === 'demand_draft') {
+    return 'received';
   }
 
   const instrumentDate = details?.instrumentDate?.trim();
   return instrumentDate && instrumentDate > today ? 'post_dated' : 'received';
 }
 
-export function doesPaymentClearInvoice(status?: string | null): boolean {
-  return status === 'cleared';
+export function getPaymentClearanceStatusesForMode(
+  mode?: PaymentMode | string | null
+): PaymentClearanceStatus[] {
+  const normalizedMode = normalizePaymentMode(mode);
+
+  if (normalizedMode === 'cheque') {
+    return ['pending', 'received', 'post_dated', 'deposited', 'cleared', 'bounced', 'cancelled'];
+  }
+
+  if (normalizedMode === 'demand_draft') {
+    return ['pending', 'received', 'deposited', 'cleared', 'errored', 'cancelled'];
+  }
+
+  if (normalizedMode === 'cash') {
+    return ['pending', 'received'];
+  }
+
+  if (
+    normalizedMode === 'bank_transfer' ||
+    normalizedMode === 'upi' ||
+    normalizedMode === 'card' ||
+    normalizedMode === 'wallet'
+  ) {
+    return ['pending', 'initiated', 'cleared', 'errored', 'cancelled'];
+  }
+
+  return ['pending', 'received', 'cleared', 'cancelled'];
 }
 
-export function doesPaymentAwaitClearance(status?: string | null): boolean {
-  return status === 'received' || status === 'post_dated' || status === 'deposited';
+function isPaymentClearanceStatus(value?: string | null): value is PaymentClearanceStatus {
+  return PAYMENT_CLEARANCE_STATUSES.includes(value as PaymentClearanceStatus);
+}
+
+export function doesPaymentClearInvoice(status?: string | null, mode?: PaymentMode | string | null): boolean {
+  return status === 'cleared' || (status === 'received' && normalizePaymentMode(mode) === 'cash');
+}
+
+export function doesPaymentAwaitClearance(status?: string | null, mode?: PaymentMode | string | null): boolean {
+  if (status === 'pending' || status === 'post_dated' || status === 'deposited' || status === 'initiated') {
+    return true;
+  }
+  return status === 'received' && normalizePaymentMode(mode) !== 'cash';
+}
+
+export function getPaymentDocumentModeLine(
+  mode?: PaymentMode | string | null,
+  details?: PaymentModeDetails | null
+): string {
+  const normalizedMode = normalizePaymentMode(mode);
+  const normalizedDetails = normalizePaymentModeDetails(details);
+
+  switch (normalizedMode) {
+    case 'bank_transfer':
+      return 'Bank transfer';
+    case 'upi':
+      return normalizedDetails.upiId ? `UPI - ${normalizedDetails.upiId}` : 'UPI';
+    case 'card':
+      return 'Credit/Debit Card';
+    case 'wallet':
+      return normalizedDetails.provider ? `E-Wallet - ${normalizedDetails.provider}` : 'E-Wallet';
+    case 'cheque':
+      return 'Cheque';
+    case 'demand_draft':
+      return 'Demand draft';
+    case 'other':
+      return 'Other payment';
+    case 'cash':
+    default:
+      return 'Cash';
+  }
+}
+
+export function getPaymentClearanceUnpaidReason(
+  status?: string | null,
+  mode?: PaymentMode | string | null
+): string | null {
+  const normalizedMode = normalizePaymentMode(mode);
+
+  if (doesPaymentClearInvoice(status, normalizedMode)) {
+    return null;
+  }
+
+  if (normalizedMode === 'cash') {
+    return status === 'pending' ? 'pending' : null;
+  }
+
+  if (normalizedMode === 'cheque') {
+    switch (status) {
+      case 'pending':
+        return 'cheque pending';
+      case 'received':
+        return 'cheque received';
+      case 'post_dated':
+        return 'post-dated cheque received';
+      case 'deposited':
+        return 'cheque deposited';
+      case 'bounced':
+        return 'cheque bounced';
+      case 'cancelled':
+        return 'cheque canceled';
+      default:
+        return null;
+    }
+  }
+
+  if (normalizedMode === 'demand_draft') {
+    switch (status) {
+      case 'pending':
+        return 'DD pending';
+      case 'received':
+        return 'DD received';
+      case 'deposited':
+        return 'DD deposited';
+      case 'errored':
+        return 'DD errored';
+      case 'cancelled':
+        return 'DD canceled';
+      default:
+        return null;
+    }
+  }
+
+  if (
+    normalizedMode === 'bank_transfer' ||
+    normalizedMode === 'upi' ||
+    normalizedMode === 'card' ||
+    normalizedMode === 'wallet'
+  ) {
+    switch (status) {
+      case 'pending':
+        return 'E-payment pending';
+      case 'initiated':
+        return 'E-payment initiated';
+      case 'errored':
+        return 'E-payment errored';
+      case 'cancelled':
+        return 'E-payment canceled';
+      default:
+        return null;
+    }
+  }
+
+  if (normalizedMode === 'other') {
+    switch (status) {
+      case 'pending':
+        return 'pending';
+      case 'received':
+        return 'received';
+      case 'cancelled':
+        return 'cancelled';
+      default:
+        return null;
+    }
+  }
+
+  return null;
+}
+
+export function getPaymentClearanceDocumentStatusLine(
+  status?: string | null,
+  mode?: PaymentMode | string | null
+): string | null {
+  const unpaidReason = getPaymentClearanceUnpaidReason(status, mode);
+  if (unpaidReason) {
+    return `Unpaid - ${unpaidReason}`;
+  }
+
+  const normalizedMode = normalizePaymentMode(mode);
+  if (status === 'cleared') {
+    if (
+      normalizedMode === 'bank_transfer' ||
+      normalizedMode === 'upi' ||
+      normalizedMode === 'card' ||
+      normalizedMode === 'wallet'
+    ) {
+      return 'E-payment received';
+    }
+    if (normalizedMode === 'cheque') {
+      return 'Cheque cleared';
+    }
+    if (normalizedMode === 'demand_draft') {
+      return 'DD cleared';
+    }
+    return 'Payment cleared';
+  }
+
+  if (status === 'received' && normalizedMode === 'cash') {
+    return 'Cash received';
+  }
+
+  return null;
 }
 
 export function getPaymentClearanceStatusLabel(status?: string | null): string {
   switch (status) {
+    case 'pending':
+      return 'Pending';
     case 'post_dated':
       return 'Post-dated';
     case 'deposited':
       return 'Deposited';
+    case 'initiated':
+      return 'Initiated';
     case 'cleared':
       return 'Cleared';
     case 'bounced':
       return 'Bounced';
+    case 'errored':
+      return 'Errored';
     case 'cancelled':
       return 'Cancelled';
     case 'received':

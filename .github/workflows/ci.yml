@@ -38,7 +38,7 @@ jobs:
           java-version: '21'
 
       - name: Firebase rule tests
-        run: npx -y firebase-tools@13.35.1 emulators:exec --project orbit-ledger-ci --only firestore "npm run test:rules"
+        run: npm run test:rules:emulators
 
       - name: Audit
         run: npm run audit:ci

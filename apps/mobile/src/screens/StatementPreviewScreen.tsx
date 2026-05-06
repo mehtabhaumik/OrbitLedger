@@ -579,7 +579,7 @@ export function StatementPreviewScreen({ navigation, route }: StatementPreviewSc
 
     if (!canUseTemplate(nextTemplate, source.subscriptionStatus.isPro)) {
       await recordPremiumFeatureAttemptForUpgradeNudge('advanced_pdf_styling');
-      Alert.alert('Pro template', `${nextTemplate.label} is available with Orbit Ledger Pro.`);
+      Alert.alert('Pro Plus template', `${nextTemplate.label} is available with Orbit Ledger Pro Plus.`);
       navigation.navigate('Upgrade');
       return;
     }
@@ -1253,11 +1253,11 @@ function getTemplateOptions(
   isPro: boolean
 ): Array<{ label: string; value: string; description: string }> {
   return templates.map((template) => ({
-    label: template.tier === 'pro' && !isPro ? `${template.label} · Pro` : template.label,
+    label: template.tier === 'pro' && !isPro ? `${template.label} · Pro Plus` : template.label,
     value: template.key,
     description:
       template.tier === 'pro' && !isPro
-        ? `Locked until Pro is active. ${template.description}`
+        ? `Locked until Pro Plus is active. ${template.description}`
         : template.description,
   }));
 }

@@ -1,6 +1,13 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useState } from 'react';
+import {
+  buildBusinessHealthScore,
+  getBusinessHealthScoreActionFlow,
+  type BusinessHealthScoreActionTarget,
+  type BusinessHealthScoreFactor,
+  type BusinessHealthScoreTone,
+} from '@orbit-ledger/core';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -106,6 +113,38 @@ export function BusinessHealthSnapshotScreen({ navigation }: BusinessHealthSnaps
     }
   }
 
+  const sharedHealth = useMemo(
+    () =>
+      snapshot
+        ? buildBusinessHealthScore({
+            businessName: snapshot.business.businessName,
+            currency,
+            signal: {
+              receivableAmount: snapshot.totals.currentReceivable,
+              receivableChangeAmount: snapshot.totals.receivableChange,
+              customerCount:
+                snapshot.totals.outstandingCustomerCount +
+                snapshot.totals.improvingCustomerCount +
+                snapshot.bestCustomers.length,
+              riskyCustomerCount: snapshot.totals.riskyCustomerCount,
+              overdueCustomerCount: snapshot.totals.riskyCustomerCount,
+              unpaidInvoiceCount: snapshot.totals.outstandingCustomerCount,
+              overdueInvoiceCount: snapshot.totals.missedPromiseCount,
+              pendingPaymentCount: 0,
+              pendingClearanceCount: 0,
+              lowStockCount: snapshot.totals.lowStockProductCount,
+              outOfStockCount: snapshot.lowStockProducts.filter((product) => product.stockQuantity <= 0).length,
+              backupStatus: 'healthy',
+              documentReadinessIssues: 0,
+              localSetupIssues: 0,
+              dailyClosingOpenItems: snapshot.actionItems.length,
+              collectionRatePercent: snapshot.totals.collectionRate,
+            },
+          })
+        : null,
+    [currency, snapshot]
+  );
+
   if (isLoading && !snapshot) {
     return (
       <SafeAreaView style={styles.loadingRoot}>
@@ -119,11 +158,13 @@ export function BusinessHealthSnapshotScreen({ navigation }: BusinessHealthSnaps
     );
   }
 
-  const healthTone = getScoreTone(snapshot?.score.tone ?? 'watch');
   const receivableChangedBy = snapshot?.totals.receivableChange ?? 0;
   const salesChange = (snapshot?.totals.invoiceSales ?? 0) - (snapshot?.totals.previousInvoiceSales ?? 0);
   const paymentsChange =
     (snapshot?.totals.paymentsReceived ?? 0) - (snapshot?.totals.previousPaymentsReceived ?? 0);
+  const displayScoreTone = sharedHealth?.tone ?? snapshot?.score.tone ?? 'watch';
+  const healthTone = getSharedHealthMobileAccent(displayScoreTone);
+  const scoreTextStyle = getScoreTextStyle(displayScoreTone);
 
   return (
     <SafeAreaView style={styles.root}>
@@ -148,18 +189,21 @@ export function BusinessHealthSnapshotScreen({ navigation }: BusinessHealthSnaps
               <View style={styles.scoreHeader}>
                 <View style={styles.scoreText}>
                   <Text style={styles.eyebrow}>{snapshot.period.label}</Text>
-                  <Text style={styles.heroTitle}>{snapshot.score.label}</Text>
-                  <Text style={styles.scoreHelper}>{snapshot.score.helper}</Text>
+                  <Text style={styles.heroTitle}>{sharedHealth?.label ?? snapshot.score.label}</Text>
+                  <Text style={styles.scoreHelper}>{sharedHealth?.summary ?? snapshot.score.helper}</Text>
                 </View>
-                <View style={[styles.scoreBadge, styles[`${snapshot.score.tone}ScoreBadge`]]}>
-                  <Text style={[styles.scoreValue, styles[`${snapshot.score.tone}ScoreText`]]}>
-                    {snapshot.score.value}
+                <View style={[styles.scoreBadge, getScoreBadgeStyle(displayScoreTone)]}>
+                  <Text style={[styles.scoreValue, scoreTextStyle]}>
+                    {sharedHealth?.score ?? snapshot.score.value}
                   </Text>
-                  <Text style={[styles.scoreLabel, styles[`${snapshot.score.tone}ScoreText`]]}>
+                  <Text style={[styles.scoreLabel, scoreTextStyle]}>
                     score
                   </Text>
                 </View>
               </View>
+              {sharedHealth?.topFactor ? (
+                <Text style={styles.topFactorText}>{sharedHealth.topFactor.message}</Text>
+              ) : null}
               <Text style={styles.periodText}>
                 {formatShortDate(snapshot.period.startDate)} to {formatShortDate(snapshot.period.endDate)}
               </Text>
@@ -210,6 +254,36 @@ export function BusinessHealthSnapshotScreen({ navigation }: BusinessHealthSnaps
                 ))}
               </View>
             </Section>
+
+            {sharedHealth ? (
+              <Section title="Health factors" subtitle="The score explains which area needs attention first.">
+                <View style={styles.actionStack}>
+                  {(sharedHealth.factors.length
+                    ? sharedHealth.factors.slice(0, 4)
+                    : buildHealthyMobileFactors(sharedHealth.positiveSignals)
+                  ).map((factor) => (
+                    <Card key={`${factor.area}:${factor.label}`} compact accent={getSharedHealthMobileAccent(factor.tone)}>
+                      <View style={styles.healthFactorHeader}>
+                        <View style={styles.actionText}>
+                          <Text style={styles.actionTitle}>{factor.label}</Text>
+                          <Text style={styles.actionMessage}>{factor.message}</Text>
+                          <Text style={styles.actionFlowText}>
+                            {getBusinessHealthScoreActionFlow(factor.actionTarget).userGoal}
+                          </Text>
+                        </View>
+                        <StatusChip label={factor.valueLabel} tone={getSharedHealthMobileAccent(factor.tone)} />
+                      </View>
+                      <PrimaryButton
+                        variant="secondary"
+                        onPress={() => openSharedHealthAction(factor.actionTarget, navigation)}
+                      >
+                        {getBusinessHealthScoreActionFlow(factor.actionTarget).primaryActionLabel}
+                      </PrimaryButton>
+                    </Card>
+                  ))}
+                </View>
+              </Section>
+            ) : null}
 
             <Section title="Business signals" subtitle="Dues, promises, customers, and stock to watch.">
               <View style={styles.signalGrid}>
@@ -376,16 +450,36 @@ function formatChange(value: number, currency: string): string {
   return `${value > 0 ? '+' : '-'}${formatCurrency(Math.abs(value), currency)}`;
 }
 
-function getScoreTone(tone: BusinessHealthSnapshot['score']['tone']) {
+function getSharedHealthMobileAccent(tone: BusinessHealthScoreTone | BusinessHealthSnapshot['score']['tone']) {
   if (tone === 'healthy') {
     return 'success';
   }
 
-  if (tone === 'action') {
+  if (tone === 'action' || tone === 'critical') {
     return 'danger';
   }
 
   return 'warning';
+}
+
+function getScoreBadgeStyle(tone: BusinessHealthScoreTone | BusinessHealthSnapshot['score']['tone']) {
+  if (tone === 'healthy') {
+    return styles.healthyScoreBadge;
+  }
+  if (tone === 'action' || tone === 'critical') {
+    return styles.actionScoreBadge;
+  }
+  return styles.watchScoreBadge;
+}
+
+function getScoreTextStyle(tone: BusinessHealthScoreTone | BusinessHealthSnapshot['score']['tone']) {
+  if (tone === 'healthy') {
+    return styles.healthyScoreText;
+  }
+  if (tone === 'action' || tone === 'critical') {
+    return styles.actionScoreText;
+  }
+  return styles.watchScoreText;
 }
 
 function getActionAccent(priority: BusinessHealthActionItem['priority']) {
@@ -398,6 +492,58 @@ function getActionAccent(priority: BusinessHealthActionItem['priority']) {
   }
 
   return 'primary';
+}
+
+function buildHealthyMobileFactors(positiveSignals: string[]): BusinessHealthScoreFactor[] {
+  return [
+    {
+      area: 'daily_rhythm',
+      label: 'No urgent health gaps',
+      valueLabel: 'Ready',
+      impact: 0,
+      priority: 'low',
+      tone: 'healthy',
+      message:
+        positiveSignals[0] ??
+        'Collections, invoices, stock, and document setup do not show urgent action right now.',
+      actionLabel: 'Review reports',
+      actionTarget: 'open_daily_closing',
+    },
+  ];
+}
+
+function openSharedHealthAction(
+  target: BusinessHealthScoreActionTarget,
+  navigation: BusinessHealthSnapshotScreenProps['navigation']
+) {
+  switch (target) {
+    case 'open_collection_coach':
+      navigation.navigate('GetPaid');
+      return;
+    case 'open_invoices':
+      navigation.navigate('Invoices');
+      return;
+    case 'open_payment_review':
+      navigation.navigate('PaymentProviderEvents');
+      return;
+    case 'open_inventory':
+      navigation.navigate('Products');
+      return;
+    case 'open_backup':
+      navigation.navigate('BackupRestore');
+      return;
+    case 'open_documents':
+      navigation.navigate('StatementBatch');
+      return;
+    case 'open_local_settings':
+      navigation.navigate('BusinessProfileSettings');
+      return;
+    case 'open_daily_closing':
+      navigation.navigate('DailyClosingReport');
+      return;
+    default:
+      navigation.navigate('Reports');
+  }
 }
 
 const styles = StyleSheet.create({
@@ -454,6 +600,12 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: typography.body,
     lineHeight: 22,
+  },
+  topFactorText: {
+    color: colors.textMuted,
+    fontSize: typography.label,
+    fontWeight: '700',
+    lineHeight: 20,
   },
   periodText: {
     color: colors.textMuted,
@@ -514,6 +666,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.md,
   },
+  healthFactorHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
   actionText: {
     flex: 1,
     minWidth: 0,
@@ -528,6 +686,12 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: typography.label,
     lineHeight: 20,
+  },
+  actionFlowText: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    fontWeight: '700',
+    lineHeight: 18,
   },
   signalGrid: {
     flexDirection: 'row',

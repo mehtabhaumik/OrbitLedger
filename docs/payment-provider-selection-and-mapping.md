@@ -8,15 +8,15 @@ The goal is not just to accept money. The goal is to keep invoices, customer bal
 
 Use this rollout order:
 
-1. **Razorpay first for India launch.**
-2. **Cashfree as the India backup provider.**
-3. **Stripe later for US/UK and international packs, once those markets are active.**
+1. **Razorpay first for launch and paid subscription checkout.**
+2. **Cashfree as a later India backup provider only if Razorpay needs redundancy.**
+3. **No Stripe dependency for the current launch.**
 
-Razorpay should be the first production gateway because Orbit Ledger is currently strongest around India-ready invoices, GST-style documents, UPI workflows, and small business collection flows. Razorpay has broad India payment coverage, official payment/refund webhooks, UPI/card/wallet/netbanking support, and a familiar dashboard for Indian merchants.
+Razorpay should be the production gateway because Orbit Ledger is currently strongest around India-ready invoices, GST-style documents, UPI workflows, and small business collection flows. Razorpay has broad India payment coverage, official payment/refund webhooks, UPI/card/wallet/netbanking support, and a familiar dashboard for Indian merchants. For subscription pricing in USD, CAD, AUD, and GBP, Orbit Ledger should still route the launch plan through Razorpay international payment support rather than introducing Stripe.
 
 Cashfree is a useful backup because it has competitive pricing and strong India payment coverage, but Orbit Ledger should avoid launching with two live gateways at once. Start with one provider, prove reconciliation, then add backup routing.
 
-Stripe should stay mapped but not be the first India launch path. It is valuable for global SaaS workflows and US/UK country packs, but Orbit Ledger’s immediate user promise is local daily money control for very small businesses.
+Stripe is not part of the current launch path. Any existing Stripe parsing code should be treated as dormant adapter infrastructure, not as an operational dependency.
 
 ## Provider Selection Criteria
 
@@ -42,7 +42,7 @@ Orbit Ledger currently supports:
 - Manual UPI/payment instructions on invoices.
 - A deployed provider webhook ready to receive trusted payment events.
 - A deployed Razorpay checkout creation endpoint that uses server-side credentials only.
-- Razorpay, Cashfree, Stripe, and generic webhook payload mapping.
+- Razorpay, Cashfree, dormant Stripe adapter parsing, and generic webhook payload mapping.
 - Payment review, payment application, refunds, and reversal history after trusted events arrive.
 
 Until Razorpay credentials are added, Orbit Ledger must not claim that online checkout is live. The owner can still collect with UPI or manual payment details, and the app can prepare the exact Razorpay test-link payload for later account setup.
@@ -111,9 +111,9 @@ Orbit Ledger mapping:
 - Cashfree amount is treated as normal decimal currency amount.
 - `cf_payment_id` is used as the provider payment id.
 
-### Future: Stripe
+### Dormant Adapter: Stripe
 
-Keep Stripe mapped for later US/UK/international rollout.
+Stripe is not part of the current Orbit Ledger launch plan. Keep this section only as adapter documentation for a possible future product decision; do not make Stripe credentials, price IDs, or dashboard setup a launch blocker.
 
 Required Stripe events:
 

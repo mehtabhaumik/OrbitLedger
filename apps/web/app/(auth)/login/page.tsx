@@ -25,7 +25,7 @@ const loginFeatures = [
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn, register, sendPasswordReset, signInWithGoogle } = useAuth();
+  const { user, isLoading, sessionExpiryMessage, signIn, register, sendPasswordReset, signInWithGoogle } = useAuth();
   const [mode, setMode] = useState<'sign_in' | 'register'>('sign_in');
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [fieldErrors, setFieldErrors] = useState<{
@@ -48,6 +48,26 @@ export default function LoginPage() {
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [localHostFixUrl, setLocalHostFixUrl] = useState<string | null>(null);
+  const [hasAuthCheckTimedOut, setHasAuthCheckTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace('/dashboard');
+    }
+  }, [isLoading, router, user]);
+
+  useEffect(() => {
+    if (!isLoading || user) {
+      setHasAuthCheckTimedOut(false);
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setHasAuthCheckTimedOut(true);
+    }, 6500);
+
+    return () => window.clearTimeout(timeout);
+  }, [isLoading, user]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -68,6 +88,23 @@ export default function LoginPage() {
     () => Boolean(localHostFixUrl) || isGoogleSubmitting || isSubmitting,
     [isGoogleSubmitting, isSubmitting, localHostFixUrl]
   );
+
+  if ((isLoading && !hasAuthCheckTimedOut) || user) {
+    return (
+      <main className="ol-auth-page">
+        <div className="ol-auth-loading-card" role="status" aria-live="polite">
+          <img
+            className="ol-brand-logo ol-brand-logo--md"
+            alt="Orbit Ledger"
+            src="/branding/orbit-ledger-logo-transparent.png"
+            width={180}
+            height={38}
+          />
+          <strong>{user ? 'Opening your dashboard...' : 'Checking your session...'}</strong>
+        </div>
+      </main>
+    );
+  }
 
   function validateField(
     field: 'name' | 'email' | 'password',
@@ -214,12 +251,11 @@ export default function LoginPage() {
               {mode === 'sign_in' ? 'Sign in to your workspace' : 'Create your account'}
             </div>
             <p className="ol-panel-copy">
-              Use web when you want a wider screen for customer cleanup, invoice review, reports,
-              and backup confidence.
+              Use the web workspace for customer review, invoice preparation, reports, and backup checks.
             </p>
           </div>
 
-          <div className="ol-segmented">
+          <div className="ol-segmented ol-auth-tabs">
             <button
               className={`ol-segment${mode === 'sign_in' ? ' is-active' : ''}`}
               onClick={() => {
@@ -246,7 +282,7 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <form className="ol-form-grid" onSubmit={submit}>
+          <form className="ol-form-grid ol-auth-form" onSubmit={submit}>
             {mode === 'register' ? (
               <label className={`ol-field${fieldErrors.name ? ' is-invalid' : ''}`}>
                 <span className="ol-field-label">Full name</span>
@@ -302,6 +338,14 @@ export default function LoginPage() {
             ) : null}
 
             {error ? <div className="ol-message ol-message--danger">{error}</div> : null}
+            {sessionExpiryMessage ? (
+              <div className="ol-message ol-message--warning">{sessionExpiryMessage}</div>
+            ) : null}
+            {hasAuthCheckTimedOut ? (
+              <div className="ol-message ol-message--warning">
+                Sign in to continue. Your secure session could not be confirmed quickly.
+              </div>
+            ) : null}
             {notice ? (
               <div className="ol-message ol-message--success">
                 {notice}
@@ -316,36 +360,37 @@ export default function LoginPage() {
               </div>
             ) : null}
 
-          <button className="ol-button" disabled={isSubmitting} type="submit">
-            {isSubmitting ? 'Please wait...' : mode === 'sign_in' ? 'Sign in' : 'Create account'}
-          </button>
-        </form>
+            <div className="ol-auth-actions">
+              <button className="ol-button ol-auth-submit" disabled={isSubmitting} type="submit">
+                {isSubmitting ? 'Please wait...' : mode === 'sign_in' ? 'Sign in' : 'Create account'}
+              </button>
+              <button
+                className="ol-button-secondary ol-auth-google"
+                disabled={isGoogleDisabled}
+                onClick={() => {
+                  if (localHostFixUrl) {
+                    window.location.href = localHostFixUrl;
+                    return;
+                  }
 
-          <button
-            className="ol-button-secondary"
-            disabled={isGoogleDisabled}
-            onClick={() => {
-              if (localHostFixUrl) {
-                window.location.href = localHostFixUrl;
-                return;
-              }
-
-              setError(null);
-              setNotice(null);
-              setIsGoogleSubmitting(true);
-              void signInWithGoogle()
-                .then(() => router.replace('/dashboard'))
-                .catch((nextError) => {
-                  setError(getAuthErrorMessage(nextError));
-                })
-                .finally(() => {
-                  setIsGoogleSubmitting(false);
-                });
-            }}
-            type="button"
-          >
-            {isGoogleSubmitting ? 'Opening Google...' : 'Continue with Google'}
-          </button>
+                  setError(null);
+                  setNotice(null);
+                  setIsGoogleSubmitting(true);
+                  void signInWithGoogle()
+                    .then(() => router.replace('/dashboard'))
+                    .catch((nextError) => {
+                      setError(getAuthErrorMessage(nextError));
+                    })
+                    .finally(() => {
+                      setIsGoogleSubmitting(false);
+                    });
+                }}
+                type="button"
+              >
+                {isGoogleSubmitting ? 'Opening Google...' : 'Continue with Google'}
+              </button>
+            </div>
+          </form>
         </section>
       </div>
     </main>

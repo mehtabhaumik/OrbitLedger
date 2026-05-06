@@ -1,5 +1,7 @@
 'use client';
 
+import type { CollectionCoachRecommendation } from '@orbit-ledger/core';
+import { buildCollectionCoach } from '@orbit-ledger/core';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -10,13 +12,19 @@ import {
   normalizePhoneForCountry,
   parseAmount,
   validateEmail,
+  validateBusinessName,
   validateName,
   validatePhone,
 } from '@/lib/form-validation';
+import { INDIA_COUNTRY, INDIAN_STATES, getDefaultIndianCity, getIndianCityOptions } from '@/lib/india';
 import {
   createWorkspaceCustomer,
   listWorkspaceCustomers,
+  listWorkspaceInvoices,
+  listWorkspacePaymentPromises,
   type WorkspaceCustomer,
+  type WorkspaceInvoice,
+  type WorkspacePaymentPromise,
 } from '@/lib/workspace-data';
 import {
   buildCsv,
@@ -28,14 +36,19 @@ import {
   sumCustomerBalances,
   type CustomerBalanceFilter,
 } from '@/lib/workspace-power';
+import { resolveWebFeatureAccess } from '@/lib/web-monetization';
+import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function CustomersPage() {
   const { activeWorkspace } = useWorkspace();
+  const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
+  const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
+  const [paymentPromises, setPaymentPromises] = useState<WorkspacePaymentPromise[]>([]);
   const [newName, setNewName] = useState('');
   const [newLegalName, setNewLegalName] = useState('');
   const [newCustomerType, setNewCustomerType] = useState<'individual' | 'business'>('business');
@@ -45,7 +58,8 @@ export default function CustomersPage() {
   const [newEmail, setNewEmail] = useState('');
   const [newBillingAddress, setNewBillingAddress] = useState('');
   const [newShippingAddress, setNewShippingAddress] = useState('');
-  const [newCity, setNewCity] = useState('');
+  const [newCity, setNewCity] = useState(getDefaultIndianCity(activeWorkspace?.stateCode ?? 'GJ'));
+  const [newTown, setNewTown] = useState('');
   const [newStateCode, setNewStateCode] = useState(activeWorkspace?.stateCode ?? 'GJ');
   const [newPostalCode, setNewPostalCode] = useState('');
   const [newGstin, setNewGstin] = useState('');
@@ -57,12 +71,16 @@ export default function CustomersPage() {
   const [openingBalance, setOpeningBalance] = useState('');
   const [errors, setErrors] = useState<{
     name: string | null;
+    legalName: string | null;
+    contactPerson: string | null;
     phone: string | null;
     email: string | null;
     creditLimit: string | null;
     openingBalance: string | null;
   }>({
     name: null,
+    legalName: null,
+    contactPerson: null,
     phone: null,
     email: null,
     creditLimit: null,
@@ -80,13 +98,29 @@ export default function CustomersPage() {
   const [balanceFilter, setBalanceFilter] = useState<CustomerBalanceFilter>('all');
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(new Set());
   const [isImporting, setIsImporting] = useState(false);
+  const customerExportAccess = resolveWebFeatureAccess(subscription, 'customer_profile_exports');
 
   useEffect(() => {
     if (!activeWorkspace) {
       return;
     }
-    void listWorkspaceCustomers(activeWorkspace.workspaceId).then(setCustomers);
+    void Promise.all([
+      listWorkspaceCustomers(activeWorkspace.workspaceId),
+      listWorkspaceInvoices(activeWorkspace.workspaceId),
+      listWorkspacePaymentPromises(activeWorkspace.workspaceId),
+    ])
+      .then(([nextCustomers, nextInvoices, nextPaymentPromises]) => {
+        setCustomers(nextCustomers);
+        setInvoices(nextInvoices);
+        setPaymentPromises(nextPaymentPromises);
+      })
+      .catch(() => {
+        setCustomers([]);
+        setInvoices([]);
+        setPaymentPromises([]);
+      });
     setNewStateCode(activeWorkspace.stateCode || 'GJ');
+    setNewCity(getDefaultIndianCity(activeWorkspace.stateCode || 'GJ'));
     setSelectedCustomerIds(new Set());
   }, [activeWorkspace]);
 
@@ -98,6 +132,8 @@ export default function CustomersPage() {
     const countryCode = activeWorkspace.countryCode || 'IN';
     const nextErrors = {
       name: validateName(newName, 'Customer name', true),
+      legalName: validateBusinessName(newLegalName, 'Legal / business name', false),
+      contactPerson: validateName(newContactPerson, 'Contact person', false),
       phone: validatePhone(newPhone, countryCode, false),
       email: validateEmail(newEmail, false),
       creditLimit:
@@ -112,7 +148,15 @@ export default function CustomersPage() {
     setTouched({ name: true, phone: true, email: true, creditLimit: true, openingBalance: true });
     setErrors(nextErrors);
 
-    if (nextErrors.name || nextErrors.phone || nextErrors.openingBalance) {
+    if (
+      nextErrors.name ||
+      nextErrors.legalName ||
+      nextErrors.contactPerson ||
+      nextErrors.phone ||
+      nextErrors.email ||
+      nextErrors.creditLimit ||
+      nextErrors.openingBalance
+    ) {
       showToast('Fix highlighted fields before saving.', 'danger');
       return;
     }
@@ -133,6 +177,7 @@ export default function CustomersPage() {
         address: newBillingAddress,
         shippingAddress: newShippingAddress,
         city: newCity,
+        town: newTown,
         stateCode: newStateCode,
         countryCode,
         postalCode: newPostalCode,
@@ -154,7 +199,8 @@ export default function CustomersPage() {
       setNewEmail('');
       setNewBillingAddress('');
       setNewShippingAddress('');
-      setNewCity('');
+      setNewCity(getDefaultIndianCity(activeWorkspace.stateCode || 'GJ'));
+      setNewTown('');
       setNewStateCode(activeWorkspace.stateCode || 'GJ');
       setNewPostalCode('');
       setNewGstin('');
@@ -165,7 +211,7 @@ export default function CustomersPage() {
       setNewNotes('');
       setOpeningBalance('');
       setTouched({ name: false, phone: false, email: false, creditLimit: false, openingBalance: false });
-      setErrors({ name: null, phone: null, email: null, creditLimit: null, openingBalance: null });
+      setErrors({ name: null, legalName: null, contactPerson: null, phone: null, email: null, creditLimit: null, openingBalance: null });
       showToast('Customer saved.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Customer could not be saved.', 'danger');
@@ -180,6 +226,11 @@ export default function CustomersPage() {
       return;
     }
     setErrors((current) => ({ ...current, name: validateName(value, 'Customer name', true) }));
+  }
+
+  function handleStateChange(value: string) {
+    setNewStateCode(value);
+    setNewCity((current) => (getIndianCityOptions(value).includes(current) ? current : getDefaultIndianCity(value)));
   }
 
   function handlePhoneChange(value: string) {
@@ -223,6 +274,43 @@ export default function CustomersPage() {
     [filteredCustomers, selectedCustomerIds]
   );
   const customerSummary = useMemo(() => sumCustomerBalances(filteredCustomers), [filteredCustomers]);
+  const collectionCoach = useMemo(
+    () =>
+      buildCollectionCoach({
+        businessName: activeWorkspace?.businessName,
+        currency: activeWorkspace?.currency ?? 'INR',
+        today: new Date().toISOString().slice(0, 10),
+        customers: customers.map((customer) => {
+          const latestPromise = getLatestPromiseForCustomer(paymentPromises, customer.id);
+          const overdueInvoiceCount = invoices.filter(
+            (invoice) =>
+              invoice.customerId === customer.id &&
+              !invoice.isArchived &&
+              invoice.documentState !== 'cancelled' &&
+              invoice.paymentStatus === 'overdue'
+          ).length;
+          return {
+            id: customer.id,
+            name: customer.name,
+            balance: customer.balance,
+            brokenPromiseCount: paymentPromises.filter(
+              (promise) => promise.customerId === customer.id && promise.status === 'missed'
+            ).length,
+            healthRank: customer.health.rank,
+            lastPromise: latestPromise
+              ? {
+                  amount: latestPromise.promisedAmount,
+                  promisedDate: latestPromise.promisedDate,
+                  status: latestPromise.status,
+                }
+              : null,
+            overdueInvoiceCount,
+          };
+        }),
+      }),
+    [activeWorkspace?.businessName, activeWorkspace?.currency, customers, invoices, paymentPromises]
+  );
+  const coachRecommendations = collectionCoach.recommendations.slice(0, 4);
   const allVisibleSelected =
     filteredCustomers.length > 0 && filteredCustomers.every((customer) => selectedCustomerIds.has(customer.id));
 
@@ -250,8 +338,21 @@ export default function CustomersPage() {
     });
   }
 
+  async function copyCoachReminder(recommendation: CollectionCoachRecommendation) {
+    try {
+      await navigator.clipboard.writeText(recommendation.suggestedMessage);
+      showToast('Reminder copied.', 'success');
+    } catch {
+      showToast('Reminder could not be copied.', 'danger');
+    }
+  }
+
   function exportCustomers() {
     if (!activeWorkspace) {
+      return;
+    }
+    if (!customerExportAccess.allowed) {
+      showToast(customerExportAccess.message ?? 'Customer exports are not included in your plan.', 'info');
       return;
     }
 
@@ -267,6 +368,7 @@ export default function CustomersPage() {
       customer.address ?? '',
       customer.shippingAddress ?? '',
       customer.city ?? '',
+      customer.town ?? '',
       customer.stateCode ?? '',
       customer.countryCode ?? '',
       customer.postalCode ?? '',
@@ -294,6 +396,7 @@ export default function CustomersPage() {
         'Billing address',
         'Shipping address',
         'City',
+        'Town / village',
         'State',
         'Country',
         'PIN/postcode',
@@ -320,6 +423,10 @@ export default function CustomersPage() {
 
   async function exportCustomersPdf() {
     if (!activeWorkspace) {
+      return;
+    }
+    if (!customerExportAccess.allowed) {
+      showToast(customerExportAccess.message ?? 'Customer exports are not included in your plan.', 'info');
       return;
     }
 
@@ -366,164 +473,9 @@ export default function CustomersPage() {
 
   return (
     <AppShell title="Customers" subtitle="Searchable customer records and outstanding balance review.">
-      <section className="ol-split-grid">
-        <article className="ol-panel-glass">
+      <section className="ol-panel">
           <div className="ol-panel-title" style={{ marginBottom: 12 }}>
-            Add customer
-          </div>
-          <div className="ol-form-grid">
-            <div className="ol-form-band">
-              <div className="ol-form-band-header">
-                <div>
-                  <div className="ol-form-band-title">Core details</div>
-                  <p className="ol-form-band-copy">Only display name is required. Optional fields improve invoices and customer exports.</p>
-                </div>
-              </div>
-              <div className="ol-form-band-grid">
-              <label className={`ol-field${errors.name ? ' is-invalid' : ''}`}>
-                <span className="ol-field-label">Display name</span>
-                <input
-                  autoComplete="name"
-                  className="ol-input"
-                  value={newName}
-                  onBlur={() => {
-                    setTouched((current) => ({ ...current, name: true }));
-                    setErrors((current) => ({
-                      ...current,
-                      name: validateName(newName, 'Customer name', true),
-                    }));
-                  }}
-                  onChange={(event) => handleNameChange(event.target.value)}
-                />
-                {errors.name ? <span className="ol-field-error">{errors.name}</span> : null}
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">Legal / business name</span>
-                <input className="ol-input" value={newLegalName} onChange={(event) => setNewLegalName(event.target.value)} />
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">Customer type</span>
-                <select className="ol-select" value={newCustomerType} onChange={(event) => setNewCustomerType(event.target.value as 'individual' | 'business')}>
-                  <option value="business">Business</option>
-                  <option value="individual">Individual</option>
-                </select>
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">Contact person</span>
-                <input className="ol-input" value={newContactPerson} onChange={(event) => setNewContactPerson(event.target.value)} />
-              </label>
-              </div>
-            </div>
-            <div className="ol-form-band">
-              <div className="ol-form-band-grid">
-              <label className={`ol-field${errors.phone ? ' is-invalid' : ''}`}>
-                <span className="ol-field-label">Phone</span>
-                <input
-                  className="ol-input"
-                  inputMode="tel"
-                  value={newPhone}
-                  onBlur={handlePhoneBlur}
-                  onChange={(event) => handlePhoneChange(event.target.value)}
-                />
-                {errors.phone ? <span className="ol-field-error">{errors.phone}</span> : null}
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">WhatsApp</span>
-                <input className="ol-input" inputMode="tel" value={newWhatsapp} onChange={(event) => setNewWhatsapp(event.target.value)} />
-              </label>
-              <label className={`ol-field${errors.email ? ' is-invalid' : ''}`}>
-                <span className="ol-field-label">Email</span>
-                <input className="ol-input" inputMode="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} />
-                {errors.email ? <span className="ol-field-error">{errors.email}</span> : null}
-              </label>
-              </div>
-            </div>
-            <div className="ol-form-band">
-              <div className="ol-form-band-grid">
-              <label className="ol-field">
-                <span className="ol-field-label">Billing address</span>
-                <input className="ol-input" value={newBillingAddress} onChange={(event) => setNewBillingAddress(event.target.value)} />
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">Shipping address</span>
-                <input className="ol-input" value={newShippingAddress} onChange={(event) => setNewShippingAddress(event.target.value)} />
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">City</span>
-                <input className="ol-input" value={newCity} onChange={(event) => setNewCity(event.target.value)} />
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">State</span>
-                <input className="ol-input" value={newStateCode} onChange={(event) => setNewStateCode(event.target.value.toUpperCase())} />
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">PIN / postcode</span>
-                <input className="ol-input" value={newPostalCode} onChange={(event) => setNewPostalCode(event.target.value)} />
-              </label>
-              </div>
-            </div>
-            <div className="ol-form-band">
-              <div className="ol-form-band-grid">
-              <label className="ol-field">
-                <span className="ol-field-label">GSTIN</span>
-                <input className="ol-input" value={newGstin} onChange={(event) => setNewGstin(event.target.value.toUpperCase())} />
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">PAN</span>
-                <input className="ol-input" value={newPan} onChange={(event) => setNewPan(event.target.value.toUpperCase())} />
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">Payment terms</span>
-                <input className="ol-input" placeholder="Example: Net 15" value={newPaymentTerms} onChange={(event) => setNewPaymentTerms(event.target.value)} />
-              </label>
-              <label className={`ol-field${errors.creditLimit ? ' is-invalid' : ''}`}>
-                <span className="ol-field-label">Credit limit</span>
-                <input className="ol-input ol-amount" inputMode="decimal" value={newCreditLimit} onChange={(event) => setNewCreditLimit(event.target.value)} />
-                {errors.creditLimit ? <span className="ol-field-error">{errors.creditLimit}</span> : null}
-              </label>
-              <label className={`ol-field${errors.openingBalance ? ' is-invalid' : ''}`}>
-                <span className="ol-field-label">Opening balance</span>
-                <input
-                  className="ol-input ol-amount"
-                  inputMode="decimal"
-                  value={openingBalance}
-                  onBlur={() => {
-                    setTouched((current) => ({ ...current, openingBalance: true }));
-                    setErrors((current) => ({
-                      ...current,
-                      openingBalance:
-                        openingBalance.trim() && parseAmount(openingBalance) === null
-                          ? 'Opening balance must be a valid number.'
-                          : null,
-                    }));
-                  }}
-                  onChange={(event) => handleOpeningBalanceChange(event.target.value)}
-                />
-                {errors.openingBalance ? (
-                  <span className="ol-field-error">{errors.openingBalance}</span>
-                ) : null}
-              </label>
-              <label className="ol-field">
-                <span className="ol-field-label">Tags</span>
-                <input className="ol-input" placeholder="VIP, wholesale, follow-up" value={newTags} onChange={(event) => setNewTags(event.target.value)} />
-              </label>
-              </div>
-            </div>
-            <label className="ol-field">
-              <span className="ol-field-label">Notes</span>
-              <textarea className="ol-textarea" value={newNotes} onChange={(event) => setNewNotes(event.target.value)} />
-            </label>
-            <div className="ol-actions">
-              <button className="ol-button" disabled={isSaving} type="button" onClick={() => void addCustomer()}>
-                {isSaving ? 'Saving...' : 'Save customer'}
-              </button>
-            </div>
-          </div>
-        </article>
-
-        <article className="ol-panel">
-          <div className="ol-panel-title" style={{ marginBottom: 12 }}>
-            Customer cleanup
+            Customer review
           </div>
           <div className="ol-list">
             <div className="ol-list-item">
@@ -540,7 +492,7 @@ export default function CustomersPage() {
               <div className="ol-list-copy">
                 <div className="ol-list-title">Cleaner office work</div>
                 <div className="ol-list-text">
-                  Use the wider view for review, cleanup, import, and export.
+                  Use the wider view for review, import, export, and record updates.
                 </div>
               </div>
             </div>
@@ -563,6 +515,9 @@ export default function CustomersPage() {
             }}>
               Download template
             </button>
+            <Link className="ol-button" href={'/customers/new' as Route}>
+              Add customer
+            </Link>
             <input
               hidden
               accept=".csv,text/csv"
@@ -571,7 +526,6 @@ export default function CustomersPage() {
               onChange={(event) => void importCustomers(event.target.files?.[0] ?? null)}
             />
           </div>
-        </article>
       </section>
 
       <section className="ol-metric-grid">
@@ -588,6 +542,37 @@ export default function CustomersPage() {
           helper={`${customerSummary.advanceCount} customer${customerSummary.advanceCount === 1 ? '' : 's'} paid ahead.`}
           tone="success"
         />
+      </section>
+
+      <section className="ol-panel">
+        <div className="ol-panel-header">
+          <div>
+            <div className="ol-panel-title">Collection coach</div>
+            <p className="ol-panel-copy">
+              {collectionCoach.summary}
+            </p>
+          </div>
+          {collectionCoach.topRecommendation ? (
+            <span className={`ol-chip ol-chip--${collectionCoach.topRecommendation.tone === 'danger' ? 'warning' : collectionCoach.topRecommendation.tone}`}>
+              {collectionCoach.topRecommendation.priority === 'critical' ? 'Contact first' : 'Guided follow-up'}
+            </span>
+          ) : (
+            <span className="ol-chip ol-chip--success">Clear</span>
+          )}
+        </div>
+        {coachRecommendations.length ? (
+          <div className="ol-coach-grid">
+            {coachRecommendations.map((recommendation) => (
+              <CollectionCoachCard
+                key={recommendation.id}
+                recommendation={recommendation}
+                onCopy={() => void copyCoachReminder(recommendation)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="ol-empty">No collection follow-up is needed right now.</div>
+        )}
       </section>
 
       <section className="ol-table">
@@ -622,14 +607,19 @@ export default function CustomersPage() {
             }}>
               Clear view
             </button>
-            <button className="ol-button" type="button" disabled={!filteredCustomers.length} onClick={exportCustomers}>
+            <button className="ol-button" type="button" disabled={!filteredCustomers.length || !customerExportAccess.allowed} onClick={exportCustomers}>
               Export CSV
             </button>
-            <button className="ol-button-secondary" type="button" disabled={!filteredCustomers.length} onClick={() => void exportCustomersPdf()}>
+            <button className="ol-button-secondary" type="button" disabled={!filteredCustomers.length || !customerExportAccess.allowed} onClick={() => void exportCustomersPdf()}>
               Export PDF
             </button>
           </div>
         </div>
+        {!customerExportAccess.allowed ? (
+          <div className="ol-message" style={{ margin: '0 24px 16px' }}>
+            {customerExportAccess.message}
+          </div>
+        ) : null}
         <div className="ol-table-summary">
           {selectedCustomerIds.size
             ? `${selectedCustomers.length} selected from this view.`
@@ -692,6 +682,45 @@ export default function CustomersPage() {
   );
 }
 
+function CollectionCoachCard({
+  onCopy,
+  recommendation,
+}: {
+  onCopy(): void;
+  recommendation: CollectionCoachRecommendation;
+}) {
+  return (
+    <article className="ol-coach-card" data-tone={recommendation.tone}>
+      <div className="ol-coach-card-head">
+        <div>
+          <div className="ol-coach-title">{recommendation.title}</div>
+          <p>{recommendation.reason}</p>
+        </div>
+        <span className="ol-coach-score">{recommendation.score}</span>
+      </div>
+      <div className="ol-coach-meta">
+        <span>{recommendation.balanceLabel}</span>
+        <span>{recommendation.helper}</span>
+        <span>Next follow-up: {recommendation.followUpDate}</span>
+      </div>
+      <div className="ol-coach-message">
+        {recommendation.suggestedMessage.split('\n').slice(0, 3).join(' ')}
+      </div>
+      <div className="ol-inline-actions">
+        <Link
+          className="ol-button-secondary"
+          href={`/customers/detail?customerId=${encodeURIComponent(recommendation.customerId)}` as Route}
+        >
+          Open customer
+        </Link>
+        <button className="ol-button-ghost" type="button" onClick={onCopy}>
+          Copy reminder
+        </button>
+      </div>
+    </article>
+  );
+}
+
 function Metric({
   label,
   value,
@@ -726,4 +755,32 @@ function splitTags(value: string) {
     .map((tag) => tag.trim())
     .filter(Boolean)
     .slice(0, 12);
+}
+
+function getLatestPromiseForCustomer(promises: WorkspacePaymentPromise[], customerId: string) {
+  const activePromises = promises.filter(
+    (promise) =>
+      promise.customerId === customerId &&
+      (promise.status === 'open' || promise.status === 'missed') &&
+      promise.promisedDate
+  );
+  if (!activePromises.length) {
+    return null;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  return activePromises.sort((left, right) => {
+    const leftWeight = getPromiseWeight(left, today);
+    const rightWeight = getPromiseWeight(right, today);
+    return leftWeight - rightWeight || left.promisedDate.localeCompare(right.promisedDate);
+  })[0];
+}
+
+function getPromiseWeight(promise: WorkspacePaymentPromise, today: string) {
+  if (promise.status === 'missed' || promise.promisedDate < today) {
+    return 0;
+  }
+  if (promise.promisedDate === today) {
+    return 1;
+  }
+  return 2;
 }

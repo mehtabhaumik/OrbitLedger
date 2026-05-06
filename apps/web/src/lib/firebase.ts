@@ -1,7 +1,7 @@
 'use client';
 
 import { initializeApp, getApp, getApps } from 'firebase/app';
-import { initializeAppCheck, ReCaptchaV3Provider, type AppCheck } from 'firebase/app-check';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from 'firebase/app-check';
 import {
   browserLocalPersistence,
   getAuth,
@@ -35,22 +35,38 @@ const appEnvironment = process.env.NEXT_PUBLIC_ORBIT_LEDGER_ENV || 'development'
 const isProductionEnvironment = appEnvironment === 'production';
 
 const firebaseConfig = {
-  apiKey: getFirebaseEnv('NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_API_KEY', defaultDevelopmentConfig.apiKey),
-  authDomain: getFirebaseEnv(
+  apiKey: resolveFirebaseEnv(
+    process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_API_KEY,
+    'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_API_KEY',
+    defaultDevelopmentConfig.apiKey
+  ),
+  authDomain: resolveFirebaseEnv(
+    process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN,
     'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN',
     defaultDevelopmentConfig.authDomain
   ),
-  projectId: getFirebaseEnv('NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_PROJECT_ID', defaultDevelopmentConfig.projectId),
-  storageBucket: getFirebaseEnv(
+  projectId: resolveFirebaseEnv(
+    process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_PROJECT_ID,
+    'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_PROJECT_ID',
+    defaultDevelopmentConfig.projectId
+  ),
+  storageBucket: resolveFirebaseEnv(
+    process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_STORAGE_BUCKET,
     'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_STORAGE_BUCKET',
     defaultDevelopmentConfig.storageBucket
   ),
-  messagingSenderId: getFirebaseEnv(
+  messagingSenderId: resolveFirebaseEnv(
+    process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_MESSAGING_SENDER_ID,
     'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_MESSAGING_SENDER_ID',
     defaultDevelopmentConfig.messagingSenderId
   ),
-  appId: getFirebaseEnv('NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_APP_ID', defaultDevelopmentConfig.appId),
-  measurementId: process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_MEASUREMENT_ID || defaultDevelopmentConfig.measurementId,
+  appId: resolveFirebaseEnv(
+    process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_APP_ID,
+    'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_APP_ID',
+    defaultDevelopmentConfig.appId
+  ),
+  measurementId:
+    process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_MEASUREMENT_ID || defaultDevelopmentConfig.measurementId,
 };
 
 let persistenceInitialized = false;
@@ -59,10 +75,10 @@ let firestoreInstance: Firestore | null = null;
 let storageInstance: FirebaseStorage | null = null;
 let appCheckInstance: AppCheck | null = null;
 
-function getFirebaseEnv(key: string, developmentFallback: string) {
-  const value = process.env[key]?.trim();
-  if (value) {
-    return value;
+function resolveFirebaseEnv(value: string | undefined, key: string, developmentFallback: string) {
+  const trimmedValue = value?.trim();
+  if (trimmedValue) {
+    return trimmedValue;
   }
 
   if (isProductionEnvironment) {
@@ -139,7 +155,7 @@ function initializeWebAppCheck(app: ReturnType<typeof initializeApp>) {
   }
 
   appCheckInstance = initializeAppCheck(app, {
-    provider: new ReCaptchaV3Provider(siteKey),
+    provider: new ReCaptchaEnterpriseProvider(siteKey),
     isTokenAutoRefreshEnabled: true,
   });
 }

@@ -35,7 +35,7 @@ import {
   updateCloudWorkspaceProfile,
   type WorkspaceProfileDraft,
 } from '../cloud';
-import { COUNTRY_OPTIONS, getDefaultRegionCode, getRegionOptions } from '../data/regions';
+import { COUNTRY_OPTIONS, getCityOptions, getDefaultCity, getDefaultRegionCode, getRegionOptions } from '../data/regions';
 import {
   applyCountryPackageUpdateFromProvider,
   loadInstalledCountryPackage,
@@ -105,6 +105,7 @@ const profileSchema = z.object({
   email: z.string().trim().email('Enter a valid email address.'),
   addressLine1: requiredAddressLineSchema,
   addressLine2: optionalAddressLineSchema,
+  town: optionalAddressLineSchema,
   city: requiredCitySchema,
   postalCode: postalCodeSchema,
   currency: currencyCodeSchema,
@@ -129,6 +130,7 @@ const defaultValues: ProfileFormValues = {
   email: '',
   addressLine1: '',
   addressLine2: '',
+  town: '',
   city: '',
   postalCode: '',
   currency: 'INR',
@@ -198,6 +200,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
   });
   const values = watch();
   const regionOptions = getRegionOptions(values.countryCode);
+  const cityOptions = getCityOptions(values.countryCode || 'IN', values.stateCode || 'GJ');
   const paymentTemplate = getManualPaymentInstructionTemplate(values.countryCode || settingsSnapshot?.countryCode);
 
   useEffect(() => {
@@ -246,6 +249,7 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
             addressLine1: address.addressLine1,
             addressLine2: address.addressLine2,
             city: address.city,
+            town: address.town ?? '',
             postalCode: address.postalCode ?? '',
             currency: settings.currency,
             countryCode: settings.countryCode,
@@ -1037,14 +1041,31 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
               />
               <Controller
                 control={control}
-                name="city"
+                name="town"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextField
-                    label="City"
-                    placeholder="Ahmedabad"
-                    value={value}
+                    label="Town or village"
+                    placeholder="Optional local town or village"
+                    value={value ?? ''}
                     onChangeText={onChange}
                     onBlur={onBlur}
+                    error={errors.town?.message}
+                  />
+                )}
+              />
+              <Controller
+                control={control}
+                name="city"
+                render={({ field: { onChange, value } }) => (
+                  <SelectField
+                    label="City"
+                    value={value}
+                    options={cityOptions.map((city) => ({
+                      label: city,
+                      value: city,
+                      description: values.stateCode,
+                    }))}
+                    onChange={onChange}
                     error={errors.city?.message}
                   />
                 )}
@@ -1098,27 +1119,33 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
                 <SelectField
                   label="Country"
                   value={value}
-                  options={COUNTRY_OPTIONS.map((country) => ({
+                  options={COUNTRY_OPTIONS.filter((country) => country.code === 'IN').map((country) => ({
                     label: country.name,
                     value: country.code,
                     description: `${country.code} - ${country.currency}`,
                   }))}
                   onChange={(countryCode) => {
-                    const selectedCountry = COUNTRY_OPTIONS.find((country) => country.code === countryCode);
-                    onChange(countryCode);
-                    setValue('stateCode', getDefaultRegionCode(countryCode), {
+                    const countryCodeLocked = 'IN';
+                    const selectedCountry = COUNTRY_OPTIONS.find((country) => country.code === countryCodeLocked);
+                    onChange(countryCodeLocked);
+                    const nextRegion = getDefaultRegionCode(countryCodeLocked);
+                    setValue('stateCode', nextRegion, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                    setValue('city', getDefaultCity(countryCodeLocked, nextRegion), {
                       shouldDirty: true,
                       shouldValidate: true,
                     });
                     if (selectedCountry) {
-                      setValue('currency', selectedCountry.currency, {
+                        setValue('currency', selectedCountry.currency, {
                         shouldDirty: true,
                         shouldValidate: true,
                       });
                     }
                   }}
                   error={errors.countryCode?.message}
-                  helperText="Used for local labels, reports, and documents."
+                  helperText="India is active for launch. Other country packs are upcoming."
                 />
               )}
             />
@@ -1134,7 +1161,13 @@ export function BusinessProfileSettingsScreen({ navigation }: BusinessProfileSet
                     value: region.code,
                     description: region.code,
                   }))}
-                  onChange={onChange}
+                  onChange={(stateCode) => {
+                    onChange(stateCode);
+                    setValue('city', getDefaultCity(values.countryCode || 'IN', stateCode), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
                   error={errors.stateCode?.message}
                 />
               )}
@@ -1772,6 +1805,7 @@ function normalizeProfileForSave(input: ProfileFormValues): ProfileFormValues {
     email: input.email.trim(),
     addressLine1: input.addressLine1.trim(),
     addressLine2: input.addressLine2?.trim() ?? '',
+    town: input.town?.trim() ?? '',
     city: input.city.trim(),
     postalCode: input.postalCode.trim(),
     currency: input.currency.trim().toUpperCase(),
@@ -1793,6 +1827,7 @@ function businessSettingsToFormValues(settings: BusinessSettings): ProfileFormVa
     email: settings.email,
     addressLine1: address.addressLine1,
     addressLine2: address.addressLine2,
+    town: address.town ?? '',
     city: address.city,
     postalCode: address.postalCode ?? '',
     currency: settings.currency,

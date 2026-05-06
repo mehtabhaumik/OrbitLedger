@@ -1,5 +1,7 @@
 import type {
   FreeTierFeature,
+  OfficeTierFeature,
+  PlusTierFeature,
   ProTierFeature,
   SubscriptionFeature,
   SubscriptionFeatureAccess,
@@ -7,6 +9,13 @@ import type {
   SubscriptionTier,
   SubscriptionTierDefinition,
 } from './types';
+
+const planRank: Record<SubscriptionTier, number> = {
+  free: 0,
+  plus: 10,
+  pro: 20,
+  office: 30,
+};
 
 const freeTierFeatures: FreeTierFeature[] = [
   'business_setup',
@@ -28,6 +37,27 @@ const proTierFeatures: ProTierFeature[] = [
   'bulk_document_export',
   'multi_business_profiles',
   'advanced_insights',
+  'recurring_auto_email',
+  'payment_reconciliation',
+  'payment_reversals',
+  'audit_ready_reports',
+];
+
+const plusTierFeatures: PlusTierFeature[] = [
+  'customer_health',
+  'customer_profile_exports',
+  'payment_links',
+  'payment_proof_attachments',
+  'branded_invoice_basics',
+  'batch_statements',
+  'recurring_invoice_rules',
+];
+
+const officeTierFeatures: OfficeTierFeature[] = [
+  'bulk_operations',
+  'multi_user_workspace',
+  'accountant_exports',
+  'priority_support',
 ];
 
 export const SUBSCRIPTION_TIER_DEFINITIONS: Record<
@@ -42,9 +72,21 @@ export const SUBSCRIPTION_TIER_DEFINITIONS: Record<
   },
   pro: {
     tier: 'pro',
-    label: 'Pro',
+    label: 'Pro Plus',
     description: 'Premium document polish while keeping the core offline ledger available.',
     includedFeatures: [...freeTierFeatures, ...proTierFeatures],
+  },
+  plus: {
+    tier: 'plus',
+    label: 'Plus',
+    description: 'Better exports, customer health, and payment workflows for regular use.',
+    includedFeatures: [...freeTierFeatures, ...plusTierFeatures],
+  },
+  office: {
+    tier: 'office',
+    label: 'Office',
+    description: 'Office-grade controls for teams, accountants, bulk work, and priority support.',
+    includedFeatures: [...freeTierFeatures, ...plusTierFeatures, ...proTierFeatures, ...officeTierFeatures],
   },
 };
 
@@ -58,6 +100,13 @@ const featureRequiredTier: Record<SubscriptionFeature, SubscriptionTier> = {
   backup_export: 'free',
   backup_restore: 'free',
   pin_lock: 'free',
+  customer_health: 'plus',
+  customer_profile_exports: 'plus',
+  payment_links: 'plus',
+  payment_proof_attachments: 'plus',
+  branded_invoice_basics: 'plus',
+  batch_statements: 'plus',
+  recurring_invoice_rules: 'plus',
   advanced_pdf_styling: 'pro',
   custom_document_branding: 'pro',
   advanced_statement_templates: 'pro',
@@ -65,6 +114,14 @@ const featureRequiredTier: Record<SubscriptionFeature, SubscriptionTier> = {
   bulk_document_export: 'pro',
   multi_business_profiles: 'pro',
   advanced_insights: 'pro',
+  recurring_auto_email: 'pro',
+  payment_reconciliation: 'pro',
+  payment_reversals: 'pro',
+  audit_ready_reports: 'pro',
+  bulk_operations: 'office',
+  multi_user_workspace: 'office',
+  accountant_exports: 'office',
+  priority_support: 'office',
 };
 
 export function resolveSubscriptionFeatureAccess(
@@ -72,7 +129,7 @@ export function resolveSubscriptionFeatureAccess(
   feature: SubscriptionFeature
 ): SubscriptionFeatureAccess {
   const requiredTier = featureRequiredTier[feature];
-  const allowed = requiredTier === 'free' || status.isPro;
+  const allowed = planRank[status.tier] >= planRank[requiredTier];
 
   return {
     feature,
@@ -81,16 +138,23 @@ export function resolveSubscriptionFeatureAccess(
     requiredTier,
     message: allowed
       ? null
-      : 'This document enhancement is available with Orbit Ledger Pro. Your daily offline ledger tools remain available.',
+      : `${formatFeatureLabel(feature)} is available with Orbit Ledger ${SUBSCRIPTION_TIER_DEFINITIONS[requiredTier].label}. Your daily offline ledger tools remain available.`,
   };
 }
 
 export function isPremiumSubscriptionFeature(feature: SubscriptionFeature): boolean {
-  return featureRequiredTier[feature] === 'pro';
+  return featureRequiredTier[feature] !== 'free';
 }
 
 export function getSubscriptionTierDefinition(
   tier: SubscriptionTier
 ): SubscriptionTierDefinition {
   return SUBSCRIPTION_TIER_DEFINITIONS[tier];
+}
+
+function formatFeatureLabel(feature: SubscriptionFeature): string {
+  return feature
+    .split('_')
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(' ');
 }

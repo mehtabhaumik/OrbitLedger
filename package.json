@@ -30,9 +30,16 @@
     "smoke:razorpay-checkout": "node scripts/razorpay-checkout-smoke.mjs",
     "smoke:razorpay-checkout:connected": "node scripts/razorpay-checkout-smoke.mjs --expect-connected",
     "smoke:razorpay-capture": "node scripts/razorpay-webhook-capture-smoke.mjs",
+    "prepare:web-production-env": "node scripts/prepare-web-production-env.mjs",
+    "verify:web-production-env": "node scripts/verify-web-production-env.mjs",
+    "build:web:production": "npm run verify:web-production-env && npm run build --workspace @orbit-ledger/web",
+    "smoke:live-app-check": "node scripts/smoke-live-app-check.mjs",
+    "verify:app-check-readiness": "node scripts/verify-app-check-readiness.mjs",
+    "qa:browser-responsive": "node scripts/browser-responsive-qa.mjs",
     "typecheck": "npm run typecheck --workspace @orbit-ledger/contracts && npm run typecheck --workspace @orbit-ledger/core && npm run typecheck --workspace @orbit-ledger/ui && npm run typecheck --workspace @orbit-ledger/sync && npm run typecheck --workspace @orbit-ledger/mobile && npm run typecheck --workspace @orbit-ledger/web && npm run typecheck --workspace @orbit-ledger/functions",
     "test": "vitest run apps packages",
-    "test:rules": "vitest run firebase/rules.test.ts",
+    "test:rules": "vitest run firebase/*.rules.test.ts firebase/rules.test.ts --fileParallelism=false",
+    "test:rules:emulators": "npx -y firebase-tools@13.35.1 emulators:exec --project orbit-ledger-ci --only firestore,storage \"npm run test:rules\"",
     "audit:ci": "npm audit --audit-level=high"
   },
   "devDependencies": {

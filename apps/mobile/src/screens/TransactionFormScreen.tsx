@@ -22,7 +22,9 @@ import { z } from 'zod';
 import {
   getPaymentModeConfig,
   getPaymentClearanceStatusLabel,
+  getPaymentClearanceStatusesForMode,
   getManualPaymentVerificationPlan,
+  normalizePaymentClearanceStatus,
   PAYMENT_MODE_CONFIGS,
   reconcileProviderPayment,
   type PaymentClearanceStatus,
@@ -103,7 +105,7 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
   const [selectedPromiseId, setSelectedPromiseId] = useState(initialPromiseId ?? '');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   const [paymentDetails, setPaymentDetails] = useState<PaymentModeDetails>({});
-  const [paymentClearanceStatus, setPaymentClearanceStatus] = useState<PaymentClearanceStatus>('cleared');
+  const [paymentClearanceStatus, setPaymentClearanceStatus] = useState<PaymentClearanceStatus>('received');
   const [paymentAttachments, setPaymentAttachments] = useState<PaymentInstrumentAttachment[]>([]);
   const [workspaceInvoices, setWorkspaceInvoices] = useState<Invoice[]>([]);
   const [providerSource, setProviderSource] = useState<PaymentProviderSource>('upi');
@@ -118,9 +120,21 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
       getManualPaymentVerificationPlan({
         allocationStrategy,
         clearanceStatus: paymentClearanceStatus,
+        paymentMode,
       }),
-    [allocationStrategy, paymentClearanceStatus]
+    [allocationStrategy, paymentClearanceStatus, paymentMode]
   );
+  const paymentClearanceOptions = useMemo(
+    () => getPaymentClearanceStatusesForMode(paymentMode),
+    [paymentMode]
+  );
+
+  useEffect(() => {
+    setPaymentClearanceStatus((current) =>
+      normalizePaymentClearanceStatus(current, paymentMode, paymentDetails)
+    );
+  }, [paymentDetails, paymentMode]);
+
   const amountInputRef = useRef<TextInput>(null);
   const {
     control,
@@ -212,7 +226,7 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
             setLoadedTransaction(transaction);
             setPaymentMode(transaction.paymentMode ?? 'cash');
             setPaymentDetails(transaction.paymentDetails ?? {});
-            setPaymentClearanceStatus(transaction.paymentClearanceStatus ?? 'cleared');
+            setPaymentClearanceStatus(transaction.paymentClearanceStatus ?? 'received');
             setPaymentAttachments(transaction.paymentAttachments);
             reset({
               customerId: transaction.customerId,
@@ -687,6 +701,9 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
                       onPress={() => {
                         setPaymentMode(config.mode);
                         setPaymentDetails({});
+                        setPaymentClearanceStatus((current) =>
+                          normalizePaymentClearanceStatus(current, config.mode, {})
+                        );
                       }}
                       pressRetentionOffset={touch.pressRetentionOffset}
                       style={[styles.paymentModeChoice, selected ? styles.promiseChoiceSelected : null]}
@@ -755,7 +772,7 @@ export function TransactionFormScreen({ navigation, route }: TransactionFormScre
               ) : null}
               <Text style={styles.choiceMeta}>Clearance status</Text>
               <View style={styles.paymentModeGrid}>
-                {(['received', 'post_dated', 'deposited', 'cleared', 'bounced', 'cancelled'] as PaymentClearanceStatus[]).map((status) => {
+                {paymentClearanceOptions.map((status) => {
                   const selected = paymentClearanceStatus === status;
                   return (
                     <Pressable

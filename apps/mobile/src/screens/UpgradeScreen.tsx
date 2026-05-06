@@ -1,4 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ORBIT_LEDGER_PLAN_COMPARISON } from '@orbit-ledger/core';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +11,7 @@ import { Section } from '../components/Section';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { StatusChip } from '../components/StatusChip';
 import {
-  PRO_PLAN_CATALOG,
+  SUBSCRIPTION_PLAN_CATALOG,
   getBillingLastRefreshAt,
   getSubscriptionStatus,
   loadBillingProductDetails,
@@ -30,16 +31,16 @@ type UpgradeScreenProps = NativeStackScreenProps<RootStackParamList, 'Upgrade'>;
 
 const proBenefits = [
   {
-    title: 'Cleaner shared documents',
-    detail: 'Sharper statements and customer documents when you need to send polished copies.',
+    title: 'Plus',
+    detail: 'Customer reports, health ranking, payment links, proof files, and batch statements.',
   },
   {
-    title: 'Business branding',
-    detail: 'Use your logo, signature, and business identity in customer-facing documents.',
+    title: 'Pro Plus',
+    detail: 'Premium templates, branding, recurring auto email, tax surfaces, and reconciliation.',
   },
   {
-    title: 'More document options',
-    detail: 'Prepared for local labels, templates, and review packs as the business grows.',
+    title: 'Office',
+    detail: 'Bulk operations, team controls, accountant exports, and priority support.',
   },
 ];
 
@@ -88,8 +89,8 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
 
   function startUpgrade(plan: ProPlanCatalogItem) {
     Alert.alert(
-      `Buy ${plan.title} Pro?`,
-      'Orbit Ledger will open the app store purchase flow. Pro access unlocks only after the store confirms the subscription.',
+      `Choose ${plan.title}?`,
+      'Orbit Ledger will open the app store purchase flow. Access unlocks only after the store confirms the subscription.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -143,7 +144,7 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
     }
   }
 
-  const isPro = subscriptionStatus?.isPro ?? false;
+  const isPaid = subscriptionStatus?.tier !== undefined && subscriptionStatus.tier !== 'free';
   const activePlanId = subscriptionStatus?.planId ?? null;
 
   return (
@@ -154,33 +155,33 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
         keyboardShouldPersistTaps="handled"
       >
         <ScreenHeader
-          title="Upgrade to Pro"
-          subtitle="Optional document polish for businesses that share statements often."
+          title="Plans and pricing"
+          subtitle="Choose the plan that matches how often you send documents, collect payments, and review office work."
           backLabel="Back"
           onBack={() => navigation.goBack()}
         />
 
         <Card glass elevated accent="premium">
-          <Text style={styles.eyebrow}>Orbit Ledger Pro</Text>
-          <Text style={styles.heroTitle}>Sharper documents, with your business identity.</Text>
+          <Text style={styles.eyebrow}>Orbit Ledger plans</Text>
+          <Text style={styles.heroTitle}>Start free. Upgrade when the extra workflow saves time.</Text>
           <Text style={styles.heroText}>
-            Pro improves presentation. Daily dues, payments, customers, basic exports, backups,
-            restore, and app lock stay available on Free.
+            Free keeps daily ledger work useful. Plus, Pro Plus, and Office add stronger
+            document, payment, automation, and review tools as the business grows.
           </Text>
           {billingMessage ? <Text style={styles.storeMessage}>{billingMessage}</Text> : null}
           <StatusChip
             label={
               isLoadingSubscription
                 ? 'Checking plan'
-                : isPro
+                : isPaid
                   ? formatActivePlan(subscriptionStatus)
                   : 'Free plan active'
             }
-            tone={isPro ? 'premium' : 'neutral'}
+            tone={isPaid ? 'premium' : 'neutral'}
           />
         </Card>
 
-        <Section title="Pro benefits" subtitle="Helpful upgrades, not a trap for core daily work.">
+        <Section title="How to choose" subtitle="Helpful upgrades, not a trap for core daily work.">
           {proBenefits.map((benefit) => (
             <Card key={benefit.title} compact accent="premium" style={styles.benefitRow}>
               <View style={styles.benefitDot} />
@@ -192,10 +193,11 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
           ))}
         </Section>
 
-        <Section title="Choose Pro plan" subtitle="Prices come from your app store before you buy.">
-          {PRO_PLAN_CATALOG.map((plan) => {
+        <Section title="Choose plan" subtitle="Prices come from your app store before you buy.">
+          {SUBSCRIPTION_PLAN_CATALOG.map((plan) => {
             const storeProduct = storeProducts.find((product) => product.productId === plan.productId);
             const displayPrice = storeProduct?.displayPrice || plan.price;
+            const isCurrentPlan = activePlanId === plan.id && isPaid;
 
             return (
               <Card
@@ -211,38 +213,50 @@ export function UpgradeScreen({ navigation }: UpgradeScreenProps) {
                     <Text style={styles.planHelper}>{storeProduct?.description || plan.helper}</Text>
                   </View>
                   {plan.isBestValue ? (
-                    <StatusChip label="Best value" tone="premium" />
+                    <StatusChip label={plan.tier === 'pro' ? 'Best value' : 'Yearly value'} tone="premium" />
                   ) : null}
                 </View>
                 <View style={styles.priceRow}>
                   <Text style={styles.price}>{displayPrice}</Text>
                   <Text style={styles.cadence}>{plan.cadence}</Text>
                 </View>
-                <Text style={styles.productIdText}>The app store confirms access before Pro turns on.</Text>
+                <Text style={styles.productIdText}>The app store confirms access before the plan turns on.</Text>
                 <PrimaryButton
                   disabled={
                     isLoadingSubscription ||
                     isRestoring ||
                     Boolean(activatingPlanId) ||
-                    (activePlanId === plan.id && isPro)
+                    isCurrentPlan
                   }
                   loading={activatingPlanId === plan.id}
                   onPress={() => startUpgrade(plan)}
-                  variant={activePlanId === plan.id && isPro ? 'secondary' : 'primary'}
+                  variant={isCurrentPlan ? 'secondary' : 'primary'}
                 >
-                  {activePlanId === plan.id && isPro
-                    ? 'Current Pro Plan'
-                    : `Buy ${plan.title} Pro`}
+                  {isCurrentPlan ? 'Current plan' : `Choose ${plan.title}`}
                 </PrimaryButton>
               </Card>
             );
           })}
         </Section>
 
+        <Section title="Compare plans" subtitle="A clear view of what each plan adds.">
+          {ORBIT_LEDGER_PLAN_COMPARISON.map((item) => (
+            <Card compact key={item.feature} style={styles.compareCard}>
+              <Text style={styles.compareFeature}>{item.feature}</Text>
+              <View style={styles.compareGrid}>
+                <PlanValue label="Free" value={item.free} />
+                <PlanValue label="Plus" value={item.plus} highlighted={item.highlightTier === 'plus'} />
+                <PlanValue label="Pro Plus" value={item.pro} highlighted={item.highlightTier === 'pro'} />
+                <PlanValue label="Office" value={item.office} highlighted={item.highlightTier === 'office'} />
+              </View>
+            </Card>
+          ))}
+        </Section>
+
         <Card compact accent="tax">
           <Text style={styles.entitlementTitle}>Purchase access</Text>
           <Text style={styles.entitlementText}>
-            Purchases are confirmed through your app store. Orbit Ledger keeps Pro features
+            Purchases are confirmed through your app store. Orbit Ledger keeps paid features
             available after the store confirms access.
           </Text>
           <Text style={styles.productIdText}>
@@ -311,19 +325,28 @@ function formatShortDateTime(value: string): string {
 }
 
 function formatActivePlan(status: SubscriptionStatus | null): string {
-  if (!status?.isPro) {
+  if (!status || status.tier === 'free') {
     return 'Free plan active';
   }
 
-  if (status.planId === 'pro_monthly') {
-    return 'Monthly Pro active';
-  }
+  return `${status.tierLabel} active`;
+}
 
-  if (status.planId === 'pro_yearly') {
-    return 'Yearly Pro active';
-  }
-
-  return 'Pro active';
+function PlanValue({
+  highlighted,
+  label,
+  value,
+}: {
+  highlighted?: boolean;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={[styles.compareValue, highlighted ? styles.compareValueHighlighted : null]}>
+      <Text style={[styles.compareLabel, highlighted ? styles.compareLabelHighlighted : null]}>{label}</Text>
+      <Text style={styles.compareText}>{value}</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -525,6 +548,51 @@ const styles = StyleSheet.create({
   productIdText: {
     color: colors.textMuted,
     fontSize: typography.caption,
+    lineHeight: 18,
+  },
+  compareCard: {
+    gap: spacing.md,
+  },
+  compareFeature: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '900',
+    lineHeight: 22,
+  },
+  compareGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  compareValue: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexBasis: '48%',
+    flexGrow: 1,
+    gap: spacing.xs,
+    minWidth: 132,
+    padding: spacing.md,
+  },
+  compareValueHighlighted: {
+    backgroundColor: colors.primarySurface,
+    borderColor: colors.primary,
+  },
+  compareLabel: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    fontWeight: '900',
+    lineHeight: 16,
+    textTransform: 'uppercase',
+  },
+  compareLabelHighlighted: {
+    color: colors.primary,
+  },
+  compareText: {
+    color: colors.text,
+    fontSize: typography.caption,
+    fontWeight: '800',
     lineHeight: 18,
   },
   noteCard: {

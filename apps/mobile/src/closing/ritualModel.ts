@@ -1,3 +1,5 @@
+import { buildOwnerClosingRitual, type OwnerClosingRitualOutput } from '@orbit-ledger/core';
+
 import type {
   DailyClosingAction,
   DailyClosingConfirmation,
@@ -28,6 +30,43 @@ export function buildDailyClosingRitualSummary(
     label,
     confirmed: input.confirmations[key as DailyClosingConfirmationKey] ?? false,
   })) satisfies DailyClosingConfirmation[];
+  const sharedRitual = buildOwnerClosingRitual({
+    businessName: report.business.businessName,
+    currency: report.business.currency,
+    date: report.reportDate,
+    cash: {
+      countedCash,
+      expectedCash,
+      cashConfirmed: input.confirmations.cash_collected,
+    },
+    credit: {
+      creditReviewed: input.confirmations.credit_recorded,
+      unreviewedCreditCount: input.confirmations.credit_recorded
+        ? 0
+        : report.ledgerEntries.filter((entry) => entry.type === 'credit').length,
+    },
+    followUp: {
+      customersDueTomorrow: 0,
+      overdueCustomers: report.totals.promisesMissed,
+      promisesDueTomorrow: report.totals.promisesDue,
+      followUpsPlanned: input.confirmations.followups_ready,
+    },
+    ledger: {
+      cashCollected: report.totals.paymentReceived,
+      creditCount: report.ledgerEntries.filter((entry) => entry.type === 'credit').length,
+      creditGivenAmount: report.totals.creditGiven,
+      paymentCount: report.ledgerEntries.filter((entry) => entry.type === 'payment').length,
+      paymentsRecordedAmount: report.totals.paymentReceived,
+    },
+    payments: {
+      paymentsReviewed: input.confirmations.payments_recorded,
+    },
+    stock: {
+      lowStockCount: input.confirmations.stock_checked ? 0 : report.totals.lowStockProducts,
+      movementCount: report.lowStockProducts.length,
+      stockReviewed: input.confirmations.stock_checked,
+    },
+  });
 
   return {
     id: `${report.reportDate}_${Date.parse(closedAt) || Date.now()}`,
@@ -41,7 +80,7 @@ export function buildDailyClosingRitualSummary(
       difference,
       note: input.mismatchNote?.trim() || null,
     },
-    nextDayActions: buildTomorrowActions(report, confirmations, countedCash, difference),
+    nextDayActions: buildTomorrowActions(report, confirmations, countedCash, difference, sharedRitual),
     totals: {
       paymentReceived: report.totals.paymentReceived,
       creditGiven: report.totals.creditGiven,
@@ -57,7 +96,8 @@ function buildTomorrowActions(
   report: DailyClosingReport,
   confirmations: DailyClosingConfirmation[],
   countedCash: number | null,
-  difference: number
+  difference: number,
+  sharedRitual: OwnerClosingRitualOutput
 ): DailyClosingAction[] {
   const actions: DailyClosingAction[] = [];
 
@@ -79,25 +119,35 @@ function buildTomorrowActions(
     });
   }
 
-  if (report.totals.promisesMissed > 0 || report.totals.promisesDue > 0) {
-    actions.push({
-      id: 'follow_up_promises',
-      label: 'Follow up promises',
-      helper: `${report.totals.promisesMissed + report.totals.promisesDue} promise${report.totals.promisesMissed + report.totals.promisesDue === 1 ? '' : 's'} need attention.`,
-      target: 'get_paid',
-      tone: report.totals.promisesMissed > 0 ? 'danger' : 'warning',
-    });
-  }
-
-  if (report.lowStockProducts.length > 0) {
-    actions.push({
-      id: 'restock_items',
-      label: 'Check low stock',
-      helper: `${report.lowStockProducts.length} item${report.lowStockProducts.length === 1 ? '' : 's'} may need restocking.`,
-      target: 'products',
-      tone: 'warning',
-    });
-  }
+  sharedRitual.tomorrowActions.forEach((action) => {
+    if (action.id === 'collect_customers') {
+      actions.push({
+        id: 'follow_up_promises',
+        label: 'Follow up promises',
+        helper: action.message,
+        target: 'get_paid',
+        tone: action.tone === 'success' ? 'primary' : action.tone,
+      });
+    }
+    if (action.id === 'verify_payments') {
+      actions.push({
+        id: 'verify_payments',
+        label: 'Verify payments',
+        helper: action.message,
+        target: 'add_payment',
+        tone: action.tone === 'neutral' ? 'primary' : action.tone,
+      });
+    }
+    if (action.id === 'review_stock') {
+      actions.push({
+        id: 'restock_items',
+        label: 'Check low stock',
+        helper: action.message,
+        target: 'products',
+        tone: action.tone === 'neutral' ? 'warning' : action.tone,
+      });
+    }
+  });
 
   const missingConfirmation = confirmations.find((confirmation) => !confirmation.confirmed);
   if (missingConfirmation) {
@@ -114,7 +164,7 @@ function buildTomorrowActions(
     actions.push({
       id: 'start_fresh',
       label: 'Start tomorrow fresh',
-      helper: 'Daily closing is complete.',
+      helper: sharedRitual.tomorrowActions[0]?.message ?? 'Daily closing is complete.',
       target: 'customers',
       tone: 'success',
     });

@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  buildVoiceWhatsAppFastEntryDraft,
   getManualPaymentVerificationPlan,
   getPaymentClearanceStatusLabel,
+  getPaymentClearanceStatusesForMode,
   getPaymentModeConfig,
+  normalizePaymentClearanceStatus,
   PAYMENT_MODE_CONFIGS,
   reconcileProviderPayment,
   summarizePaymentClearance,
@@ -13,6 +16,7 @@ import {
   type PaymentProviderSource,
   type PaymentMode,
   type PaymentModeDetails,
+  type FastEntryDraft,
 } from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
@@ -49,7 +53,7 @@ export default function TransactionsPage() {
   const [type, setType] = useState<'credit' | 'payment'>('payment');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   const [paymentDetails, setPaymentDetails] = useState<PaymentModeDetails>({});
-  const [paymentClearanceStatus, setPaymentClearanceStatus] = useState<PaymentClearanceStatus>('cleared');
+  const [paymentClearanceStatus, setPaymentClearanceStatus] = useState<PaymentClearanceStatus>('received');
   const [allocationStrategy, setAllocationStrategy] = useState<'ledger_only' | 'oldest_invoice' | 'selected_invoice'>('ledger_only');
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const [customerInvoices, setCustomerInvoices] = useState<WorkspaceInvoice[]>([]);
@@ -76,6 +80,7 @@ export default function TransactionsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
+  const [fastEntryText, setFastEntryText] = useState('');
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -103,11 +108,15 @@ export default function TransactionsPage() {
 
     void listWorkspaceInvoicesForCustomer(activeWorkspace.workspaceId, customerId)
       .then((invoices) => {
-        const unpaidInvoices = invoices.filter(
-          (invoice) => invoice.documentState !== 'cancelled' && invoice.totalAmount - invoice.paidAmount > 0
-        );
-        setCustomerInvoices(unpaidInvoices);
-        setSelectedInvoiceId((current) => current || unpaidInvoices[0]?.id || '');
+        const availableInvoices = invoices.filter((invoice) => invoice.documentState !== 'cancelled');
+        setCustomerInvoices(availableInvoices);
+        setSelectedInvoiceId((current) => {
+          if (current && availableInvoices.some((invoice) => invoice.id === current)) {
+            return current;
+          }
+          const firstOpenInvoice = availableInvoices.find((invoice) => invoice.totalAmount - invoice.paidAmount > 0);
+          return firstOpenInvoice?.id ?? '';
+        });
       })
       .catch(() => {
         setCustomerInvoices([]);
@@ -159,7 +168,7 @@ export default function TransactionsPage() {
       setNote('');
       setPaymentMode('cash');
       setPaymentDetails({});
-      setPaymentClearanceStatus('cleared');
+      setPaymentClearanceStatus('received');
       setProviderReference('');
       setPayerName('');
       setEffectiveDate(new Date().toISOString().slice(0, 10));
@@ -210,6 +219,22 @@ export default function TransactionsPage() {
       ),
     [workspaceInvoices]
   );
+  const selectableCustomerInvoices = useMemo(() => {
+    const byId = new Map<string, WorkspaceInvoice>();
+    for (const invoice of [...customerInvoices, ...workspaceInvoices]) {
+      if (
+        invoice.customerId === customerId &&
+        invoice.documentState !== 'cancelled'
+      ) {
+        byId.set(invoice.id, invoice);
+      }
+    }
+    return Array.from(byId.values()).sort((left, right) => {
+      const leftDue = left.totalAmount - left.paidAmount > 0 ? 0 : 1;
+      const rightDue = right.totalAmount - right.paidAmount > 0 ? 0 : 1;
+      return leftDue - rightDue || right.issueDate.localeCompare(left.issueDate);
+    });
+  }, [customerId, customerInvoices, workspaceInvoices]);
   const reconciliationDecision = useMemo(
     () =>
       type === 'payment'
@@ -224,6 +249,10 @@ export default function TransactionsPage() {
         : null,
     [activeWorkspace?.currency, amount, openWorkspaceInvoices, payerName, providerReference, providerSource, type]
   );
+  const paymentClearanceOptions = useMemo(
+    () => getPaymentClearanceStatusesForMode(paymentMode),
+    [paymentMode]
+  );
   const transactionSummary = useMemo(
     () => sumTransactionAmounts(filteredTransactions),
     [filteredTransactions]
@@ -233,12 +262,26 @@ export default function TransactionsPage() {
       getManualPaymentVerificationPlan({
         allocationStrategy,
         clearanceStatus: paymentClearanceStatus,
+        paymentMode,
       }),
-    [allocationStrategy, paymentClearanceStatus]
+    [allocationStrategy, paymentClearanceStatus, paymentMode]
   );
   const allVisibleSelected =
     filteredTransactions.length > 0 &&
     filteredTransactions.every((transaction) => selectedTransactionIds.has(transaction.id));
+  const fastEntryDraft = useMemo(
+    () =>
+      fastEntryText.trim()
+        ? buildVoiceWhatsAppFastEntryDraft({ channel: 'typed', text: fastEntryText })
+        : null,
+    [fastEntryText]
+  );
+
+  useEffect(() => {
+    setPaymentClearanceStatus((current) =>
+      normalizePaymentClearanceStatus(current, paymentMode, paymentDetails)
+    );
+  }, [paymentDetails, paymentMode]);
 
   function toggleTransactionSelection(transactionId: string) {
     setSelectedTransactionIds((current) => {
@@ -282,6 +325,58 @@ export default function TransactionsPage() {
     showToast('Matched invoice applied to this payment.', 'success');
   }
 
+  function applyFastEntryDraft(draft: FastEntryDraft) {
+    if (draft.intent === 'record_payment' || draft.intent === 'record_credit') {
+      const matchedCustomer = findFastEntryCustomer(customers, draft.extracted.customerName);
+      setType(draft.intent === 'record_payment' ? 'payment' : 'credit');
+      if (draft.extracted.amount) {
+        setAmount(formatAmountInput(draft.extracted.amount));
+      }
+      if (matchedCustomer) {
+        setCustomerId(matchedCustomer.id);
+      }
+      if (draft.intent === 'record_payment') {
+        const nextMode = fastEntryPaymentModeToWebMode(draft.extracted.paymentMode);
+        if (nextMode) {
+          setPaymentMode(nextMode);
+          setPaymentClearanceStatus((current) => normalizePaymentClearanceStatus(current, nextMode, {}));
+        }
+      }
+      setNote(draft.rawText);
+      setTouched({ customerId: true, amount: true });
+      setErrors({
+        customerId: matchedCustomer ? null : 'Choose a customer.',
+        amount: draft.extracted.amount ? null : 'Enter an amount.',
+      });
+      showToast(
+        matchedCustomer
+          ? 'Fast entry details filled. Review before saving.'
+          : 'Fast entry filled what it could. Choose the customer before saving.',
+        matchedCustomer ? 'success' : 'info'
+      );
+      return;
+    }
+
+    if (draft.intent === 'create_invoice_draft') {
+      window.location.href = '/invoices/detail';
+      return;
+    }
+    if (draft.intent === 'send_payment_reminder' || draft.intent === 'record_payment_promise') {
+      window.location.href = '/customers';
+      return;
+    }
+    if (draft.intent === 'add_customer') {
+      window.location.href = '/customers/new';
+      return;
+    }
+    if (draft.intent === 'add_product') {
+      window.location.href = '/products';
+      return;
+    }
+
+    showToast('Choose what this fast entry should become before saving.', 'info');
+  }
+
   function exportTransactions() {
     if (!activeWorkspace) {
       return;
@@ -315,7 +410,7 @@ export default function TransactionsPage() {
 
   return (
     <AppShell title="Transactions" subtitle="Record payments and credit entries with the same ledger behavior everywhere.">
-      <section className="ol-panel-dark">
+      <section className="ol-panel-dark" style={{ order: 3 }}>
         <div className="ol-panel-header">
           <div>
             <div className="ol-panel-title">Fast entry</div>
@@ -330,6 +425,36 @@ export default function TransactionsPage() {
         </div>
 
         <div className="ol-form-stack">
+          <div className="ol-form-band">
+            <div className="ol-form-band-header">
+              <div>
+                <div className="ol-form-band-title">Voice or WhatsApp capture</div>
+                <p className="ol-form-band-copy">
+                  Paste or type a quick note. Orbit Ledger prepares a review draft and never saves it automatically.
+                </p>
+              </div>
+              <span className="ol-chip ol-chip--primary">Review first</span>
+            </div>
+            <div className="ol-fast-entry-capture">
+              <label className="ol-field">
+                <span className="ol-field-label">Quick note</span>
+                <textarea
+                  className="ol-textarea"
+                  placeholder="Example: Sonali Traders paid 1500 by UPI"
+                  value={fastEntryText}
+                  onChange={(event) => setFastEntryText(event.target.value)}
+                />
+              </label>
+              {fastEntryDraft ? (
+                <FastEntryDraftReview draft={fastEntryDraft} onApply={() => applyFastEntryDraft(fastEntryDraft)} />
+              ) : (
+                <div className="ol-message" style={{ margin: 0 }}>
+                  Try payment, credit, invoice, reminder, promise, customer, or product text. You will review before anything is saved.
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="ol-form-band">
             <div className="ol-form-band-header">
               <div>
@@ -353,6 +478,7 @@ export default function TransactionsPage() {
                   onChange={(event) => {
                     const next = event.target.value;
                     setCustomerId(next);
+                    setSelectedInvoiceId('');
                     if (touched.customerId) {
                       setErrors((current) => ({ ...current, customerId: next ? null : 'Choose a customer.' }));
                     }
@@ -419,8 +545,12 @@ export default function TransactionsPage() {
                       className="ol-select"
                       value={paymentMode}
                       onChange={(event) => {
-                        setPaymentMode(event.target.value as PaymentMode);
+                        const nextMode = event.target.value as PaymentMode;
+                        setPaymentMode(nextMode);
                         setPaymentDetails({});
+                        setPaymentClearanceStatus((current) =>
+                          normalizePaymentClearanceStatus(current, nextMode, {})
+                        );
                       }}
                     >
                       {PAYMENT_MODE_CONFIGS.map((config) => (
@@ -517,9 +647,9 @@ export default function TransactionsPage() {
                         onChange={(event) => setSelectedInvoiceId(event.target.value)}
                       >
                         <option value="">Choose invoice</option>
-                        {customerInvoices.map((invoice) => (
-                          <option key={invoice.id} value={invoice.id}>
-                            {invoice.invoiceNumber} · {formatCurrency(Math.max(invoice.totalAmount - invoice.paidAmount, 0), activeWorkspace?.currency ?? 'INR')} due
+                        {selectableCustomerInvoices.map((invoice) => (
+                          <option key={invoice.id} value={invoice.id} disabled={invoice.totalAmount - invoice.paidAmount <= 0}>
+                            {invoice.invoiceNumber} · {formatInvoiceDueLabel(invoice, activeWorkspace?.currency ?? 'INR')}
                           </option>
                         ))}
                       </select>
@@ -532,7 +662,7 @@ export default function TransactionsPage() {
                       value={paymentClearanceStatus}
                       onChange={(event) => setPaymentClearanceStatus(event.target.value as PaymentClearanceStatus)}
                     >
-                      {(['received', 'post_dated', 'deposited', 'cleared', 'bounced', 'cancelled'] as PaymentClearanceStatus[]).map((status) => (
+                      {paymentClearanceOptions.map((status) => (
                         <option key={status} value={status}>
                           {getPaymentClearanceStatusLabel(status)}
                         </option>
@@ -564,7 +694,7 @@ export default function TransactionsPage() {
         </div>
       </section>
 
-      <section className="ol-metric-grid">
+      <section className="ol-metric-grid" style={{ order: 1 }}>
         <Metric label="Showing" value={String(filteredTransactions.length)} helper="Entries in this view." tone="primary" />
         <Metric
           label="Payments"
@@ -580,7 +710,7 @@ export default function TransactionsPage() {
         />
       </section>
 
-      <section className="ol-table">
+      <section className="ol-table" style={{ order: 2 }}>
         <div className="ol-table-tools">
           <label className="ol-field">
             <span className="ol-field-label">Search transactions</span>
@@ -781,6 +911,51 @@ function PaymentModeFields({
   );
 }
 
+function FastEntryDraftReview({ draft, onApply }: { draft: FastEntryDraft; onApply: () => void }) {
+  const extractedRows = [
+    ['Intent', formatFastEntryIntent(draft.intent)],
+    ['Customer', draft.extracted.customerName],
+    ['Amount', draft.extracted.amount ? String(draft.extracted.amount) : null],
+    ['Payment mode', draft.extracted.paymentMode],
+    ['Invoice', draft.extracted.invoiceNumber],
+    ['Item', draft.extracted.itemName],
+    ['Date', draft.extracted.dueDateText],
+  ].filter((row): row is [string, string] => Boolean(row[1]));
+
+  return (
+    <div className="ol-fast-entry-review">
+      <div className="ol-fast-entry-review-head">
+        <div>
+          <strong>{draft.title}</strong>
+          <span>{draft.summary}</span>
+        </div>
+        <span className={`ol-chip ol-chip--${draft.confidence === 'high' ? 'success' : draft.confidence === 'medium' ? 'warning' : 'danger'}`}>
+          {draft.confidence} confidence
+        </span>
+      </div>
+      <div className="ol-fast-entry-grid">
+        {extractedRows.map(([label, value]) => (
+          <div className="ol-fast-entry-field" key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
+      </div>
+      {draft.missingFields.length ? (
+        <div className="ol-fast-entry-missing">
+          Missing: {draft.missingFields.join(', ')}
+        </div>
+      ) : null}
+      <div className="ol-fast-entry-footer">
+        <span>Review is required. Nothing is saved from this capture.</span>
+        <button className="ol-button-secondary" type="button" onClick={onApply}>
+          {draft.suggestedAction}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function formatCurrency(value: number, currency: string) {
   return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
     style: 'currency',
@@ -789,8 +964,51 @@ function formatCurrency(value: number, currency: string) {
   }).format(value);
 }
 
+function formatInvoiceDueLabel(invoice: WorkspaceInvoice, currency: string) {
+  const dueAmount = Math.max(invoice.totalAmount - invoice.paidAmount, 0);
+  if (dueAmount > 0) {
+    return `${formatCurrency(dueAmount, currency)} due`;
+  }
+  return `paid · ${formatCurrency(invoice.totalAmount, currency)}`;
+}
+
 function formatAmountInput(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function formatFastEntryIntent(intent: FastEntryDraft['intent']) {
+  return intent.replace(/_/g, ' ');
+}
+
+function findFastEntryCustomer(customers: WorkspaceCustomer[], customerName?: string) {
+  if (!customerName) {
+    return null;
+  }
+  const normalized = normalizeFastEntryName(customerName);
+  return (
+    customers.find((customer) => normalizeFastEntryName(customer.name) === normalized) ??
+    customers.find((customer) => normalizeFastEntryName(customer.name).includes(normalized) || normalized.includes(normalizeFastEntryName(customer.name))) ??
+    null
+  );
+}
+
+function normalizeFastEntryName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function fastEntryPaymentModeToWebMode(mode?: string): PaymentMode | null {
+  if (!mode) {
+    return null;
+  }
+  const normalized = mode.toLowerCase();
+  if (normalized === 'cash') return 'cash';
+  if (normalized === 'upi') return 'upi';
+  if (normalized === 'bank transfer') return 'bank_transfer';
+  if (normalized === 'card') return 'card';
+  if (normalized === 'cheque') return 'cheque';
+  if (normalized === 'demand draft') return 'demand_draft';
+  if (normalized === 'wallet') return 'wallet';
+  return null;
 }
 
 function paymentProviderLabel(source: PaymentProviderSource) {

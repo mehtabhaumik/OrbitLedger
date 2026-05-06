@@ -34,7 +34,7 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { SelectField } from '../components/SelectField';
 import { StatusChip } from '../components/StatusChip';
 import { TextField } from '../components/TextField';
-import { COUNTRY_OPTIONS, getDefaultRegionCode, getRegionOptions } from '../data/regions';
+import { COUNTRY_OPTIONS, getCityOptions, getDefaultCity, getDefaultRegionCode, getRegionOptions } from '../data/regions';
 import { getBusinessSettings, saveBusinessSettings } from '../database';
 import { composeAddress, parseAddress } from '../forms/address';
 import {
@@ -62,6 +62,7 @@ const setupSchema = z.object({
   email: z.string().trim().email('Enter a valid email address.'),
   addressLine1: requiredAddressLineSchema,
   addressLine2: optionalAddressLineSchema,
+  town: optionalAddressLineSchema,
   city: requiredCitySchema,
   postalCode: postalCodeSchema,
   currency: currencyCodeSchema,
@@ -83,7 +84,8 @@ const defaultValues: SetupFormValues = {
   email: '',
   addressLine1: '',
   addressLine2: '',
-  city: '',
+  town: '',
+  city: getDefaultCity('IN', 'GJ'),
   postalCode: '',
   currency: 'INR',
   countryCode: 'IN',
@@ -120,7 +122,9 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
   const values = watch();
   const setupValidationMessages = getSetupValidationMessages(values);
   const isSetupComplete = setupValidationMessages.length === 0;
-  const regionOptions = getRegionOptions(values.countryCode);
+  const countryOptions = COUNTRY_OPTIONS.filter((country) => country.code === 'IN');
+  const regionOptions = getRegionOptions(values.countryCode || 'IN');
+  const cityOptions = getCityOptions(values.countryCode || 'IN', values.stateCode || 'GJ');
   const eligibleWorkspaces = useMemo(
     () => cloudWorkspaces.filter((workspace) => canBootstrapWorkspaceLocally(workspace.dataState)),
     [cloudWorkspaces]
@@ -149,7 +153,8 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
             email: settings.email,
             addressLine1: address.addressLine1,
             addressLine2: address.addressLine2,
-            city: address.city,
+            town: address.town ?? '',
+            city: address.city || getDefaultCity(settings.countryCode || 'IN', settings.stateCode || 'GJ'),
             postalCode: address.postalCode,
             currency: settings.currency,
             countryCode: settings.countryCode,
@@ -229,7 +234,8 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
       email: workspace.email,
       addressLine1: parsed.addressLine1,
       addressLine2: parsed.addressLine2,
-      city: parsed.city,
+      town: workspace.town ?? parsed.town ?? '',
+      city: workspace.city ?? parsed.city ?? getDefaultCity(workspace.countryCode || 'IN', workspace.stateCode || 'GJ'),
       postalCode: parsed.postalCode,
       currency: workspace.currency,
       countryCode: workspace.countryCode,
@@ -539,15 +545,15 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
               <View style={styles.twoColumn}>
                 <Controller
                   control={control}
-                  name="city"
+                  name="town"
                   render={({ field: { onChange, onBlur, value } }) => (
                     <TextField
-                      label="City"
-                      placeholder="Ahmedabad"
-                      value={value}
+                      label="Town or village"
+                      placeholder="Optional"
+                      value={value ?? ''}
                       onChangeText={onChange}
                       onBlur={onBlur}
-                      error={getVisibleError(errors.city?.message, touchedFields.city, isSubmitted)}
+                      error={getVisibleError(errors.town?.message, touchedFields.town, isSubmitted)}
                       style={styles.flexInput}
                     />
                   )}
@@ -595,15 +601,21 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
                   <SelectField
                     label="Country"
                     value={value}
-                    options={COUNTRY_OPTIONS.map((country) => ({
+                    options={countryOptions.map((country) => ({
                       label: country.name,
                       value: country.code,
                       description: `${country.code} - ${country.currency}`,
                     }))}
                     onChange={(countryCode) => {
-                      const selectedCountry = COUNTRY_OPTIONS.find((country) => country.code === countryCode);
-                      onChange(countryCode);
-                      setValue('stateCode', getDefaultRegionCode(countryCode), {
+                      const lockedCountryCode = 'IN';
+                      const selectedCountry = countryOptions.find((country) => country.code === lockedCountryCode);
+                      const nextStateCode = getDefaultRegionCode(lockedCountryCode);
+                      onChange(lockedCountryCode);
+                      setValue('stateCode', nextStateCode, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                      setValue('city', getDefaultCity(lockedCountryCode, nextStateCode), {
                         shouldDirty: true,
                         shouldValidate: true,
                       });
@@ -615,7 +627,7 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
                       }
                     }}
                     error={getVisibleError(errors.countryCode?.message, touchedFields.countryCode, isSubmitted)}
-                    helperText="Used for local labels, reports, and documents."
+                    helperText="India is active for launch. Other country packs are upcoming."
                   />
                 )}
               />
@@ -632,9 +644,32 @@ export function SetupScreen({ navigation }: SetupScreenProps) {
                     value: region.code,
                     description: region.code,
                   }))}
-                  onChange={onChange}
+                  onChange={(stateCode) => {
+                    onChange(stateCode);
+                    setValue('city', getDefaultCity(values.countryCode || 'IN', stateCode), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
                   error={getVisibleError(errors.stateCode?.message, touchedFields.stateCode, isSubmitted)}
                     helperText="Helps prepare local labels and cleaner reports."
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="city"
+              render={({ field: { onChange, value } }) => (
+                <SelectField
+                  label="City"
+                  value={value || getDefaultCity(values.countryCode || 'IN', values.stateCode || 'GJ')}
+                  options={cityOptions.map((city) => ({
+                    label: city,
+                    value: city,
+                  }))}
+                  onChange={onChange}
+                  error={getVisibleError(errors.city?.message, touchedFields.city, isSubmitted)}
+                  helperText="Choose the nearest city. Add town or village above when needed."
                 />
               )}
             />

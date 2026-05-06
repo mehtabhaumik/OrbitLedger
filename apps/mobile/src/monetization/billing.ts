@@ -26,6 +26,7 @@ import {
   getCountryPackProduct,
   getProPlan,
   getProPlanByProductId,
+  getSubscriptionPlanTier,
 } from './products';
 import { getSubscriptionStatus, saveSubscriptionStatus } from './subscription';
 import type {
@@ -395,8 +396,9 @@ async function processStorePurchase(
   const plan = getProPlanByProductId(purchase.productId);
   if (plan) {
     await finishPurchasedTransaction(purchase);
+    const tier = getSubscriptionPlanTier(plan.id);
     const subscriptionStatus = await saveSubscriptionStatus({
-      tier: 'pro',
+      tier,
       source,
       validUntil: getPurchaseValidUntil(purchase),
       planId: plan.id,
@@ -404,7 +406,7 @@ async function processStorePurchase(
     });
     return {
       status: 'completed',
-      message: `${plan.title} Pro is active.`,
+      message: `${subscriptionStatus.tierLabel} is active.`,
       subscriptionStatus,
     };
   }
@@ -446,7 +448,7 @@ async function applyActiveSubscriptionEntitlement(
     const plan = getProPlanByProductId(activeProSubscription.productId);
     if (plan) {
       return saveSubscriptionStatus({
-        tier: 'pro',
+        tier: getSubscriptionPlanTier(plan.id),
         source: 'restore_cache',
         validUntil: getActiveSubscriptionValidUntil(activeProSubscription),
         planId: plan.id,

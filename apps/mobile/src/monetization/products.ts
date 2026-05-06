@@ -1,7 +1,15 @@
+import {
+  getOrbitLedgerPaidPlan,
+  getOrbitLedgerPaidPlanByProductId,
+  getOrbitLedgerPaidPlansForCountry,
+  type OrbitLedgerPaidPlanId,
+} from '@orbit-ledger/core';
+
 import type { CountryPackProductId, SubscriptionPlanId, SubscriptionProductId } from './types';
 
 export type ProPlanCatalogItem = {
   id: SubscriptionPlanId;
+  tier: 'plus' | 'pro' | 'office';
   productId: SubscriptionProductId;
   title: string;
   price: string;
@@ -11,28 +19,35 @@ export type ProPlanCatalogItem = {
   isBestValue: boolean;
 };
 
-export const PRO_PLAN_CATALOG: ProPlanCatalogItem[] = [
-  {
-    id: 'pro_monthly',
-    productId: 'com.rudraix.orbitledger.pro.monthly',
-    title: 'Monthly',
-    price: 'INR 199',
-    cadence: 'per month',
-    helper: 'Flexible document polish for businesses that share statements regularly.',
-    entitlementDays: 30,
-    isBestValue: false,
-  },
-  {
-    id: 'pro_yearly',
-    productId: 'com.rudraix.orbitledger.pro.yearly',
-    title: 'Yearly',
-    price: 'INR 1,999',
-    cadence: 'per year',
-    helper: 'Best value when polished documents are part of weekly business work.',
-    entitlementDays: 365,
-    isBestValue: true,
-  },
-];
+export const SUBSCRIPTION_PLAN_CATALOG: ProPlanCatalogItem[] = getOrbitLedgerPaidPlansForCountry('IN').map((plan) => ({
+  id: plan.id,
+  tier: plan.tier,
+  productId: plan.productId,
+  title: plan.label,
+  price: plan.price.display,
+  cadence: plan.billingInterval === 'monthly' ? 'per month' : 'per year',
+  helper: plan.helper,
+  entitlementDays: plan.entitlementDays,
+  isBestValue: plan.isBestValue,
+}));
+
+export function getSubscriptionPlanCatalogForCountry(countryCode: string | null | undefined): ProPlanCatalogItem[] {
+  return getOrbitLedgerPaidPlansForCountry(countryCode).map((plan) => ({
+    id: plan.id,
+    tier: plan.tier,
+    productId: plan.productId,
+    title: plan.label,
+    price: plan.price.display,
+    cadence: plan.billingInterval === 'monthly' ? 'per month' : 'per year',
+    helper: plan.helper,
+    entitlementDays: plan.entitlementDays,
+    isBestValue: plan.isBestValue,
+  }));
+}
+
+export const PRO_PLAN_CATALOG: ProPlanCatalogItem[] = SUBSCRIPTION_PLAN_CATALOG.filter(
+  (plan) => plan.tier === 'pro'
+);
 
 export type CountryPackCatalogItem = {
   countryCode: 'US' | 'GB';
@@ -65,14 +80,16 @@ export const COUNTRY_PACK_PRODUCT_CATALOG: CountryPackCatalogItem[] = [
   },
 ];
 
-export const PRO_SUBSCRIPTION_PRODUCT_IDS = PRO_PLAN_CATALOG.map((plan) => plan.productId);
+export const SUBSCRIPTION_PRODUCT_IDS = SUBSCRIPTION_PLAN_CATALOG.map((plan) => plan.productId);
+
+export const PRO_SUBSCRIPTION_PRODUCT_IDS = SUBSCRIPTION_PRODUCT_IDS;
 
 export const COUNTRY_PACK_STORE_PRODUCT_IDS = COUNTRY_PACK_PRODUCT_CATALOG.map(
   (product) => product.productId
 );
 
 export function getProPlan(planId: SubscriptionPlanId): ProPlanCatalogItem {
-  const plan = PRO_PLAN_CATALOG.find((catalogPlan) => catalogPlan.id === planId);
+  const plan = SUBSCRIPTION_PLAN_CATALOG.find((catalogPlan) => catalogPlan.id === planId);
   if (!plan) {
     throw new Error(`Unknown Pro plan: ${planId}`);
   }
@@ -83,7 +100,11 @@ export function getProPlan(planId: SubscriptionPlanId): ProPlanCatalogItem {
 export function getProPlanByProductId(
   productId: string
 ): ProPlanCatalogItem | null {
-  return PRO_PLAN_CATALOG.find((plan) => plan.productId === productId) ?? null;
+  const sharedPlan = getOrbitLedgerPaidPlanByProductId(productId);
+  if (!sharedPlan) {
+    return null;
+  }
+  return SUBSCRIPTION_PLAN_CATALOG.find((plan) => plan.id === sharedPlan.id) ?? null;
 }
 
 export function getCountryPackProduct(
@@ -109,4 +130,8 @@ export function calculatePlanValidUntil(
   const validUntil = new Date(from);
   validUntil.setDate(validUntil.getDate() + plan.entitlementDays);
   return validUntil.toISOString();
+}
+
+export function getSubscriptionPlanTier(planId: SubscriptionPlanId): 'plus' | 'pro' | 'office' {
+  return getOrbitLedgerPaidPlan(planId as OrbitLedgerPaidPlanId).tier;
 }

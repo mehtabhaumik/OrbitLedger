@@ -1,3 +1,5 @@
+import { INDIA_COUNTRY_OPTION, INDIA_STATE_OPTIONS, getIndiaCityOptions } from '@orbit-ledger/core';
+
 export type CountryOption = {
   code: string;
   name: string;
@@ -10,50 +12,13 @@ export type RegionOption = {
 };
 
 export const COUNTRY_OPTIONS: CountryOption[] = [
-  { code: 'IN', name: 'India', currency: 'INR' },
+  { code: INDIA_COUNTRY_OPTION.code, name: INDIA_COUNTRY_OPTION.name, currency: INDIA_COUNTRY_OPTION.currency },
   { code: 'US', name: 'United States', currency: 'USD' },
   { code: 'GB', name: 'United Kingdom', currency: 'GBP' },
 ];
 
 export const REGION_OPTIONS_BY_COUNTRY: Record<string, RegionOption[]> = {
-  IN: [
-    { code: 'AP', name: 'Andhra Pradesh' },
-    { code: 'AR', name: 'Arunachal Pradesh' },
-    { code: 'AS', name: 'Assam' },
-    { code: 'BR', name: 'Bihar' },
-    { code: 'CG', name: 'Chhattisgarh' },
-    { code: 'GA', name: 'Goa' },
-    { code: 'GJ', name: 'Gujarat' },
-    { code: 'HR', name: 'Haryana' },
-    { code: 'HP', name: 'Himachal Pradesh' },
-    { code: 'JH', name: 'Jharkhand' },
-    { code: 'KA', name: 'Karnataka' },
-    { code: 'KL', name: 'Kerala' },
-    { code: 'MP', name: 'Madhya Pradesh' },
-    { code: 'MH', name: 'Maharashtra' },
-    { code: 'MN', name: 'Manipur' },
-    { code: 'ML', name: 'Meghalaya' },
-    { code: 'MZ', name: 'Mizoram' },
-    { code: 'NL', name: 'Nagaland' },
-    { code: 'OD', name: 'Odisha' },
-    { code: 'PB', name: 'Punjab' },
-    { code: 'RJ', name: 'Rajasthan' },
-    { code: 'SK', name: 'Sikkim' },
-    { code: 'TN', name: 'Tamil Nadu' },
-    { code: 'TS', name: 'Telangana' },
-    { code: 'TR', name: 'Tripura' },
-    { code: 'UP', name: 'Uttar Pradesh' },
-    { code: 'UK', name: 'Uttarakhand' },
-    { code: 'WB', name: 'West Bengal' },
-    { code: 'AN', name: 'Andaman and Nicobar Islands' },
-    { code: 'CH', name: 'Chandigarh' },
-    { code: 'DN', name: 'Dadra and Nagar Haveli and Daman and Diu' },
-    { code: 'DL', name: 'Delhi' },
-    { code: 'JK', name: 'Jammu and Kashmir' },
-    { code: 'LA', name: 'Ladakh' },
-    { code: 'LD', name: 'Lakshadweep' },
-    { code: 'PY', name: 'Puducherry' },
-  ],
+  IN: INDIA_STATE_OPTIONS.map((state) => ({ code: state.code, name: state.name })),
   US: [
     { code: 'AL', name: 'Alabama' },
     { code: 'AK', name: 'Alaska' },
@@ -129,4 +94,15 @@ export function getRegionOption(countryCode: string, regionCode: string): Region
 
 export function getDefaultRegionCode(countryCode: string): string {
   return getRegionOptions(countryCode)[0]?.code ?? '';
+}
+
+export function getCityOptions(countryCode: string, regionCode: string): string[] {
+  if (countryCode.toUpperCase() === 'IN') {
+    return getIndiaCityOptions(regionCode);
+  }
+  return [];
+}
+
+export function getDefaultCity(countryCode: string, regionCode: string): string {
+  return getCityOptions(countryCode, regionCode)[0] ?? '';
 }

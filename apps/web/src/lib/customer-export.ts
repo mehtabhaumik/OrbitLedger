@@ -131,6 +131,7 @@ function drawCustomerPage(
     ['Billing address', customer.billingAddress ?? customer.address ?? 'Not saved'],
     ['Shipping address', customer.shippingAddress ?? 'Not saved'],
     ['City', customer.city ?? 'Not saved'],
+    ['Town / village', customer.town ?? 'Not saved'],
     ['State', customer.stateCode ?? 'Not saved'],
     ['Country', customer.countryCode ?? 'Not saved'],
     ['PIN / postcode', customer.postalCode ?? 'Not saved'],

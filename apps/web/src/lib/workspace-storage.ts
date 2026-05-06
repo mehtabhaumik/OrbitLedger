@@ -6,13 +6,18 @@ import { getWebStorage } from './firebase';
 
 const MAX_IDENTITY_IMAGE_BYTES = 2 * 1024 * 1024;
 const MAX_INSTRUMENT_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_PAYMENT_PROOF_BYTES = 10 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Map([
   ['image/png', 'png'],
   ['image/jpeg', 'jpg'],
   ['image/webp', 'webp'],
 ]);
+const ALLOWED_PAYMENT_PROOF_TYPES = new Map([
+  ...ALLOWED_IMAGE_TYPES,
+  ['application/pdf', 'pdf'],
+]);
 
-export type WorkspaceIdentityAssetKind = 'logo' | 'signature';
+export type WorkspaceIdentityAssetKind = 'logo' | 'signature' | 'watermark';
 
 export function validateWorkspaceIdentityImage(file: File) {
   if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
@@ -36,7 +41,7 @@ export async function uploadWorkspaceIdentityImage(
     throw new Error(error);
   }
 
-  const folder = kind === 'logo' ? 'logos' : 'signatures';
+  const folder = kind === 'logo' ? 'logos' : kind === 'signature' ? 'signatures' : 'watermarks';
   const extension = ALLOWED_IMAGE_TYPES.get(file.type) ?? 'png';
   const storagePath = `workspaces/${workspaceId}/${folder}/current-${Date.now()}.${extension}`;
   const fileRef = ref(getWebStorage(), storagePath);
@@ -53,12 +58,13 @@ export async function uploadWorkspaceIdentityImage(
 }
 
 export function validatePaymentInstrumentImage(file: File) {
-  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-    return 'Use a PNG, JPG, or WebP image.';
+  if (!ALLOWED_PAYMENT_PROOF_TYPES.has(file.type)) {
+    return 'Use a PNG, JPG, WebP, or PDF file.';
   }
 
-  if (file.size > MAX_INSTRUMENT_IMAGE_BYTES) {
-    return 'Use an image smaller than 8 MB.';
+  const maxSize = file.type === 'application/pdf' ? MAX_PAYMENT_PROOF_BYTES : MAX_INSTRUMENT_IMAGE_BYTES;
+  if (file.size > maxSize) {
+    return file.type === 'application/pdf' ? 'Use a PDF smaller than 10 MB.' : 'Use an image smaller than 8 MB.';
   }
 
   return null;
@@ -74,8 +80,10 @@ export async function uploadPaymentInstrumentImage(
     throw new Error(error);
   }
 
-  const refined = await refinePaymentInstrumentImage(file);
-  const storagePath = `workspaces/${workspaceId}/attachments/payment-instruments/${paymentId}-${Date.now()}.jpg`;
+  const isPdf = file.type === 'application/pdf';
+  const refined = isPdf ? file : await refinePaymentInstrumentImage(file);
+  const extension = isPdf ? 'pdf' : 'jpg';
+  const storagePath = `workspaces/${workspaceId}/attachments/payment-instruments/${paymentId}-${Date.now()}.${extension}`;
   const fileRef = ref(getWebStorage(), storagePath);
   await uploadBytes(fileRef, refined, {
     contentType: refined.type,
@@ -88,7 +96,7 @@ export async function uploadPaymentInstrumentImage(
 
   return {
     id: `${paymentId}-${Date.now()}`,
-    name: file.name || 'Payment proof.jpg',
+    name: file.name || `Payment proof.${extension}`,
     url: await getDownloadURL(fileRef),
     storagePath,
     contentType: refined.type,

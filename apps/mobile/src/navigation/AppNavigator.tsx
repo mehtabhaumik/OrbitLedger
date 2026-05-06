@@ -23,8 +23,18 @@ const DashboardScreen = lazyScreen(() =>
 const GetPaidScreen = lazyScreen(() =>
   import('../screens/GetPaidScreen').then((module) => ({ default: module.GetPaidScreen }))
 );
+const PaymentProviderEventsScreen = lazyScreen(() =>
+  import('../screens/PaymentProviderEventsScreen').then((module) => ({
+    default: module.PaymentProviderEventsScreen,
+  }))
+);
 const InvoicesScreen = lazyScreen(() =>
   import('../screens/InvoicesScreen').then((module) => ({ default: module.InvoicesScreen }))
+);
+const RecurringInvoiceEmailScreen = lazyScreen(() =>
+  import('../screens/RecurringInvoiceEmailScreen').then((module) => ({
+    default: module.RecurringInvoiceEmailScreen,
+  }))
 );
 const ProductsScreen = lazyScreen(() =>
   import('../screens/ProductsScreen').then((module) => ({ default: module.ProductsScreen }))
@@ -286,7 +296,9 @@ export function AppNavigator() {
         <Stack.Screen name="CloudAuth" component={CloudAuthScreen} />
         <Stack.Screen name="Dashboard" component={DashboardScreen} />
         <Stack.Screen name="GetPaid" component={GetPaidScreen} />
+        <Stack.Screen name="PaymentProviderEvents" component={PaymentProviderEventsScreen} />
         <Stack.Screen name="Invoices" component={InvoicesScreen} />
+        <Stack.Screen name="RecurringInvoiceEmail" component={RecurringInvoiceEmailScreen} />
         <Stack.Screen name="Products" component={ProductsScreen} />
         <Stack.Screen name="Reports" component={ReportsScreen} />
         {__DEV__ ? <Stack.Screen name="RuntimeQA" component={RuntimeQAScreen} /> : null}

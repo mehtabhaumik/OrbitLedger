@@ -104,7 +104,7 @@ export async function getUpgradeNudge(): Promise<UpgradeNudge | null> {
       return {
         reason: 'premium_feature',
         title: premiumFeatureTitle(lastPremiumFeature),
-        message: 'Pro adds branded documents and advanced statement styling. Free ledger tools stay available offline.',
+        message: 'Pro Plus adds branded documents and advanced statement styling. Free ledger tools stay available offline.',
       };
     }
 
@@ -171,14 +171,14 @@ async function setPreference(key: string, value: string): Promise<void> {
 
 function premiumFeatureTitle(feature: string | null): string {
   if (feature === 'custom_document_branding') {
-    return 'Pro adds branded documents';
+    return 'Pro Plus adds branded documents';
   }
 
   if (feature === 'advanced_pdf_styling') {
-    return 'Pro adds better statements';
+    return 'Pro Plus adds better statements';
   }
 
-  return 'Pro adds more document polish';
+  return 'Pro Plus adds more document polish';
 }
 
 function isWithinDays(value: string | null, days: number): boolean {

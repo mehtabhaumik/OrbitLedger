@@ -11,14 +11,21 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 let testEnv: RulesTestEnvironment;
 
 beforeAll(async () => {
-  testEnv = await initializeTestEnvironment({
-    projectId: 'orbit-ledger-ci',
-    firestore: {
-      rules: readFileSync(resolve('firestore.rules'), 'utf8'),
-      host: '127.0.0.1',
-      port: 8080,
-    },
-  });
+  try {
+    testEnv = await initializeTestEnvironment({
+      projectId: 'orbit-ledger-ci',
+      firestore: {
+        rules: readFileSync(resolve('firestore.rules'), 'utf8'),
+        host: '127.0.0.1',
+        port: 8080,
+      },
+    });
+  } catch (error) {
+    throw new Error(
+      `Firestore rules tests require the Firebase Firestore emulator on 127.0.0.1:8080. ` +
+        `Run npm run test:rules:emulators, and make sure Java 11 or newer is active. ${String(error)}`
+    );
+  }
 });
 
 beforeEach(async () => {
@@ -26,7 +33,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await testEnv.cleanup();
+  await testEnv?.cleanup();
 });
 
 describe('Firestore workspace rules', () => {

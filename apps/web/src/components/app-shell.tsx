@@ -15,10 +15,13 @@ const navItems: Array<{ href: Route; label: string }> = [
   { href: '/transactions', label: 'Transactions' },
   { href: '/payments' as Route, label: 'Payments' },
   { href: '/invoices', label: 'Invoices' },
+  { href: '/products' as Route, label: 'Products' },
   { href: '/documents' as Route, label: 'Documents' },
+  { href: '/templates' as Route, label: 'Templates' },
   { href: '/reports', label: 'Reports' },
   { href: '/market' as Route, label: 'Market' },
   { href: '/backup', label: 'Backup' },
+  { href: '/support' as Route, label: 'Support' },
   { href: '/settings', label: 'Settings' },
 ];
 
@@ -85,13 +88,14 @@ export function AppShell({
           </div>
         </div>
 
-        <div className="ol-sidebar-group">
+        <div className="ol-sidebar-group ol-sidebar-nav-group">
           <div className="ol-sidebar-group-label">Navigation</div>
           <nav className="ol-nav">
             {navItems.map((item) => {
-              const active = pathname === item.href;
+              const active = isActiveRoute(pathname, item.href);
               return (
                 <Link
+                  aria-current={active ? 'page' : undefined}
                   href={item.href}
                   key={item.href}
                   className={`ol-nav-link${active ? ' is-active' : ''}`}
@@ -104,14 +108,14 @@ export function AppShell({
         </div>
 
         <div className="ol-sidebar-footer">
-          <Link href="/settings" className="ol-nav-link">
+          <Link href="/settings#company-settings" className="ol-nav-link">
             Business settings
           </Link>
 
-          <div className="ol-panel-glass" style={{ padding: 16, display: 'grid', gap: 8 }}>
-            <strong style={{ fontSize: 14 }}>Quick guide</strong>
-            <span className="ol-muted" style={{ lineHeight: 1.6, fontSize: 13 }}>
-              Use web for cleanup, reports, invoices, backups, and careful review.
+          <div className="ol-panel-glass ol-workspace-guide">
+            <strong>Workspace guide</strong>
+            <span className="ol-muted">
+              Use the web workspace for customer records, invoices, reports, backups, and detailed review.
             </span>
           </div>
         </div>
@@ -156,4 +160,12 @@ export function AppShell({
       </div>
     </div>
   );
+}
+
+function isActiveRoute(pathname: string | null, href: Route) {
+  const target = String(href);
+  if (!pathname) {
+    return false;
+  }
+  return pathname === target || pathname.startsWith(`${target}/`);
 }

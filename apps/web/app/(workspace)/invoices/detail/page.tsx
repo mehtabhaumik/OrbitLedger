@@ -7,12 +7,20 @@ import {
   appendPaymentLinkToMessage,
   buildInvoicePaymentLink,
   buildManualPaymentInstructionLines,
+  deriveInvoicePaymentStatus,
+  doesPaymentAwaitClearance,
+  doesPaymentClearInvoice,
   getManualPaymentInstructionTemplate,
   getManualPaymentVerificationPlan,
   getInvoiceDocumentStateLabel,
   getInvoicePaymentStatusLabel,
+  getPaymentClearanceDocumentStatusLine,
   getPaymentClearanceStatusLabel,
+  getPaymentClearanceStatusesForMode,
+  getPaymentClearanceUnpaidReason,
+  getPaymentDocumentModeLine,
   getPaymentModeConfig,
+  normalizePaymentClearanceStatus,
   PAYMENT_MODE_CONFIGS,
   summarizePaymentClearance,
   summarizePaymentMode,
@@ -33,12 +41,15 @@ import {
   getWorkspaceInvoiceDetail,
   listWorkspaceInvoicePaymentAllocations,
   listWorkspaceCustomers,
+  listWorkspaceProducts,
   reverseWorkspaceInvoicePaymentAllocation,
   saveWorkspaceInvoiceDetail,
   updateWorkspacePaymentClearance,
   type WorkspaceCustomer,
   type WorkspaceInvoiceDetail,
+  type WorkspaceInvoiceVersion,
   type WorkspaceInvoicePaymentAllocation,
+  type WorkspaceProduct,
 } from '@/lib/workspace-data';
 import {
   buildInvoiceWebDocument,
@@ -46,23 +57,60 @@ import {
   downloadInvoiceCsv,
   downloadInvoicePdf,
   getWebDocumentTemplates,
+  getWebTemplateAccessError,
   openPrintableDocument,
   type WebDocumentTemplate,
 } from '@/lib/web-documents';
+import {
+  resolveWebFeatureAccess,
+} from '@/lib/web-monetization';
 import { getWebPaymentProviderPlan } from '@/lib/payment-provider-mode';
 import { createRazorpayCheckoutLink } from '@/lib/provider-checkout';
 import { uploadPaymentInstrumentImage } from '@/lib/workspace-storage';
+import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
+import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 type EditableItem = {
   id?: string;
+  productId?: string | null;
   name: string;
   description: string;
   quantity: string;
   price: string;
   taxRate: string;
 };
+
+const REVISION_REASON_OPTIONS = [
+  'Item added',
+  'Item removed',
+  'Item name or description corrected',
+  'Quantity corrected',
+  'Price corrected',
+  'Tax rate corrected',
+  'Tax split corrected',
+  'Total amount corrected',
+  'Customer changed',
+  'Customer name corrected',
+  'Customer GSTIN or tax ID corrected',
+  'Billing address corrected',
+  'Shipping address corrected',
+  'Place of supply corrected',
+  'Issue date corrected',
+  'Due date corrected',
+  'Payment terms changed',
+  'Payment instructions updated',
+  'Payment proof updated',
+  'Invoice notes updated',
+  'Template or branding updated',
+  'Discount or adjustment added',
+  'Discount or adjustment removed',
+  'Compliance wording corrected',
+  'Duplicate or typing mistake fixed',
+  'Customer requested revision',
+  'Internal review correction',
+];
 
 export default function InvoiceEditorPage() {
   return (
@@ -76,28 +124,35 @@ function InvoiceEditorContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const invoiceId = searchParams.get('invoiceId') ?? '';
+  const versionId = searchParams.get('versionId') ?? '';
   const { activeWorkspace } = useWorkspace();
+  const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
+  const { confirm, prompt } = useConfirmDialog();
   const providerPlan = getWebPaymentProviderPlan();
   const [invoice, setInvoice] = useState<WorkspaceInvoiceDetail | null>(null);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
+  const [products, setProducts] = useState<WorkspaceProduct[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [issueDate, setIssueDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<InvoicePaymentStatus>('unpaid');
+  const [useForMonthlyAutoEmail, setUseForMonthlyAutoEmail] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   const [paymentDetails, setPaymentDetails] = useState<PaymentModeDetails>({});
-  const [paymentClearanceStatus, setPaymentClearanceStatus] = useState<PaymentClearanceStatus>('cleared');
+  const [paymentClearanceStatus, setPaymentClearanceStatus] = useState<PaymentClearanceStatus>('received');
+  const [hasPaymentClearancePreviewOverride, setHasPaymentClearancePreviewOverride] = useState(false);
   const [paymentAttachments, setPaymentAttachments] = useState<PaymentInstrumentAttachment[]>([]);
   const [includeInstrumentInDocument, setIncludeInstrumentInDocument] = useState(false);
   const [urgentPaymentRequired, setUrgentPaymentRequired] = useState(false);
   const [paymentLinkDetails, setPaymentLinkDetails] = useState<PaymentLinkDetails>({});
   const [includePaymentLinkInDocument, setIncludePaymentLinkInDocument] = useState(true);
   const [allocations, setAllocations] = useState<WorkspaceInvoicePaymentAllocation[]>([]);
+  const [revisionReasonChoice, setRevisionReasonChoice] = useState('');
   const [revisionReason, setRevisionReason] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<EditableItem[]>([emptyItem()]);
@@ -106,13 +161,25 @@ function InvoiceEditorContent() {
   const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [templateKey, setTemplateKey] = useState('');
+  const premiumTemplateAccess = resolveWebFeatureAccess(subscription, 'advanced_pdf_styling');
+  const paymentProofAccess = resolveWebFeatureAccess(subscription, 'payment_proof_attachments');
+  const paymentLinkAccess = resolveWebFeatureAccess(subscription, 'payment_links');
+  const recurringAutoEmailAccess = resolveWebFeatureAccess(subscription, 'recurring_auto_email');
+  const paymentReversalAccess = resolveWebFeatureAccess(subscription, 'payment_reversals');
   const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
   const selectedTemplate = invoiceTemplates.find((template) => template.key === templateKey) ?? invoiceTemplates[0];
   const paymentInstructionTemplate = getManualPaymentInstructionTemplate(activeWorkspace?.countryCode);
+  const isReadOnlyVersion = Boolean(versionId);
+  const effectiveRevisionReason = getEffectiveRevisionReason(revisionReasonChoice, revisionReason);
+  const needsRevisionReason = Boolean(invoice && !isReadOnlyVersion && invoice.documentState !== 'draft');
+  const canSaveInvoice = Boolean(invoice && !isReadOnlyVersion && !isSaving && (!needsRevisionReason || effectiveRevisionReason));
 
   const defaultTaxRate = useMemo(
-    () => getDefaultInvoiceTaxRate(activeWorkspace?.countryCode, selectedTemplate?.countryFormat),
-    [activeWorkspace?.countryCode, selectedTemplate?.countryFormat]
+    () =>
+      typeof activeWorkspace?.defaultTaxRate === 'number'
+        ? activeWorkspace.defaultTaxRate
+        : getDefaultInvoiceTaxRate(activeWorkspace?.countryCode, selectedTemplate?.countryFormat),
+    [activeWorkspace?.countryCode, activeWorkspace?.defaultTaxRate, selectedTemplate?.countryFormat]
   );
 
   useEffect(() => {
@@ -124,44 +191,74 @@ function InvoiceEditorContent() {
     void Promise.all([
       getWorkspaceInvoiceDetail(activeWorkspace.workspaceId, invoiceId),
       listWorkspaceCustomers(activeWorkspace.workspaceId),
+      listWorkspaceProducts(activeWorkspace.workspaceId),
       listWorkspaceInvoicePaymentAllocations(activeWorkspace.workspaceId, invoiceId),
     ])
-      .then(([nextInvoice, nextCustomers, nextAllocations]) => {
+      .then(([nextInvoice, nextCustomers, nextProducts, nextAllocations]) => {
         setCustomers(nextCustomers);
-        setAllocations(nextAllocations);
+        setProducts(nextProducts);
         if (!nextInvoice) {
           setMessage('Invoice could not be found.');
           return;
         }
-        setInvoice(nextInvoice);
-        const nextDueAmount = Math.max(nextInvoice.totalAmount - nextInvoice.paidAmount, 0);
+        const selectedVersion = versionId
+          ? nextInvoice.versions?.find((version) => version.id === versionId) ?? null
+          : null;
+        if (versionId && !selectedVersion) {
+          setInvoice(null);
+          setAllocations([]);
+          setMessage('Saved invoice version could not be found.');
+          return;
+        }
+        const invoiceForScreen = selectedVersion
+          ? buildReadonlyVersionInvoiceDetail(nextInvoice, selectedVersion)
+          : nextInvoice;
+        setInvoice(invoiceForScreen);
+        setAllocations(selectedVersion ? [] : nextAllocations);
+        const nextDueAmount = Math.max(invoiceForScreen.totalAmount - invoiceForScreen.paidAmount, 0);
         setPaymentAmount(nextDueAmount > 0 ? formatAmountInput(nextDueAmount) : '');
         setPaymentDate(new Date().toISOString().slice(0, 10));
-        setPaymentNote(`Payment for invoice ${nextInvoice.invoiceNumber}`);
-        setCustomerId(nextInvoice.customerId ?? '');
-        setInvoiceNumber(nextInvoice.invoiceNumber);
-        setIssueDate(nextInvoice.issueDate);
-        setDueDate(nextInvoice.dueDate ?? '');
-        setPaymentStatus(nextInvoice.paymentStatus);
+        setPaymentNote(`Payment for invoice ${invoiceForScreen.invoiceNumber}`);
+        setCustomerId(invoiceForScreen.customerId ?? '');
+        setInvoiceNumber(invoiceForScreen.invoiceNumber);
+        setIssueDate(invoiceForScreen.issueDate);
+        setDueDate(
+          invoiceForScreen.dueDate ??
+            (invoiceForScreen.documentState === 'draft'
+              ? addDays(invoiceForScreen.issueDate, activeWorkspace.defaultDueDays)
+              : '') ??
+            ''
+        );
+        setPaymentStatus(invoiceForScreen.paymentStatus);
+        setUseForMonthlyAutoEmail(Boolean(invoiceForScreen.useForMonthlyAutoEmail));
+        setHasPaymentClearancePreviewOverride(false);
+        setUrgentPaymentRequired(
+          invoiceForScreen.documentState === 'draft' ? Boolean(activeWorkspace.urgentPaymentStampDefault) : false
+        );
         setTemplateKey(
           resolveInvoiceTemplatePreference(
-            nextCustomers.find((customer) => customer.id === nextInvoice.customerId) ?? null,
+            nextCustomers.find((customer) => customer.id === invoiceForScreen.customerId) ?? null,
             activeWorkspace.defaultInvoiceTemplate,
             getWebDocumentTemplates(activeWorkspace, 'invoice')
           )
         );
+        setRevisionReasonChoice('');
         setRevisionReason('');
-        setNotes(nextInvoice.notes ?? '');
-        const nextDefaultTaxRate = getDefaultInvoiceTaxRate(activeWorkspace.countryCode);
+        setNotes(invoiceForScreen.notes ?? (invoiceForScreen.documentState === 'draft' ? activeWorkspace.defaultInvoiceNotes ?? '' : ''));
+        const nextDefaultTaxRate =
+          typeof activeWorkspace.defaultTaxRate === 'number'
+            ? activeWorkspace.defaultTaxRate
+            : getDefaultInvoiceTaxRate(activeWorkspace.countryCode);
         setItems(
-          nextInvoice.items.length
-            ? nextInvoice.items.map((item) => ({
+          invoiceForScreen.items.length
+            ? invoiceForScreen.items.map((item) => ({
                 id: item.id,
+                productId: item.productId,
                 name: item.name,
                 description: item.description ?? '',
                 quantity: String(item.quantity),
                 price: String(item.price),
-                taxRate: String(item.taxRate || nextDefaultTaxRate),
+                taxRate: String(typeof item.taxRate === 'number' ? item.taxRate : nextDefaultTaxRate),
               }))
             : [emptyItem(nextDefaultTaxRate)]
         );
@@ -169,7 +266,7 @@ function InvoiceEditorContent() {
       .catch((error) => {
         setMessage(error instanceof Error ? error.message : 'Invoice could not be loaded.');
       });
-  }, [activeWorkspace, invoiceId]);
+  }, [activeWorkspace, invoiceId, versionId]);
 
   useEffect(() => {
     if (activeWorkspace) {
@@ -195,6 +292,42 @@ function InvoiceEditorContent() {
   const currency = activeWorkspace?.currency ?? 'INR';
   const selectedCustomer = customers.find((customer) => customer.id === customerId) ?? null;
   const dueAmount = invoice ? Math.max(total - invoice.paidAmount, 0) : 0;
+  const stagedPaymentAmount = !isReadOnlyVersion
+    ? Math.min(Math.max(parseMoney(paymentAmount), 0), dueAmount)
+    : 0;
+  const stagedPaymentClears =
+    stagedPaymentAmount > 0 && doesPaymentClearInvoice(paymentClearanceStatus, paymentMode);
+  const stagedPaymentAwaits =
+    stagedPaymentAmount > 0 && doesPaymentAwaitClearance(paymentClearanceStatus, paymentMode);
+  const selectedClearanceClears = doesPaymentClearInvoice(paymentClearanceStatus, paymentMode);
+  const previewPaidAmount = invoice
+    ? invoice.paidAmount + (stagedPaymentClears ? stagedPaymentAmount : 0)
+    : 0;
+  const previewPaymentStatus = invoice
+    ? hasPaymentClearancePreviewOverride && !selectedClearanceClears
+      ? 'unpaid'
+      : paymentStatus === 'paid' && previewPaidAmount < total
+        ? deriveInvoicePaymentStatus({
+            dueDate,
+            totalAmount: total,
+            paidAmount: previewPaidAmount,
+            pendingAmount: stagedPaymentAwaits ? stagedPaymentAmount : 0,
+          })
+        : paymentStatus
+    : paymentStatus;
+  const previewPaymentStatusReason =
+    hasPaymentClearancePreviewOverride && !selectedClearanceClears
+      ? getPaymentClearanceUnpaidReason(paymentClearanceStatus, paymentMode)
+      : invoice?.paymentStatusReason ?? null;
+  const previewPaymentDocumentStatusLine =
+    hasPaymentClearancePreviewOverride
+      ? getPaymentClearanceDocumentStatusLine(paymentClearanceStatus, paymentMode)
+      : previewPaymentStatusReason
+        ? `Unpaid - ${previewPaymentStatusReason}`
+        : null;
+  const previewPaymentDocumentModeLine = hasPaymentClearancePreviewOverride
+    ? getPaymentDocumentModeLine(paymentMode, paymentDetails)
+    : null;
   const documentInstrumentAttachment =
     paymentAttachments[0] ?? allocations.flatMap((allocation) => allocation.paymentAttachments)[0] ?? null;
   const hostedPaymentPageUrl =
@@ -224,9 +357,21 @@ function InvoiceEditorContent() {
       getManualPaymentVerificationPlan({
         allocationStrategy: 'selected_invoice',
         clearanceStatus: paymentClearanceStatus,
+        paymentMode,
       }),
-    [paymentClearanceStatus]
+    [paymentClearanceStatus, paymentMode]
   );
+  const paymentClearanceOptions = useMemo(
+    () => getPaymentClearanceStatusesForMode(paymentMode),
+    [paymentMode]
+  );
+
+  useEffect(() => {
+    setPaymentClearanceStatus((current) =>
+      normalizePaymentClearanceStatus(current, paymentMode, paymentDetails)
+    );
+  }, [paymentDetails, paymentMode]);
+
   const currentInvoiceDocument = useMemo(() => {
     if (!activeWorkspace || !invoice) {
       return null;
@@ -239,10 +384,11 @@ function InvoiceEditorContent() {
       dueDate: dueDate || null,
       status: invoice.documentState,
       documentState: invoice.documentState,
-      paymentStatus,
+      paymentStatus: previewPaymentStatus,
+      paymentStatusReason: previewPaymentStatus === 'paid' ? null : previewPaymentStatusReason,
       notes,
       totalAmount: total,
-      paidAmount: invoice.paidAmount,
+      paidAmount: previewPaidAmount,
       items: items
         .filter((item) => item.name.trim())
         .map((item, index) => {
@@ -253,7 +399,7 @@ function InvoiceEditorContent() {
           return {
             id: item.id ?? `draft-${index}`,
             invoiceId: invoice.id,
-            productId: null,
+            productId: item.productId ?? null,
             name: item.name.trim(),
             description: item.description.trim() || null,
             quantity,
@@ -263,35 +409,70 @@ function InvoiceEditorContent() {
           };
         }),
     };
+    const documentCustomer =
+      isReadOnlyVersion && invoice.customerName
+        ? selectedCustomer
+          ? { ...selectedCustomer, name: invoice.customerName }
+          : ({ id: invoice.customerId ?? 'saved-version-customer', name: invoice.customerName } as WorkspaceCustomer)
+        : selectedCustomer;
+
     return buildInvoiceWebDocument({
       workspace: activeWorkspace,
       invoice: documentInvoice,
-      customer: selectedCustomer,
+      customer: documentCustomer,
+      subscription,
       templateKey: selectedTemplate?.key,
       urgentPaymentRequired,
       instrumentAttachment:
-        includeInstrumentInDocument && documentInstrumentAttachment
-          ? { name: documentInstrumentAttachment.name, url: documentInstrumentAttachment.url }
+        paymentProofAccess.allowed && includeInstrumentInDocument && documentInstrumentAttachment
+          ? {
+              name: documentInstrumentAttachment.name,
+              url: documentInstrumentAttachment.url,
+              contentType: documentInstrumentAttachment.contentType,
+            }
           : null,
-      paymentLink: includePaymentLinkInDocument ? invoicePaymentLink : null,
+      paymentLink: paymentLinkAccess.allowed && includePaymentLinkInDocument ? invoicePaymentLink : null,
       manualPaymentInstructions: buildManualPaymentInstructionLines(
         paymentLinkDetails,
         activeWorkspace.countryCode
       ),
+      paymentModeLine: previewPaymentDocumentModeLine,
+      paymentStatusLine: previewPaymentDocumentStatusLine,
     });
-  }, [activeWorkspace, customerId, documentInstrumentAttachment, dueDate, includeInstrumentInDocument, includePaymentLinkInDocument, invoice, invoiceNumber, invoicePaymentLink, issueDate, items, notes, paymentLinkDetails, paymentStatus, selectedCustomer, selectedTemplate?.key, total, urgentPaymentRequired]);
+  }, [activeWorkspace, customerId, documentInstrumentAttachment, dueDate, includeInstrumentInDocument, includePaymentLinkInDocument, invoice, invoiceNumber, invoicePaymentLink, isReadOnlyVersion, issueDate, items, notes, paymentDetails, paymentLinkAccess.allowed, paymentLinkDetails, paymentProofAccess.allowed, previewPaidAmount, previewPaymentDocumentModeLine, previewPaymentDocumentStatusLine, previewPaymentStatus, previewPaymentStatusReason, selectedCustomer, selectedTemplate?.key, subscription, total, urgentPaymentRequired]);
+
+  function selectedTemplateAccessError() {
+    return activeWorkspace
+      ? getWebTemplateAccessError(activeWorkspace, 'invoice', templateKey || selectedTemplate?.key, subscription.isPro)
+      : null;
+  }
 
   async function saveInvoice(
-    nextPaymentStatus = paymentStatus,
-    reason = revisionReason,
+    nextPaymentStatus = previewPaymentStatus,
+    reason = effectiveRevisionReason,
     documentState?: InvoiceDocumentState
   ) {
     if (!activeWorkspace || !invoice) {
       return;
     }
 
+    if (isReadOnlyVersion) {
+      showToast('Saved invoice versions are view-only. Open the latest invoice to make changes.', 'info');
+      return;
+    }
+
     if (!invoiceNumber.trim() || !issueDate.trim()) {
       showToast('Add an invoice number and issue date before saving.', 'danger');
+      return;
+    }
+
+    if (invoice.documentState !== 'draft' && !reason.trim()) {
+      showToast('Choose why this invoice is being updated before saving.', 'danger');
+      return;
+    }
+
+    if (useForMonthlyAutoEmail && !recurringAutoEmailAccess.allowed) {
+      showToast(recurringAutoEmailAccess.message ?? 'Monthly auto email is not included in your plan.', 'info');
       return;
     }
 
@@ -315,10 +496,13 @@ function InvoiceEditorContent() {
         dueDate: dueDate || null,
         documentState,
         paymentStatus: nextPaymentStatus,
+        paymentStatusReason: nextPaymentStatus === 'paid' ? null : previewPaymentStatusReason,
+        useForMonthlyAutoEmail,
         revisionReason: reason,
         notes,
         items: items.map((item) => ({
           id: item.id,
+          productId: item.productId ?? null,
           name: item.name,
           description: item.description,
           quantity: parseMoney(item.quantity),
@@ -328,6 +512,8 @@ function InvoiceEditorContent() {
       });
       setInvoice(updated);
       setPaymentStatus(updated.paymentStatus);
+      setHasPaymentClearancePreviewOverride(false);
+      setRevisionReasonChoice('');
       setRevisionReason('');
       showToast('Invoice saved.', 'success');
     } catch (error) {
@@ -340,6 +526,27 @@ function InvoiceEditorContent() {
   function updateItem(index: number, field: keyof EditableItem, value: string) {
     setItems((current) =>
       current.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item))
+    );
+  }
+
+  function selectProduct(index: number, productId: string) {
+    const product = products.find((entry) => entry.id === productId);
+    setItems((current) =>
+      current.map((item, itemIndex) => {
+        if (itemIndex !== index) {
+          return item;
+        }
+        if (!product) {
+          return { ...item, productId: null };
+        }
+        return {
+          ...item,
+          productId: product.id,
+          name: product.name,
+          price: String(product.price),
+          taxRate: item.taxRate || formatTaxRateInput(defaultTaxRate),
+        };
+      })
     );
   }
 
@@ -361,6 +568,11 @@ function InvoiceEditorContent() {
   }
 
   function viewPdf() {
+    const accessError = selectedTemplateAccessError();
+    if (accessError) {
+      showToast(accessError, 'danger');
+      return;
+    }
     if (!currentInvoiceDocument) {
       return;
     }
@@ -373,6 +585,11 @@ function InvoiceEditorContent() {
   }
 
   async function downloadInvoiceDocument() {
+    const accessError = selectedTemplateAccessError();
+    if (accessError) {
+      showToast(accessError, 'danger');
+      return;
+    }
     if (!currentInvoiceDocument) {
       return;
     }
@@ -385,6 +602,11 @@ function InvoiceEditorContent() {
   }
 
   function downloadInvoiceCsvFile() {
+    const accessError = selectedTemplateAccessError();
+    if (accessError) {
+      showToast(accessError, 'danger');
+      return;
+    }
     if (!currentInvoiceDocument) {
       return;
     }
@@ -412,6 +634,10 @@ function InvoiceEditorContent() {
 
   async function createRazorpayCheckout() {
     if (!activeWorkspace || !invoice) {
+      return;
+    }
+    if (isReadOnlyVersion) {
+      showToast('Saved invoice versions are view-only. Open the latest invoice to record payment.', 'info');
       return;
     }
     if (dueAmount <= 0) {
@@ -474,7 +700,8 @@ function InvoiceEditorContent() {
       setPaymentNote(`Payment for invoice ${updated.invoiceNumber}`);
       setPaymentMode('cash');
       setPaymentDetails({});
-      setPaymentClearanceStatus('cleared');
+      setPaymentClearanceStatus('received');
+      setHasPaymentClearancePreviewOverride(false);
       setPaymentAttachments([]);
       showToast(paymentVerificationPlan.successMessage, 'success');
     } catch (error) {
@@ -488,11 +715,20 @@ function InvoiceEditorContent() {
     if (!activeWorkspace || !file) {
       return;
     }
+    if (!paymentProofAccess.allowed) {
+      showToast(paymentProofAccess.message ?? 'Payment proof attachments are not included in your plan.', 'info');
+      return;
+    }
+    if (isReadOnlyVersion) {
+      showToast('Saved invoice versions are view-only. Open the latest invoice to attach proof.', 'info');
+      return;
+    }
 
     setIsRecordingPayment(true);
     try {
       const attachment = await uploadPaymentInstrumentImage(activeWorkspace.workspaceId, invoice?.id ?? 'payment', file);
       setPaymentAttachments((current) => [attachment, ...current].slice(0, 3));
+      setIncludeInstrumentInDocument(true);
       showToast('Payment proof attached.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Payment proof could not be attached.', 'danger');
@@ -503,6 +739,10 @@ function InvoiceEditorContent() {
 
   async function updateAllocationClearance(allocationId: string, clearanceStatus: PaymentClearanceStatus) {
     if (!activeWorkspace || !invoice) {
+      return;
+    }
+    if (isReadOnlyVersion) {
+      showToast('Saved invoice versions are view-only. Open the latest invoice to update payments.', 'info');
       return;
     }
 
@@ -530,16 +770,37 @@ function InvoiceEditorContent() {
     if (!activeWorkspace || !invoice) {
       return;
     }
-    const note = window.prompt(
-      'Why are you reversing this payment?',
-      allocation.paymentClearanceStatus === 'bounced'
-        ? 'Payment bounced and must not count toward this invoice.'
-        : 'Payment recorded by mistake.'
-    );
+    if (isReadOnlyVersion) {
+      showToast('Saved invoice versions are view-only. Open the latest invoice to update payments.', 'info');
+      return;
+    }
+    if (!paymentReversalAccess.allowed) {
+      showToast(paymentReversalAccess.message ?? 'Payment reversals are not included in your plan.', 'info');
+      return;
+    }
+    const note = await prompt({
+      title: 'Why are you reversing this payment?',
+      message: 'The original record stays in history. Add a short reason for the correction.',
+      inputLabel: 'Correction reason',
+      defaultValue:
+        allocation.paymentClearanceStatus === 'bounced'
+          ? 'Payment bounced and must not count toward this invoice.'
+          : 'Payment recorded by mistake.',
+      confirmLabel: 'Continue',
+      required: true,
+      tone: 'danger',
+    });
     if (note === null) {
       return;
     }
-    if (!window.confirm('Reverse this payment? The original record stays in history and invoice totals will be recalculated.')) {
+    const confirmed = await confirm({
+      title: 'Reverse this payment?',
+      message: 'The original record stays in history and invoice totals will be recalculated.',
+      detail: note,
+      confirmLabel: 'Reverse payment',
+      tone: 'danger',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -565,11 +826,21 @@ function InvoiceEditorContent() {
   }
 
   async function cancelInvoice() {
+    if (isReadOnlyVersion) {
+      showToast('Saved invoice versions are view-only. Open the latest invoice to cancel it.', 'info');
+      return;
+    }
     if (!invoice || invoice.documentState === 'draft') {
       showToast('Delete an unsaved draft instead of cancelling it.', 'info');
       return;
     }
-    if (!window.confirm('Cancel this invoice? This keeps the history but marks the document as cancelled.')) {
+    const confirmed = await confirm({
+      title: 'Cancel this invoice?',
+      message: 'This keeps the invoice history but marks the document as cancelled.',
+      confirmLabel: 'Cancel invoice',
+      tone: 'danger',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -580,11 +851,21 @@ function InvoiceEditorContent() {
     if (!activeWorkspace || !invoice) {
       return;
     }
+    if (isReadOnlyVersion) {
+      showToast('Saved invoice versions are view-only. Open the latest invoice to delete drafts.', 'info');
+      return;
+    }
     if (invoice.documentState !== 'draft') {
       showToast('Only unsaved drafts can be deleted.', 'info');
       return;
     }
-    if (!window.confirm('Delete this draft invoice? It was never final, so no invoice history will be kept.')) {
+    const confirmed = await confirm({
+      title: 'Delete this draft invoice?',
+      message: 'This invoice was never final, so no official invoice history will be kept.',
+      confirmLabel: 'Delete draft',
+      tone: 'danger',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -604,14 +885,20 @@ function InvoiceEditorContent() {
     if (!activeWorkspace || !invoice) {
       return;
     }
+    if (isReadOnlyVersion) {
+      showToast('Saved invoice versions are view-only. Open the latest invoice to archive it.', 'info');
+      return;
+    }
     const nextArchived = !invoice.isArchived;
-    if (
-      !window.confirm(
-        nextArchived
-          ? 'Archive this invoice? It will be hidden from the active invoice list, but the history stays available.'
-          : 'Move this invoice back to the active invoice list?'
-      )
-    ) {
+    const confirmed = await confirm({
+      title: nextArchived ? 'Archive this invoice?' : 'Restore this invoice?',
+      message: nextArchived
+        ? 'It will be hidden from the active invoice list, but the history stays available.'
+        : 'This invoice will move back to the active invoice list.',
+      confirmLabel: nextArchived ? 'Archive invoice' : 'Restore invoice',
+      tone: nextArchived ? 'danger' : 'default',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -645,15 +932,19 @@ function InvoiceEditorContent() {
         <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentMessage()} disabled={!currentInvoiceDocument || total <= 0}>
           Copy payment message
         </button>
-        {providerPlan.canCreateOnlineCheckout ? (
+        {providerPlan.canCreateOnlineCheckout && !isReadOnlyVersion ? (
           <button className="ol-button-secondary" type="button" onClick={() => void createRazorpayCheckout()} disabled={isCreatingCheckout || !invoice || dueAmount <= 0}>
             {isCreatingCheckout ? 'Creating checkout...' : 'Create checkout link'}
           </button>
         ) : null}
-        <button className="ol-button-secondary" type="button" onClick={() => void recordInvoicePayment(dueAmount)} disabled={isRecordingPayment || !invoice || dueAmount <= 0}>
+        <button className="ol-button-secondary" type="button" onClick={() => void recordInvoicePayment(dueAmount)} disabled={isReadOnlyVersion || isRecordingPayment || !invoice || dueAmount <= 0}>
           Record due payment
         </button>
-        {invoice?.documentState === 'draft' ? (
+        {isReadOnlyVersion && invoice ? (
+          <Link className="ol-button-secondary" href={`/invoices/detail?invoiceId=${encodeURIComponent(invoice.id)}`}>
+            Open latest invoice
+          </Link>
+        ) : invoice?.documentState === 'draft' ? (
           <button className="ol-button-secondary" type="button" onClick={() => void deleteDraftInvoice()} disabled={isSaving || !invoice}>
             Delete draft
           </button>
@@ -662,16 +953,22 @@ function InvoiceEditorContent() {
             {invoice?.isArchived ? 'Unarchive invoice' : 'Archive invoice'}
           </button>
         )}
-        <button className="ol-button-secondary" type="button" onClick={() => void cancelInvoice()} disabled={isSaving || !invoice || invoice.documentState === 'draft' || invoice.documentState === 'cancelled'}>
+        <button className="ol-button-secondary" type="button" onClick={() => void cancelInvoice()} disabled={isReadOnlyVersion || isSaving || !invoice || invoice.documentState === 'draft' || invoice.documentState === 'cancelled'}>
           Cancel invoice
         </button>
-        <button className="ol-button" type="button" onClick={() => void saveInvoice()} disabled={isSaving || !invoice}>
+        <button className="ol-button" type="button" onClick={() => void saveInvoice()} disabled={!canSaveInvoice}>
           {isSaving ? 'Saving...' : 'Save invoice'}
         </button>
       </div>
 
       {message ? (
         <div className="ol-message ol-message--danger">{message}</div>
+      ) : null}
+
+      {isReadOnlyVersion && invoice ? (
+        <div className="ol-message ol-message--info">
+          You are viewing saved version v{invoice.versionNumber}. Older versions are frozen and cannot be edited.
+        </div>
       ) : null}
 
       {invoice ? (
@@ -682,6 +979,7 @@ function InvoiceEditorContent() {
                 <span className="ol-field-label">Customer</span>
                 <select
                   className="ol-select"
+                  disabled={isReadOnlyVersion}
                   value={customerId}
                   onChange={(event) => {
                     const nextCustomerId = event.target.value;
@@ -705,15 +1003,15 @@ function InvoiceEditorContent() {
               </label>
               <label className="ol-field">
                 <span className="ol-field-label">Invoice number</span>
-                <input className="ol-input" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} />
+                <input className="ol-input" disabled={isReadOnlyVersion} value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} />
               </label>
               <label className="ol-field">
                 <span className="ol-field-label">Issue date</span>
-                <input className="ol-input" type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} />
+                <input className="ol-input" disabled={isReadOnlyVersion} type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} />
               </label>
               <label className="ol-field">
                 <span className="ol-field-label">Due date</span>
-                <input className="ol-input" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+                <input className="ol-input" disabled={isReadOnlyVersion} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
               </label>
             </div>
             <div className="ol-review-grid" style={{ marginTop: 16 }}>
@@ -723,44 +1021,110 @@ function InvoiceEditorContent() {
               <Review label="Saved history" value={`${invoice.versions?.length ?? 0} version${(invoice.versions?.length ?? 0) === 1 ? '' : 's'}`} />
               <Review label="List visibility" value={invoice.isArchived ? 'Archived' : 'Active'} />
             </div>
-            <label className="ol-field" style={{ marginTop: 16 }}>
-              <span className="ol-field-label">Revision note</span>
+            <label className="ol-checkbox-row" style={{ marginTop: 16 }}>
               <input
-                className="ol-input"
-                placeholder={invoice.documentState === 'draft' ? 'First saved invoice' : 'What changed?'}
-                value={revisionReason}
-                onChange={(event) => setRevisionReason(event.target.value)}
+                className="ol-checkbox"
+                checked={useForMonthlyAutoEmail}
+                disabled={isReadOnlyVersion || invoice.documentState === 'cancelled' || !recurringAutoEmailAccess.allowed}
+                type="checkbox"
+                onChange={(event) => setUseForMonthlyAutoEmail(event.target.checked)}
               />
+              <span>Use this for monthly auto email</span>
             </label>
+            <p className="ol-helper" style={{ marginTop: 6 }}>
+              {recurringAutoEmailAccess.allowed
+                ? 'Enable this only when this invoice should be used for this customer\'s monthly automatic email.'
+                : `${recurringAutoEmailAccess.message} This control stays locked until then.`}
+            </p>
+            {invoice.documentState === 'draft' || isReadOnlyVersion ? (
+              <div className="ol-message" style={{ marginTop: 16 }}>
+                {isReadOnlyVersion
+                  ? 'This saved version keeps the original version note and cannot be changed.'
+                  : 'The first save creates version v1 automatically.'}
+              </div>
+            ) : (
+              <div className="ol-form-row ol-form-row--2" style={{ marginTop: 16 }}>
+                <label className="ol-field">
+                  <span className="ol-field-label">Update reason</span>
+                  <select
+                    className="ol-select"
+                    value={revisionReasonChoice}
+                    onChange={(event) => {
+                      setRevisionReasonChoice(event.target.value);
+                      if (event.target.value !== 'other') {
+                        setRevisionReason('');
+                      }
+                    }}
+                  >
+                    <option value="">Choose a reason</option>
+                    {REVISION_REASON_OPTIONS.map((reason) => (
+                      <option key={reason} value={reason}>
+                        {reason}
+                      </option>
+                    ))}
+                    <option value="other">Other reason</option>
+                  </select>
+                  <span className="ol-field-help">Required before saving changes to the latest invoice.</span>
+                </label>
+                {revisionReasonChoice === 'other' ? (
+                  <label className="ol-field">
+                    <span className="ol-field-label">Custom reason</span>
+                    <input
+                      className="ol-input"
+                      placeholder="Describe what changed"
+                      value={revisionReason}
+                      onChange={(event) => setRevisionReason(event.target.value)}
+                    />
+                  </label>
+                ) : null}
+              </div>
+            )}
             <label className="ol-field" style={{ marginTop: 16 }}>
               <span className="ol-field-label">PDF template</span>
               <select
                 className="ol-select"
+                disabled={isReadOnlyVersion}
                 value={templateKey || selectedTemplate?.key || ''}
                 onChange={(event) => setTemplateKey(event.target.value)}
               >
                 {invoiceTemplates.map((template) => (
-                  <option key={template.key} value={template.key}>
-                    {template.tier === 'pro' ? `${template.label} · Pro` : template.label}
+                  <option disabled={template.tier === 'pro' && !premiumTemplateAccess.allowed} key={template.key} value={template.key}>
+                    {template.tier === 'pro' ? `${template.label} · Pro Plus` : template.label}
                   </option>
                 ))}
               </select>
+              <span className="ol-field-help">
+                Pro Plus templates are shown in the showcase and stay locked for document output until your plan includes them.
+              </span>
             </label>
+            <div className="ol-actions" style={{ marginTop: 12 }}>
+              <Link className="ol-button-secondary" href="/templates">
+                View template showcase
+              </Link>
+            </div>
             <TemplatePreviewGrid
+              isPro={premiumTemplateAccess.allowed}
               selectedKey={selectedTemplate?.key ?? ''}
               templates={invoiceTemplates}
-              onSelect={setTemplateKey}
+              onSelect={(value) => {
+                const template = invoiceTemplates.find((entry) => entry.key === value);
+                if (template?.tier === 'pro' && !premiumTemplateAccess.allowed) {
+                  showToast(`${template.label} is available with Orbit Ledger ${premiumTemplateAccess.requiredPlanLabel}. Preview it in the showcase.`, 'info');
+                  return;
+                }
+                setTemplateKey(value);
+              }}
             />
             <label className="ol-field" style={{ marginTop: 16 }}>
               <span className="ol-field-label">Notes</span>
-              <textarea className="ol-textarea" value={notes} onChange={(event) => setNotes(event.target.value)} />
+              <textarea className="ol-textarea" disabled={isReadOnlyVersion} value={notes} onChange={(event) => setNotes(event.target.value)} />
             </label>
           </section>
 
           <section className="ol-panel">
             <div className="ol-panel-header">
               <div className="ol-panel-title">Line items</div>
-              <button className="ol-button-secondary" type="button" onClick={() => setItems((current) => [...current, emptyItem(defaultTaxRate)])}>
+              <button className="ol-button-secondary" type="button" disabled={isReadOnlyVersion} onClick={() => setItems((current) => [...current, emptyItem(defaultTaxRate)])}>
                 Add item
               </button>
             </div>
@@ -768,24 +1132,40 @@ function InvoiceEditorContent() {
               {items.map((item, index) => (
                 <div className="ol-form-row ol-form-row--invoice-item" key={`${item.id ?? 'new'}-${index}`}>
                   <label className="ol-field">
+                    <span className="ol-field-label">Product</span>
+                    <select
+                      className="ol-select"
+                      disabled={isReadOnlyVersion}
+                      value={item.productId ?? ''}
+                      onChange={(event) => selectProduct(index, event.target.value)}
+                    >
+                      <option value="">Custom item</option>
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name} · {formatQuantity(product.stockQuantity)} {product.unit}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="ol-field">
                     <span className="ol-field-label">Item</span>
-                    <input className="ol-input" value={item.name} onChange={(event) => updateItem(index, 'name', event.target.value)} />
+                    <input className="ol-input" disabled={isReadOnlyVersion} value={item.name} onChange={(event) => updateItem(index, 'name', event.target.value)} />
                   </label>
                   <label className="ol-field">
                     <span className="ol-field-label">Description</span>
-                    <input className="ol-input" value={item.description} onChange={(event) => updateItem(index, 'description', event.target.value)} />
+                    <input className="ol-input" disabled={isReadOnlyVersion} value={item.description} onChange={(event) => updateItem(index, 'description', event.target.value)} />
                   </label>
                   <label className="ol-field">
                     <span className="ol-field-label">Qty</span>
-                    <input className="ol-input ol-amount" inputMode="decimal" value={item.quantity} onChange={(event) => updateItem(index, 'quantity', event.target.value)} />
+                    <input className="ol-input ol-amount" disabled={isReadOnlyVersion} inputMode="decimal" value={item.quantity} onChange={(event) => updateItem(index, 'quantity', event.target.value)} />
                   </label>
                   <label className="ol-field">
                     <span className="ol-field-label">Price</span>
-                    <input className="ol-input ol-amount" inputMode="decimal" value={item.price} onChange={(event) => updateItem(index, 'price', event.target.value)} />
+                    <input className="ol-input ol-amount" disabled={isReadOnlyVersion} inputMode="decimal" value={item.price} onChange={(event) => updateItem(index, 'price', event.target.value)} />
                   </label>
                   <label className="ol-field">
                     <span className="ol-field-label">Tax %</span>
-                    <input className="ol-input ol-amount" inputMode="decimal" value={item.taxRate} onChange={(event) => updateItem(index, 'taxRate', event.target.value)} />
+                    <input className="ol-input ol-amount" disabled={isReadOnlyVersion} inputMode="decimal" value={item.taxRate} onChange={(event) => updateItem(index, 'taxRate', event.target.value)} />
                   </label>
                   <div className="ol-field ol-field--action">
                     <span className="ol-field-label">Line</span>
@@ -795,6 +1175,7 @@ function InvoiceEditorContent() {
                         className="ol-button-secondary ol-icon-button"
                         title="Copy line"
                         type="button"
+                        disabled={isReadOnlyVersion}
                         onClick={() => duplicateItem(index)}
                       >
                         <CopyIcon />
@@ -804,6 +1185,7 @@ function InvoiceEditorContent() {
                         className="ol-button-secondary ol-icon-button ol-icon-button--danger"
                         title="Remove line"
                         type="button"
+                        disabled={isReadOnlyVersion}
                         onClick={() => removeItem(index)}
                       >
                         <TrashIcon />
@@ -840,6 +1222,7 @@ function InvoiceEditorContent() {
                 <span className="ol-field-label">Payment amount</span>
                 <input
                   className="ol-input ol-amount"
+                  disabled={isReadOnlyVersion}
                   inputMode="decimal"
                   value={paymentAmount}
                   onChange={(event) => setPaymentAmount(event.target.value)}
@@ -847,17 +1230,22 @@ function InvoiceEditorContent() {
               </label>
               <label className="ol-field">
                 <span className="ol-field-label">Payment date</span>
-                <input className="ol-input" type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
+                <input className="ol-input" disabled={isReadOnlyVersion} type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
               </label>
               <label className="ol-field">
                 <span className="ol-field-label">Payment mode</span>
                 <select
                   className="ol-select"
-                  value={paymentMode}
-                  onChange={(event) => {
-                    setPaymentMode(event.target.value as PaymentMode);
-                    setPaymentDetails({});
-                  }}
+                  disabled={isReadOnlyVersion}
+	                  value={paymentMode}
+	                  onChange={(event) => {
+	                    const nextMode = event.target.value as PaymentMode;
+	                    const nextStatus = normalizePaymentClearanceStatus(paymentClearanceStatus, nextMode, {});
+	                    setPaymentMode(nextMode);
+	                    setPaymentDetails({});
+	                    setHasPaymentClearancePreviewOverride(true);
+	                    setPaymentClearanceStatus(nextStatus);
+	                  }}
                 >
                   {PAYMENT_MODE_CONFIGS.map((config) => (
                     <option key={config.mode} value={config.mode}>
@@ -868,31 +1256,38 @@ function InvoiceEditorContent() {
               </label>
               <label className="ol-field">
                 <span className="ol-field-label">Payment note</span>
-                <input className="ol-input" value={paymentNote} onChange={(event) => setPaymentNote(event.target.value)} />
+                <input className="ol-input" disabled={isReadOnlyVersion} value={paymentNote} onChange={(event) => setPaymentNote(event.target.value)} />
               </label>
-              <PaymentModeFields details={paymentDetails} mode={paymentMode} onChange={setPaymentDetails} />
+              <PaymentModeFields disabled={isReadOnlyVersion} details={paymentDetails} mode={paymentMode} onChange={setPaymentDetails} />
               <label className="ol-field">
                 <span className="ol-field-label">Clearance</span>
                 <select
                   className="ol-select"
+                  disabled={isReadOnlyVersion}
                   value={paymentClearanceStatus}
-                  onChange={(event) => setPaymentClearanceStatus(event.target.value as PaymentClearanceStatus)}
+	                  onChange={(event) => {
+	                    setHasPaymentClearancePreviewOverride(true);
+	                    setPaymentClearanceStatus(event.target.value as PaymentClearanceStatus);
+	                  }}
                 >
-                  {(['received', 'post_dated', 'deposited', 'cleared', 'bounced', 'cancelled'] as PaymentClearanceStatus[]).map((status) => (
+                  {paymentClearanceOptions.map((status) => (
                     <option key={status} value={status}>
                       {getPaymentClearanceStatusLabel(status)}
                     </option>
                   ))}
                 </select>
               </label>
-              {paymentMode === 'cheque' || paymentMode === 'demand_draft' ? (
-                <div className="ol-field">
-                  <span className="ol-field-label">Instrument image</span>
-                  <label className="ol-button-secondary" style={{ width: 'fit-content' }}>
-                    Upload image
+              <div className="ol-field">
+                <span className="ol-field-label">
+                  {paymentMode === 'cheque' || paymentMode === 'demand_draft' ? 'Cheque/DD proof' : 'Payment proof'}
+                </span>
+                <div className="ol-proof-upload-card">
+                  <label className={`ol-button-secondary${isReadOnlyVersion || !paymentProofAccess.allowed ? ' is-disabled' : ''}`} style={{ width: 'fit-content' }}>
+                    Upload proof
                     <input
                       hidden
-                      accept="image/png,image/jpeg,image/webp"
+                      disabled={isReadOnlyVersion || !paymentProofAccess.allowed}
+                      accept="image/png,image/jpeg,image/webp,application/pdf"
                       type="file"
                       onChange={(event) => {
                         void attachPaymentInstrument(event.currentTarget.files?.[0] ?? null);
@@ -900,8 +1295,14 @@ function InvoiceEditorContent() {
                       }}
                     />
                   </label>
+                  <span>
+                    Add cheque, demand draft, UPI, bank, card, wallet, or receipt proof as PNG, JPG, WebP, or PDF.
+                  </span>
                 </div>
-              ) : null}
+                {!paymentProofAccess.allowed ? (
+                  <div className="ol-template-lock-note">{paymentProofAccess.message}</div>
+                ) : null}
+              </div>
               {paymentAttachments.length ? (
                 <div className="ol-field">
                   <span className="ol-field-label">Attached proof</span>
@@ -913,9 +1314,13 @@ function InvoiceEditorContent() {
                         key={attachment.id}
                         target="_blank"
                         rel="noreferrer"
-                        title="Open full image"
+                        title="Open proof"
                       >
-                        <img alt={attachment.name} src={attachment.url} />
+                        {attachment.contentType === 'application/pdf' ? (
+                          <span className="ol-proof-file-icon">PDF</span>
+                        ) : (
+                          <img alt={attachment.name} src={attachment.url} />
+                        )}
                         <span>{attachment.name}</span>
                       </a>
                     ))}
@@ -925,6 +1330,7 @@ function InvoiceEditorContent() {
               <label className="ol-check-row">
                 <input
                   type="checkbox"
+                  disabled={isReadOnlyVersion || !paymentProofAccess.allowed}
                   checked={includeInstrumentInDocument}
                   onChange={(event) => setIncludeInstrumentInDocument(event.target.checked)}
                 />
@@ -933,6 +1339,7 @@ function InvoiceEditorContent() {
               <label className="ol-check-row">
                 <input
                   type="checkbox"
+                  disabled={isReadOnlyVersion}
                   checked={urgentPaymentRequired}
                   onChange={(event) => setUrgentPaymentRequired(event.target.checked)}
                 />
@@ -943,6 +1350,7 @@ function InvoiceEditorContent() {
                   <span className="ol-field-label">{field.label}</span>
                   <input
                     className="ol-input"
+                    disabled={isReadOnlyVersion}
                     placeholder={field.placeholder}
                     value={String(paymentLinkDetails[field.key] ?? '')}
                     onChange={(event) =>
@@ -955,12 +1363,15 @@ function InvoiceEditorContent() {
               <label className="ol-check-row">
                 <input
                   type="checkbox"
+                  disabled={isReadOnlyVersion || !paymentLinkAccess.allowed}
                   checked={includePaymentLinkInDocument}
                   onChange={(event) => setIncludePaymentLinkInDocument(event.target.checked)}
                 />
                 <span>Show payment link on invoice</span>
               </label>
-              {invoicePaymentLink ? (
+              {!paymentLinkAccess.allowed ? (
+                <div className="ol-message">{paymentLinkAccess.message}</div>
+              ) : invoicePaymentLink ? (
                 <div className="ol-message ol-message--success">
                   {invoicePaymentLink.label}: {invoicePaymentLink.reference}
                 </div>
@@ -973,7 +1384,7 @@ function InvoiceEditorContent() {
                   <button
                     className="ol-button-secondary"
                     type="button"
-                    disabled={isCreatingCheckout || !invoice || dueAmount <= 0}
+                    disabled={isReadOnlyVersion || isCreatingCheckout || !invoice || dueAmount <= 0}
                     onClick={() => void createRazorpayCheckout()}
                   >
                     {isCreatingCheckout ? 'Creating...' : 'Create checkout link'}
@@ -987,7 +1398,7 @@ function InvoiceEditorContent() {
               )}
               <div className="ol-field ol-field--action">
                 <span className="ol-field-label">Action</span>
-                <button className="ol-button" type="button" disabled={isRecordingPayment || dueAmount <= 0} onClick={() => void recordInvoicePayment()}>
+                <button className="ol-button" type="button" disabled={isReadOnlyVersion || isRecordingPayment || dueAmount <= 0} onClick={() => void recordInvoicePayment()}>
                   {isRecordingPayment ? 'Recording...' : paymentVerificationPlan.actionLabel}
                 </button>
               </div>
@@ -1051,7 +1462,7 @@ function InvoiceEditorContent() {
                     </button>
                     <button
                       className="ol-button-ghost"
-                      disabled={isRecordingPayment || allocation.isReversed}
+                      disabled={isRecordingPayment || allocation.isReversed || !paymentReversalAccess.allowed}
                       type="button"
                       onClick={() => void reversePaymentAllocation(allocation)}
                     >
@@ -1071,7 +1482,7 @@ function InvoiceEditorContent() {
               <div>
                 <div className="ol-panel-title">PDF readiness</div>
                 <p className="ol-panel-copy">
-                  The PDF uses the same country-ready template catalog, Pro access, branding rules,
+                  The PDF uses the same country-ready template catalog, plan access, branding rules,
                   and payment message flow across Orbit Ledger.
                 </p>
               </div>
@@ -1109,8 +1520,8 @@ function InvoiceEditorContent() {
                       {formatDateTime(version.createdAt)} · {version.reason} · {getInvoiceDocumentStateLabel(version.documentState)} · {getInvoicePaymentStatusLabel(version.paymentStatus)}
                     </div>
                   </div>
-                  <Link className="ol-button-secondary" href={`/invoices/detail?invoiceId=${encodeURIComponent(version.invoiceId)}`}>
-                    Update
+                  <Link className="ol-button-secondary" href={`/invoices/detail?invoiceId=${encodeURIComponent(version.invoiceId)}&versionId=${encodeURIComponent(version.id)}`}>
+                    View
                   </Link>
                 </div>
               ))}
@@ -1134,7 +1545,46 @@ function InvoiceEditorShell({ message }: { message: string }) {
 }
 
 function emptyItem(taxRate = 0): EditableItem {
-  return { name: '', description: '', quantity: '1', price: '0', taxRate: formatTaxRateInput(taxRate) };
+  return { productId: null, name: '', description: '', quantity: '1', price: '0', taxRate: formatTaxRateInput(taxRate) };
+}
+
+function getEffectiveRevisionReason(reasonChoice: string, customReason: string): string {
+  return (reasonChoice === 'other' ? customReason : reasonChoice).trim();
+}
+
+function buildReadonlyVersionInvoiceDetail(
+  invoice: WorkspaceInvoiceDetail,
+  version: WorkspaceInvoiceVersion
+): WorkspaceInvoiceDetail {
+  return {
+    ...invoice,
+    customerId: version.customerId,
+    customerName: version.customerName,
+    invoiceNumber: version.invoiceNumber,
+    issueDate: version.issueDate,
+    dueDate: version.dueDate,
+    status: version.documentState,
+    documentState: version.documentState,
+    paymentStatus: version.paymentStatus,
+    paymentStatusReason: version.paymentStatusReason ?? null,
+    autoEmailPreparedAt: invoice.autoEmailPreparedAt,
+    autoEmailScheduledFor: version.autoEmailScheduledFor,
+    latestAutoEmailStatus: version.autoEmailStatus,
+    latestAutoEmailSentAt: version.autoEmailSentAt,
+    latestAutoEmailVersionId: version.autoEmailUsedVersionId,
+    subtotal: version.subtotal,
+    taxAmount: version.taxAmount,
+    totalAmount: version.totalAmount,
+    paidAmount: version.paidAmount,
+    versionNumber: version.versionNumber,
+    notes: version.notes,
+    latestSnapshotHash: version.snapshotHash,
+    items: version.items.map((item, index) => ({
+      ...item,
+      id: item.id || `${version.id}-item-${index}`,
+      invoiceId: version.invoiceId,
+    })),
+  };
 }
 
 function parseMoney(value: string) {
@@ -1161,11 +1611,30 @@ function formatAmountInput(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 }
 
+function addDays(date: string, days?: number | null): string | null {
+  if (typeof days !== 'number' || !Number.isFinite(days)) {
+    return null;
+  }
+  const timestamp = Date.parse(`${date}T00:00:00.000Z`);
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+  const next = new Date(timestamp);
+  next.setUTCDate(next.getUTCDate() + Math.max(0, Math.floor(days)));
+  return next.toISOString().slice(0, 10);
+}
+
+function formatQuantity(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+}
+
 function PaymentModeFields({
+  disabled = false,
   details,
   mode,
   onChange,
 }: {
+  disabled?: boolean;
   details: PaymentModeDetails;
   mode: PaymentMode;
   onChange: (details: PaymentModeDetails) => void;
@@ -1184,49 +1653,49 @@ function PaymentModeFields({
       {['cheque', 'demand_draft', 'bank_transfer', 'upi', 'wallet'].includes(mode) ? (
         <label className="ol-field">
           <span className="ol-field-label">Reference</span>
-          <input className="ol-input" value={details.referenceNumber ?? ''} onChange={(event) => update('referenceNumber', event.target.value)} />
+          <input className="ol-input" disabled={disabled} value={details.referenceNumber ?? ''} onChange={(event) => update('referenceNumber', event.target.value)} />
         </label>
       ) : null}
       {['cheque', 'demand_draft', 'bank_transfer'].includes(mode) ? (
         <label className="ol-field">
           <span className="ol-field-label">Bank</span>
-          <input className="ol-input" value={details.bankName ?? ''} onChange={(event) => update('bankName', event.target.value)} />
+          <input className="ol-input" disabled={disabled} value={details.bankName ?? ''} onChange={(event) => update('bankName', event.target.value)} />
         </label>
       ) : null}
       {['cheque', 'demand_draft'].includes(mode) ? (
         <>
           <label className="ol-field">
             <span className="ol-field-label">Branch</span>
-            <input className="ol-input" value={details.branchName ?? ''} onChange={(event) => update('branchName', event.target.value)} />
+            <input className="ol-input" disabled={disabled} value={details.branchName ?? ''} onChange={(event) => update('branchName', event.target.value)} />
           </label>
           <label className="ol-field">
             <span className="ol-field-label">Instrument date</span>
-            <input className="ol-input" type="date" value={details.instrumentDate ?? ''} onChange={(event) => update('instrumentDate', event.target.value)} />
+            <input className="ol-input" disabled={disabled} type="date" value={details.instrumentDate ?? ''} onChange={(event) => update('instrumentDate', event.target.value)} />
           </label>
         </>
       ) : null}
       {mode === 'upi' ? (
         <label className="ol-field">
           <span className="ol-field-label">UPI ID</span>
-          <input className="ol-input" value={details.upiId ?? ''} onChange={(event) => update('upiId', event.target.value)} />
+          <input className="ol-input" disabled={disabled} value={details.upiId ?? ''} onChange={(event) => update('upiId', event.target.value)} />
         </label>
       ) : null}
       {mode === 'card' ? (
         <label className="ol-field">
           <span className="ol-field-label">Card last 4</span>
-          <input className="ol-input" inputMode="numeric" maxLength={4} value={details.cardLastFour ?? ''} onChange={(event) => update('cardLastFour', event.target.value.replace(/\D/g, '').slice(0, 4))} />
+          <input className="ol-input" disabled={disabled} inputMode="numeric" maxLength={4} value={details.cardLastFour ?? ''} onChange={(event) => update('cardLastFour', event.target.value.replace(/\D/g, '').slice(0, 4))} />
         </label>
       ) : null}
       {mode === 'wallet' ? (
         <label className="ol-field">
           <span className="ol-field-label">Provider</span>
-          <input className="ol-input" value={details.provider ?? ''} onChange={(event) => update('provider', event.target.value)} />
+          <input className="ol-input" disabled={disabled} value={details.provider ?? ''} onChange={(event) => update('provider', event.target.value)} />
         </label>
       ) : null}
       {mode === 'other' ? (
         <label className="ol-field">
           <span className="ol-field-label">Payment detail</span>
-          <input className="ol-input" value={details.note ?? ''} onChange={(event) => update('note', event.target.value)} />
+          <input className="ol-input" disabled={disabled} value={details.note ?? ''} onChange={(event) => update('note', event.target.value)} />
         </label>
       ) : null}
       <div className="ol-field">
@@ -1257,10 +1726,12 @@ function Review({ label, value }: { label: string; value: string }) {
 }
 
 function TemplatePreviewGrid({
+  isPro,
   onSelect,
   selectedKey,
   templates,
 }: {
+  isPro: boolean;
   selectedKey: string;
   templates: WebDocumentTemplate[];
   onSelect(value: string): void;
@@ -1270,12 +1741,13 @@ function TemplatePreviewGrid({
       {templates.map((template) => (
         <button
           className={`ol-template-preview-card${template.key === selectedKey ? ' is-selected' : ''}`}
+          disabled={template.tier === 'pro' && !isPro}
           key={template.key}
           type="button"
           onClick={() => onSelect(template.key)}
         >
           <span className={`ol-chip ${template.tier === 'pro' ? 'ol-chip--premium' : 'ol-chip--primary'}`}>
-            {template.tier === 'pro' ? 'Pro' : 'Free'}
+            {template.tier === 'pro' ? (isPro ? 'Included in Pro Plus' : 'Requires Pro Plus') : 'Free'}
           </span>
           <strong>{template.label}</strong>
           <small>{template.description}</small>

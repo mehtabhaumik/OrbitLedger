@@ -1,6 +1,12 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useState } from 'react';
+import {
+  buildSmartDocumentPack,
+  type SmartDocumentPackItem,
+  type SmartDocumentPackSignal,
+  type SmartDocumentPackTier,
+} from '@orbit-ledger/core';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -29,6 +35,8 @@ import { SummaryCard } from '../components/SummaryCard';
 import { getBusinessSettings, getFeatureToggles, getReportsSummary } from '../database';
 import type { AppFeatureToggles, BusinessSettings, ReportTrend, ReportsSummary } from '../database';
 import { formatCurrency, formatShortDate } from '../lib/format';
+import { getSubscriptionStatus } from '../monetization';
+import type { SubscriptionTier } from '../monetization';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, spacing, typography } from '../theme/theme';
 
@@ -38,6 +46,7 @@ export function ReportsScreen({ navigation }: ReportsScreenProps) {
   const [business, setBusiness] = useState<BusinessSettings | null>(null);
   const [reports, setReports] = useState<ReportsSummary | null>(null);
   const [featureToggles, setFeatureToggles] = useState<AppFeatureToggles | null>(null);
+  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSharingAccountant, setIsSharingAccountant] = useState(false);
@@ -45,10 +54,11 @@ export function ReportsScreen({ navigation }: ReportsScreenProps) {
   const inventoryEnabled = (featureToggles?.invoices ?? true) && (featureToggles?.inventory ?? true);
 
   const loadReports = useCallback(async () => {
-    const [settings, summary, toggles] = await Promise.all([
+    const [settings, summary, toggles, subscription] = await Promise.all([
       getBusinessSettings(),
       getReportsSummary(),
       getFeatureToggles(),
+      getSubscriptionStatus(),
     ]);
 
     if (!settings) {
@@ -59,7 +69,17 @@ export function ReportsScreen({ navigation }: ReportsScreenProps) {
     setBusiness(settings);
     setReports(summary);
     setFeatureToggles(toggles);
+    setSubscriptionTier(subscription.tier);
   }, [navigation]);
+
+  const smartDocumentPack = useMemo(() => buildSmartDocumentPack({
+    businessName: business?.businessName,
+    currency,
+    currentTier: mapMobileSmartDocumentTier(subscriptionTier),
+    signals: buildMobileSmartDocumentSignals(reports, business?.countryCode, featureToggles?.invoices ?? true),
+  }), [business?.businessName, business?.countryCode, currency, featureToggles?.invoices, reports, subscriptionTier]);
+
+  const smartDocumentPackItems = smartDocumentPack.items.slice(0, 4);
 
   useFocusEffect(
     useCallback(() => {
@@ -189,6 +209,28 @@ export function ReportsScreen({ navigation }: ReportsScreenProps) {
           <Text style={styles.helperText}>
             Compares the last 7 days with the 7 days before that.
           </Text>
+        </Section>
+
+        <Section
+          title="Smart Document Pack"
+          subtitle={smartDocumentPack.summary}
+        >
+          {smartDocumentPack.emptyState ? (
+            <EmptyState
+              title="No document pack is waiting"
+              message="Add customers, invoices, or payments and Orbit Ledger will recommend the right document pack here."
+            />
+          ) : (
+            <View style={styles.documentPackList}>
+              {smartDocumentPackItems.map((item) => (
+                <DocumentPackCard
+                  key={item.id}
+                  item={item}
+                  onPress={() => openSmartDocumentPackItem(item, navigation)}
+                />
+              ))}
+            </View>
+          )}
         </Section>
 
         <Section title="Top Customers" subtitle="The customers with the most business activity.">
@@ -397,6 +439,161 @@ function TrendRow({
   );
 }
 
+function DocumentPackCard({
+  item,
+  onPress,
+}: {
+  item: SmartDocumentPackItem;
+  onPress: () => void;
+}) {
+  return (
+    <Card compact accent={documentPackAccent(item.tone)}>
+      <View style={styles.documentPackHeader}>
+        <Text style={styles.documentPackIcon}>{documentPackIcon(item.kind)}</Text>
+        <StatusChip
+          label={item.available ? 'Ready' : `${documentPackTierLabel(item.requiredTier)} plan`}
+          tone={item.available ? 'success' : 'premium'}
+        />
+      </View>
+      <View style={styles.accountantText}>
+        <Text style={styles.accountantTitle}>{item.title}</Text>
+        <Text style={styles.accountantDescription}>{item.message}</Text>
+        <Text style={styles.documentPackHelper}>{item.helper}</Text>
+      </View>
+      <PrimaryButton variant="secondary" onPress={onPress}>
+        {item.available ? item.actionLabel : 'View plans'}
+      </PrimaryButton>
+    </Card>
+  );
+}
+
+function buildMobileSmartDocumentSignals(
+  reports: ReportsSummary | null,
+  countryCode: string | null | undefined,
+  invoicesEnabled: boolean
+): SmartDocumentPackSignal[] {
+  if (!reports) {
+    return [];
+  }
+  const signals: SmartDocumentPackSignal[] = [];
+  const dueCustomer = reports.topCustomers.find((customer) => customer.balance > 0);
+
+  if (dueCustomer) {
+    signals.push({
+      id: dueCustomer.id,
+      kind: 'customer_has_balance',
+      customerId: dueCustomer.id,
+      customerName: dueCustomer.name,
+      amountDue: dueCustomer.balance,
+      invoiceCount: reports.invoiceCount,
+    });
+    signals.push({
+      id: `${dueCustomer.id}:notice`,
+      kind: 'payment_due',
+      customerId: dueCustomer.id,
+      customerName: dueCustomer.name,
+      amountDue: dueCustomer.balance,
+      invoiceCount: reports.invoiceCount,
+    });
+    signals.push({
+      id: `${dueCustomer.id}:profile`,
+      kind: 'customer_review',
+      customerId: dueCustomer.id,
+      customerName: dueCustomer.name,
+      amountDue: dueCustomer.balance,
+    });
+  }
+
+  if (invoicesEnabled && reports.invoiceCount > 0) {
+    signals.push({
+      id: 'invoice-ready',
+      kind: 'invoice_ready',
+      invoiceCount: reports.invoiceCount,
+      hasPaymentLink: true,
+    });
+    signals.push({
+      id: 'tax-period',
+      kind: 'tax_period_review',
+      countryCode,
+      hasTaxData: true,
+      invoiceCount: reports.invoiceCount,
+    });
+  }
+
+  return signals;
+}
+
+function openSmartDocumentPackItem(
+  item: SmartDocumentPackItem,
+  navigation: ReportsScreenProps['navigation']
+) {
+  if (!item.available) {
+    navigation.navigate('Upgrade');
+    return;
+  }
+  switch (item.actionTarget) {
+    case 'create_invoice':
+      navigation.navigate('InvoiceForm', item.customerId ? { customerId: item.customerId } : undefined);
+      return;
+    case 'send_statement':
+      navigation.navigate('StatementBatch');
+      return;
+    case 'send_payment_notice':
+    case 'send_overdue_notice':
+    case 'export_customer_profile':
+      if (item.customerId) {
+        navigation.navigate('CustomerDetail', { customerId: item.customerId });
+      } else {
+        navigation.navigate('Customers');
+      }
+      return;
+    case 'open_tax_summary':
+    case 'prepare_audit_packet':
+      navigation.navigate('ComplianceReports');
+      return;
+  }
+}
+
+function mapMobileSmartDocumentTier(tier: SubscriptionTier): SmartDocumentPackTier {
+  return tier === 'pro' ? 'pro_plus' : tier;
+}
+
+function documentPackAccent(tone: SmartDocumentPackItem['tone']) {
+  if (tone === 'danger') {
+    return 'danger';
+  }
+  if (tone === 'warning') {
+    return 'warning';
+  }
+  if (tone === 'success') {
+    return 'success';
+  }
+  return 'primary';
+}
+
+function documentPackIcon(kind: SmartDocumentPackItem['kind']) {
+  const icons: Record<SmartDocumentPackItem['kind'], string> = {
+    invoice: 'INV',
+    statement: 'ST',
+    payment_notice: 'PAY',
+    overdue_notice: 'DUE',
+    customer_profile: 'CP',
+    tax_summary: 'TAX',
+    audit_packet: 'AUD',
+  };
+  return icons[kind];
+}
+
+function documentPackTierLabel(tier: SmartDocumentPackTier) {
+  const labels: Record<SmartDocumentPackTier, string> = {
+    free: 'Free',
+    plus: 'Plus',
+    pro_plus: 'Pro Plus',
+    office: 'Office',
+  };
+  return labels[tier];
+}
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -509,6 +706,30 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     overflow: 'hidden',
+  },
+  documentPackList: {
+    gap: spacing.md,
+  },
+  documentPackHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  documentPackIcon: {
+    backgroundColor: colors.primarySurface,
+    borderRadius: 8,
+    color: colors.primary,
+    fontSize: typography.caption,
+    fontWeight: '900',
+    overflow: 'hidden',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  documentPackHelper: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 18,
   },
   customerRow: {
     alignItems: 'center',

@@ -34,6 +34,7 @@ import {
   limit as limitQuery,
   orderBy,
   query,
+  setDoc,
   type QueryDocumentSnapshot,
   where,
   writeBatch,
@@ -55,6 +56,7 @@ export type WorkspaceCustomer = {
   billingAddress: string | null;
   shippingAddress: string | null;
   city: string | null;
+  town?: string | null;
   stateCode: string | null;
   countryCode: string | null;
   postalCode: string | null;
@@ -79,6 +81,51 @@ export type WorkspaceCustomer = {
   health: CustomerHealthScore;
 };
 
+export type WorkspaceProduct = {
+  id: string;
+  name: string;
+  price: number;
+  stockQuantity: number;
+  unit: string;
+  createdAt: string;
+  lastModified: string;
+  serverRevision: number;
+};
+
+export type WorkspaceCustomerTimelineNoteKind = 'note' | 'dispute';
+export type WorkspacePaymentReminderTone = 'polite' | 'firm' | 'final';
+export type WorkspacePaymentPromiseStatus = 'open' | 'fulfilled' | 'missed' | 'cancelled';
+
+export type WorkspaceCustomerTimelineNote = {
+  id: string;
+  customerId: string;
+  kind: WorkspaceCustomerTimelineNoteKind;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorkspacePaymentReminder = {
+  id: string;
+  customerId: string;
+  tone: WorkspacePaymentReminderTone;
+  message: string;
+  balanceAtSend: number;
+  sharedVia: string;
+  createdAt: string;
+};
+
+export type WorkspacePaymentPromise = {
+  id: string;
+  customerId: string;
+  promisedAmount: number;
+  promisedDate: string;
+  note: string | null;
+  status: WorkspacePaymentPromiseStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type WorkspaceTransaction = {
   id: string;
   customerId: string;
@@ -100,11 +147,21 @@ export type WorkspaceInvoice = {
   customerName: string | null;
   invoiceNumber: string;
   issueDate: string;
+  billingMonth?: string | null;
   totalAmount: number;
   paidAmount: number;
   status: string;
   documentState: InvoiceDocumentState;
   paymentStatus: InvoicePaymentStatus;
+  paymentStatusReason?: string | null;
+  useForMonthlyAutoEmail?: boolean;
+  recurringRuleId?: string | null;
+  autoEmailPreparedAt?: string | null;
+  autoEmailScheduledFor?: string | null;
+  hasAutoEmailHistory?: boolean;
+  latestAutoEmailStatus?: string | null;
+  latestAutoEmailSentAt?: string | null;
+  latestAutoEmailVersionId?: string | null;
   versionNumber: number;
   serverRevision?: number;
   isArchived: boolean;
@@ -121,6 +178,110 @@ export type WorkspaceInvoiceItem = {
   price: number;
   taxRate: number;
   total: number;
+};
+
+export type WorkspaceRecurringInvoiceStatus = 'active' | 'cancelled';
+
+export type WorkspaceRecurringInvoiceItem = {
+  id: string;
+  productId: string | null;
+  name: string;
+  description: string | null;
+  quantity: number;
+  price: number;
+  taxRate: number;
+  total: number;
+};
+
+export type WorkspaceRecurringInvoiceRule = {
+  id: string;
+  name: string;
+  customerId: string;
+  customerName: string | null;
+  startDate: string;
+  endDate: string | null;
+  invoiceDay: number;
+  nextRunDate: string;
+  dueDays: number;
+  invoiceNumberPrefix: string;
+  notes: string | null;
+  emailEnabled: boolean;
+  emailRecipient: string | null;
+  emailDay: number | null;
+  emailSubject: string | null;
+  emailBody: string | null;
+  emailIncludePaymentLink: boolean;
+  emailAttachPdf: boolean;
+  emailCurrentMonthOnly: boolean;
+  emailAutomationApproved: boolean;
+  emailAutomationApprovedAt: string | null;
+  emailApprovalSummary: string | null;
+  emailApprovalRequired: boolean;
+  lastSettingsChangedAt: string | null;
+  nextEmailDate: string | null;
+  status: WorkspaceRecurringInvoiceStatus;
+  items: WorkspaceRecurringInvoiceItem[];
+  lastCreatedInvoiceId: string | null;
+  lastCreatedRunDate: string | null;
+  createdAt: string;
+  lastModified: string;
+};
+
+export type WorkspaceRecurringEmailQueueStatus =
+  | 'scheduled'
+  | 'ready'
+  | 'sending'
+  | 'sent'
+  | 'failed'
+  | 'cancelled'
+  | string;
+
+export type WorkspaceRecurringEmailQueueItem = {
+  id: string;
+  status: WorkspaceRecurringEmailQueueStatus;
+  scheduledFor: string | null;
+  sentAt: string | null;
+  recipientEmail: string | null;
+  subject: string | null;
+  body: string | null;
+  invoiceId: string | null;
+  invoiceNumber: string | null;
+  customerId: string | null;
+  recurringRuleId: string | null;
+  includePaymentLink: boolean;
+  attachPdf: boolean;
+  lastError: string | null;
+  createdAt: string | null;
+  lastModified: string | null;
+};
+
+export type SaveWorkspaceRecurringInvoiceRuleInput = {
+  name: string;
+  customerId: string;
+  startDate: string;
+  endDate?: string | null;
+  invoiceDay: number;
+  dueDays?: number | null;
+  invoiceNumberPrefix?: string | null;
+  notes?: string | null;
+  emailEnabled?: boolean;
+  emailRecipient?: string | null;
+  emailDay?: number | null;
+  emailSubject?: string | null;
+  emailBody?: string | null;
+  emailIncludePaymentLink?: boolean;
+  emailAttachPdf?: boolean;
+  emailCurrentMonthOnly?: boolean;
+  approveEmailAutomation?: boolean;
+  items: Array<{
+    id?: string;
+    productId?: string | null;
+    name: string;
+    description?: string | null;
+    quantity: number;
+    price: number;
+    taxRate: number;
+  }>;
 };
 
 export type WorkspaceInvoiceDetail = WorkspaceInvoice & {
@@ -146,9 +307,17 @@ export type WorkspaceInvoiceVersion = {
   dueDate: string | null;
   documentState: InvoiceDocumentState;
   paymentStatus: InvoicePaymentStatus;
+  paymentStatusReason?: string | null;
+  autoEmailSentAt?: string | null;
+  autoEmailScheduledFor?: string | null;
+  autoEmailRecipient?: string | null;
+  autoEmailQueueId?: string | null;
+  autoEmailStatus?: string | null;
+  autoEmailUsedVersionId?: string | null;
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  paidAmount: number;
   notes: string | null;
   snapshotHash: string;
   items: WorkspaceInvoiceItem[];
@@ -260,10 +429,13 @@ export type SaveWorkspaceInvoiceInput = {
   dueDate: string | null;
   documentState?: InvoiceDocumentState;
   paymentStatus?: InvoicePaymentStatus;
+  paymentStatusReason?: string | null;
+  useForMonthlyAutoEmail?: boolean;
   revisionReason?: string | null;
   notes: string | null;
   items: Array<{
     id?: string;
+    productId?: string | null;
     name: string;
     description?: string | null;
     quantity: number;
@@ -284,6 +456,7 @@ export type CreateWorkspaceCustomerInput = {
   billingAddress?: string | null;
   shippingAddress?: string | null;
   city?: string | null;
+  town?: string | null;
   stateCode?: string | null;
   countryCode?: string | null;
   postalCode?: string | null;
@@ -303,6 +476,34 @@ export type CreateWorkspaceCustomerInput = {
   tags?: string[];
 };
 
+export type SaveWorkspaceProductInput = {
+  name: string;
+  price: number;
+  stockQuantity: number;
+  unit: string;
+};
+
+export type AddWorkspaceCustomerTimelineNoteInput = {
+  customerId: string;
+  kind: WorkspaceCustomerTimelineNoteKind;
+  body: string;
+};
+
+export type AddWorkspacePaymentReminderInput = {
+  customerId: string;
+  tone: WorkspacePaymentReminderTone;
+  message: string;
+  balanceAtSend: number;
+  sharedVia?: string;
+};
+
+export type AddWorkspacePaymentPromiseInput = {
+  customerId: string;
+  promisedAmount: number;
+  promisedDate: string;
+  note?: string | null;
+};
+
 export type CreateWorkspaceTransactionInput = {
   customerId: string;
   type: 'credit' | 'payment';
@@ -318,6 +519,8 @@ export type CreateWorkspaceTransactionInput = {
 };
 
 const CUSTOMER_LIST_LIMIT = 100;
+const PRODUCT_LIST_LIMIT = 250;
+const CUSTOMER_TIMELINE_LIMIT = 30;
 const TRANSACTION_LIST_LIMIT = 150;
 const INVOICE_LIST_LIMIT = 100;
 const FIRESTORE_IN_QUERY_LIMIT = 10;
@@ -373,6 +576,7 @@ export async function getWorkspaceCustomer(
     const data = entry.data() as {
       type?: 'credit' | 'payment';
       amount?: number;
+      payment_mode?: string | null;
       payment_clearance_status?: string | null;
     };
     if (typeof data.amount !== 'number') {
@@ -381,7 +585,7 @@ export async function getWorkspaceCustomer(
     const paymentCountsTowardBalance =
       data.type !== 'payment' ||
       !data.payment_clearance_status ||
-      doesPaymentClearInvoice(data.payment_clearance_status);
+      doesPaymentClearInvoice(data.payment_clearance_status, data.payment_mode);
     balanceDeltas.set(
       customerId,
       (balanceDeltas.get(customerId) ?? 0) +
@@ -417,6 +621,7 @@ export async function createWorkspaceCustomer(
   };
 
   const ref = await addDoc(collection(getWebFirestore(), 'workspaces', workspaceId, 'customers'), payload);
+
   return {
     id: ref.id,
     name: payload.name,
@@ -430,6 +635,7 @@ export async function createWorkspaceCustomer(
     billingAddress: payload.billing_address,
     shippingAddress: payload.shipping_address,
     city: payload.city,
+    town: payload.town,
     stateCode: payload.state_code,
     countryCode: payload.country_code,
     postalCode: payload.postal_code,
@@ -534,6 +740,7 @@ function customerProfilePayload(input: CreateWorkspaceCustomerInput) {
     billing_address: cleanOptional(input.billingAddress) ?? cleanOptional(input.address),
     shipping_address: cleanOptional(input.shippingAddress),
     city: cleanOptional(input.city),
+    town: cleanOptional(input.town),
     state_code: cleanOptional(input.stateCode)?.toUpperCase() ?? null,
     country_code: cleanOptional(input.countryCode)?.toUpperCase() ?? null,
     postal_code: cleanOptional(input.postalCode),
@@ -553,6 +760,263 @@ function customerProfilePayload(input: CreateWorkspaceCustomerInput) {
       ? input.tags.map((tag) => tag.trim()).filter(Boolean).slice(0, 12)
       : [],
   };
+}
+
+export async function listWorkspaceProducts(workspaceId: string): Promise<WorkspaceProduct[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(getWebFirestore(), 'workspaces', workspaceId, 'products'),
+      orderBy('name', 'asc'),
+      limitQuery(PRODUCT_LIST_LIMIT)
+    )
+  );
+  return snapshot.docs.map(mapWorkspaceProduct);
+}
+
+export async function saveWorkspaceProduct(
+  workspaceId: string,
+  input: SaveWorkspaceProductInput,
+  productId?: string
+): Promise<WorkspaceProduct> {
+  const now = new Date().toISOString();
+  const payload = buildProductPayload(input, now);
+  const firestore = getWebFirestore();
+
+  if (productId) {
+    const productRef = doc(firestore, 'workspaces', workspaceId, 'products', productId);
+    await updateDoc(productRef, {
+      ...payload,
+      last_modified: now,
+      server_revision: increment(1),
+    });
+    const updated = await getDoc(productRef);
+    if (!updated.exists()) {
+      throw new Error('Product could not be loaded after saving.');
+    }
+    return mapWorkspaceProduct(updated);
+  }
+
+  const ref = await addDoc(collection(firestore, 'workspaces', workspaceId, 'products'), {
+    ...payload,
+    created_at: now,
+    last_modified: now,
+    sync_status: 'synced',
+    server_revision: 1,
+  });
+  return {
+    id: ref.id,
+    name: payload.name,
+    price: payload.price,
+    stockQuantity: payload.stock_quantity,
+    unit: payload.unit,
+    createdAt: now,
+    lastModified: now,
+    serverRevision: 1,
+  };
+}
+
+function buildProductPayload(input: SaveWorkspaceProductInput, now: string) {
+  const name = input.name.trim();
+  const unit = input.unit.trim();
+  const price = roundMoney(Number(input.price));
+  const stockQuantity = roundQuantity(Number(input.stockQuantity));
+
+  if (!name) {
+    throw new Error('Add a product name before saving.');
+  }
+  if (!unit) {
+    throw new Error('Add a unit before saving.');
+  }
+  if (!Number.isFinite(price) || price < 0) {
+    throw new Error('Product price must be zero or more.');
+  }
+  if (!Number.isFinite(stockQuantity) || stockQuantity < 0) {
+    throw new Error('Product stock must be zero or more.');
+  }
+
+  return {
+    name,
+    price,
+    stock_quantity: stockQuantity,
+    unit,
+    last_modified: now,
+    sync_status: 'synced',
+  };
+}
+
+export async function listWorkspaceCustomerTimelineNotes(
+  workspaceId: string,
+  customerId: string
+): Promise<WorkspaceCustomerTimelineNote[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(getWebFirestore(), 'workspaces', workspaceId, 'customer_timeline_notes'),
+      where('customer_id', '==', customerId),
+      limitQuery(CUSTOMER_TIMELINE_LIMIT)
+    )
+  );
+  return snapshot.docs
+    .map(mapWorkspaceCustomerTimelineNote)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+export async function addWorkspaceCustomerTimelineNote(
+  workspaceId: string,
+  input: AddWorkspaceCustomerTimelineNoteInput
+): Promise<WorkspaceCustomerTimelineNote> {
+  const body = input.body.trim();
+  if (!body) {
+    throw new Error('Add a note before saving.');
+  }
+  const now = new Date().toISOString();
+  const kind: WorkspaceCustomerTimelineNoteKind = input.kind === 'dispute' ? 'dispute' : 'note';
+  const payload = {
+    customer_id: input.customerId,
+    kind,
+    body,
+    created_at: now,
+    updated_at: now,
+    last_modified: now,
+    sync_status: 'synced',
+    server_revision: 1,
+  };
+  const ref = await addDoc(
+    collection(getWebFirestore(), 'workspaces', workspaceId, 'customer_timeline_notes'),
+    payload
+  );
+  return { id: ref.id, customerId: input.customerId, kind, body, createdAt: now, updatedAt: now };
+}
+
+export async function listWorkspacePaymentRemindersForCustomer(
+  workspaceId: string,
+  customerId: string
+): Promise<WorkspacePaymentReminder[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(getWebFirestore(), 'workspaces', workspaceId, 'payment_reminders'),
+      where('customer_id', '==', customerId),
+      limitQuery(CUSTOMER_TIMELINE_LIMIT)
+    )
+  );
+  return snapshot.docs
+    .map(mapWorkspacePaymentReminder)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+export async function addWorkspacePaymentReminder(
+  workspaceId: string,
+  input: AddWorkspacePaymentReminderInput
+): Promise<WorkspacePaymentReminder> {
+  const message = input.message.trim();
+  if (!message) {
+    throw new Error('Add a reminder message before saving.');
+  }
+  const now = new Date().toISOString();
+  const payload = {
+    customer_id: input.customerId,
+    tone: input.tone,
+    message,
+    balance_at_send: roundMoney(input.balanceAtSend),
+    shared_via: input.sharedVia?.trim() || 'web_review',
+    created_at: now,
+    last_modified: now,
+    sync_status: 'synced',
+    server_revision: 1,
+  };
+  const ref = await addDoc(collection(getWebFirestore(), 'workspaces', workspaceId, 'payment_reminders'), payload);
+  return {
+    id: ref.id,
+    customerId: input.customerId,
+    tone: payload.tone,
+    message,
+    balanceAtSend: payload.balance_at_send,
+    sharedVia: payload.shared_via,
+    createdAt: now,
+  };
+}
+
+export async function listWorkspacePaymentPromisesForCustomer(
+  workspaceId: string,
+  customerId: string
+): Promise<WorkspacePaymentPromise[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(getWebFirestore(), 'workspaces', workspaceId, 'payment_promises'),
+      where('customer_id', '==', customerId),
+      limitQuery(CUSTOMER_TIMELINE_LIMIT)
+    )
+  );
+  return snapshot.docs.map(mapWorkspacePaymentPromise).sort(sortPaymentPromises);
+}
+
+export async function listWorkspacePaymentPromises(workspaceId: string): Promise<WorkspacePaymentPromise[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(getWebFirestore(), 'workspaces', workspaceId, 'payment_promises'),
+      limitQuery(100)
+    )
+  );
+  return snapshot.docs.map(mapWorkspacePaymentPromise).sort(sortPaymentPromises);
+}
+
+export async function addWorkspacePaymentPromise(
+  workspaceId: string,
+  input: AddWorkspacePaymentPromiseInput
+): Promise<WorkspacePaymentPromise> {
+  if (!Number.isFinite(input.promisedAmount) || input.promisedAmount <= 0) {
+    throw new Error('Promise amount must be more than zero.');
+  }
+  if (!input.promisedDate.trim()) {
+    throw new Error('Choose the promised date.');
+  }
+  const now = new Date().toISOString();
+  const payload = {
+    customer_id: input.customerId,
+    promised_amount: roundMoney(input.promisedAmount),
+    promised_date: input.promisedDate,
+    note: input.note?.trim() || null,
+    status: 'open',
+    created_at: now,
+    updated_at: now,
+    last_modified: now,
+    sync_status: 'synced',
+    server_revision: 1,
+  };
+  const ref = await addDoc(collection(getWebFirestore(), 'workspaces', workspaceId, 'payment_promises'), payload);
+  return {
+    id: ref.id,
+    customerId: input.customerId,
+    promisedAmount: payload.promised_amount,
+    promisedDate: payload.promised_date,
+    note: payload.note,
+    status: 'open',
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export async function updateWorkspacePaymentPromiseStatus(
+  workspaceId: string,
+  promiseId: string,
+  status: WorkspacePaymentPromiseStatus
+): Promise<WorkspacePaymentPromise> {
+  if (!['open', 'fulfilled', 'missed', 'cancelled'].includes(status)) {
+    throw new Error('Unsupported payment promise status.');
+  }
+  const firestore = getWebFirestore();
+  const promiseRef = doc(firestore, 'workspaces', workspaceId, 'payment_promises', promiseId);
+  const now = new Date().toISOString();
+  await updateDoc(promiseRef, {
+    status,
+    updated_at: now,
+    last_modified: now,
+    server_revision: increment(1),
+  });
+  const updated = await getDoc(promiseRef);
+  if (!updated.exists()) {
+    throw new Error('Payment promise could not be loaded after saving.');
+  }
+  return mapWorkspacePaymentPromise(updated);
 }
 
 export async function listWorkspaceTransactions(
@@ -721,12 +1185,13 @@ export async function createWorkspaceTransaction(
           transactionId: transactionRef.id,
           createdAt: now,
           clearanceStatus: paymentClearanceStatus,
+          paymentMode,
         })
       : [];
   const delta =
     input.type === 'credit'
       ? input.amount
-      : doesPaymentClearInvoice(paymentClearanceStatus)
+      : doesPaymentClearInvoice(paymentClearanceStatus, paymentMode)
         ? -input.amount
         : 0;
   const batch = writeBatch(firestore);
@@ -812,6 +1277,164 @@ export async function listWorkspaceInvoicesForCustomer(
     ...invoice,
     customerName: invoice.customerName ?? null,
   }));
+}
+
+export async function listWorkspaceRecurringInvoiceRules(
+  workspaceId: string
+): Promise<WorkspaceRecurringInvoiceRule[]> {
+  const firestore = getWebFirestore();
+  const snapshot = await getDocs(
+    query(
+      collection(firestore, 'workspaces', workspaceId, 'recurring_invoice_rules'),
+      orderBy('next_run_date', 'asc'),
+      limitQuery(100)
+    )
+  );
+  return snapshot.docs.map(mapWorkspaceRecurringInvoiceRule);
+}
+
+export async function listWorkspaceRecurringEmailQueue(
+  workspaceId: string,
+  recurringRuleId?: string | null
+): Promise<WorkspaceRecurringEmailQueueItem[]> {
+  const firestore = getWebFirestore();
+  const snapshot = await getDocs(
+    query(
+      collection(firestore, 'workspaces', workspaceId, 'email_queue'),
+      orderBy('scheduled_for', 'desc'),
+      limitQuery(100)
+    )
+  );
+  return snapshot.docs
+    .filter((entry) => (entry.data() as { kind?: string }).kind === 'recurring_invoice')
+    .map(mapWorkspaceRecurringEmailQueueItem)
+    .filter((item) => !recurringRuleId || item.recurringRuleId === recurringRuleId);
+}
+
+export async function saveWorkspaceRecurringInvoiceRule(
+  workspaceId: string,
+  input: SaveWorkspaceRecurringInvoiceRuleInput,
+  ruleId?: string
+): Promise<WorkspaceRecurringInvoiceRule> {
+  const firestore = getWebFirestore();
+  const now = new Date().toISOString();
+  const customerSnapshot = await getDoc(doc(firestore, 'workspaces', workspaceId, 'customers', input.customerId));
+  if (!customerSnapshot.exists()) {
+    throw new Error('Choose a customer before saving the auto-create rule.');
+  }
+
+  const cleanRule = buildRecurringInvoiceRulePayload(input, now, customerSnapshot.data().name);
+  const ruleRef = ruleId
+    ? doc(firestore, 'workspaces', workspaceId, 'recurring_invoice_rules', ruleId)
+    : doc(collection(firestore, 'workspaces', workspaceId, 'recurring_invoice_rules'));
+
+  if (ruleId) {
+    await updateDoc(ruleRef, {
+      ...cleanRule,
+      status: 'active',
+      last_modified: now,
+      server_revision: increment(1),
+    });
+  } else {
+    await setDoc(ruleRef, {
+      ...cleanRule,
+      status: 'active',
+      created_at: now,
+      last_modified: now,
+      sync_status: 'synced',
+      server_revision: 1,
+    });
+  }
+
+  const updated = await getDoc(ruleRef);
+  if (!updated.exists()) {
+    throw new Error('Auto-create rule could not be loaded after saving.');
+  }
+  return mapWorkspaceRecurringInvoiceRule(updated);
+}
+
+export async function cancelWorkspaceRecurringInvoiceRule(
+  workspaceId: string,
+  ruleId: string
+): Promise<WorkspaceRecurringInvoiceRule> {
+  const firestore = getWebFirestore();
+  const ruleRef = doc(firestore, 'workspaces', workspaceId, 'recurring_invoice_rules', ruleId);
+  await updateDoc(ruleRef, {
+    status: 'cancelled',
+    last_modified: new Date().toISOString(),
+    server_revision: increment(1),
+  });
+  const updated = await getDoc(ruleRef);
+  if (!updated.exists()) {
+    throw new Error('Auto-create rule could not be loaded after cancelling.');
+  }
+  return mapWorkspaceRecurringInvoiceRule(updated);
+}
+
+export async function runDueWorkspaceRecurringInvoices(
+  workspaceId: string,
+  today = new Date().toISOString().slice(0, 10)
+): Promise<WorkspaceInvoice[]> {
+  const firestore = getWebFirestore();
+  const workspaceSnapshot = await getDoc(doc(firestore, 'workspaces', workspaceId));
+  const workspaceName = workspaceSnapshot.exists()
+    ? String((workspaceSnapshot.data() as { business_name?: string }).business_name ?? 'Orbit Ledger')
+    : 'Orbit Ledger';
+  const rules = (await listWorkspaceRecurringInvoiceRules(workspaceId)).filter(
+    (rule) => rule.status === 'active' && rule.nextRunDate && rule.nextRunDate <= today
+  );
+  const createdInvoices: WorkspaceInvoice[] = [];
+
+  for (const rule of rules) {
+    const runDates = getDueRecurringRunDates(rule, today);
+    if (!runDates.length) {
+      continue;
+    }
+
+    let latestCreatedInvoiceId: string | null = rule.lastCreatedInvoiceId;
+    let latestCreatedRunDate: string | null = rule.lastCreatedRunDate;
+    for (const runDate of runDates) {
+      const emailDate = rule.emailEnabled
+        ? rule.nextEmailDate ?? getMonthlyDateForDay(runDate.slice(0, 7), rule.emailDay ?? rule.invoiceDay)
+        : null;
+      const invoiceDate = emailDate
+        ? getMonthlyDateForDay(emailDate.slice(0, 7), rule.invoiceDay)
+        : runDate;
+      const invoice = await createInvoiceFromRecurringRule(
+        firestore,
+        workspaceId,
+        rule,
+        invoiceDate,
+        workspaceName,
+        today,
+        emailDate,
+        runDate
+      );
+      if (invoice) {
+        createdInvoices.push(invoice);
+        latestCreatedInvoiceId = invoice.id;
+        latestCreatedRunDate = invoiceDate;
+      }
+    }
+
+    const lastEmailDate = rule.emailEnabled
+      ? rule.nextEmailDate ?? getMonthlyDateForDay((runDates[runDates.length - 1] ?? rule.nextRunDate).slice(0, 7), rule.emailDay ?? rule.invoiceDay)
+      : null;
+    const nextEmailDate = lastEmailDate ? getNextRecurringRunDateAfter(lastEmailDate, rule.emailDay ?? rule.invoiceDay) : null;
+    const nextRunDate = nextEmailDate
+      ? subtractDays(nextEmailDate, 3)
+      : getNextRecurringRunDateAfter(runDates[runDates.length - 1] ?? rule.nextRunDate, rule.invoiceDay);
+    await updateDoc(doc(firestore, 'workspaces', workspaceId, 'recurring_invoice_rules', rule.id), {
+      next_run_date: rule.endDate && nextRunDate > rule.endDate ? rule.endDate : nextRunDate,
+      next_email_date: nextEmailDate,
+      last_created_invoice_id: latestCreatedInvoiceId,
+      last_created_run_date: latestCreatedRunDate,
+      last_modified: new Date().toISOString(),
+      server_revision: increment(1),
+    });
+  }
+
+  return createdInvoices;
 }
 
 export async function listWorkspaceInvoicePaymentAllocations(
@@ -1135,14 +1758,14 @@ export async function updateWorkspacePaymentClearance(
       status?: string;
       document_state?: string;
     };
-    const previousPaidDelta = doesPaymentClearInvoice(previousStatus) ? data.amount : 0;
-    const nextPaidDelta = doesPaymentClearInvoice(nextStatus) ? data.amount : 0;
+    const previousPaidDelta = doesPaymentClearInvoice(previousStatus, paymentMode) ? data.amount : 0;
+    const nextPaidDelta = doesPaymentClearInvoice(nextStatus, paymentMode) ? data.amount : 0;
     const nextPaidAmount = roundMoney(Math.max((invoice.paid_amount ?? 0) - previousPaidDelta + nextPaidDelta, 0));
     const nextPaymentStatus = deriveInvoicePaymentStatus({
       dueDate: invoice.due_date,
       totalAmount: invoice.total_amount,
       paidAmount: nextPaidAmount,
-      pendingAmount: doesPaymentAwaitClearance(nextStatus) ? data.amount : 0,
+      pendingAmount: doesPaymentAwaitClearance(nextStatus, paymentMode) ? data.amount : 0,
     });
     const documentState = normalizeInvoiceDocumentState(invoice.document_state ?? invoice.status);
     batch.update(invoiceRef, {
@@ -1158,8 +1781,8 @@ export async function updateWorkspacePaymentClearance(
   const amount = typeof transaction.amount === 'number' ? transaction.amount : 0;
   if (customerId && amount > 0) {
     const balanceDelta =
-      (doesPaymentClearInvoice(previousStatus) ? amount : 0) -
-      (doesPaymentClearInvoice(nextStatus) ? amount : 0);
+      (doesPaymentClearInvoice(previousStatus, paymentMode) ? amount : 0) -
+      (doesPaymentClearInvoice(nextStatus, paymentMode) ? amount : 0);
     if (balanceDelta !== 0) {
       batch.update(doc(firestore, 'workspaces', workspaceId, 'customers', customerId), {
         current_balance: increment(balanceDelta),
@@ -1232,10 +1855,10 @@ export async function reverseWorkspaceInvoicePaymentAllocation(
     paymentMode,
     paymentDetails
   );
-  const paidDelta = doesPaymentClearInvoice(clearanceStatus)
+  const paidDelta = doesPaymentClearInvoice(clearanceStatus, paymentMode)
     ? roundMoney(Math.min(allocationAmount, invoice.paid_amount ?? 0))
     : 0;
-  const balanceDelta = doesPaymentClearInvoice(clearanceStatus) ? allocationAmount : 0;
+  const balanceDelta = doesPaymentClearInvoice(clearanceStatus, paymentMode) ? allocationAmount : 0;
   const nextPaidAmount = roundMoney(Math.max((invoice.paid_amount ?? 0) - paidDelta, 0));
   const nextPaymentStatus = deriveInvoicePaymentStatus({
     dueDate: invoice.due_date,
@@ -1386,14 +2009,14 @@ export async function updateWorkspaceManualPaymentClearance(
       status?: string;
       document_state?: string;
     };
-    const previousPaidDelta = doesPaymentClearInvoice(previousStatus) ? data.amount : 0;
-    const nextPaidDelta = doesPaymentClearInvoice(nextStatus) ? data.amount : 0;
+    const previousPaidDelta = doesPaymentClearInvoice(previousStatus, paymentMode) ? data.amount : 0;
+    const nextPaidDelta = doesPaymentClearInvoice(nextStatus, paymentMode) ? data.amount : 0;
     const nextPaidAmount = roundMoney(Math.max((invoice.paid_amount ?? 0) - previousPaidDelta + nextPaidDelta, 0));
     const nextPaymentStatus = deriveInvoicePaymentStatus({
       dueDate: invoice.due_date,
       totalAmount: invoice.total_amount,
       paidAmount: nextPaidAmount,
-      pendingAmount: doesPaymentAwaitClearance(nextStatus) ? data.amount : 0,
+      pendingAmount: doesPaymentAwaitClearance(nextStatus, paymentMode) ? data.amount : 0,
     });
     const documentState = normalizeInvoiceDocumentState(invoice.document_state ?? invoice.status);
     batch.update(invoiceRef, {
@@ -1409,8 +2032,8 @@ export async function updateWorkspaceManualPaymentClearance(
   const amount = typeof transaction.amount === 'number' ? transaction.amount : 0;
   if (customerId && amount > 0) {
     const balanceDelta =
-      (doesPaymentClearInvoice(previousStatus) ? amount : 0) -
-      (doesPaymentClearInvoice(nextStatus) ? amount : 0);
+      (doesPaymentClearInvoice(previousStatus, paymentMode) ? amount : 0) -
+      (doesPaymentClearInvoice(nextStatus, paymentMode) ? amount : 0);
     if (balanceDelta !== 0) {
       batch.update(doc(firestore, 'workspaces', workspaceId, 'customers', customerId), {
         current_balance: increment(balanceDelta),
@@ -1663,9 +2286,10 @@ export async function getWorkspaceInvoiceDetail(
 
   const data = invoiceSnapshot.data() as {
     customer_id?: string | null;
-    invoice_number?: string;
-    issue_date?: string;
-    due_date?: string | null;
+	    invoice_number?: string;
+	    issue_date?: string;
+	    billing_month?: string | null;
+	    due_date?: string | null;
     subtotal?: number;
     tax_amount?: number;
     total_amount?: number;
@@ -1673,11 +2297,20 @@ export async function getWorkspaceInvoiceDetail(
     status?: string;
     document_state?: string;
     payment_status?: string;
+    payment_status_reason?: string | null;
     version_number?: number;
     is_archived?: boolean;
-    latest_version_id?: string | null;
-    latest_snapshot_hash?: string | null;
-    notes?: string | null;
+	    latest_version_id?: string | null;
+	    latest_snapshot_hash?: string | null;
+	    use_for_monthly_auto_email?: boolean;
+	    recurring_rule_id?: string | null;
+	    auto_email_prepared_at?: string | null;
+	    auto_email_scheduled_for?: string | null;
+	    has_auto_email_history?: boolean;
+	    latest_auto_email_status?: string | null;
+	    latest_auto_email_sent_at?: string | null;
+	    latest_auto_email_version_id?: string | null;
+	    notes?: string | null;
     server_revision?: number;
   };
   const documentState = normalizeInvoiceDocumentState(data.document_state ?? data.status);
@@ -1693,17 +2326,27 @@ export async function getWorkspaceInvoiceDetail(
     id: invoiceSnapshot.id,
     customerId: data.customer_id ?? null,
     customerName: null,
-    invoiceNumber: data.invoice_number ?? invoiceSnapshot.id.slice(0, 8).toUpperCase(),
-    issueDate: data.issue_date ?? '',
-    dueDate: data.due_date ?? null,
+	    invoiceNumber: data.invoice_number ?? invoiceSnapshot.id.slice(0, 8).toUpperCase(),
+	    issueDate: data.issue_date ?? '',
+	    billingMonth: data.billing_month ?? data.issue_date?.slice(0, 7) ?? null,
+	    dueDate: data.due_date ?? null,
     subtotal: data.subtotal ?? 0,
     taxAmount: data.tax_amount ?? 0,
     totalAmount: data.total_amount ?? 0,
     paidAmount: data.paid_amount ?? 0,
     status: data.status ?? 'draft',
     documentState,
-    paymentStatus,
-    versionNumber: data.version_number ?? (documentState === 'draft' ? 0 : 1),
+	    paymentStatus,
+	    paymentStatusReason: data.payment_status_reason ?? null,
+	    useForMonthlyAutoEmail: Boolean(data.use_for_monthly_auto_email),
+	    recurringRuleId: data.recurring_rule_id ?? null,
+	    autoEmailPreparedAt: data.auto_email_prepared_at ?? null,
+	    autoEmailScheduledFor: data.auto_email_scheduled_for ?? null,
+	    hasAutoEmailHistory: Boolean(data.has_auto_email_history),
+	    latestAutoEmailStatus: data.latest_auto_email_status ?? null,
+	    latestAutoEmailSentAt: data.latest_auto_email_sent_at ?? null,
+	    latestAutoEmailVersionId: data.latest_auto_email_version_id ?? null,
+	    versionNumber: data.version_number ?? (documentState === 'draft' ? 0 : 1),
     isArchived: Boolean(data.is_archived),
     latestVersionId: data.latest_version_id ?? null,
     latestSnapshotHash: data.latest_snapshot_hash ?? null,
@@ -1738,10 +2381,17 @@ export async function saveWorkspaceInvoiceDetail(
     status?: string;
     document_state?: string;
     payment_status?: string;
+    payment_status_reason?: string | null;
     version_number?: number;
     latest_snapshot_hash?: string | null;
     latest_version_id?: string | null;
     paid_amount?: number;
+    use_for_monthly_auto_email?: boolean;
+    auto_email_prepared_at?: string | null;
+    auto_email_scheduled_for?: string | null;
+    auto_email_recipient?: string | null;
+    auto_email_queue_id?: string | null;
+    latest_auto_email_status?: string | null;
   };
   const now = new Date().toISOString();
   const cleanItems = input.items
@@ -1753,6 +2403,7 @@ export async function saveWorkspaceInvoiceDetail(
       const total = subtotal + subtotal * (taxRate / 100);
       return {
         ...item,
+        productId: item.productId?.trim() || null,
         name: item.name.trim(),
         description: item.description?.trim() || null,
         quantity,
@@ -1766,6 +2417,9 @@ export async function saveWorkspaceInvoiceDetail(
   const taxAmount = cleanItems.reduce((total, item) => total + item.quantity * item.price * (item.taxRate / 100), 0);
   const totalAmount = subtotal + taxAmount;
   const currentDocumentState = normalizeInvoiceDocumentState(current.document_state ?? current.status);
+  if (currentDocumentState !== 'draft' && !input.revisionReason?.trim()) {
+    throw new Error('Choose why this invoice is being updated before saving.');
+  }
   const requestedPaymentStatus = input.paymentStatus;
   const paymentStatus = requestedPaymentStatus
     ? normalizeInvoicePaymentStatus({ paymentStatus: requestedPaymentStatus })
@@ -1797,16 +2451,17 @@ export async function saveWorkspaceInvoiceDetail(
     dueDate: input.dueDate || null,
     documentState: nextDocumentState,
     paymentStatus,
+    paymentStatusReason: input.paymentStatusReason ?? null,
     subtotal,
     taxAmount,
     totalAmount,
     notes: input.notes?.trim() || null,
-    items: cleanItems.map((item) => ({
-      id: item.id ?? '',
-      invoiceId,
-      productId: null,
-      name: item.name,
-      description: item.description,
+      items: cleanItems.map((item) => ({
+        id: item.id ?? '',
+        invoiceId,
+        productId: item.productId ?? null,
+        name: item.name,
+        description: item.description,
       quantity: item.quantity,
       price: item.price,
       taxRate: item.taxRate,
@@ -1815,6 +2470,8 @@ export async function saveWorkspaceInvoiceDetail(
   });
   const snapshotHash = stableStringifyForInvoice(snapshot);
   const hasMeaningfulChange = snapshotHash !== current.latest_snapshot_hash;
+  const productStockDeltas = buildInvoiceProductStockDeltas(existingItems.docs, cleanItems);
+  await assertProductStockCanApply(firestore, workspaceId, productStockDeltas);
   const batch = writeBatch(firestore);
   const retainedIds = new Set(cleanItems.map((item) => item.id).filter(Boolean));
   const versionRef = hasMeaningfulChange
@@ -1829,11 +2486,23 @@ export async function saveWorkspaceInvoiceDetail(
   const finalSnapshotHash = hasMeaningfulChange ? snapshotHash : current.latest_snapshot_hash ?? snapshotHash;
   const finalLatestVersionId = versionRef?.id ?? current.latest_version_id ?? null;
   const legacyStatus = legacyStatusForInvoiceLifecycle(finalDocumentState, paymentStatus);
+  const billingMonth = input.issueDate.slice(0, 7);
+  const useForMonthlyAutoEmail =
+    typeof input.useForMonthlyAutoEmail === 'boolean'
+      ? input.useForMonthlyAutoEmail
+      : Boolean(current.use_for_monthly_auto_email);
+  const scheduledAutoEmailDate = useForMonthlyAutoEmail
+    ? String(current.auto_email_scheduled_for ?? current.auto_email_prepared_at ?? '')
+    : '';
+  const nextAutoEmailStatus = useForMonthlyAutoEmail && scheduledAutoEmailDate
+    ? current.latest_auto_email_status ?? 'scheduled'
+    : current.latest_auto_email_status ?? null;
 
   batch.update(invoiceRef, {
     customer_id: input.customerId,
     invoice_number: input.invoiceNumber.trim(),
     issue_date: input.issueDate,
+    billing_month: billingMonth,
     due_date: input.dueDate || null,
     subtotal,
     tax_amount: taxAmount,
@@ -1842,6 +2511,9 @@ export async function saveWorkspaceInvoiceDetail(
     status: legacyStatus,
     document_state: finalDocumentState,
     payment_status: paymentStatus,
+    payment_status_reason: input.paymentStatusReason ?? null,
+    use_for_monthly_auto_email: useForMonthlyAutoEmail,
+    latest_auto_email_status: nextAutoEmailStatus,
     version_number: finalVersionNumber,
     latest_version_id: finalLatestVersionId,
     latest_snapshot_hash: finalSnapshotHash,
@@ -1860,12 +2532,21 @@ export async function saveWorkspaceInvoiceDetail(
       customer_id: input.customerId,
       customer_name: snapshot.customerName,
       issue_date: input.issueDate,
+      billing_month: billingMonth,
       due_date: input.dueDate || null,
       document_state: nextDocumentState,
       payment_status: paymentStatus,
+      payment_status_reason: input.paymentStatusReason ?? null,
+      auto_email_sent_at: null,
+      auto_email_scheduled_for: scheduledAutoEmailDate || null,
+      auto_email_recipient: scheduledAutoEmailDate ? current.auto_email_recipient ?? null : null,
+      auto_email_queue_id: scheduledAutoEmailDate ? current.auto_email_queue_id ?? null : null,
+      auto_email_status: scheduledAutoEmailDate ? nextAutoEmailStatus : null,
+      auto_email_used_version_id: null,
       subtotal,
       tax_amount: taxAmount,
       total_amount: totalAmount,
+      paid_amount: current.paid_amount ?? 0,
       notes: input.notes?.trim() || null,
       snapshot_hash: snapshotHash,
       items: snapshot.items,
@@ -1890,7 +2571,7 @@ export async function saveWorkspaceInvoiceDetail(
       itemRef,
       {
         invoice_id: invoiceId,
-        product_id: null,
+        product_id: item.productId ?? null,
         name: item.name,
         description: item.description,
         quantity: item.quantity,
@@ -1903,6 +2584,17 @@ export async function saveWorkspaceInvoiceDetail(
       },
       { merge: true }
     );
+  }
+
+  for (const [productId, stockDelta] of productStockDeltas.entries()) {
+    if (stockDelta === 0) {
+      continue;
+    }
+    batch.update(doc(firestore, 'workspaces', workspaceId, 'products', productId), {
+      stock_quantity: increment(stockDelta),
+      last_modified: now,
+      server_revision: increment(1),
+    });
   }
 
   await batch.commit();
@@ -2090,6 +2782,7 @@ async function buildPaymentAllocationPlan(
     transactionId: string;
     createdAt: string;
     clearanceStatus: PaymentClearanceStatus | null;
+    paymentMode: PaymentMode | null;
   }
 ): Promise<Array<WorkspacePaymentAllocation & {
   nextPaidAmount: number;
@@ -2164,13 +2857,13 @@ async function buildPaymentAllocationPlan(
     if (allocatedAmount <= 0) {
       continue;
     }
-    const paidDelta = doesPaymentClearInvoice(input.clearanceStatus) ? allocatedAmount : 0;
+    const paidDelta = doesPaymentClearInvoice(input.clearanceStatus, input.paymentMode) ? allocatedAmount : 0;
     const nextPaidAmount = roundMoney(invoice.paidAmount + paidDelta);
     const nextPaymentStatus = deriveInvoicePaymentStatus({
       dueDate: invoice.dueDate,
       totalAmount: invoice.totalAmount,
       paidAmount: nextPaidAmount,
-      pendingAmount: doesPaymentAwaitClearance(input.clearanceStatus) ? allocatedAmount : 0,
+      pendingAmount: doesPaymentAwaitClearance(input.clearanceStatus, input.paymentMode) ? allocatedAmount : 0,
     });
     allocations.push({
       id: doc(collection(firestore, 'workspaces', workspaceId, 'payment_allocations')).id,
@@ -2189,13 +2882,23 @@ async function buildPaymentAllocationPlan(
   return allocations;
 }
 
-export async function createDraftWorkspaceInvoice(workspaceId: string): Promise<WorkspaceInvoice> {
+export async function createDraftWorkspaceInvoice(
+  workspaceId: string,
+  defaults: { dueDays?: number | null; notes?: string | null; customerId?: string | null } = {}
+): Promise<WorkspaceInvoice> {
   const now = new Date().toISOString();
+  const issueDate = now.slice(0, 10);
+  const customerId = defaults.customerId?.trim() || null;
+  const dueDate =
+    typeof defaults.dueDays === 'number' && Number.isFinite(defaults.dueDays)
+      ? addDays(issueDate, Math.max(0, Math.floor(defaults.dueDays)))
+      : null;
   const payload = {
-    customer_id: null,
+    customer_id: customerId,
     invoice_number: `WEB-${Math.floor(Date.now() / 1000).toString().slice(-6)}`,
-    issue_date: now.slice(0, 10),
-    due_date: null,
+    issue_date: issueDate,
+    billing_month: issueDate.slice(0, 7),
+    due_date: dueDate,
     subtotal: 0,
     tax_amount: 0,
     total_amount: 0,
@@ -2206,8 +2909,16 @@ export async function createDraftWorkspaceInvoice(workspaceId: string): Promise<
     version_number: 0,
     latest_version_id: null,
     latest_snapshot_hash: null,
+    use_for_monthly_auto_email: false,
+    recurring_rule_id: null,
+    auto_email_prepared_at: null,
+    auto_email_scheduled_for: null,
+    has_auto_email_history: false,
+    latest_auto_email_status: null,
+    latest_auto_email_sent_at: null,
+    latest_auto_email_version_id: null,
     is_archived: false,
-    notes: null,
+    notes: defaults.notes?.trim() || null,
     created_at: now,
     last_modified: now,
     sync_status: 'synced',
@@ -2217,20 +2928,39 @@ export async function createDraftWorkspaceInvoice(workspaceId: string): Promise<
   const ref = await addDoc(collection(getWebFirestore(), 'workspaces', workspaceId, 'invoices'), payload);
   return {
     id: ref.id,
-    customerId: null,
+    customerId,
     customerName: null,
     invoiceNumber: payload.invoice_number,
     issueDate: payload.issue_date,
+    billingMonth: payload.billing_month,
     totalAmount: 0,
     paidAmount: 0,
     status: 'draft',
     documentState: 'draft',
     paymentStatus: 'unpaid',
+    useForMonthlyAutoEmail: false,
+    recurringRuleId: null,
+    autoEmailPreparedAt: null,
+    autoEmailScheduledFor: null,
+    hasAutoEmailHistory: false,
+    latestAutoEmailStatus: null,
+    latestAutoEmailSentAt: null,
+    latestAutoEmailVersionId: null,
     versionNumber: 0,
     isArchived: false,
     versions: [],
     serverRevision: payload.server_revision,
   };
+}
+
+function addDays(date: string, days: number) {
+  const timestamp = Date.parse(`${date}T00:00:00.000Z`);
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+  const next = new Date(timestamp);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next.toISOString().slice(0, 10);
 }
 
 export async function deleteDraftWorkspaceInvoice(workspaceId: string, invoiceId: string): Promise<void> {
@@ -2322,6 +3052,7 @@ function mapWorkspaceInvoice(entry: QueryDocumentSnapshot): WorkspaceInvoice {
     customer_name?: string | null;
     invoice_number?: string;
     issue_date?: string;
+    billing_month?: string | null;
     total_amount?: number;
     paid_amount?: number;
     status?: string;
@@ -2330,6 +3061,14 @@ function mapWorkspaceInvoice(entry: QueryDocumentSnapshot): WorkspaceInvoice {
     due_date?: string | null;
     version_number?: number;
     is_archived?: boolean;
+    use_for_monthly_auto_email?: boolean;
+    recurring_rule_id?: string | null;
+    auto_email_prepared_at?: string | null;
+    auto_email_scheduled_for?: string | null;
+    has_auto_email_history?: boolean;
+    latest_auto_email_status?: string | null;
+    latest_auto_email_sent_at?: string | null;
+    latest_auto_email_version_id?: string | null;
     server_revision?: number;
   };
   const documentState = normalizeInvoiceDocumentState(data.document_state ?? data.status);
@@ -2347,15 +3086,500 @@ function mapWorkspaceInvoice(entry: QueryDocumentSnapshot): WorkspaceInvoice {
     customerName: data.customer_name ?? null,
     invoiceNumber: data.invoice_number ?? entry.id.slice(0, 8).toUpperCase(),
     issueDate: data.issue_date ?? '',
+    billingMonth: data.billing_month ?? data.issue_date?.slice(0, 7) ?? null,
     totalAmount: data.total_amount ?? 0,
     paidAmount: data.paid_amount ?? 0,
     status: data.status ?? legacyStatusForInvoiceLifecycle(documentState, paymentStatus),
     documentState,
     paymentStatus,
+    useForMonthlyAutoEmail: Boolean(data.use_for_monthly_auto_email),
+    recurringRuleId: data.recurring_rule_id ?? null,
+    autoEmailPreparedAt: data.auto_email_prepared_at ?? null,
+    autoEmailScheduledFor: data.auto_email_scheduled_for ?? null,
+    hasAutoEmailHistory: Boolean(data.has_auto_email_history),
+    latestAutoEmailStatus: data.latest_auto_email_status ?? null,
+    latestAutoEmailSentAt: data.latest_auto_email_sent_at ?? null,
+    latestAutoEmailVersionId: data.latest_auto_email_version_id ?? null,
     versionNumber: data.version_number ?? (documentState === 'draft' ? 0 : 1),
     isArchived: Boolean(data.is_archived),
     serverRevision: data.server_revision ?? 1,
   };
+}
+
+function mapWorkspaceRecurringInvoiceRule(entry: QueryDocumentSnapshot): WorkspaceRecurringInvoiceRule {
+  const data = entry.data() as {
+    name?: string;
+    customer_id?: string;
+    customer_name?: string | null;
+    start_date?: string;
+    end_date?: string | null;
+    invoice_day?: number;
+    next_run_date?: string;
+    due_days?: number;
+    invoice_number_prefix?: string;
+    notes?: string | null;
+    email_enabled?: boolean;
+    email_recipient?: string | null;
+    email_day?: number | null;
+    email_subject?: string | null;
+    email_body?: string | null;
+    email_include_payment_link?: boolean;
+    email_attach_pdf?: boolean;
+    email_current_month_only?: boolean;
+    email_automation_approved?: boolean;
+    email_automation_approved_at?: string | null;
+    email_approval_summary?: string | null;
+    email_approval_required?: boolean;
+    last_settings_changed_at?: string | null;
+    next_email_date?: string | null;
+    status?: string;
+    items?: WorkspaceRecurringInvoiceItem[];
+    last_created_invoice_id?: string | null;
+    last_created_run_date?: string | null;
+    created_at?: string;
+    last_modified?: string;
+  };
+
+  return {
+    id: entry.id,
+    name: data.name ?? 'Monthly service invoice',
+    customerId: data.customer_id ?? '',
+    customerName: data.customer_name ?? null,
+    startDate: data.start_date ?? '',
+    endDate: data.end_date ?? null,
+    invoiceDay: clampMonthlyDay(data.invoice_day ?? 1),
+    nextRunDate: data.next_run_date ?? data.start_date ?? '',
+    dueDays: Math.max(0, Math.floor(data.due_days ?? 7)),
+    invoiceNumberPrefix: data.invoice_number_prefix ?? 'AUTO',
+    notes: data.notes ?? null,
+    emailEnabled: Boolean(data.email_enabled),
+    emailRecipient: data.email_recipient ?? null,
+    emailDay: data.email_day ? clampMonthlyDay(data.email_day) : null,
+    emailSubject: data.email_subject ?? null,
+    emailBody: data.email_body ?? null,
+    emailIncludePaymentLink: data.email_include_payment_link !== false,
+    emailAttachPdf: data.email_attach_pdf !== false,
+    emailCurrentMonthOnly: data.email_current_month_only !== false,
+    emailAutomationApproved: Boolean(data.email_automation_approved),
+    emailAutomationApprovedAt: data.email_automation_approved_at ?? null,
+    emailApprovalSummary: data.email_approval_summary ?? null,
+    emailApprovalRequired: data.email_approval_required !== false,
+    lastSettingsChangedAt: data.last_settings_changed_at ?? null,
+    nextEmailDate: data.next_email_date ?? null,
+    status: data.status === 'cancelled' ? 'cancelled' : 'active',
+    items: Array.isArray(data.items) ? data.items.map(normalizeRecurringRuleItem).filter((item) => item.name) : [],
+    lastCreatedInvoiceId: data.last_created_invoice_id ?? null,
+    lastCreatedRunDate: data.last_created_run_date ?? null,
+    createdAt: data.created_at ?? '',
+    lastModified: data.last_modified ?? '',
+  };
+}
+
+function mapWorkspaceRecurringEmailQueueItem(entry: QueryDocumentSnapshot): WorkspaceRecurringEmailQueueItem {
+  const data = entry.data() as {
+    kind?: string;
+    status?: string;
+    scheduled_for?: string | null;
+    sent_at?: string | null;
+    recipient_email?: string | null;
+    subject?: string | null;
+    body?: string | null;
+    invoice_id?: string | null;
+    invoice_number?: string | null;
+    customer_id?: string | null;
+    recurring_rule_id?: string | null;
+    include_payment_link?: boolean;
+    attachment?: string | null;
+    last_error?: string | null;
+    created_at?: string | null;
+    last_modified?: string | null;
+  };
+
+  return {
+    id: entry.id,
+    status: data.status ?? 'scheduled',
+    scheduledFor: data.scheduled_for ?? null,
+    sentAt: data.sent_at ?? null,
+    recipientEmail: data.recipient_email ?? null,
+    subject: data.subject ?? null,
+    body: data.body ?? null,
+    invoiceId: data.invoice_id ?? null,
+    invoiceNumber: data.invoice_number ?? null,
+    customerId: data.customer_id ?? null,
+    recurringRuleId: data.recurring_rule_id ?? null,
+    includePaymentLink: Boolean(data.include_payment_link),
+    attachPdf: data.attachment === 'invoice_pdf',
+    lastError: data.last_error ?? null,
+    createdAt: data.created_at ?? null,
+    lastModified: data.last_modified ?? null,
+  };
+}
+
+function buildRecurringInvoiceRulePayload(
+  input: SaveWorkspaceRecurringInvoiceRuleInput,
+  now: string,
+  customerName: unknown
+) {
+  const name = input.name.trim();
+  const customerId = input.customerId.trim();
+  const startDate = input.startDate.trim();
+  const invoiceDay = clampMonthlyDay(input.invoiceDay);
+  const endDate = input.endDate?.trim() || null;
+  const dueDays = Math.max(0, Math.floor(Number(input.dueDays ?? 7)));
+  const invoiceNumberPrefix = (input.invoiceNumberPrefix?.trim() || 'AUTO').replace(/[^A-Za-z0-9-]/g, '').slice(0, 12) || 'AUTO';
+  const items = input.items.map(normalizeRecurringRuleItem).filter((item) => item.name && item.quantity > 0 && item.price >= 0);
+  const emailEnabled = Boolean(input.emailEnabled);
+  const emailRecipient = input.emailRecipient?.trim() || null;
+  const emailDay = input.emailDay ? clampMonthlyDay(input.emailDay) : invoiceDay;
+  const emailSubject = input.emailSubject?.trim() || null;
+  const emailBody = input.emailBody?.trim() || null;
+  const emailIncludePaymentLink = input.emailIncludePaymentLink !== false;
+  const emailAttachPdf = input.emailAttachPdf !== false;
+  const emailCurrentMonthOnly = input.emailCurrentMonthOnly !== false;
+  const emailAutomationApproved = Boolean(input.approveEmailAutomation && emailEnabled);
+  const emailApprovalSummary = emailAutomationApproved
+    ? 'Approved automatic monthly invoice email.'
+    : null;
+
+  if (!name) {
+    throw new Error('Add a name for this auto-create rule.');
+  }
+  if (!customerId) {
+    throw new Error('Choose the customer for this auto-create rule.');
+  }
+  if (!isValidDateString(startDate)) {
+    throw new Error('Choose a valid start date.');
+  }
+  if (endDate && (!isValidDateString(endDate) || endDate < startDate)) {
+    throw new Error('End date must be after the start date.');
+  }
+  if (!items.length) {
+    throw new Error('Add at least one line item for the monthly invoice.');
+  }
+  if (emailEnabled && !isValidEmail(emailRecipient)) {
+    throw new Error('Add a valid recipient email for monthly invoice email.');
+  }
+
+  const firstInvoiceDate = getFirstRecurringRunDate(startDate, invoiceDay);
+  const firstEmailDate = emailEnabled ? getFirstRecurringRunDate(startDate, emailDay) : null;
+  const firstPreparationDate = firstEmailDate ? subtractDays(firstEmailDate, 3) : firstInvoiceDate;
+
+  return {
+    name,
+    customer_id: customerId,
+    customer_name: typeof customerName === 'string' ? customerName : null,
+    start_date: startDate,
+    end_date: endDate,
+    invoice_day: invoiceDay,
+    next_run_date: firstPreparationDate < startDate ? startDate : firstPreparationDate,
+    due_days: dueDays,
+    invoice_number_prefix: invoiceNumberPrefix,
+    notes: input.notes?.trim() || null,
+    email_enabled: emailEnabled,
+    email_recipient: emailEnabled ? emailRecipient : null,
+    email_day: emailEnabled ? emailDay : null,
+    next_email_date: firstEmailDate,
+    email_subject: emailEnabled ? emailSubject || defaultRecurringEmailSubject() : null,
+    email_body: emailEnabled ? emailBody || defaultRecurringEmailBody() : null,
+    email_include_payment_link: emailIncludePaymentLink,
+    email_attach_pdf: emailAttachPdf,
+    email_current_month_only: emailCurrentMonthOnly,
+    email_automation_approved: emailAutomationApproved,
+    email_automation_approved_at: emailAutomationApproved ? now : null,
+    email_approval_summary: emailApprovalSummary,
+    email_approval_required: emailEnabled && !emailAutomationApproved,
+    last_settings_changed_at: now,
+    items,
+    last_modified: now,
+    sync_status: 'synced',
+  };
+}
+
+function normalizeRecurringRuleItem(
+  item: Partial<WorkspaceRecurringInvoiceItem> & {
+    productId?: string | null;
+    description?: string | null;
+    quantity?: number;
+    price?: number;
+    taxRate?: number;
+  }
+): WorkspaceRecurringInvoiceItem {
+  const quantity = Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 0;
+  const price = Number.isFinite(Number(item.price)) ? Number(item.price) : 0;
+  const taxRate = Number.isFinite(Number(item.taxRate)) ? Number(item.taxRate) : 0;
+  const taxable = quantity * price;
+  return {
+    id: item.id?.trim() || normalizeId(`line_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+    productId: item.productId?.trim() || null,
+    name: item.name?.trim() || '',
+    description: item.description?.trim() || null,
+    quantity,
+    price,
+    taxRate,
+    total: roundMoney(taxable + taxable * (taxRate / 100)),
+  };
+}
+
+async function createInvoiceFromRecurringRule(
+  firestore: Firestore,
+  workspaceId: string,
+  rule: WorkspaceRecurringInvoiceRule,
+  runDate: string,
+  workspaceName: string,
+  today: string,
+  scheduledEmailDate: string | null = null,
+  preparationDate: string = today
+): Promise<WorkspaceInvoice | null> {
+  const billingMonth = runDate.slice(0, 7);
+  const existingForMonth = await getDocs(
+    query(
+      collection(firestore, 'workspaces', workspaceId, 'invoices'),
+      where('customer_id', '==', rule.customerId),
+      where('billing_month', '==', billingMonth),
+      limitQuery(25)
+    )
+  );
+  const activeExisting = existingForMonth.docs.filter((entry) => {
+    const data = entry.data() as { document_state?: string; status?: string };
+    return normalizeInvoiceDocumentState(data.document_state ?? data.status) !== 'cancelled';
+  });
+  if (activeExisting.some((entry) => Boolean((entry.data() as { use_for_monthly_auto_email?: boolean }).use_for_monthly_auto_email))) {
+    return null;
+  }
+  const daysUntilEmail = scheduledEmailDate ? daysBetween(today, scheduledEmailDate) : 0;
+  if (activeExisting.length && daysUntilEmail > 1) {
+    return null;
+  }
+
+  const invoiceId = normalizeId(`recurring_${rule.id}_${runDate}`);
+  const invoiceRef = doc(firestore, 'workspaces', workspaceId, 'invoices', invoiceId);
+  const existing = await getDoc(invoiceRef);
+  if (existing.exists()) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const subtotal = roundMoney(rule.items.reduce((total, item) => total + item.quantity * item.price, 0));
+  const taxAmount = roundMoney(rule.items.reduce((total, item) => total + item.quantity * item.price * (item.taxRate / 100), 0));
+  const totalAmount = roundMoney(subtotal + taxAmount);
+  const invoiceNumber = `${rule.invoiceNumberPrefix}-${runDate.replace(/-/g, '')}`;
+  const batch = writeBatch(firestore);
+  batch.set(invoiceRef, {
+    customer_id: rule.customerId,
+    customer_name: rule.customerName,
+    invoice_number: invoiceNumber,
+    issue_date: runDate,
+    billing_month: billingMonth,
+    due_date: addDays(runDate, rule.dueDays),
+    subtotal,
+    tax_amount: taxAmount,
+    total_amount: totalAmount,
+    paid_amount: 0,
+    status: 'draft',
+    document_state: 'draft',
+    payment_status: 'unpaid',
+    payment_status_reason: null,
+    version_number: 0,
+    latest_version_id: null,
+    latest_snapshot_hash: null,
+    is_archived: false,
+    notes: rule.notes,
+    use_for_monthly_auto_email: true,
+    recurring_rule_id: rule.id,
+    recurring_rule_name: rule.name,
+    recurring_run_date: runDate,
+    auto_email_prepared_at: now,
+    auto_email_preparation_date: preparationDate,
+    auto_email_scheduled_for: rule.emailEnabled ? scheduledEmailDate ?? getMonthlyDateForDay(billingMonth, rule.emailDay ?? rule.invoiceDay) : null,
+    has_auto_email_history: false,
+    latest_auto_email_status: rule.emailEnabled ? 'scheduled' : null,
+    latest_auto_email_sent_at: null,
+    latest_auto_email_version_id: null,
+    created_at: now,
+    last_modified: now,
+    sync_status: 'synced',
+    server_revision: 1,
+  });
+
+  for (const [index, item] of rule.items.entries()) {
+    const itemRef = doc(firestore, 'workspaces', workspaceId, 'invoice_items', `${invoiceId}_${index + 1}`);
+    batch.set(itemRef, {
+      invoice_id: invoiceId,
+      product_id: item.productId,
+      name: item.name,
+      description: item.description,
+      quantity: item.quantity,
+      price: item.price,
+      tax_rate: item.taxRate,
+      total: item.total,
+      last_modified: now,
+      sync_status: 'synced',
+      server_revision: 1,
+    });
+  }
+
+  const isCurrentMonthRun = runDate.slice(0, 7) === today.slice(0, 7);
+  if (
+    rule.emailEnabled &&
+    rule.emailAutomationApproved &&
+    !rule.emailApprovalRequired &&
+    rule.emailRecipient &&
+    (!rule.emailCurrentMonthOnly || isCurrentMonthRun)
+  ) {
+    const emailDate = scheduledEmailDate ?? getMonthlyDateForDay(billingMonth, rule.emailDay ?? rule.invoiceDay);
+    const queueRef = doc(firestore, 'workspaces', workspaceId, 'email_queue', `${invoiceId}_recurring_invoice`);
+    batch.set(queueRef, {
+      kind: 'recurring_invoice',
+      provider: 'resend',
+      status: emailDate <= today ? 'ready' : 'scheduled',
+      scheduled_for: emailDate,
+      recipient_email: rule.emailRecipient,
+      subject: renderRecurringEmailText(rule.emailSubject ?? defaultRecurringEmailSubject(), rule, invoiceNumber, runDate, workspaceName),
+      body: renderRecurringEmailText(rule.emailBody ?? defaultRecurringEmailBody(), rule, invoiceNumber, runDate, workspaceName),
+      invoice_id: invoiceId,
+      invoice_number: invoiceNumber,
+      customer_id: rule.customerId,
+      recurring_rule_id: rule.id,
+      include_payment_link: rule.emailIncludePaymentLink,
+      attachment: rule.emailAttachPdf ? 'invoice_pdf' : null,
+      created_at: now,
+      last_modified: now,
+      sync_status: 'queued',
+      server_revision: 1,
+    });
+  }
+
+  await batch.commit();
+  return {
+    id: invoiceId,
+    customerId: rule.customerId,
+    customerName: rule.customerName,
+    invoiceNumber,
+    issueDate: runDate,
+    billingMonth: runDate.slice(0, 7),
+    totalAmount,
+    paidAmount: 0,
+    status: 'draft',
+    documentState: 'draft',
+    paymentStatus: 'unpaid',
+    paymentStatusReason: null,
+    useForMonthlyAutoEmail: true,
+    recurringRuleId: rule.id,
+    autoEmailPreparedAt: now,
+    autoEmailScheduledFor: rule.emailEnabled ? scheduledEmailDate ?? getMonthlyDateForDay(billingMonth, rule.emailDay ?? rule.invoiceDay) : null,
+    hasAutoEmailHistory: false,
+    latestAutoEmailStatus: rule.emailEnabled ? 'scheduled' : null,
+    latestAutoEmailSentAt: null,
+    latestAutoEmailVersionId: null,
+    versionNumber: 0,
+    isArchived: false,
+    versions: [],
+    serverRevision: 1,
+  };
+}
+
+function getDueRecurringRunDates(rule: WorkspaceRecurringInvoiceRule, today: string): string[] {
+  const dates: string[] = [];
+  let cursor = rule.nextRunDate || getFirstRecurringRunDate(rule.startDate, rule.invoiceDay);
+  let guard = 0;
+  while (cursor <= today && (!rule.endDate || cursor <= rule.endDate) && guard < 24) {
+    dates.push(cursor);
+    cursor = getNextRecurringRunDateAfter(cursor, rule.invoiceDay);
+    guard += 1;
+  }
+  return dates;
+}
+
+function getFirstRecurringRunDate(startDate: string, day: number): string {
+  const month = startDate.slice(0, 7);
+  const candidate = getMonthlyDateForDay(month, day);
+  return candidate >= startDate ? candidate : getMonthlyDateForDay(nextMonth(month), day);
+}
+
+function getNextRecurringRunDateAfter(date: string, day: number): string {
+  return getMonthlyDateForDay(nextMonth(date.slice(0, 7)), day);
+}
+
+function subtractDays(date: string, days: number): string {
+  const timestamp = Date.parse(`${date}T00:00:00.000Z`);
+  if (!Number.isFinite(timestamp)) {
+    return date;
+  }
+  const next = new Date(timestamp);
+  next.setUTCDate(next.getUTCDate() - days);
+  return next.toISOString().slice(0, 10);
+}
+
+function daysBetween(from: string, to: string): number {
+  const fromTime = Date.parse(`${from}T00:00:00.000Z`);
+  const toTime = Date.parse(`${to}T00:00:00.000Z`);
+  if (!Number.isFinite(fromTime) || !Number.isFinite(toTime)) {
+    return 0;
+  }
+  return Math.ceil((toTime - fromTime) / 86_400_000);
+}
+
+function getMonthlyDateForDay(month: string, day: number): string {
+  const [yearPart, monthPart] = month.split('-').map(Number);
+  const clampedDay = Math.min(clampMonthlyDay(day), daysInMonth(yearPart, monthPart));
+  return `${month}-${String(clampedDay).padStart(2, '0')}`;
+}
+
+function nextMonth(month: string): string {
+  const [yearPart, monthPart] = month.split('-').map(Number);
+  const next = new Date(Date.UTC(yearPart, monthPart, 1));
+  return next.toISOString().slice(0, 7);
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function clampMonthlyDay(value: number): number {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed)) {
+    return 1;
+  }
+  return Math.min(Math.max(parsed, 1), 31);
+}
+
+function isValidDateString(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`));
+}
+
+function isValidEmail(value?: string | null): boolean {
+  return Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
+}
+
+function defaultRecurringEmailSubject(): string {
+  return 'Invoice {{invoiceNumber}} from {{businessName}}';
+}
+
+function defaultRecurringEmailBody(): string {
+  return 'Hello {{customerName}},\n\nYour monthly invoice {{invoiceNumber}} is attached.\n\nYou can pay here:\n{{paymentLink}}\n\nThank you,\n{{businessName}}';
+}
+
+function renderRecurringEmailText(
+  template: string,
+  rule: WorkspaceRecurringInvoiceRule,
+  invoiceNumber: string,
+  runDate: string,
+  workspaceName: string
+): string {
+  return template
+    .replaceAll('{{customerName}}', rule.customerName ?? 'Customer')
+    .replaceAll('{{invoiceNumber}}', invoiceNumber)
+    .replaceAll('{{invoiceDate}}', runDate)
+    .replaceAll('{{dueDate}}', addDays(runDate, rule.dueDays) ?? runDate)
+    .replaceAll('{{amountDue}}', '')
+    .replaceAll('{{paymentLink}}', rule.emailIncludePaymentLink ? 'Payment link will be added before sending.' : '')
+    .replaceAll('{{businessPhone}}', '')
+    .replaceAll('{{businessEmail}}', '')
+    .replaceAll('{{businessName}}', workspaceName);
+}
+
+function normalizeId(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 120);
 }
 
 function mapWorkspacePaymentProviderEvent(entry: {
@@ -2519,9 +3743,17 @@ function mapWorkspaceInvoiceVersion(entry: QueryDocumentSnapshot): WorkspaceInvo
     due_date?: string | null;
     document_state?: string;
     payment_status?: string;
+    payment_status_reason?: string | null;
+    auto_email_sent_at?: string | null;
+    auto_email_scheduled_for?: string | null;
+    auto_email_recipient?: string | null;
+    auto_email_queue_id?: string | null;
+    auto_email_status?: string | null;
+    auto_email_used_version_id?: string | null;
     subtotal?: number;
     tax_amount?: number;
     total_amount?: number;
+    paid_amount?: number;
     notes?: string | null;
     snapshot_hash?: string;
     items?: WorkspaceInvoiceItem[];
@@ -2546,9 +3778,26 @@ function mapWorkspaceInvoiceVersion(entry: QueryDocumentSnapshot): WorkspaceInvo
     dueDate: data.due_date ?? null,
     documentState,
     paymentStatus,
+    paymentStatusReason: data.payment_status_reason ?? null,
+    autoEmailSentAt: data.auto_email_sent_at ?? null,
+    autoEmailScheduledFor: data.auto_email_scheduled_for ?? null,
+    autoEmailRecipient: data.auto_email_recipient ?? null,
+    autoEmailQueueId: data.auto_email_queue_id ?? null,
+    autoEmailStatus: data.auto_email_status ?? null,
+    autoEmailUsedVersionId: data.auto_email_used_version_id ?? null,
     subtotal: data.subtotal ?? 0,
     taxAmount: data.tax_amount ?? 0,
     totalAmount: data.total_amount ?? 0,
+    paidAmount:
+      typeof data.paid_amount === 'number'
+        ? data.paid_amount
+        : normalizeInvoicePaymentStatus({
+            paymentStatus: data.payment_status,
+            dueDate: data.due_date,
+            totalAmount: data.total_amount,
+          }) === 'paid'
+          ? data.total_amount ?? 0
+          : 0,
     notes: data.notes ?? null,
     snapshotHash: data.snapshot_hash ?? '',
     items: Array.isArray(data.items) ? data.items : [],
@@ -2578,6 +3827,7 @@ function mapCustomer(
     billing_address?: string | null;
     shipping_address?: string | null;
     city?: string | null;
+    town?: string | null;
     state_code?: string | null;
     country_code?: string | null;
     postal_code?: string | null;
@@ -2625,6 +3875,7 @@ function mapCustomer(
     billingAddress: data.billing_address ?? data.address ?? null,
     shippingAddress: data.shipping_address ?? null,
     city: data.city ?? null,
+    town: data.town ?? null,
     stateCode: data.state_code ?? null,
     countryCode: data.country_code ?? null,
     postalCode: data.postal_code ?? null,
@@ -2658,6 +3909,106 @@ function mapCustomer(
   };
 }
 
+function mapWorkspaceProduct(entry: QueryDocumentSnapshot): WorkspaceProduct {
+  const data = entry.data() as {
+    name?: string;
+    price?: number;
+    stock_quantity?: number;
+    unit?: string;
+    created_at?: string;
+    last_modified?: string;
+    server_revision?: number;
+  };
+  return {
+    id: entry.id,
+    name: data.name ?? 'Unnamed product',
+    price: data.price ?? 0,
+    stockQuantity: data.stock_quantity ?? 0,
+    unit: data.unit ?? 'pcs',
+    createdAt: data.created_at ?? '',
+    lastModified: data.last_modified ?? data.created_at ?? '',
+    serverRevision: data.server_revision ?? 1,
+  };
+}
+
+function mapWorkspaceCustomerTimelineNote(entry: QueryDocumentSnapshot): WorkspaceCustomerTimelineNote {
+  const data = entry.data() as {
+    customer_id?: string;
+    kind?: string;
+    body?: string;
+    created_at?: string;
+    updated_at?: string;
+  };
+  return {
+    id: entry.id,
+    customerId: data.customer_id ?? '',
+    kind: data.kind === 'dispute' ? 'dispute' : 'note',
+    body: data.body ?? '',
+    createdAt: data.created_at ?? '',
+    updatedAt: data.updated_at ?? data.created_at ?? '',
+  };
+}
+
+function mapWorkspacePaymentReminder(entry: QueryDocumentSnapshot): WorkspacePaymentReminder {
+  const data = entry.data() as {
+    customer_id?: string;
+    tone?: string;
+    message?: string;
+    balance_at_send?: number;
+    shared_via?: string;
+    created_at?: string;
+  };
+  return {
+    id: entry.id,
+    customerId: data.customer_id ?? '',
+    tone: data.tone === 'firm' || data.tone === 'final' ? data.tone : 'polite',
+    message: data.message ?? '',
+    balanceAtSend: data.balance_at_send ?? 0,
+    sharedVia: data.shared_via ?? 'web_review',
+    createdAt: data.created_at ?? '',
+  };
+}
+
+function mapWorkspacePaymentPromise(entry: QueryDocumentSnapshot): WorkspacePaymentPromise {
+  const data = entry.data() as {
+    customer_id?: string;
+    promised_amount?: number;
+    promised_date?: string;
+    note?: string | null;
+    status?: string;
+    created_at?: string;
+    updated_at?: string;
+  };
+  return {
+    id: entry.id,
+    customerId: data.customer_id ?? '',
+    promisedAmount: data.promised_amount ?? 0,
+    promisedDate: data.promised_date ?? '',
+    note: data.note ?? null,
+    status: normalizeWorkspacePaymentPromiseStatus(data.status),
+    createdAt: data.created_at ?? '',
+    updatedAt: data.updated_at ?? data.created_at ?? '',
+  };
+}
+
+function normalizeWorkspacePaymentPromiseStatus(value: string | undefined): WorkspacePaymentPromiseStatus {
+  return value === 'fulfilled' || value === 'missed' || value === 'cancelled' ? value : 'open';
+}
+
+function sortPaymentPromises(left: WorkspacePaymentPromise, right: WorkspacePaymentPromise): number {
+  const weight: Record<WorkspacePaymentPromiseStatus, number> = {
+    open: 0,
+    missed: 1,
+    fulfilled: 2,
+    cancelled: 3,
+  };
+  return (
+    weight[left.status] - weight[right.status] ||
+    left.promisedDate.localeCompare(right.promisedDate) ||
+    right.createdAt.localeCompare(left.createdAt)
+  );
+}
+
 function buildCustomerHealthStats(transactions: QueryDocumentSnapshot[]) {
   const stats = new Map<string, {
     totalCredit: number;
@@ -2672,6 +4023,7 @@ function buildCustomerHealthStats(transactions: QueryDocumentSnapshot[]) {
       type?: 'credit' | 'payment';
       amount?: number;
       effective_date?: string;
+      payment_mode?: string | null;
       payment_clearance_status?: string | null;
     };
     const customerId = data.customer_id;
@@ -2692,7 +4044,7 @@ function buildCustomerHealthStats(transactions: QueryDocumentSnapshot[]) {
         !current.oldestCreditAt || (date && date < current.oldestCreditAt) ? date : current.oldestCreditAt;
     } else if (
       data.type === 'payment' &&
-      (!data.payment_clearance_status || doesPaymentClearInvoice(data.payment_clearance_status))
+      (!data.payment_clearance_status || doesPaymentClearInvoice(data.payment_clearance_status, data.payment_mode))
     ) {
       current.totalPayment += data.amount;
       current.paymentCount += 1;
@@ -2793,6 +4145,56 @@ function mapInvoiceItem(entry: QueryDocumentSnapshot): WorkspaceInvoiceItem {
   };
 }
 
+function buildInvoiceProductStockDeltas(
+  existingItems: QueryDocumentSnapshot[],
+  cleanItems: Array<{ productId?: string | null; quantity: number }>
+): Map<string, number> {
+  const deltas = new Map<string, number>();
+  for (const entry of existingItems) {
+    const data = entry.data() as { product_id?: string | null; quantity?: number };
+    const productId = data.product_id;
+    if (!productId) {
+      continue;
+    }
+    deltas.set(productId, roundQuantity((deltas.get(productId) ?? 0) + (data.quantity ?? 0)));
+  }
+
+  for (const item of cleanItems) {
+    const productId = item.productId;
+    if (!productId) {
+      continue;
+    }
+    deltas.set(productId, roundQuantity((deltas.get(productId) ?? 0) - item.quantity));
+  }
+
+  return deltas;
+}
+
+async function assertProductStockCanApply(
+  firestore: Firestore,
+  workspaceId: string,
+  productStockDeltas: Map<string, number>
+): Promise<void> {
+  const entries = Array.from(productStockDeltas.entries()).filter(([, delta]) => delta !== 0);
+  if (!entries.length) {
+    return;
+  }
+
+  await Promise.all(
+    entries.map(async ([productId, delta]) => {
+      const productSnapshot = await getDoc(doc(firestore, 'workspaces', workspaceId, 'products', productId));
+      if (!productSnapshot.exists()) {
+        throw new Error('One selected product could not be found.');
+      }
+      const data = productSnapshot.data() as { name?: string; stock_quantity?: number };
+      const nextStock = roundQuantity((data.stock_quantity ?? 0) + delta);
+      if (nextStock < 0) {
+        throw new Error(`${data.name ?? 'Product'} does not have enough stock for this invoice.`);
+      }
+    })
+  );
+}
+
 function cleanVersionReason(value: string | null | undefined, versionNumber: number) {
   const clean = value?.trim();
   if (clean) {
@@ -2811,6 +4213,7 @@ function buildInvoiceSnapshot(input: {
   dueDate: string | null;
   documentState: InvoiceDocumentState;
   paymentStatus: InvoicePaymentStatus;
+  paymentStatusReason?: string | null;
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
@@ -2826,6 +4229,7 @@ function buildInvoiceSnapshot(input: {
     dueDate: input.dueDate ?? null,
     documentState: input.documentState,
     paymentStatus: input.paymentStatus,
+    paymentStatusReason: normalizeSnapshotText(input.paymentStatusReason ?? ''),
     subtotal: roundMoney(input.subtotal),
     taxAmount: roundMoney(input.taxAmount),
     totalAmount: roundMoney(input.totalAmount),
@@ -2869,6 +4273,10 @@ function cleanOptional(value?: string | null) {
 
 function roundMoney(value: number): number {
   return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+}
+
+function roundQuantity(value: number): number {
+  return Math.round((Number.isFinite(value) ? value : 0) * 1000) / 1000;
 }
 
 function normalizeCustomerNameKey(value: string): string {
