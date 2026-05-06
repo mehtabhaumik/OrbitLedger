@@ -15,6 +15,7 @@ import {
   summarizeWorkspaceProducts,
 } from '@/lib/workspace-products';
 import { downloadTextFile, makeExportFileName } from '@/lib/workspace-power';
+import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
@@ -37,6 +38,7 @@ const emptyForm: ProductFormState = {
 export default function ProductsPage() {
   const { activeWorkspace } = useWorkspace();
   const { showToast } = useToast();
+  const officeAccess = useOfficeAccess();
   const [products, setProducts] = useState<WorkspaceProduct[]>([]);
   const [form, setForm] = useState<ProductFormState>(emptyForm);
   const [search, setSearch] = useState('');
@@ -83,6 +85,10 @@ export default function ProductsPage() {
     if (!activeWorkspace) {
       return;
     }
+    if (!officeAccess.can('manage_products_inventory')) {
+      showToast(officeAccess.getLockedMessage('manage_products_inventory'), 'info');
+      return;
+    }
     const price = parseAmount(form.price);
     const stockQuantity = parseQuantity(form.stockQuantity);
     if (!form.name.trim() || price === null || stockQuantity === null || !form.unit.trim()) {
@@ -124,6 +130,10 @@ export default function ProductsPage() {
 
   function exportProducts() {
     if (!activeWorkspace) {
+      return;
+    }
+    if (!officeAccess.can('export_reports')) {
+      showToast(officeAccess.getLockedMessage('export_reports'), 'info');
       return;
     }
     downloadTextFile(
@@ -177,7 +187,7 @@ export default function ProductsPage() {
               <button className="ol-button-secondary" type="button" onClick={loadProducts} disabled={isLoading}>
                 Refresh
               </button>
-              <button className="ol-button-secondary" type="button" onClick={exportProducts} disabled={!filteredProducts.length}>
+              <button className="ol-button-secondary" type="button" onClick={exportProducts} disabled={!filteredProducts.length || !officeAccess.can('export_reports')}>
                 Export products
               </button>
             </div>
@@ -270,7 +280,7 @@ export default function ProductsPage() {
           </label>
         </div>
         <div className="ol-actions" style={{ marginTop: 16 }}>
-          <button className="ol-button" type="button" onClick={saveProduct} disabled={isSaving}>
+          <button className="ol-button" type="button" onClick={saveProduct} disabled={isSaving || !officeAccess.can('manage_products_inventory')}>
             {form.id ? 'Update product' : 'Save product'}
           </button>
           <button className="ol-button-ghost" type="button" onClick={() => setForm(emptyForm)} disabled={!form.id && !form.name}>

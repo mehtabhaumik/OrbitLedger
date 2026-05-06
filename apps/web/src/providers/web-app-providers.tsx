@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { AuthProvider } from './auth-provider';
 import { ConfirmDialogProvider } from './confirm-dialog-provider';
 import { DeviceSettingsProvider } from './device-settings-provider';
+import { OfficeAccessProvider } from './office-access-provider';
 import { ToastProvider } from './toast-provider';
 import { SubscriptionProvider } from './subscription-provider';
 import { WebLockProvider } from './web-lock-provider';
@@ -30,15 +31,17 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
       <WorkspaceProvider>
-        <SubscriptionProvider>
-          <DeviceSettingsProvider>
-            <WebLockProvider>
-              <ToastProvider>
-                <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
-              </ToastProvider>
-            </WebLockProvider>
-          </DeviceSettingsProvider>
-        </SubscriptionProvider>
+        <OfficeAccessProvider>
+          <SubscriptionProvider>
+            <DeviceSettingsProvider>
+              <WebLockProvider>
+                <ToastProvider>
+                  <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+                </ToastProvider>
+              </WebLockProvider>
+            </DeviceSettingsProvider>
+          </SubscriptionProvider>
+        </OfficeAccessProvider>
       </WorkspaceProvider>
     </AuthProvider>
   );

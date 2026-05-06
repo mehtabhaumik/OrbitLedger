@@ -6,6 +6,25 @@ import {
   buildSubscriptionBillingEmailDeliveryUpdate,
   buildSubscriptionBillingEmailAdminQueueRecord,
   buildSubscriptionBillingEmailRequestRecord,
+  buildOfficeAccessRequestAdminQueueRecord,
+  buildOfficeAccessRequestAuditRecord,
+  buildOfficeSupportReviewAuditRecord,
+  buildSupportCaseRecord,
+  buildSupportCaseEmailRequestRecord,
+  buildSupportDiagnosticConsentRecord,
+  buildSupportDiagnosticConsentStatusUpdate,
+  buildOfficeInvitationCreatedAuditRecord,
+  buildOfficeInvitationDeliveryAuditRecord,
+  buildOfficeInvitationRecord,
+  buildOfficeInvitationRevokedAuditRecord,
+  buildOfficeInvitedMemberRecord,
+  buildOfficeInvitationAcceptanceAuditRecord,
+  buildOfficeInvitationEmailDeliveryUpdate,
+  buildOfficeMemberAccessAuditRecord,
+  buildOfficeOwnershipTransferAuditRecord,
+  buildOfficeOwnershipTransferNotificationUpdate,
+  buildOfficeOwnershipTransferRecord,
+  buildOfficeOwnerMemberRecord,
   buildBillingPortalSessionRecord,
   buildRazorpayCheckoutPayload,
   buildSubscriptionBillingMetadata,
@@ -715,6 +734,491 @@ describe('provider webhook payload mapping', () => {
       review_status: 'completed',
       provider_sync_status: 'completed',
       provider_action_required: false,
+    });
+  });
+
+  it('builds Office access grant records for trusted admin actions', () => {
+    const now = new Date('2026-05-06T12:00:00.000Z');
+
+    expect(buildOfficeAccessRequestAdminQueueRecord({
+      workspaceId: 'workspace_1',
+      requestId: 'office_request_1',
+      requesterUid: 'owner_1',
+      requesterName: 'Owner One',
+      requesterEmail: 'owner@example.com',
+      businessName: 'Orbit Store',
+      requestedPlanId: 'office_yearly',
+      status: 'approved',
+      note: 'Approved after call.',
+      now,
+    })).toMatchObject({
+      kind: 'office_access_request',
+      workspace_id: 'workspace_1',
+      request_id: 'office_request_1',
+      requester_uid: 'owner_1',
+      requester_email: 'owner@example.com',
+      requested_plan_id: 'office_yearly',
+      status: 'approved',
+      review_status: 'approved',
+      action_label: 'Grant Office access',
+      note: 'Approved after call.',
+    });
+
+    expect(buildOfficeAccessRequestAuditRecord({
+      workspaceId: 'workspace_1',
+      requestId: 'office_request_1',
+      adminQueueId: 'office_admin_1',
+      actorUid: 'internal_admin',
+      action: 'grant_access',
+      targetUid: 'owner_1',
+      targetEmail: 'owner@example.com',
+      previousStatus: 'approved',
+      nextStatus: 'granted',
+      note: 'Granted after review.',
+      now,
+    })).toMatchObject({
+      workspace_id: 'workspace_1',
+      request_id: 'office_request_1',
+      actor_uid: 'internal_admin',
+      action: 'member_accepted',
+      target_uid: 'owner_1',
+      next_role: 'owner',
+      previous_status: 'approved',
+      next_status: 'granted',
+      reason: 'Granted after review.',
+    });
+
+    expect(buildOfficeSupportReviewAuditRecord({
+      workspaceId: 'workspace_1',
+      actorUid: 'internal_support_1',
+      actorEmail: 'support@orbitledger.app',
+      reason: 'Reviewing a customer-approved Office setup ticket.',
+      supportCaseId: 'CASE-1001',
+      customerApprovedDiagnosticAccess: true,
+      now,
+    })).toMatchObject({
+      workspace_id: 'workspace_1',
+      actor_uid: 'internal_support_1',
+      actor_email: 'support@orbitledger.app',
+      actor_role: 'internal_support_reviewer',
+      action: 'internal_access_reviewed',
+      target_uid: null,
+      target_email: null,
+      support_case_id: 'CASE-1001',
+      customer_approved_diagnostic_access: true,
+      impersonation_allowed: false,
+      reason: expect.stringContaining('Impersonation blocked; no member session started'),
+    });
+
+    expect(buildSupportDiagnosticConsentRecord({
+      workspaceId: 'workspace_1',
+      userId: 'owner_1',
+      userEmail: 'owner@example.com',
+      supportKind: 'sync_issue',
+      supportCaseId: 'CASE-2001',
+      sanitizedMessage: 'Sync review approved.',
+      safeFields: {
+        route: '/support',
+        platform: 'web',
+        invoiceCount: 2,
+      },
+      redactedFields: ['business name'],
+      privateDataWarnings: ['email address'],
+      now,
+    })).toMatchObject({
+      workspace_id: 'workspace_1',
+      user_id: 'owner_1',
+      user_email: 'owner@example.com',
+      support_kind: 'sync_issue',
+      support_case_id: 'CASE-2001',
+      status: 'active',
+      diagnostic_safe_fields: {
+        route: '/support',
+        platform: 'web',
+        invoicecount: 2,
+      },
+      approved_fields: ['route', 'platform', 'invoicecount'],
+      redacted_fields: ['business name'],
+      private_data_warnings: ['email address'],
+      expires_at: '2026-05-13T12:00:00.000Z',
+    });
+
+    expect(buildSupportDiagnosticConsentStatusUpdate({
+      status: 'revoked',
+      actorUid: 'owner_1',
+      reason: 'No longer needed.',
+      now,
+    })).toMatchObject({
+      status: 'revoked',
+      revoked_by: 'owner_1',
+      revoked_at: '2026-05-06T12:00:00.000Z',
+      expired_at: null,
+      status_reason: 'No longer needed.',
+    });
+
+    expect(buildSupportDiagnosticConsentStatusUpdate({
+      status: 'expired',
+      actorUid: 'system',
+      now,
+    })).toMatchObject({
+      status: 'expired',
+      revoked_by: null,
+      expired_at: '2026-05-06T12:00:00.000Z',
+      status_reason: 'Support review approval expired.',
+    });
+
+    expect(buildSupportCaseRecord({
+      workspaceId: 'workspace_1',
+      supportCaseId: 'CASE-2001',
+      action: 'resolve',
+      status: 'resolved',
+      previousStatus: 'open',
+      note: 'Customer confirmed the issue is fixed.',
+      actorUid: 'internal_support_1',
+      actorEmail: 'support@orbitledger.app',
+      noteCount: 1,
+      createdAt: '2026-05-06T10:00:00.000Z',
+      now,
+    })).toMatchObject({
+      workspace_id: 'workspace_1',
+      support_case_id: 'CASE-2001',
+      status: 'resolved',
+      previous_status: 'open',
+      latest_action: 'resolve',
+      latest_note: 'Customer confirmed the issue is fixed.',
+      latest_note_by: 'internal_support_1',
+      latest_note_by_email: 'support@orbitledger.app',
+      note_count: 2,
+      created_at: '2026-05-06T10:00:00.000Z',
+      updated_at: '2026-05-06T12:00:00.000Z',
+    });
+
+    expect(buildSupportCaseEmailRequestRecord({
+      workspaceId: 'workspace_1',
+      supportCaseId: 'CASE-2001',
+      recipientEmail: 'owner@example.com',
+      subject: 'Update on CASE-2001',
+      body: 'We have a safe update for your support case.',
+      queuedBy: 'internal_support_1',
+      queuedByEmail: 'support@orbitledger.app',
+      now,
+    })).toMatchObject({
+      workspace_id: 'workspace_1',
+      support_case_id: 'CASE-2001',
+      recipient_email: 'owner@example.com',
+      provider: 'resend',
+      delivery_status: 'pending_provider_connection',
+      queued_by: 'internal_support_1',
+      queued_by_email: 'support@orbitledger.app',
+      queued_at: '2026-05-06T12:00:00.000Z',
+    });
+
+    expect(buildOfficeOwnerMemberRecord({
+      workspaceId: 'workspace_1',
+      ownerUid: 'owner_1',
+      ownerEmail: 'owner@example.com',
+      ownerName: 'Owner One',
+      invitedBy: 'internal_admin',
+      now,
+    })).toMatchObject({
+      uid: 'owner_1',
+      workspace_id: 'workspace_1',
+      role: 'owner',
+      status: 'active',
+      email: 'owner@example.com',
+      display_name: 'Owner One',
+      invited_by: 'internal_admin',
+      accepted_at: '2026-05-06T12:00:00.000Z',
+    });
+  });
+
+  it('builds accepted Office invitation member and audit records', () => {
+    const now = new Date('2026-05-06T10:00:00.000Z');
+
+    expect(buildOfficeInvitedMemberRecord({
+      workspaceId: 'workspace_1',
+      memberUid: 'staff_1',
+      memberEmail: 'staff@example.com',
+      memberName: 'Staff One',
+      role: 'staff',
+      invitedBy: 'owner_1',
+      invitedAt: '2026-05-05T10:00:00.000Z',
+      now,
+    })).toMatchObject({
+      uid: 'staff_1',
+      workspace_id: 'workspace_1',
+      role: 'staff',
+      status: 'active',
+      email: 'staff@example.com',
+      display_name: 'Staff One',
+      invited_by: 'owner_1',
+      invited_at: '2026-05-05T10:00:00.000Z',
+      accepted_at: '2026-05-06T10:00:00.000Z',
+    });
+
+    expect(buildOfficeInvitationAcceptanceAuditRecord({
+      workspaceId: 'workspace_1',
+      invitationId: 'invite_1',
+      actorUid: 'staff_1',
+      actorEmail: 'staff@example.com',
+      invitedBy: 'owner_1',
+      role: 'staff',
+      now,
+    })).toMatchObject({
+      workspace_id: 'workspace_1',
+      invitation_id: 'invite_1',
+      action: 'member_accepted',
+      target_uid: 'staff_1',
+      next_role: 'staff',
+      previous_status: 'pending',
+      next_status: 'active',
+    });
+  });
+
+  it('builds trusted Office invitation records and creation audit entries', () => {
+    const now = new Date('2026-05-06T10:00:00.000Z');
+
+    expect(buildOfficeInvitationRecord({
+      workspaceId: 'workspace_1',
+      email: ' STAFF@Example.com ',
+      role: 'staff',
+      invitedBy: 'owner_1',
+      invitedByName: 'Owner One',
+      message: 'Please join the workspace.',
+      now,
+    })).toMatchObject({
+      email: 'staff@example.com',
+      role: 'staff',
+      status: 'pending',
+      workspace_id: 'workspace_1',
+      invited_by: 'owner_1',
+      invited_by_name: 'Owner One',
+      message: 'Please join the workspace.',
+      expires_at: '2026-05-20T10:00:00.000Z',
+      accepted_by: null,
+      revoked_by: null,
+      created_at: '2026-05-06T10:00:00.000Z',
+    });
+
+    expect(buildOfficeInvitationCreatedAuditRecord({
+      workspaceId: 'workspace_1',
+      invitationId: 'invite_1',
+      actorUid: 'owner_1',
+      actorRole: 'owner',
+      targetEmail: 'staff@example.com',
+      role: 'staff',
+      now,
+    })).toMatchObject({
+      workspace_id: 'workspace_1',
+      invitation_id: 'invite_1',
+      actor_uid: 'owner_1',
+      actor_role: 'owner',
+      action: 'member_invited',
+      target_email: 'staff@example.com',
+      next_role: 'staff',
+      next_status: 'pending',
+    });
+  });
+
+  it('builds trusted Office invitation revoke and delivery audit entries', () => {
+    const now = new Date('2026-05-06T10:00:00.000Z');
+
+    expect(buildOfficeInvitationRevokedAuditRecord({
+      workspaceId: 'workspace_1',
+      invitationId: 'invite_1',
+      actorUid: 'owner_1',
+      actorRole: 'owner',
+      targetEmail: 'staff@example.com',
+      role: 'staff',
+      now,
+    })).toMatchObject({
+      workspace_id: 'workspace_1',
+      invitation_id: 'invite_1',
+      actor_uid: 'owner_1',
+      actor_role: 'owner',
+      action: 'invitation_revoked',
+      target_email: 'staff@example.com',
+      previous_role: 'staff',
+      next_status: 'revoked',
+    });
+
+    expect(buildOfficeInvitationDeliveryAuditRecord({
+      workspaceId: 'workspace_1',
+      invitationId: 'invite_1',
+      actorUid: 'admin_1',
+      actorRole: 'admin',
+      targetEmail: 'staff@example.com',
+      role: 'staff',
+      deliveryStatus: 'pending_provider_connection',
+      now,
+    })).toMatchObject({
+      workspace_id: 'workspace_1',
+      invitation_id: 'invite_1',
+      actor_uid: 'admin_1',
+      actor_role: 'admin',
+      action: 'invitation_email_sent',
+      target_email: 'staff@example.com',
+      next_role: 'staff',
+      next_status: 'pending_provider_connection',
+      reason: 'Invitation email is ready; email delivery is not connected yet.',
+    });
+  });
+
+  it('builds trusted Office member access audit entries', () => {
+    const now = new Date('2026-05-06T10:00:00.000Z');
+
+    expect(buildOfficeMemberAccessAuditRecord({
+      workspaceId: 'workspace_1',
+      actorUid: 'owner_1',
+      actorRole: 'owner',
+      targetUid: 'staff_1',
+      targetEmail: 'staff@example.com',
+      action: 'member_role_changed',
+      previousRole: 'staff',
+      nextRole: 'manager',
+      previousStatus: 'active',
+      nextStatus: 'active',
+      now,
+    })).toMatchObject({
+      workspace_id: 'workspace_1',
+      actor_uid: 'owner_1',
+      actor_role: 'owner',
+      action: 'member_role_changed',
+      target_uid: 'staff_1',
+      target_email: 'staff@example.com',
+      previous_role: 'staff',
+      next_role: 'manager',
+      previous_status: 'active',
+      next_status: 'active',
+      reason: 'Office member role changed.',
+    });
+
+    expect(buildOfficeMemberAccessAuditRecord({
+      workspaceId: 'workspace_1',
+      actorUid: 'admin_1',
+      actorRole: 'admin',
+      targetUid: 'viewer_1',
+      action: 'member_restored',
+      previousRole: 'viewer',
+      nextRole: 'viewer',
+      previousStatus: 'suspended',
+      nextStatus: 'active',
+      now,
+    })).toMatchObject({
+      action: 'member_restored',
+      target_uid: 'viewer_1',
+      previous_status: 'suspended',
+      next_status: 'active',
+      reason: 'Office member access restored.',
+    });
+  });
+
+  it('builds trusted Office ownership transfer records and audit entries', () => {
+    const now = new Date('2026-05-06T10:00:00.000Z');
+
+    expect(buildOfficeOwnershipTransferRecord({
+      workspaceId: 'workspace_1',
+      requestedBy: 'owner_1',
+      requestedByEmail: 'owner@example.com',
+      targetUid: 'admin_1',
+      targetEmail: 'admin@example.com',
+      targetName: 'Admin One',
+      now,
+    })).toMatchObject({
+      workspace_id: 'workspace_1',
+      status: 'pending',
+      requested_by: 'owner_1',
+      requested_by_email: 'owner@example.com',
+      target_uid: 'admin_1',
+      target_email: 'admin@example.com',
+      target_name: 'Admin One',
+      requested_at: '2026-05-06T10:00:00.000Z',
+      expires_at: '2026-05-13T10:00:00.000Z',
+      notification_status: 'queued',
+      notification_resend_count: 0,
+    });
+
+    expect(buildOfficeOwnershipTransferNotificationUpdate({
+      status: 'pending_provider_connection',
+      resendCount: 1,
+      now,
+    })).toMatchObject({
+      notification_status: 'pending_provider_connection',
+      notification_provider_status: 'pending_connection',
+      notification_resend_count: 1,
+      notification_last_resend_at: null,
+      updated_at: '2026-05-06T10:00:00.000Z',
+    });
+
+    expect(buildOfficeOwnershipTransferAuditRecord({
+      workspaceId: 'workspace_1',
+      transferId: 'transfer_1',
+      actorUid: 'owner_1',
+      actorRole: 'owner',
+      action: 'ownership_transfer_requested',
+      targetUid: 'admin_1',
+      targetEmail: 'admin@example.com',
+      previousRole: 'admin',
+      nextRole: 'owner',
+      now,
+    })).toMatchObject({
+      workspace_id: 'workspace_1',
+      ownership_transfer_id: 'transfer_1',
+      actor_uid: 'owner_1',
+      actor_role: 'owner',
+      action: 'ownership_transfer_requested',
+      target_uid: 'admin_1',
+      target_email: 'admin@example.com',
+      previous_role: 'admin',
+      next_role: 'owner',
+      reason: 'Ownership transfer requested.',
+    });
+
+    expect(buildOfficeOwnershipTransferAuditRecord({
+      workspaceId: 'workspace_1',
+      transferId: 'transfer_1',
+      actorUid: 'system',
+      actorRole: 'internal_support_reviewer',
+      action: 'ownership_transfer_expired',
+      targetUid: 'admin_1',
+      targetEmail: 'admin@example.com',
+      now,
+    })).toMatchObject({
+      action: 'ownership_transfer_expired',
+      actor_role: 'internal_support_reviewer',
+      reason: 'Ownership transfer expired.',
+    });
+  });
+
+  it('builds Office invitation email delivery updates without exposing provider secrets', () => {
+    expect(buildOfficeInvitationEmailDeliveryUpdate({
+      status: 'pending_provider_connection',
+      inviteUrl: 'https://orbit-ledger-f41c2.web.app/team/invite?workspaceId=workspace_1&invitationId=invite_1',
+      resendCount: 1,
+      now: new Date('2026-05-06T10:00:00.000Z'),
+    })).toMatchObject({
+      delivery_status: 'pending_provider_connection',
+      email_provider_status: 'pending_connection',
+      resend_count: 1,
+      last_resend_at: null,
+      invite_url: 'https://orbit-ledger-f41c2.web.app/team/invite?workspaceId=workspace_1&invitationId=invite_1',
+      updated_at: '2026-05-06T10:00:00.000Z',
+    });
+
+    expect(buildOfficeInvitationEmailDeliveryUpdate({
+      status: 'sent',
+      inviteUrl: 'https://orbit-ledger-f41c2.web.app/team/invite?workspaceId=workspace_1&invitationId=invite_1',
+      providerMessageId: 'email_1',
+      sentAt: '2026-05-06T10:01:00.000Z',
+      resendCount: 2,
+      now: new Date('2026-05-06T10:02:00.000Z'),
+    })).toMatchObject({
+      delivery_status: 'sent',
+      email_provider_status: 'sent',
+      provider_message_id: 'email_1',
+      sent_at: '2026-05-06T10:01:00.000Z',
+      resend_count: 2,
+      last_resend_at: '2026-05-06T10:02:00.000Z',
     });
   });
 });

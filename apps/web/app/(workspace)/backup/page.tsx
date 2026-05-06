@@ -11,12 +11,14 @@ import {
   type WebWorkspaceBackup,
 } from '@/lib/workspace-backup';
 import { useAuth } from '@/providers/auth-provider';
+import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function BackupPage() {
   const { activeWorkspace, refresh } = useWorkspace();
   const { user } = useAuth();
+  const officeAccess = useOfficeAccess();
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -43,6 +45,10 @@ export default function BackupPage() {
 
   async function handleExport() {
     if (!activeWorkspace) {
+      return;
+    }
+    if (!officeAccess.can('export_backup')) {
+      showToast(officeAccess.getLockedMessage('export_backup'), 'info');
       return;
     }
 
@@ -72,6 +78,11 @@ export default function BackupPage() {
   }
 
   async function handleFilePicked(file: File | null) {
+    if (!officeAccess.can('restore_backup')) {
+      showToast(officeAccess.getLockedMessage('restore_backup'), 'info');
+      return;
+    }
+
     setPreview(null);
     setSelectedFileName('');
     setFileError(null);
@@ -107,6 +118,10 @@ export default function BackupPage() {
 
   async function handleRestore() {
     if (!activeWorkspace || !preview || !user) {
+      return;
+    }
+    if (!officeAccess.can('restore_backup')) {
+      showToast(officeAccess.getLockedMessage('restore_backup'), 'info');
       return;
     }
     if (restoreConfirmation.trim() !== activeWorkspace.businessName) {
@@ -199,7 +214,7 @@ export default function BackupPage() {
             Download a backup of this business. Browser lock settings and files outside this workspace are not included.
           </p>
           <div className="ol-actions">
-            <button className="ol-button" disabled={isExporting} type="button" onClick={() => void handleExport()}>
+            <button className="ol-button" disabled={isExporting || !officeAccess.can('export_backup')} type="button" onClick={() => void handleExport()}>
               {isExporting ? 'Saving...' : 'Save Backup'}
             </button>
           </div>
@@ -213,7 +228,7 @@ export default function BackupPage() {
             Restoring replaces the current business data. Orbit Ledger prepares a rollback copy first.
           </p>
           <div className="ol-actions">
-            <button className="ol-button-secondary" type="button" onClick={() => fileInputRef.current?.click()}>
+            <button className="ol-button-secondary" disabled={!officeAccess.can('restore_backup')} type="button" onClick={() => fileInputRef.current?.click()}>
               Choose Backup File
             </button>
             <input
@@ -234,7 +249,7 @@ export default function BackupPage() {
             </div>
             <button
               className="ol-button"
-              disabled={!preview || isRestoring || restoreConfirmation.trim() !== activeWorkspace?.businessName}
+              disabled={!preview || isRestoring || restoreConfirmation.trim() !== activeWorkspace?.businessName || !officeAccess.can('restore_backup')}
               type="button"
               onClick={() => void handleRestore()}
             >

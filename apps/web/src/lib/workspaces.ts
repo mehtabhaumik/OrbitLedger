@@ -5,6 +5,7 @@ import { normalizeManualPaymentInstructionDetails, type ManualPaymentInstruction
 import {
   addDoc,
   collection,
+  collectionGroup,
   count,
   doc,
   type FieldValue,
@@ -184,12 +185,35 @@ type FirestoreWorkspaceDoc = {
 };
 
 export async function listWorkspacesForUser(userId: string): Promise<OrbitWorkspaceSummary[]> {
-  const snapshot = await getDocs(
-    query(collection(getWebFirestore(), 'workspaces'), where('owner_uid', '==', userId), limitQuery(10))
-  );
+  const firestore = getWebFirestore();
+  const [ownedSnapshot, memberSnapshot] = await Promise.all([
+    getDocs(query(collection(firestore, 'workspaces'), where('owner_uid', '==', userId), limitQuery(10))),
+    getDocs(
+      query(
+        collectionGroup(firestore, 'office_members'),
+        where('uid', '==', userId),
+        where('status', '==', 'active'),
+        limitQuery(10)
+      )
+    ).catch(() => ({ docs: [] })),
+  ]);
 
-  return snapshot.docs
-    .map((entry) => mapWorkspace(entry.id, entry.data() as FirestoreWorkspaceDoc))
+  const sharedWorkspaceRefs = memberSnapshot.docs
+    .map((entry) => entry.ref.parent.parent)
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  const sharedWorkspaceSnapshots = await Promise.all(sharedWorkspaceRefs.map((entry) => getDoc(entry)));
+  const workspacesById = new Map<string, OrbitWorkspaceSummary>();
+
+  for (const entry of ownedSnapshot.docs) {
+    workspacesById.set(entry.id, mapWorkspace(entry.id, entry.data() as FirestoreWorkspaceDoc));
+  }
+  for (const entry of sharedWorkspaceSnapshots) {
+    if (entry.exists()) {
+      workspacesById.set(entry.id, mapWorkspace(entry.id, entry.data() as FirestoreWorkspaceDoc));
+    }
+  }
+
+  return [...workspacesById.values()]
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
 

@@ -933,6 +933,19 @@ a:focus-visible {
   gap: 12px;
 }
 
+.ol-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) repeat(2, minmax(220px, 0.8fr));
+  gap: 14px;
+  align-items: end;
+}
+
+@media (max-width: 860px) {
+  .ol-filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .ol-settings-device-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

@@ -68,6 +68,7 @@ import {
   type TransactionTypeFilter,
 } from '@/lib/workspace-power';
 import { useToast } from '@/providers/toast-provider';
+import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
@@ -116,6 +117,7 @@ function CustomerDetailContent() {
   const { activeWorkspace } = useWorkspace();
   const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
+  const officeAccess = useOfficeAccess();
   const [customer, setCustomer] = useState<WorkspaceCustomer | null>(null);
   const [transactions, setTransactions] = useState<WorkspaceTransaction[]>([]);
   const [timelineNotes, setTimelineNotes] = useState<WorkspaceCustomerTimelineNote[]>([]);
@@ -323,6 +325,10 @@ function CustomerDetailContent() {
     if (!activeWorkspace || !customer || !profileDraft) {
       return;
     }
+    if (!officeAccess.can('manage_customers')) {
+      showToast(officeAccess.getLockedMessage('manage_customers'), 'info');
+      return;
+    }
 
     const nameError = validateName(profileDraft.name, 'Customer name', true);
     const legalNameError = validateBusinessName(profileDraft.legalName, 'Legal / business name', false);
@@ -391,6 +397,10 @@ function CustomerDetailContent() {
       showToast('Add a note before saving.', 'danger');
       return;
     }
+    if (!officeAccess.can('manage_customers')) {
+      showToast(officeAccess.getLockedMessage('manage_customers'), 'info');
+      return;
+    }
     setIsSavingFollowUp(true);
     try {
       const note = await addWorkspaceCustomerTimelineNote(activeWorkspace.workspaceId, {
@@ -411,6 +421,10 @@ function CustomerDetailContent() {
 
   async function savePaymentPromise() {
     if (!activeWorkspace || !customer) {
+      return;
+    }
+    if (!officeAccess.can('manage_customers')) {
+      showToast(officeAccess.getLockedMessage('manage_customers'), 'info');
       return;
     }
     const promisedAmount = parseAmount(promiseAmount);
@@ -442,6 +456,10 @@ function CustomerDetailContent() {
     if (!activeWorkspace || !customer) {
       return;
     }
+    if (!officeAccess.can('manage_customers')) {
+      showToast(officeAccess.getLockedMessage('manage_customers'), 'info');
+      return;
+    }
     setIsSavingFollowUp(true);
     try {
       const reminder = await addWorkspacePaymentReminder(activeWorkspace.workspaceId, {
@@ -462,6 +480,10 @@ function CustomerDetailContent() {
 
   async function changePromiseStatus(promiseId: string, nextStatus: WorkspacePaymentPromiseStatus) {
     if (!activeWorkspace) {
+      return;
+    }
+    if (!officeAccess.can('manage_customers')) {
+      showToast(officeAccess.getLockedMessage('manage_customers'), 'info');
       return;
     }
     setIsSavingFollowUp(true);
@@ -506,6 +528,10 @@ function CustomerDetailContent() {
     if (!activeWorkspace || !customer) {
       return;
     }
+    if (!officeAccess.can('export_reports')) {
+      showToast(officeAccess.getLockedMessage('export_reports'), 'info');
+      return;
+    }
 
     const exportRows = selectedTransactions.length ? selectedTransactions : filteredTransactions;
     const rows = exportRows.map((transaction) => [
@@ -536,6 +562,10 @@ function CustomerDetailContent() {
     }
     if (!customerExportAccess.allowed) {
       showToast(customerExportAccess.message ?? 'Customer profile exports are not included in your plan.', 'info');
+      return;
+    }
+    if (!officeAccess.can('export_documents')) {
+      showToast(officeAccess.getLockedMessage('export_documents'), 'info');
       return;
     }
 
@@ -623,6 +653,10 @@ function CustomerDetailContent() {
       showToast(customerExportAccess.message ?? 'Customer profile exports are not included in your plan.', 'info');
       return;
     }
+    if (!officeAccess.can('export_documents')) {
+      showToast(officeAccess.getLockedMessage('export_documents'), 'info');
+      return;
+    }
 
     try {
       await downloadCustomerProfilePdf({ workspace: activeWorkspace, customers: [customer] });
@@ -644,10 +678,10 @@ function CustomerDetailContent() {
         <Link className="ol-button-secondary" href={'/documents' as Route}>
           Create statement
         </Link>
-        <button className="ol-button-secondary" type="button" disabled={!customer || !customerExportAccess.allowed} onClick={() => void exportCustomerPdf()}>
+        <button className="ol-button-secondary" type="button" disabled={!customer || !customerExportAccess.allowed || !officeAccess.can('export_documents')} onClick={() => void exportCustomerPdf()}>
           Export customer PDF
         </button>
-        <button className="ol-button-secondary" type="button" disabled={!customer || !customerExportAccess.allowed} onClick={exportCustomerProfileCsv}>
+        <button className="ol-button-secondary" type="button" disabled={!customer || !customerExportAccess.allowed || !officeAccess.can('export_documents')} onClick={exportCustomerProfileCsv}>
           Export customer CSV
         </button>
       </div>
@@ -736,7 +770,7 @@ function CustomerDetailContent() {
                   <div className="ol-panel-title">Customer profile</div>
                   <p className="ol-panel-copy">Optional details used for exports, invoices, statements, and follow-up context.</p>
                 </div>
-                <button className="ol-button" type="button" disabled={isSavingProfile} onClick={() => void saveCustomerProfile()}>
+                <button className="ol-button" type="button" disabled={isSavingProfile || !officeAccess.can('manage_customers')} onClick={() => void saveCustomerProfile()}>
                   {isSavingProfile ? 'Saving...' : 'Save profile'}
                 </button>
               </div>
@@ -864,7 +898,7 @@ function CustomerDetailContent() {
                   </label>
                   <div className="ol-field ol-field--action">
                     <span className="ol-field-label">Action</span>
-                    <button className="ol-button-secondary" type="button" disabled={isSavingFollowUp} onClick={() => void saveTimelineNote()}>
+                    <button className="ol-button-secondary" type="button" disabled={isSavingFollowUp || !officeAccess.can('manage_customers')} onClick={() => void saveTimelineNote()}>
                       Save note
                     </button>
                   </div>
@@ -905,7 +939,7 @@ function CustomerDetailContent() {
                     <CustomerField label="Promise note" value={promiseNote} onChange={setPromiseNote} />
                     <div className="ol-field ol-field--action">
                       <span className="ol-field-label">Action</span>
-                      <button className="ol-button" type="button" disabled={isSavingFollowUp} onClick={() => void savePaymentPromise()}>
+                      <button className="ol-button" type="button" disabled={isSavingFollowUp || !officeAccess.can('manage_customers')} onClick={() => void savePaymentPromise()}>
                         Save promise
                       </button>
                     </div>
@@ -927,7 +961,7 @@ function CustomerDetailContent() {
                     </label>
                     <div className="ol-field ol-field--action">
                       <span className="ol-field-label">Action</span>
-                      <button className="ol-button-secondary" type="button" disabled={isSavingFollowUp || !customer.balance} onClick={() => void savePaymentReminder()}>
+                      <button className="ol-button-secondary" type="button" disabled={isSavingFollowUp || !customer.balance || !officeAccess.can('manage_customers')} onClick={() => void savePaymentReminder()}>
                         Save reminder
                       </button>
                     </div>
@@ -947,13 +981,13 @@ function CustomerDetailContent() {
                       </div>
                       {promise.status === 'open' || promise.status === 'missed' ? (
                         <div className="ol-inline-actions">
-                          <button className="ol-button-secondary" type="button" disabled={isSavingFollowUp} onClick={() => void changePromiseStatus(promise.id, 'fulfilled')}>
+                          <button className="ol-button-secondary" type="button" disabled={isSavingFollowUp || !officeAccess.can('manage_customers')} onClick={() => void changePromiseStatus(promise.id, 'fulfilled')}>
                             Mark fulfilled
                           </button>
-                          <button className="ol-button-ghost" type="button" disabled={isSavingFollowUp} onClick={() => void changePromiseStatus(promise.id, 'missed')}>
+                          <button className="ol-button-ghost" type="button" disabled={isSavingFollowUp || !officeAccess.can('manage_customers')} onClick={() => void changePromiseStatus(promise.id, 'missed')}>
                             Mark missed
                           </button>
-                          <button className="ol-button-ghost" type="button" disabled={isSavingFollowUp} onClick={() => void changePromiseStatus(promise.id, 'cancelled')}>
+                          <button className="ol-button-ghost" type="button" disabled={isSavingFollowUp || !officeAccess.can('manage_customers')} onClick={() => void changePromiseStatus(promise.id, 'cancelled')}>
                             Cancel
                           </button>
                         </div>
@@ -1007,7 +1041,7 @@ function CustomerDetailContent() {
                 }}>
                   Clear view
                 </button>
-                <button className="ol-button" type="button" disabled={!filteredTransactions.length} onClick={exportCustomerTransactions}>
+                <button className="ol-button" type="button" disabled={!filteredTransactions.length || !officeAccess.can('export_reports')} onClick={exportCustomerTransactions}>
                   Export {selectedTransactionIds.size ? 'selected' : 'view'}
                 </button>
               </div>

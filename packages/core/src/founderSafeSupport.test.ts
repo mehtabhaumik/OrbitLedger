@@ -4,6 +4,7 @@ import {
   FOUNDER_SAFE_SUPPORT_GUARDRAILS,
   FOUNDER_SAFE_SUPPORT_SURFACES,
   buildFounderSafeDiagnosticSummary,
+  buildFounderSafeSupportConsentRecord,
   buildFounderSafeSupportDraft,
 } from './founderSafeSupport';
 
@@ -111,5 +112,38 @@ describe('founder-safe support layer blueprint', () => {
     expect(FOUNDER_SAFE_SUPPORT_GUARDRAILS).toContain(
       'Web and mobile may use different layouts, but support categories, privacy rules, and safe diagnostic fields must match.'
     );
+  });
+
+  it('builds a consent-bound diagnostic review pack', () => {
+    const record = buildFounderSafeSupportConsentRecord({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      supportKind: 'sync_issue',
+      supportCaseId: 'CASE-2001',
+      message: 'Please review sync. Do not expose customer@example.com.',
+      diagnostic: {
+        appVersion: 'web',
+        platform: 'web',
+        route: '/customers/customer_123456789abcdef0',
+        customerEmail: 'customer@example.com',
+        recordCounts: {
+          customers: 2,
+          invoices: 3,
+        },
+      },
+      now: new Date('2026-05-07T00:00:00.000Z'),
+    });
+
+    expect(record).toMatchObject({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      supportKind: 'sync_issue',
+      supportCaseId: 'CASE-2001',
+      status: 'active',
+    });
+    expect(record.sanitizedMessage).toContain('[email removed]');
+    expect(record.approvedFields).toContain('route');
+    expect(record.redactedFields).toContain('customer email');
+    expect(record.expiresAt).toBe('2026-05-14T00:00:00.000Z');
   });
 });

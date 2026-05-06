@@ -33,6 +33,7 @@ import {
   type InvoiceFilterSet,
 } from '@/lib/workspace-power';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
+import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -41,6 +42,7 @@ export default function InvoicesPage() {
   const { activeWorkspace } = useWorkspace();
   const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
+  const officeAccess = useOfficeAccess();
   const router = useRouter();
   const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
   const [recurringRules, setRecurringRules] = useState<WorkspaceRecurringInvoiceRule[]>([]);
@@ -94,6 +96,10 @@ export default function InvoicesPage() {
     if (!activeWorkspace) {
       return;
     }
+    if (!officeAccess.can('create_invoices')) {
+      showToast(officeAccess.getLockedMessage('create_invoices'), 'info');
+      return;
+    }
 
     setIsCreating(true);
     try {
@@ -113,6 +119,10 @@ export default function InvoicesPage() {
 
   async function cancelRecurringRule(ruleId: string) {
     if (!activeWorkspace) {
+      return;
+    }
+    if (!officeAccess.can('manage_recurring_rules')) {
+      showToast(officeAccess.getLockedMessage('manage_recurring_rules'), 'info');
       return;
     }
     try {
@@ -203,6 +213,10 @@ export default function InvoicesPage() {
     if (!activeWorkspace) {
       return;
     }
+    if (!officeAccess.can('export_documents')) {
+      showToast(officeAccess.getLockedMessage('export_documents'), 'info');
+      return;
+    }
 
     const exportRows = selectedInvoices.length ? selectedInvoices : filteredInvoices;
     const rows = exportRows.map((invoice) => [
@@ -260,7 +274,7 @@ export default function InvoicesPage() {
                 Start a new invoice and continue directly in the editor for line items, totals, saved versions, and export.
               </p>
             </div>
-            <button className="ol-button" disabled={isCreating} type="button" onClick={() => void addDraftInvoice()}>
+            <button className="ol-button" disabled={isCreating || !officeAccess.can('create_invoices')} type="button" onClick={() => void addDraftInvoice()}>
               {isCreating ? 'Creating...' : 'Create invoice'}
             </button>
           </div>
@@ -336,7 +350,7 @@ export default function InvoicesPage() {
                       Use existing invoice
                     </Link>
                   ) : null}
-                  <button className="ol-button-secondary" type="button" onClick={() => void cancelRecurringRule(warning.ruleId)}>
+                  <button className="ol-button-secondary" disabled={!officeAccess.can('manage_recurring_rules')} type="button" onClick={() => void cancelRecurringRule(warning.ruleId)}>
                     Pause this email
                   </button>
                 </div>
@@ -396,7 +410,7 @@ export default function InvoicesPage() {
             <button className="ol-button-secondary" type="button" onClick={() => setShowArchived((current) => !current)}>
               {showArchived ? 'Hide archived' : `Show archived${archivedInvoiceCount ? ` (${archivedInvoiceCount})` : ''}`}
             </button>
-            <button className="ol-button" type="button" disabled={!filteredInvoices.length} onClick={exportInvoices}>
+            <button className="ol-button" type="button" disabled={!filteredInvoices.length || !officeAccess.can('export_documents')} onClick={exportInvoices}>
               Export {selectedInvoiceIds.size ? 'selected' : 'view'}
             </button>
           </div>
@@ -546,7 +560,7 @@ export default function InvoicesPage() {
                     View / edit
                   </Link>
                   {rule.status === 'active' ? (
-                    <button className="ol-button-secondary" type="button" onClick={() => void cancelRecurringRule(rule.id)}>
+                    <button className="ol-button-secondary" disabled={!officeAccess.can('manage_recurring_rules')} type="button" onClick={() => void cancelRecurringRule(rule.id)}>
                       Pause
                     </button>
                   ) : null}

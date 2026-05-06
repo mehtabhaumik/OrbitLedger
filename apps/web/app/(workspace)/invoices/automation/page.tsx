@@ -21,6 +21,7 @@ import {
   type WorkspaceRecurringInvoiceRule,
 } from '@/lib/workspace-data';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
+import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -60,6 +61,7 @@ export default function InvoiceAutomationPage() {
   const { activeWorkspace } = useWorkspace();
   const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
+  const officeAccess = useOfficeAccess();
   const router = useRouter();
   const searchParams = useSearchParams();
   const ruleId = searchParams.get('ruleId');
@@ -155,6 +157,14 @@ export default function InvoiceAutomationPage() {
       showToast(recurringRuleAccess.message ?? 'Monthly recurring invoices are not included in your plan.', 'info');
       return;
     }
+    if (!officeAccess.can('manage_recurring_rules')) {
+      showToast(officeAccess.getLockedMessage('manage_recurring_rules'), 'info');
+      return;
+    }
+    if (form.emailEnabled && form.approveEmailAutomation && !officeAccess.can('approve_auto_email')) {
+      showToast(officeAccess.getLockedMessage('approve_auto_email'), 'info');
+      return;
+    }
     setIsSaving(true);
     try {
       const saved = await saveWorkspaceRecurringInvoiceRule(
@@ -183,6 +193,10 @@ export default function InvoiceAutomationPage() {
 
   async function pauseAutomation() {
     if (!activeWorkspace || !editingRule) {
+      return;
+    }
+    if (!officeAccess.can('manage_recurring_rules')) {
+      showToast(officeAccess.getLockedMessage('manage_recurring_rules'), 'info');
       return;
     }
     setIsCancelling(true);
@@ -497,7 +511,7 @@ export default function InvoiceAutomationPage() {
           <input
             className="ol-checkbox"
             checked={form.approveEmailAutomation}
-            disabled={!recurringAutoEmailAccess.allowed || !form.emailEnabled}
+            disabled={!recurringAutoEmailAccess.allowed || !form.emailEnabled || !officeAccess.can('approve_auto_email')}
             type="checkbox"
             onChange={(event) => setForm((current) => ({ ...current, approveEmailAutomation: event.target.checked }))}
           />
@@ -507,11 +521,11 @@ export default function InvoiceAutomationPage() {
           Automatic emails pause after meaningful changes until this approval is renewed.
         </p>
         <div className="ol-inline-actions" style={{ marginTop: 18 }}>
-          <button className="ol-button" disabled={isSaving || !recurringRuleAccess.allowed} type="button" onClick={() => void saveAutomation()}>
+          <button className="ol-button" disabled={isSaving || !recurringRuleAccess.allowed || !officeAccess.can('manage_recurring_rules')} type="button" onClick={() => void saveAutomation()}>
             {isSaving ? 'Saving...' : form.emailEnabled && recurringAutoEmailAccess.allowed ? 'Save auto email' : 'Save monthly rule'}
           </button>
           {editingRule && editingRule.status === 'active' ? (
-            <button className="ol-button-secondary" disabled={isCancelling} type="button" onClick={() => void pauseAutomation()}>
+            <button className="ol-button-secondary" disabled={isCancelling || !officeAccess.can('manage_recurring_rules')} type="button" onClick={() => void pauseAutomation()}>
               {isCancelling ? 'Pausing...' : 'Pause this email'}
             </button>
           ) : null}

@@ -40,12 +40,14 @@ import {
   sumTransactionAmounts,
   type TransactionTypeFilter,
 } from '@/lib/workspace-power';
+import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function TransactionsPage() {
   const { activeWorkspace } = useWorkspace();
   const { showToast } = useToast();
+  const officeAccess = useOfficeAccess();
   const [transactions, setTransactions] = useState<WorkspaceTransaction[]>([]);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [customerId, setCustomerId] = useState('');
@@ -126,6 +128,10 @@ export default function TransactionsPage() {
 
   async function addTransaction() {
     if (!activeWorkspace) {
+      return;
+    }
+    if (!officeAccess.can('record_transactions')) {
+      showToast(officeAccess.getLockedMessage('record_transactions'), 'info');
       return;
     }
 
@@ -379,6 +385,10 @@ export default function TransactionsPage() {
 
   function exportTransactions() {
     if (!activeWorkspace) {
+      return;
+    }
+    if (!officeAccess.can('export_reports')) {
+      showToast(officeAccess.getLockedMessage('export_reports'), 'info');
       return;
     }
 
@@ -685,7 +695,7 @@ export default function TransactionsPage() {
                 <input className="ol-input" value={note} onChange={(event) => setNote(event.target.value)} />
               </label>
               <div className="ol-form-band-actions">
-                <button className="ol-button" disabled={isSaving} type="button" onClick={() => void addTransaction()}>
+                <button className="ol-button" disabled={isSaving || !officeAccess.can('record_transactions')} type="button" onClick={() => void addTransaction()}>
                   {isSaving ? 'Saving...' : type === 'payment' ? paymentVerificationPlan.actionLabel : 'Save'}
                 </button>
               </div>
@@ -751,7 +761,7 @@ export default function TransactionsPage() {
             }}>
               Clear view
             </button>
-            <button className="ol-button" type="button" disabled={!filteredTransactions.length} onClick={exportTransactions}>
+            <button className="ol-button" type="button" disabled={!filteredTransactions.length || !officeAccess.can('export_reports')} onClick={exportTransactions}>
               Export {selectedTransactionIds.size ? 'selected' : 'view'}
             </button>
           </div>

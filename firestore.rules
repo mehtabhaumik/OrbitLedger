@@ -16,6 +16,79 @@ service cloud.firestore {
         get(workspaceRef(workspaceId)).data.owner_uid == request.auth.uid;
     }
 
+    function officeMemberRef(workspaceId, userId) {
+      return /databases/$(database)/documents/workspaces/$(workspaceId)/office_members/$(userId);
+    }
+
+    function hasActiveOfficeMembership(workspaceId) {
+      return signedIn() &&
+        exists(officeMemberRef(workspaceId, request.auth.uid)) &&
+        get(officeMemberRef(workspaceId, request.auth.uid)).data.status == 'active';
+    }
+
+    function hasOfficeRole(workspaceId, roles) {
+      return hasActiveOfficeMembership(workspaceId) &&
+        get(officeMemberRef(workspaceId, request.auth.uid)).data.role in roles;
+    }
+
+    function canReadWorkspace(workspaceId) {
+      return ownsWorkspace(workspaceId) || hasActiveOfficeMembership(workspaceId);
+    }
+
+    function canManageWorkspaceProfile(workspaceId) {
+      return ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin']);
+    }
+
+    function canWriteWorkspaceCollection(workspaceId, collectionName) {
+      return ownsWorkspace(workspaceId) ||
+        (
+          collectionName in [
+            'customers',
+            'customer_timeline_notes',
+            'payment_reminders',
+            'payment_promises',
+            'transactions',
+            'products',
+            'invoices',
+            'invoice_items',
+            'invoice_versions',
+            'payment_allocations'
+          ] &&
+          hasOfficeRole(workspaceId, ['admin', 'manager', 'staff'])
+        ) ||
+        (
+          collectionName in [
+            'payment_reversals',
+            'recurring_invoice_rules',
+            'email_queue',
+            'payment_provider_events'
+          ] &&
+          hasOfficeRole(workspaceId, ['admin', 'manager'])
+        );
+    }
+
+    function canDeleteWorkspaceCollectionRecord(workspaceId, collectionName) {
+      return ownsWorkspace(workspaceId) ||
+        (
+          collectionName in [
+            'customers',
+            'customer_timeline_notes',
+            'payment_reminders',
+            'payment_promises',
+            'transactions',
+            'products',
+            'invoices',
+            'invoice_items',
+            'invoice_versions',
+            'payment_allocations',
+            'payment_reversals',
+            'recurring_invoice_rules',
+            'email_queue'
+          ] &&
+          hasOfficeRole(workspaceId, ['admin'])
+        );
+    }
+
     function createsOwnWorkspace() {
       return signedIn() &&
         request.resource.data.owner_uid == request.auth.uid &&
@@ -25,10 +98,10 @@ service cloud.firestore {
         request.resource.data.country_code is string;
     }
 
-    function keepsWorkspaceOwner() {
+    function keepsWorkspaceOwner(workspaceId) {
       return signedIn() &&
-        resource.data.owner_uid == request.auth.uid &&
-        request.resource.data.owner_uid == resource.data.owner_uid;
+        request.resource.data.owner_uid == resource.data.owner_uid &&
+        canManageWorkspaceProfile(workspaceId);
     }
 
     function clientManagedWorkspaceCollection(collectionName) {
@@ -38,18 +111,228 @@ service cloud.firestore {
         collectionName != 'subscription_renewal_changes' &&
         collectionName != 'subscription_billing_portal_sessions' &&
         collectionName != 'subscription_admin_queue' &&
-        collectionName != 'subscription_renewal_audit';
+        collectionName != 'subscription_renewal_audit' &&
+        collectionName != 'office_members' &&
+        collectionName != 'office_invitations' &&
+        collectionName != 'office_ownership_transfers' &&
+        collectionName != 'office_access_audit' &&
+        collectionName != 'office_access_requests' &&
+        collectionName != 'office_access_admin_queue' &&
+        collectionName != 'support_cases' &&
+        collectionName != 'support_case_email_requests' &&
+        collectionName != 'support_diagnostic_consents';
+    }
+
+    function validOfficeRole(role) {
+      return role in ['owner', 'admin', 'manager', 'staff', 'accountant', 'viewer'];
+    }
+
+    function validAssignableOfficeRole(role) {
+      return role in ['admin', 'manager', 'staff', 'accountant', 'viewer'];
+    }
+
+    function adminAssignableOfficeRole(role) {
+      return role in ['manager', 'staff', 'accountant', 'viewer'];
+    }
+
+    function validOfficeMemberStatus(status) {
+      return status in ['active', 'invited', 'suspended', 'removed'];
+    }
+
+    function validOfficeInvitationStatus(status) {
+      return status in ['pending', 'accepted', 'declined', 'expired', 'revoked'];
+    }
+
+    function validOfficeMemberDocument(workspaceId, memberId) {
+      return request.resource.data.keys().hasOnly([
+          'uid',
+          'workspace_id',
+          'role',
+          'status',
+          'email',
+          'display_name',
+          'invited_by',
+          'invited_at',
+          'accepted_at',
+          'suspended_at',
+          'removed_at',
+          'last_seen_at',
+          'created_at',
+          'updated_at'
+        ]) &&
+        request.resource.data.uid == memberId &&
+        request.resource.data.workspace_id == workspaceId &&
+        validOfficeRole(request.resource.data.role) &&
+        validOfficeMemberStatus(request.resource.data.status);
+    }
+
+    function keepsOfficeMemberIdentity(workspaceId, memberId) {
+      return request.resource.data.uid == resource.data.uid &&
+        request.resource.data.workspace_id == resource.data.workspace_id &&
+        resource.data.uid == memberId &&
+        resource.data.workspace_id == workspaceId;
+    }
+
+    function canCreateOfficeMember(workspaceId, memberId) {
+      return validOfficeMemberDocument(workspaceId, memberId) &&
+        (
+          (
+            ownsWorkspace(workspaceId) &&
+            memberId == request.auth.uid &&
+            request.resource.data.role == 'owner' &&
+            request.resource.data.status == 'active'
+          ) ||
+          (
+            ownsWorkspace(workspaceId) &&
+            validAssignableOfficeRole(request.resource.data.role)
+          ) ||
+          (
+            hasOfficeRole(workspaceId, ['admin']) &&
+            adminAssignableOfficeRole(request.resource.data.role)
+          )
+        );
+    }
+
+    function canUpdateOfficeMember(workspaceId, memberId) {
+      return validOfficeMemberDocument(workspaceId, memberId) &&
+        keepsOfficeMemberIdentity(workspaceId, memberId) &&
+        (
+          (
+            signedIn() &&
+            memberId == request.auth.uid &&
+            resource.data.status == 'active' &&
+            request.resource.data.status == 'active' &&
+            request.resource.data.last_seen_at is string &&
+            request.resource.data.updated_at is string &&
+            request.resource.data.diff(resource.data).affectedKeys().hasAll(['last_seen_at', 'updated_at']) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['last_seen_at', 'updated_at'])
+          )
+        );
+    }
+
+    function validOfficeInvitationDocument(workspaceId) {
+      return request.resource.data.keys().hasOnly([
+          'email',
+          'role',
+          'status',
+          'workspace_id',
+          'invited_by',
+          'invited_by_name',
+          'message',
+          'expires_at',
+          'accepted_by',
+          'accepted_at',
+          'revoked_by',
+          'revoked_at',
+          'created_at',
+          'updated_at'
+        ]) &&
+        request.resource.data.workspace_id == workspaceId &&
+        request.resource.data.email is string &&
+        validOfficeInvitationStatus(request.resource.data.status) &&
+        validAssignableOfficeRole(request.resource.data.role);
+    }
+
+    function canCreateOfficeInvitation(workspaceId) {
+      return validOfficeInvitationDocument(workspaceId) &&
+        request.resource.data.invited_by == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        (
+          ownsWorkspace(workspaceId) ||
+          (
+            hasOfficeRole(workspaceId, ['admin']) &&
+            adminAssignableOfficeRole(request.resource.data.role)
+          )
+        );
+    }
+
+    function canUpdateOfficeInvitation(workspaceId) {
+      return validOfficeInvitationDocument(workspaceId) &&
+        request.resource.data.workspace_id == resource.data.workspace_id &&
+        request.resource.data.email == resource.data.email &&
+        request.resource.data.invited_by == resource.data.invited_by &&
+        (
+          ownsWorkspace(workspaceId) ||
+          (
+            hasOfficeRole(workspaceId, ['admin']) &&
+            adminAssignableOfficeRole(resource.data.role) &&
+            adminAssignableOfficeRole(request.resource.data.role)
+          )
+        );
+    }
+
+    match /{path=**}/office_members/{memberId} {
+      allow get, list: if signedIn() &&
+        resource.data.uid == request.auth.uid &&
+        resource.data.status == 'active';
     }
 
     match /workspaces/{workspaceId} {
       allow create: if createsOwnWorkspace();
-      allow read: if signedIn() && resource.data.owner_uid == request.auth.uid;
-      allow update: if keepsWorkspaceOwner();
+      allow read: if signedIn() && canReadWorkspace(workspaceId);
+      allow update: if keepsWorkspaceOwner(workspaceId);
       allow delete: if signedIn() && resource.data.owner_uid == request.auth.uid;
 
       match /{collectionName}/{recordId} {
-        allow read, create, update, delete: if ownsWorkspace(workspaceId) &&
+        allow read: if canReadWorkspace(workspaceId) &&
           clientManagedWorkspaceCollection(collectionName);
+        allow create, update: if clientManagedWorkspaceCollection(collectionName) &&
+          canWriteWorkspaceCollection(workspaceId, collectionName);
+        allow delete: if clientManagedWorkspaceCollection(collectionName) &&
+          canDeleteWorkspaceCollectionRecord(workspaceId, collectionName);
+      }
+
+      match /office_members/{memberId} {
+        allow read: if canReadWorkspace(workspaceId);
+        allow create: if canCreateOfficeMember(workspaceId, memberId);
+        allow update: if canUpdateOfficeMember(workspaceId, memberId);
+        allow delete: if false;
+      }
+
+      match /office_invitations/{invitationId} {
+        allow read: if ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin']);
+        allow create: if false;
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      match /office_ownership_transfers/{transferId} {
+        allow read: if canReadWorkspace(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /office_access_audit/{auditId} {
+        allow read: if ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin', 'accountant']);
+        allow create, update, delete: if false;
+      }
+
+      match /office_access_requests/{requestId} {
+        allow read: if ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin']);
+        allow create, update, delete: if false;
+      }
+
+      match /office_access_admin_queue/{queueId} {
+        allow read: if ownsWorkspace(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /support_diagnostic_consents/{consentId} {
+        allow read: if ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin', 'accountant']);
+        allow create, update, delete: if false;
+      }
+
+      match /support_cases/{caseId} {
+        allow read: if ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin', 'accountant']);
+        allow create, update, delete: if false;
+      }
+
+      match /support_case_email_requests/{requestId} {
+        allow read: if ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin', 'accountant']);
+        allow create, update, delete: if false;
+      }
+
+      match /{document=**}/support_diagnostic_consents/{consentId} {
+        allow read, create, update, delete: if false;
       }
 
       match /subscription_renewal_changes/{changeId} {

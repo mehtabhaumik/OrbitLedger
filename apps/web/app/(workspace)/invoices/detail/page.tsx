@@ -68,6 +68,7 @@ import { getWebPaymentProviderPlan } from '@/lib/payment-provider-mode';
 import { createRazorpayCheckoutLink } from '@/lib/provider-checkout';
 import { uploadPaymentInstrumentImage } from '@/lib/workspace-storage';
 import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
+import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -129,6 +130,7 @@ function InvoiceEditorContent() {
   const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
   const { confirm, prompt } = useConfirmDialog();
+  const officeAccess = useOfficeAccess();
   const providerPlan = getWebPaymentProviderPlan();
   const [invoice, setInvoice] = useState<WorkspaceInvoiceDetail | null>(null);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
@@ -172,7 +174,12 @@ function InvoiceEditorContent() {
   const isReadOnlyVersion = Boolean(versionId);
   const effectiveRevisionReason = getEffectiveRevisionReason(revisionReasonChoice, revisionReason);
   const needsRevisionReason = Boolean(invoice && !isReadOnlyVersion && invoice.documentState !== 'draft');
-  const canSaveInvoice = Boolean(invoice && !isReadOnlyVersion && !isSaving && (!needsRevisionReason || effectiveRevisionReason));
+  const canEditInvoiceDocument = Boolean(
+    invoice && officeAccess.can(invoice.documentState === 'draft' ? 'create_invoices' : 'edit_latest_invoice')
+  );
+  const canSaveInvoice = Boolean(
+    invoice && !isReadOnlyVersion && !isSaving && canEditInvoiceDocument && (!needsRevisionReason || effectiveRevisionReason)
+  );
 
   const defaultTaxRate = useMemo(
     () =>
@@ -460,6 +467,10 @@ function InvoiceEditorContent() {
       showToast('Saved invoice versions are view-only. Open the latest invoice to make changes.', 'info');
       return;
     }
+    if (!canEditInvoiceDocument) {
+      showToast(officeAccess.getLockedMessage(invoice.documentState === 'draft' ? 'create_invoices' : 'edit_latest_invoice'), 'info');
+      return;
+    }
 
     if (!invoiceNumber.trim() || !issueDate.trim()) {
       showToast('Add an invoice number and issue date before saving.', 'danger');
@@ -640,6 +651,10 @@ function InvoiceEditorContent() {
       showToast('Saved invoice versions are view-only. Open the latest invoice to record payment.', 'info');
       return;
     }
+    if (!officeAccess.can('record_payments')) {
+      showToast(officeAccess.getLockedMessage('record_payments'), 'info');
+      return;
+    }
     if (dueAmount <= 0) {
       showToast('This invoice has no pending amount.', 'info');
       return;
@@ -673,6 +688,10 @@ function InvoiceEditorContent() {
     const amountToSave = amountOverride ?? parseMoney(paymentAmount);
     if (!invoice.customerId && !customerId) {
       showToast('Choose a customer before recording payment.', 'danger');
+      return;
+    }
+    if (!officeAccess.can('record_payments')) {
+      showToast(officeAccess.getLockedMessage('record_payments'), 'info');
       return;
     }
     if (amountToSave <= 0) {
@@ -723,6 +742,10 @@ function InvoiceEditorContent() {
       showToast('Saved invoice versions are view-only. Open the latest invoice to attach proof.', 'info');
       return;
     }
+    if (!officeAccess.can('record_payments')) {
+      showToast(officeAccess.getLockedMessage('record_payments'), 'info');
+      return;
+    }
 
     setIsRecordingPayment(true);
     try {
@@ -743,6 +766,10 @@ function InvoiceEditorContent() {
     }
     if (isReadOnlyVersion) {
       showToast('Saved invoice versions are view-only. Open the latest invoice to update payments.', 'info');
+      return;
+    }
+    if (!officeAccess.can('verify_payments')) {
+      showToast(officeAccess.getLockedMessage('verify_payments'), 'info');
       return;
     }
 
@@ -776,6 +803,10 @@ function InvoiceEditorContent() {
     }
     if (!paymentReversalAccess.allowed) {
       showToast(paymentReversalAccess.message ?? 'Payment reversals are not included in your plan.', 'info');
+      return;
+    }
+    if (!officeAccess.can('reverse_payments')) {
+      showToast(officeAccess.getLockedMessage('reverse_payments'), 'info');
       return;
     }
     const note = await prompt({
@@ -834,6 +865,10 @@ function InvoiceEditorContent() {
       showToast('Delete an unsaved draft instead of cancelling it.', 'info');
       return;
     }
+    if (!officeAccess.can('cancel_or_archive_invoices')) {
+      showToast(officeAccess.getLockedMessage('cancel_or_archive_invoices'), 'info');
+      return;
+    }
     const confirmed = await confirm({
       title: 'Cancel this invoice?',
       message: 'This keeps the invoice history but marks the document as cancelled.',
@@ -857,6 +892,10 @@ function InvoiceEditorContent() {
     }
     if (invoice.documentState !== 'draft') {
       showToast('Only unsaved drafts can be deleted.', 'info');
+      return;
+    }
+    if (!officeAccess.can('cancel_or_archive_invoices')) {
+      showToast(officeAccess.getLockedMessage('cancel_or_archive_invoices'), 'info');
       return;
     }
     const confirmed = await confirm({
@@ -887,6 +926,10 @@ function InvoiceEditorContent() {
     }
     if (isReadOnlyVersion) {
       showToast('Saved invoice versions are view-only. Open the latest invoice to archive it.', 'info');
+      return;
+    }
+    if (!officeAccess.can('cancel_or_archive_invoices')) {
+      showToast(officeAccess.getLockedMessage('cancel_or_archive_invoices'), 'info');
       return;
     }
     const nextArchived = !invoice.isArchived;
@@ -933,11 +976,11 @@ function InvoiceEditorContent() {
           Copy payment message
         </button>
         {providerPlan.canCreateOnlineCheckout && !isReadOnlyVersion ? (
-          <button className="ol-button-secondary" type="button" onClick={() => void createRazorpayCheckout()} disabled={isCreatingCheckout || !invoice || dueAmount <= 0}>
+          <button className="ol-button-secondary" type="button" onClick={() => void createRazorpayCheckout()} disabled={isCreatingCheckout || !invoice || dueAmount <= 0 || !officeAccess.can('record_payments')}>
             {isCreatingCheckout ? 'Creating checkout...' : 'Create checkout link'}
           </button>
         ) : null}
-        <button className="ol-button-secondary" type="button" onClick={() => void recordInvoicePayment(dueAmount)} disabled={isReadOnlyVersion || isRecordingPayment || !invoice || dueAmount <= 0}>
+        <button className="ol-button-secondary" type="button" onClick={() => void recordInvoicePayment(dueAmount)} disabled={isReadOnlyVersion || isRecordingPayment || !invoice || dueAmount <= 0 || !officeAccess.can('record_payments')}>
           Record due payment
         </button>
         {isReadOnlyVersion && invoice ? (
@@ -945,15 +988,15 @@ function InvoiceEditorContent() {
             Open latest invoice
           </Link>
         ) : invoice?.documentState === 'draft' ? (
-          <button className="ol-button-secondary" type="button" onClick={() => void deleteDraftInvoice()} disabled={isSaving || !invoice}>
+          <button className="ol-button-secondary" type="button" onClick={() => void deleteDraftInvoice()} disabled={isSaving || !invoice || !officeAccess.can('cancel_or_archive_invoices')}>
             Delete draft
           </button>
         ) : (
-          <button className="ol-button-secondary" type="button" onClick={() => void toggleInvoiceArchive()} disabled={isSaving || !invoice}>
+          <button className="ol-button-secondary" type="button" onClick={() => void toggleInvoiceArchive()} disabled={isSaving || !invoice || !officeAccess.can('cancel_or_archive_invoices')}>
             {invoice?.isArchived ? 'Unarchive invoice' : 'Archive invoice'}
           </button>
         )}
-        <button className="ol-button-secondary" type="button" onClick={() => void cancelInvoice()} disabled={isReadOnlyVersion || isSaving || !invoice || invoice.documentState === 'draft' || invoice.documentState === 'cancelled'}>
+        <button className="ol-button-secondary" type="button" onClick={() => void cancelInvoice()} disabled={isReadOnlyVersion || isSaving || !invoice || invoice.documentState === 'draft' || invoice.documentState === 'cancelled' || !officeAccess.can('cancel_or_archive_invoices')}>
           Cancel invoice
         </button>
         <button className="ol-button" type="button" onClick={() => void saveInvoice()} disabled={!canSaveInvoice}>
@@ -1384,7 +1427,7 @@ function InvoiceEditorContent() {
                   <button
                     className="ol-button-secondary"
                     type="button"
-                    disabled={isReadOnlyVersion || isCreatingCheckout || !invoice || dueAmount <= 0}
+                    disabled={isReadOnlyVersion || isCreatingCheckout || !invoice || dueAmount <= 0 || !officeAccess.can('record_payments')}
                     onClick={() => void createRazorpayCheckout()}
                   >
                     {isCreatingCheckout ? 'Creating...' : 'Create checkout link'}
@@ -1398,7 +1441,7 @@ function InvoiceEditorContent() {
               )}
               <div className="ol-field ol-field--action">
                 <span className="ol-field-label">Action</span>
-                <button className="ol-button" type="button" disabled={isReadOnlyVersion || isRecordingPayment || dueAmount <= 0} onClick={() => void recordInvoicePayment()}>
+                <button className="ol-button" type="button" disabled={isReadOnlyVersion || isRecordingPayment || dueAmount <= 0 || !officeAccess.can('record_payments')} onClick={() => void recordInvoicePayment()}>
                   {isRecordingPayment ? 'Recording...' : paymentVerificationPlan.actionLabel}
                 </button>
               </div>
@@ -1446,7 +1489,7 @@ function InvoiceEditorContent() {
                   <div className="ol-inline-actions">
                     <button
                       className="ol-button-secondary"
-                      disabled={isRecordingPayment || allocation.isReversed || allocation.paymentClearanceStatus === 'cleared'}
+                      disabled={isRecordingPayment || allocation.isReversed || allocation.paymentClearanceStatus === 'cleared' || !officeAccess.can('verify_payments')}
                       type="button"
                       onClick={() => void updateAllocationClearance(allocation.id, 'cleared')}
                     >
@@ -1454,7 +1497,7 @@ function InvoiceEditorContent() {
                     </button>
                     <button
                       className="ol-button-ghost"
-                      disabled={isRecordingPayment || allocation.isReversed || allocation.paymentClearanceStatus === 'bounced'}
+                      disabled={isRecordingPayment || allocation.isReversed || allocation.paymentClearanceStatus === 'bounced' || !officeAccess.can('verify_payments')}
                       type="button"
                       onClick={() => void updateAllocationClearance(allocation.id, 'bounced')}
                     >
@@ -1462,7 +1505,7 @@ function InvoiceEditorContent() {
                     </button>
                     <button
                       className="ol-button-ghost"
-                      disabled={isRecordingPayment || allocation.isReversed || !paymentReversalAccess.allowed}
+                      disabled={isRecordingPayment || allocation.isReversed || !paymentReversalAccess.allowed || !officeAccess.can('reverse_payments')}
                       type="button"
                       onClick={() => void reversePaymentAllocation(allocation)}
                     >

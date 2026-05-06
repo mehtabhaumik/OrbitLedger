@@ -20,6 +20,7 @@ const navItems: Array<{ href: Route; label: string }> = [
   { href: '/templates' as Route, label: 'Templates' },
   { href: '/reports', label: 'Reports' },
   { href: '/market' as Route, label: 'Market' },
+  { href: '/team' as Route, label: 'Team' },
   { href: '/backup', label: 'Backup' },
   { href: '/support' as Route, label: 'Support' },
   { href: '/settings', label: 'Settings' },

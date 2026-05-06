@@ -44,6 +44,7 @@ import {
 import { buildProductReorderSuggestions } from '@/lib/workspace-products';
 import { buildCsv, downloadTextFile, makeExportFileName } from '@/lib/workspace-power';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
+import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -60,6 +61,7 @@ export default function ReportsPage() {
   const { dashboardSnapshot, activeWorkspace } = useWorkspace();
   const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
+  const officeAccess = useOfficeAccess();
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [transactions, setTransactions] = useState<WorkspaceTransaction[]>([]);
   const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
@@ -237,6 +239,10 @@ export default function ReportsPage() {
       showToast(auditReportAccess.message ?? 'Audit-ready reports are not included in your plan.', 'info');
       return;
     }
+    if (!officeAccess.can('export_reports')) {
+      showToast(officeAccess.getLockedMessage('export_reports'), 'info');
+      return;
+    }
     const payload = {
       generatedAt: new Date().toISOString(),
       business: {
@@ -267,6 +273,10 @@ export default function ReportsPage() {
       showToast(auditReportAccess.message ?? 'Audit-ready reports are not included in your plan.', 'info');
       return;
     }
+    if (!officeAccess.can('export_reports')) {
+      showToast(officeAccess.getLockedMessage('export_reports'), 'info');
+      return;
+    }
 
     const csv = buildCsv(
       ['Metric', 'Value'],
@@ -290,6 +300,10 @@ export default function ReportsPage() {
       showToast(taxReportAccess.message ?? 'Tax-ready exports are not included in your plan.', 'info');
       return;
     }
+    if (!officeAccess.can('view_tax_reports') || !officeAccess.can('export_reports')) {
+      showToast(officeAccess.can('view_tax_reports') ? officeAccess.getLockedMessage('export_reports') : officeAccess.getLockedMessage('view_tax_reports'), 'info');
+      return;
+    }
 
     const csv = buildCsv(
       ['Report', 'Month', 'Invoice count', 'Taxable sales', 'Tax amount', 'Invoice total', 'Outstanding'],
@@ -311,10 +325,10 @@ export default function ReportsPage() {
   return (
     <AppShell title="Reports" subtitle="Business summaries with calm, readable signal instead of dashboard noise.">
       <div className="ol-actions ol-actions--sticky">
-        <button className="ol-button" type="button" onClick={exportReportCsv} disabled={!dashboardSnapshot || !auditReportAccess.allowed}>
+        <button className="ol-button" type="button" onClick={exportReportCsv} disabled={!dashboardSnapshot || !auditReportAccess.allowed || !officeAccess.can('export_reports')}>
           Export summary
         </button>
-        <button className="ol-button-secondary" type="button" onClick={exportReportJson} disabled={!dashboardSnapshot || !auditReportAccess.allowed}>
+        <button className="ol-button-secondary" type="button" onClick={exportReportJson} disabled={!dashboardSnapshot || !auditReportAccess.allowed || !officeAccess.can('export_reports')}>
           Save full copy
         </button>
       </div>
@@ -515,7 +529,7 @@ export default function ReportsPage() {
             </p>
           </div>
           <div className="ol-actions">
-            <button className="ol-button-secondary" type="button" onClick={exportComplianceCsv} disabled={!taxReportAccess.allowed}>
+            <button className="ol-button-secondary" type="button" onClick={exportComplianceCsv} disabled={!taxReportAccess.allowed || !officeAccess.can('view_tax_reports') || !officeAccess.can('export_reports')}>
               Export tax summary
             </button>
             <Link className="ol-button-secondary" href={'/settings#invoice-document-settings' as Route}>

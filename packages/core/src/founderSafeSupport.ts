@@ -84,6 +84,35 @@ export type FounderSafeSupportDraft = {
   guardrails: string[];
 };
 
+export type FounderSafeSupportConsentStatus = 'active' | 'revoked' | 'expired';
+
+export type FounderSafeSupportConsentInput = {
+  workspaceId: string;
+  userId: string;
+  supportKind: FounderSafeSupportKind;
+  message: string;
+  diagnostic: FounderSafeDiagnosticInput;
+  supportCaseId?: string | null;
+  expiresAt?: string | null;
+  now?: Date;
+};
+
+export type FounderSafeSupportConsentRecord = {
+  workspaceId: string;
+  userId: string;
+  supportKind: FounderSafeSupportKind;
+  supportCaseId: string | null;
+  status: FounderSafeSupportConsentStatus;
+  sanitizedMessage: string;
+  diagnosticSummary: FounderSafeDiagnosticSummary;
+  privateDataWarnings: string[];
+  approvedFields: string[];
+  redactedFields: string[];
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type FounderSafeSupportSurfaceBlueprint = {
   area: FounderSafeSupportArea;
   label: string;
@@ -223,6 +252,33 @@ export function buildFounderSafeSupportDraft(
     canSubmit: missingFields.length === 0 && !requiresPrivacyReview,
     diagnosticSummary,
     guardrails: FOUNDER_SAFE_SUPPORT_GUARDRAILS,
+  };
+}
+
+export function buildFounderSafeSupportConsentRecord(
+  input: FounderSafeSupportConsentInput
+): FounderSafeSupportConsentRecord {
+  const now = input.now ?? new Date();
+  const createdAt = now.toISOString();
+  const diagnosticSummary = buildFounderSafeDiagnosticSummary(input.diagnostic);
+  const sanitizedMessage = redactPrivateText(input.message.trim());
+  const privateDataWarnings = detectPrivateData(input.message);
+  const expiresAt = safeText(input.expiresAt) ?? new Date(now.getTime() + 7 * 86_400_000).toISOString();
+
+  return {
+    workspaceId: input.workspaceId,
+    userId: input.userId,
+    supportKind: input.supportKind,
+    supportCaseId: safeText(input.supportCaseId) ?? null,
+    status: 'active',
+    sanitizedMessage,
+    diagnosticSummary,
+    privateDataWarnings,
+    approvedFields: Object.keys(diagnosticSummary.safeFields),
+    redactedFields: diagnosticSummary.redactedFields,
+    expiresAt,
+    createdAt,
+    updatedAt: createdAt,
   };
 }
 

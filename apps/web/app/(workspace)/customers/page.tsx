@@ -37,6 +37,7 @@ import {
   type CustomerBalanceFilter,
 } from '@/lib/workspace-power';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
+import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -45,6 +46,7 @@ export default function CustomersPage() {
   const { activeWorkspace } = useWorkspace();
   const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
+  const officeAccess = useOfficeAccess();
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
@@ -355,6 +357,10 @@ export default function CustomersPage() {
       showToast(customerExportAccess.message ?? 'Customer exports are not included in your plan.', 'info');
       return;
     }
+    if (!officeAccess.can('export_documents')) {
+      showToast(officeAccess.getLockedMessage('export_documents'), 'info');
+      return;
+    }
 
     const exportRows = selectedCustomers.length ? selectedCustomers : filteredCustomers;
     const rows = exportRows.map((customer) => [
@@ -427,6 +433,10 @@ export default function CustomersPage() {
     }
     if (!customerExportAccess.allowed) {
       showToast(customerExportAccess.message ?? 'Customer exports are not included in your plan.', 'info');
+      return;
+    }
+    if (!officeAccess.can('export_documents')) {
+      showToast(officeAccess.getLockedMessage('export_documents'), 'info');
       return;
     }
 
@@ -607,10 +617,10 @@ export default function CustomersPage() {
             }}>
               Clear view
             </button>
-            <button className="ol-button" type="button" disabled={!filteredCustomers.length || !customerExportAccess.allowed} onClick={exportCustomers}>
+            <button className="ol-button" type="button" disabled={!filteredCustomers.length || !customerExportAccess.allowed || !officeAccess.can('export_documents')} onClick={exportCustomers}>
               Export CSV
             </button>
-            <button className="ol-button-secondary" type="button" disabled={!filteredCustomers.length || !customerExportAccess.allowed} onClick={() => void exportCustomersPdf()}>
+            <button className="ol-button-secondary" type="button" disabled={!filteredCustomers.length || !customerExportAccess.allowed || !officeAccess.can('export_documents')} onClick={() => void exportCustomersPdf()}>
               Export PDF
             </button>
           </div>

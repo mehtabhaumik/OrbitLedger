@@ -16,12 +16,14 @@ import {
 } from '@/lib/form-validation';
 import { INDIA_COUNTRY, INDIAN_STATES, getDefaultIndianCity, getIndianCityOptions } from '@/lib/india';
 import { createWorkspaceCustomer } from '@/lib/workspace-data';
+import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function NewCustomerPage() {
   const { activeWorkspace } = useWorkspace();
   const { showToast } = useToast();
+  const officeAccess = useOfficeAccess();
   const router = useRouter();
   const [name, setName] = useState('');
   const [legalName, setLegalName] = useState('');
@@ -52,6 +54,10 @@ export default function NewCustomerPage() {
 
   async function saveCustomer() {
     if (!activeWorkspace) {
+      return;
+    }
+    if (!officeAccess.can('manage_customers')) {
+      showToast(officeAccess.getLockedMessage('manage_customers'), 'info');
       return;
     }
     const countryCode = activeWorkspace.countryCode || 'IN';
@@ -187,7 +193,7 @@ export default function NewCustomerPage() {
             <textarea className="ol-textarea" value={notes} onChange={(event) => setNotes(event.target.value)} />
           </label>
           <div className="ol-actions">
-            <button className="ol-button" disabled={isSaving} type="button" onClick={() => void saveCustomer()}>
+            <button className="ol-button" disabled={isSaving || !officeAccess.can('manage_customers')} type="button" onClick={() => void saveCustomer()}>
               {isSaving ? 'Saving...' : 'Save customer'}
             </button>
           </div>

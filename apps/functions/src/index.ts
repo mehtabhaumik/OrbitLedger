@@ -82,11 +82,39 @@ type SubscriptionTaxProfile = {
 };
 type SubscriptionBillingDocumentAction = 'queue_email' | 'recover_document';
 type BillingEmailDeliveryStatus = 'queued' | 'pending_provider_connection' | 'sent' | 'failed';
+type OfficeInvitationEmailDeliveryStatus = BillingEmailDeliveryStatus;
+type OfficeAssignableRole = 'admin' | 'manager' | 'staff' | 'accountant' | 'viewer';
+type OfficeMemberStatus = 'active' | 'invited' | 'suspended' | 'removed';
+type OfficeMemberAccessAction = 'change_role' | 'suspend' | 'restore' | 'remove';
+type OfficeOwnershipTransferStatus = 'pending' | 'approved' | 'cancelled' | 'expired';
+type OfficeOwnershipTransferResolutionAction = 'approve' | 'cancel';
+type OfficeOwnershipTransferNotificationStatus = BillingEmailDeliveryStatus;
+type OfficeAccessRequestStatus =
+  | 'submitted'
+  | 'needs_review'
+  | 'reviewing'
+  | 'approved'
+  | 'rejected'
+  | 'granted'
+  | 'cancelled';
+type OfficeAccessReviewAction = 'mark_reviewing' | 'approve' | 'reject' | 'grant_access';
+type SupportConsentStatus = 'active' | 'revoked' | 'expired';
+type SupportCaseStatus = 'open' | 'waiting_on_customer' | 'resolved' | 'reopened';
+type SupportCaseAction = 'add_note' | 'resolve' | 'reopen';
+type SupportCaseEmailDeliveryStatus = 'queued' | 'pending_provider_connection' | 'sent' | 'failed';
 type BillingEmailDeliveryResult = {
   status: BillingEmailDeliveryStatus;
   providerMessageId: string | null;
   sentAt: string | null;
   failureReason: string | null;
+};
+type OfficeInvitationCapacityDecision = {
+  allowed: boolean;
+  reason: 'available' | 'seat_limit_reached' | 'existing_member' | 'pending_invitation';
+  seatLimit: number;
+  usedSeats: number;
+  remainingSeats: number;
+  message: string;
 };
 
 const monetizationPlanCatalog: Record<
@@ -110,6 +138,7 @@ const monetizationPlanRank: Record<'free' | 'plus' | 'pro' | 'office', number> =
   pro: 20,
   office: 30,
 };
+const officeIncludedSeatLimit = 5;
 
 const monetizationCountryCheckoutProvider: Record<MonetizationPricingCountryCode, MonetizationCheckoutProvider> = {
   IN: 'razorpay',
@@ -498,6 +527,661 @@ export function buildSubscriptionBillingEmailDeliveryUpdate(input: {
     sent_at: input.status === 'sent' ? input.sentAt ?? timestamp : null,
     failure_reason: input.failureReason ?? null,
     updated_at: timestamp,
+  };
+}
+
+export function buildOfficeAccessRequestAdminQueueRecord(input: {
+  workspaceId: string;
+  requestId: string;
+  requesterUid: string;
+  requesterName: string;
+  requesterEmail: string;
+  businessName?: string | null;
+  requestedPlanId: Extract<MonetizationPlanId, 'office_monthly' | 'office_yearly'>;
+  status?: OfficeAccessRequestStatus;
+  note?: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const status = normalizeOfficeAccessRequestStatus(input.status);
+  return {
+    version: 1,
+    kind: 'office_access_request',
+    workspace_id: input.workspaceId,
+    request_id: input.requestId,
+    requester_uid: input.requesterUid,
+    requester_name: input.requesterName,
+    requester_email: input.requesterEmail,
+    business_name: clean(input.businessName),
+    requested_plan_id: input.requestedPlanId,
+    status,
+    review_status: officeAccessReviewStatus(status),
+    action_label: officeAccessActionLabel(status),
+    note: clean(input.note),
+    created_at: now.toISOString(),
+    updated_at: now.toISOString(),
+  };
+}
+
+export function buildOfficeAccessRequestAuditRecord(input: {
+  workspaceId: string;
+  requestId: string;
+  adminQueueId?: string | null;
+  actorUid: string;
+  action: OfficeAccessReviewAction;
+  targetUid: string;
+  targetEmail: string;
+  previousStatus: OfficeAccessRequestStatus;
+  nextStatus: OfficeAccessRequestStatus;
+  note?: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    request_id: input.requestId,
+    admin_queue_id: clean(input.adminQueueId),
+    actor_uid: input.actorUid,
+    action: input.action === 'grant_access' ? 'member_accepted' : input.action === 'reject' ? 'invitation_revoked' : 'internal_access_reviewed',
+    target_uid: input.targetUid,
+    target_email: input.targetEmail,
+    previous_role: null,
+    next_role: input.action === 'grant_access' ? 'owner' : null,
+    previous_status: input.previousStatus,
+    next_status: input.nextStatus,
+    reason: clean(input.note),
+    created_at: now.toISOString(),
+  };
+}
+
+export function buildOfficeSupportReviewAuditRecord(input: {
+  workspaceId: string;
+  actorUid: string;
+  actorEmail?: string | null;
+  reason?: string | null;
+  supportCaseId?: string | null;
+  customerApprovedDiagnosticAccess?: boolean;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const reason = clean(input.reason) ?? 'Internal support review recorded.';
+  const supportCaseId = clean(input.supportCaseId);
+  const diagnosticAccess = Boolean(input.customerApprovedDiagnosticAccess);
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    actor_uid: input.actorUid,
+    actor_email: clean(input.actorEmail),
+    actor_role: 'internal_support_reviewer',
+    action: 'internal_access_reviewed',
+    target_uid: null,
+    target_email: null,
+    previous_role: null,
+    next_role: null,
+    previous_status: null,
+    next_status: null,
+    support_case_id: supportCaseId,
+    customer_approved_diagnostic_access: diagnosticAccess,
+    impersonation_allowed: false,
+    reason: buildOfficeSupportReviewAuditReason(reason, supportCaseId, diagnosticAccess),
+    created_at: now.toISOString(),
+  };
+}
+
+export function buildSupportDiagnosticConsentRecord(input: {
+  workspaceId: string;
+  userId: string;
+  userEmail?: string | null;
+  supportKind?: string | null;
+  supportCaseId?: string | null;
+  sanitizedMessage?: string | null;
+  safeFields?: Record<string, unknown> | null;
+  redactedFields?: unknown[] | null;
+  privateDataWarnings?: unknown[] | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  const safeFields = sanitizeDiagnosticSafeFields(input.safeFields);
+  const redactedFields = sanitizeStringList(input.redactedFields);
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    user_id: input.userId,
+    user_email: clean(input.userEmail),
+    support_kind: clean(input.supportKind) ?? 'general_feedback',
+    support_case_id: clean(input.supportCaseId),
+    status: 'active' as SupportConsentStatus,
+    sanitized_message: clean(input.sanitizedMessage) ?? 'Support review consent approved.',
+    diagnostic_safe_fields: safeFields,
+    approved_fields: Object.keys(safeFields),
+    redacted_fields: redactedFields,
+    private_data_warnings: sanitizeStringList(input.privateDataWarnings),
+    expires_at: new Date(now.getTime() + 7 * 86_400_000).toISOString(),
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+}
+
+export function buildSupportDiagnosticConsentStatusUpdate(input: {
+  status: SupportConsentStatus;
+  actorUid: string;
+  reason?: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  return {
+    status: input.status,
+    revoked_by: input.status === 'revoked' ? input.actorUid : null,
+    revoked_at: input.status === 'revoked' ? timestamp : null,
+    expired_at: input.status === 'expired' ? timestamp : null,
+    status_reason: clean(input.reason) ?? supportConsentStatusReason(input.status),
+    updated_at: timestamp,
+  };
+}
+
+export function buildSupportCaseRecord(input: {
+  workspaceId: string;
+  supportCaseId: string;
+  action: SupportCaseAction;
+  status: SupportCaseStatus;
+  previousStatus?: SupportCaseStatus | null;
+  note: string;
+  actorUid: string;
+  actorEmail?: string | null;
+  noteCount?: number | null;
+  createdAt?: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  const currentCount = Math.max(0, Number(input.noteCount ?? 0));
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    support_case_id: input.supportCaseId,
+    status: input.status,
+    previous_status: input.previousStatus ?? null,
+    latest_action: input.action,
+    latest_note: clean(input.note),
+    latest_note_at: timestamp,
+    latest_note_by: input.actorUid,
+    latest_note_by_email: clean(input.actorEmail),
+    resolved_at: input.status === 'resolved' ? timestamp : null,
+    reopened_at: input.status === 'reopened' ? timestamp : null,
+    note_count: currentCount + 1,
+    updated_at: timestamp,
+    created_at: clean(input.createdAt) ?? timestamp,
+  };
+}
+
+export function buildSupportCaseEmailRequestRecord(input: {
+  workspaceId: string;
+  supportCaseId: string;
+  recipientEmail: string;
+  subject: string;
+  body: string;
+  queuedBy: string;
+  queuedByEmail?: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    support_case_id: input.supportCaseId,
+    recipient_email: clean(input.recipientEmail),
+    subject: clean(input.subject),
+    body: clean(input.body),
+    provider: 'resend',
+    delivery_status: 'pending_provider_connection' as SupportCaseEmailDeliveryStatus,
+    provider_message_id: null,
+    failure_reason: null,
+    queued_by: input.queuedBy,
+    queued_by_email: clean(input.queuedByEmail),
+    queued_at: timestamp,
+    sent_at: null,
+    updated_at: timestamp,
+    created_at: timestamp,
+  };
+}
+
+export function buildOfficeOwnerMemberRecord(input: {
+  workspaceId: string;
+  ownerUid: string;
+  ownerEmail: string;
+  ownerName: string;
+  invitedBy: string;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  return {
+    uid: input.ownerUid,
+    workspace_id: input.workspaceId,
+    role: 'owner',
+    status: 'active',
+    email: clean(input.ownerEmail),
+    display_name: clean(input.ownerName),
+    invited_by: input.invitedBy,
+    invited_at: timestamp,
+    accepted_at: timestamp,
+    suspended_at: null,
+    removed_at: null,
+    last_seen_at: null,
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+}
+
+export function buildOfficeInvitationRecord(input: {
+  workspaceId: string;
+  email: string;
+  role: OfficeAssignableRole;
+  invitedBy: string;
+  invitedByName?: string | null;
+  message?: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  return {
+    email: input.email.trim().toLowerCase(),
+    role: input.role,
+    status: 'pending',
+    workspace_id: input.workspaceId,
+    invited_by: input.invitedBy,
+    invited_by_name: clean(input.invitedByName),
+    message: clean(input.message),
+    expires_at: new Date(now.getTime() + 14 * 86_400_000).toISOString(),
+    accepted_by: null,
+    accepted_at: null,
+    revoked_by: null,
+    revoked_at: null,
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+}
+
+export function buildOfficeInvitedMemberRecord(input: {
+  workspaceId: string;
+  memberUid: string;
+  memberEmail: string;
+  memberName?: string | null;
+  role: 'admin' | 'manager' | 'staff' | 'accountant' | 'viewer';
+  invitedBy: string;
+  invitedAt?: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  return {
+    uid: input.memberUid,
+    workspace_id: input.workspaceId,
+    role: input.role,
+    status: 'active',
+    email: clean(input.memberEmail),
+    display_name: clean(input.memberName) ?? clean(input.memberEmail),
+    invited_by: input.invitedBy,
+    invited_at: clean(input.invitedAt) ?? timestamp,
+    accepted_at: timestamp,
+    suspended_at: null,
+    removed_at: null,
+    last_seen_at: null,
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+}
+
+export function buildOfficeInvitationCreatedAuditRecord(input: {
+  workspaceId: string;
+  invitationId: string;
+  actorUid: string;
+  actorRole: 'owner' | 'admin';
+  targetEmail: string;
+  role: OfficeAssignableRole;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    invitation_id: input.invitationId,
+    actor_uid: input.actorUid,
+    actor_role: input.actorRole,
+    action: 'member_invited',
+    target_uid: null,
+    target_email: clean(input.targetEmail),
+    previous_role: null,
+    next_role: input.role,
+    previous_status: null,
+    next_status: 'pending',
+    reason: 'Office invitation created.',
+    created_at: now.toISOString(),
+  };
+}
+
+export function buildOfficeInvitationRevokedAuditRecord(input: {
+  workspaceId: string;
+  invitationId: string;
+  actorUid: string;
+  actorRole: 'owner' | 'admin';
+  targetEmail: string;
+  role: OfficeAssignableRole;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    invitation_id: input.invitationId,
+    actor_uid: input.actorUid,
+    actor_role: input.actorRole,
+    action: 'invitation_revoked',
+    target_uid: null,
+    target_email: clean(input.targetEmail),
+    previous_role: input.role,
+    next_role: null,
+    previous_status: 'pending',
+    next_status: 'revoked',
+    reason: 'Office invitation revoked.',
+    created_at: now.toISOString(),
+  };
+}
+
+export function buildOfficeInvitationDeliveryAuditRecord(input: {
+  workspaceId: string;
+  invitationId: string;
+  actorUid: string;
+  actorRole: 'owner' | 'admin';
+  targetEmail: string;
+  role: OfficeAssignableRole;
+  deliveryStatus: OfficeInvitationEmailDeliveryStatus;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const reason =
+    input.deliveryStatus === 'sent'
+      ? 'Invitation email sent.'
+      : input.deliveryStatus === 'pending_provider_connection'
+        ? 'Invitation email is ready; email delivery is not connected yet.'
+        : input.deliveryStatus === 'failed'
+          ? 'Invitation email failed.'
+          : 'Invitation email queued.';
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    invitation_id: input.invitationId,
+    actor_uid: input.actorUid,
+    actor_role: input.actorRole,
+    action: 'invitation_email_sent',
+    target_uid: null,
+    target_email: clean(input.targetEmail),
+    previous_role: null,
+    next_role: input.role,
+    previous_status: 'pending',
+    next_status: input.deliveryStatus,
+    reason,
+    created_at: now.toISOString(),
+  };
+}
+
+export function buildOfficeInvitationAcceptanceAuditRecord(input: {
+  workspaceId: string;
+  invitationId: string;
+  actorUid: string;
+  actorEmail: string;
+  invitedBy: string;
+  role: 'admin' | 'manager' | 'staff' | 'accountant' | 'viewer';
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    invitation_id: input.invitationId,
+    actor_uid: input.actorUid,
+    actor_role: input.role,
+    action: 'member_accepted',
+    target_uid: input.actorUid,
+    target_email: clean(input.actorEmail),
+    previous_role: null,
+    next_role: input.role,
+    previous_status: 'pending',
+    next_status: 'active',
+    invited_by: input.invitedBy,
+    reason: 'Office invitation accepted by invited user.',
+    created_at: now.toISOString(),
+  };
+}
+
+export function buildOfficeInvitationEmailDeliveryUpdate(input: {
+  status: OfficeInvitationEmailDeliveryStatus;
+  inviteUrl: string;
+  providerMessageId?: string | null;
+  sentAt?: string | null;
+  failureReason?: string | null;
+  resendCount?: number;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  const resendCount = Math.max(0, Math.floor(input.resendCount ?? 0));
+  return {
+    delivery_status: input.status,
+    email_provider_status:
+      input.status === 'sent'
+        ? 'sent'
+        : input.status === 'failed'
+          ? 'failed'
+          : input.status === 'pending_provider_connection'
+            ? 'pending_connection'
+            : 'queued',
+    provider_message_id: clean(input.providerMessageId),
+    sent_at: input.status === 'sent' ? input.sentAt ?? timestamp : null,
+    failure_reason: clean(input.failureReason),
+    resend_count: resendCount,
+    last_resend_at: resendCount > 1 ? timestamp : null,
+    invite_url: input.inviteUrl,
+    updated_at: timestamp,
+  };
+}
+
+export function buildOfficeMemberAccessAuditRecord(input: {
+  workspaceId: string;
+  actorUid: string;
+  actorRole: 'owner' | 'admin';
+  targetUid: string;
+  targetEmail?: string | null;
+  action: 'member_role_changed' | 'member_suspended' | 'member_restored' | 'member_removed';
+  previousRole?: OfficeAssignableRole | null;
+  nextRole?: OfficeAssignableRole | null;
+  previousStatus?: OfficeMemberStatus | null;
+  nextStatus?: OfficeMemberStatus | null;
+  reason?: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    actor_uid: input.actorUid,
+    actor_role: input.actorRole,
+    action: input.action,
+    target_uid: input.targetUid,
+    target_email: clean(input.targetEmail),
+    previous_role: input.previousRole ?? null,
+    next_role: input.nextRole ?? null,
+    previous_status: input.previousStatus ?? null,
+    next_status: input.nextStatus ?? null,
+    reason: clean(input.reason) ?? officeMemberAccessAuditReason(input.action),
+    created_at: now.toISOString(),
+  };
+}
+
+export function buildOfficeOwnershipTransferRecord(input: {
+  workspaceId: string;
+  requestedBy: string;
+  requestedByEmail?: string | null;
+  targetUid: string;
+  targetEmail?: string | null;
+  targetName?: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    status: 'pending',
+    requested_by: input.requestedBy,
+    requested_by_email: clean(input.requestedByEmail),
+    target_uid: input.targetUid,
+    target_email: clean(input.targetEmail),
+    target_name: clean(input.targetName),
+    requested_at: timestamp,
+    approved_by: null,
+    approved_at: null,
+    cancelled_by: null,
+    cancelled_at: null,
+    expires_at: new Date(now.getTime() + 7 * 86_400_000).toISOString(),
+    notification_status: 'queued',
+    notification_provider_status: 'queued',
+    notification_provider_message_id: null,
+    notification_sent_at: null,
+    notification_failure_reason: null,
+    notification_resend_count: 0,
+    notification_last_resend_at: null,
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+}
+
+export function buildOfficeOwnershipTransferAuditRecord(input: {
+  workspaceId: string;
+  transferId: string;
+  actorUid: string;
+  actorRole: 'owner' | OfficeAssignableRole | 'internal_support_reviewer';
+  action:
+    | 'ownership_transfer_requested'
+    | 'ownership_transferred'
+    | 'ownership_transfer_cancelled'
+    | 'ownership_transfer_expired'
+    | 'ownership_transfer_notification_sent';
+  targetUid: string;
+  targetEmail?: string | null;
+  previousRole?: 'owner' | OfficeAssignableRole | null;
+  nextRole?: 'owner' | OfficeAssignableRole | null;
+  reason?: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    ownership_transfer_id: input.transferId,
+    actor_uid: input.actorUid,
+    actor_role: input.actorRole,
+    action: input.action,
+    target_uid: input.targetUid,
+    target_email: clean(input.targetEmail),
+    previous_role: input.previousRole ?? null,
+    next_role: input.nextRole ?? null,
+    previous_status: null,
+    next_status: null,
+    reason: clean(input.reason) ?? officeOwnershipTransferAuditReason(input.action),
+    created_at: now.toISOString(),
+  };
+}
+
+export function buildOfficeOwnershipTransferNotificationUpdate(input: {
+  status: OfficeOwnershipTransferNotificationStatus;
+  providerMessageId?: string | null;
+  sentAt?: string | null;
+  failureReason?: string | null;
+  resendCount?: number;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  const resendCount = Math.max(0, Math.floor(input.resendCount ?? 0));
+  return {
+    notification_status: input.status,
+    notification_provider_status:
+      input.status === 'sent'
+        ? 'sent'
+        : input.status === 'failed'
+          ? 'failed'
+          : input.status === 'pending_provider_connection'
+            ? 'pending_connection'
+            : 'queued',
+    notification_provider_message_id: clean(input.providerMessageId),
+    notification_sent_at: input.status === 'sent' ? input.sentAt ?? timestamp : null,
+    notification_failure_reason: clean(input.failureReason),
+    notification_resend_count: resendCount,
+    notification_last_resend_at: resendCount > 1 ? timestamp : null,
+    updated_at: timestamp,
+  };
+}
+
+function resolveOfficeAccessReviewPlan(input: {
+  action: OfficeAccessReviewAction;
+  currentStatus: OfficeAccessRequestStatus;
+}) {
+  const finalStatus = ['granted', 'rejected', 'cancelled'].includes(input.currentStatus);
+  if (finalStatus) {
+    return {
+      canApply: false,
+      nextStatus: input.currentStatus,
+      shouldGrantEntitlement: false,
+      message: 'Office access request is already finalized.',
+    };
+  }
+
+  if (input.action === 'mark_reviewing') {
+    return {
+      canApply: true,
+      nextStatus: 'reviewing' as const,
+      shouldGrantEntitlement: false,
+      message: 'Office request marked for active review.',
+    };
+  }
+
+  if (input.action === 'approve') {
+    return {
+      canApply: true,
+      nextStatus: 'approved' as const,
+      shouldGrantEntitlement: false,
+      message: 'Office request approved.',
+    };
+  }
+
+  if (input.action === 'reject') {
+    return {
+      canApply: true,
+      nextStatus: 'rejected' as const,
+      shouldGrantEntitlement: false,
+      message: 'Office request rejected.',
+    };
+  }
+
+  if (input.currentStatus !== 'approved') {
+    return {
+      canApply: false,
+      nextStatus: input.currentStatus,
+      shouldGrantEntitlement: false,
+      message: 'Approve the Office request before granting access.',
+    };
+  }
+
+  return {
+    canApply: true,
+    nextStatus: 'granted' as const,
+    shouldGrantEntitlement: true,
+    message: 'Office access granted.',
   };
 }
 
@@ -2354,6 +3038,2215 @@ export const processRecurringInvoices = onSchedule(
   }
 );
 
+export const resolveOfficeAccessRequest = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    if (!adminUser || !isAuthorizedInternalAdminEmail(adminUser.email)) {
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const requestId = clean(stringValue(body?.requestId));
+    const action = normalizeOfficeAccessReviewAction(clean(stringValue(body?.action)));
+    const note = clean(stringValue(body?.note));
+
+    if (!workspaceId || !requestId || !action) {
+      response.status(400).json({ ok: false, error: 'office_review_required' });
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const timestamp = now.toISOString();
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const requestRef = workspaceRef.collection('office_access_requests').doc(requestId);
+      let nextStatus: OfficeAccessRequestStatus = 'needs_review';
+      let adminMessage = 'Office access request updated.';
+      let grantedEntitlement = false;
+
+      await db.runTransaction(async (transaction) => {
+        const [workspaceSnapshot, requestSnapshot] = await Promise.all([
+          transaction.get(workspaceRef),
+          transaction.get(requestRef),
+        ]);
+
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+        if (!requestSnapshot.exists) {
+          throw new Error('office_request_not_found');
+        }
+
+        const requestRecord = requestSnapshot.data() ?? {};
+        const currentStatus = normalizeOfficeAccessRequestStatus(clean(stringValue(requestRecord.status)));
+        const plan = resolveOfficeAccessReviewPlan({ action, currentStatus });
+        if (!plan.canApply) {
+          throw new Error(plan.message);
+        }
+
+        const requesterUid = clean(stringValue(requestRecord.requester_uid)) ?? clean(stringValue(requestRecord.requesterUid));
+        const requesterEmail = clean(stringValue(requestRecord.requester_email)) ?? clean(stringValue(requestRecord.requesterEmail));
+        const requesterName =
+          clean(stringValue(requestRecord.requester_name)) ??
+          clean(stringValue(requestRecord.requesterName)) ??
+          requesterEmail ??
+          'Office owner';
+        const requestedPlanId = normalizeOfficeRequestedPlanId(
+          clean(stringValue(requestRecord.requested_plan_id)) ?? clean(stringValue(requestRecord.requestedPlanId))
+        );
+        const adminQueueId =
+          clean(stringValue(requestRecord.admin_queue_id)) ??
+          clean(stringValue(requestRecord.adminQueueId)) ??
+          normalizeId(`office_admin_${requestId}`);
+
+        if (!requesterUid || !requesterEmail) {
+          throw new Error('office_request_invalid');
+        }
+
+        nextStatus = plan.nextStatus;
+        adminMessage = plan.message;
+        grantedEntitlement = plan.shouldGrantEntitlement;
+
+        const requestPatch = {
+          status: nextStatus,
+          reviewed_by: action === 'mark_reviewing' || action === 'approve' ? adminUser.uid : clean(stringValue(requestRecord.reviewed_by)),
+          reviewed_at: action === 'mark_reviewing' || action === 'approve' ? timestamp : clean(stringValue(requestRecord.reviewed_at)),
+          granted_by: action === 'grant_access' ? adminUser.uid : clean(stringValue(requestRecord.granted_by)),
+          granted_at: action === 'grant_access' ? timestamp : clean(stringValue(requestRecord.granted_at)),
+          rejected_by: action === 'reject' ? adminUser.uid : clean(stringValue(requestRecord.rejected_by)),
+          rejected_at: action === 'reject' ? timestamp : clean(stringValue(requestRecord.rejected_at)),
+          last_review_note: note ?? null,
+          updated_at: timestamp,
+        };
+        const queueRef = workspaceRef.collection('office_access_admin_queue').doc(adminQueueId);
+        const auditRef = workspaceRef
+          .collection('office_access_audit')
+          .doc(normalizeId(`office_access_${requestId}_${action}_${Date.now()}`));
+
+        transaction.set(requestRef, requestPatch, { merge: true });
+        transaction.set(
+          queueRef,
+          {
+            ...buildOfficeAccessRequestAdminQueueRecord({
+              workspaceId,
+              requestId,
+              requesterUid,
+              requesterName,
+              requesterEmail,
+              businessName:
+                clean(stringValue(requestRecord.business_name)) ??
+                clean(stringValue(requestRecord.businessName)) ??
+                clean(stringValue(workspaceSnapshot.data()?.business_name)),
+              requestedPlanId,
+              status: nextStatus,
+              note,
+              now,
+            }),
+            id: adminQueueId,
+            updated_at: timestamp,
+          },
+          { merge: true }
+        );
+        transaction.set(
+          auditRef,
+          buildOfficeAccessRequestAuditRecord({
+            workspaceId,
+            requestId,
+            adminQueueId,
+            actorUid: adminUser.uid,
+            action,
+            targetUid: requesterUid,
+            targetEmail: requesterEmail,
+            previousStatus: currentStatus,
+            nextStatus,
+            note,
+            now,
+          }),
+          { merge: true }
+        );
+
+        if (plan.shouldGrantEntitlement) {
+          const entitlementPayload: MonetizationWebhookPayload = {
+            provider: 'manual_provider_pending',
+            userId: requesterUid,
+            workspaceId,
+            checkoutIntentId: requestId,
+            planId: requestedPlanId,
+            status: 'confirmed',
+            transactionId: `office_grant_${requestId}`,
+            providerReference: `office_grant_${requestId}`,
+            paidAt: timestamp,
+          };
+          const entitlementRef = db.collection('users').doc(requesterUid).collection('subscription_entitlements').doc(workspaceId);
+          const entitlementAuditRef = db
+            .collection('users')
+            .doc(requesterUid)
+            .collection('subscription_entitlement_audit')
+            .doc(normalizeId(`office_grant_${requestId}`));
+          const memberRef = workspaceRef.collection('office_members').doc(requesterUid);
+
+          transaction.set(
+            entitlementRef,
+            {
+              ...buildSubscriptionEntitlementRecord(entitlementPayload, now),
+              source: 'office_invitation_admin_grant',
+            },
+            { merge: true }
+          );
+          transaction.set(
+            entitlementAuditRef,
+            {
+              ...buildSubscriptionEntitlementAuditRecord(entitlementPayload, normalizeId(`office_grant_${requestId}`), now),
+              action: 'office_access_granted',
+              workspace_id: workspaceId,
+              office_access_request_id: requestId,
+              note: note ?? 'Office access granted after internal review.',
+            },
+            { merge: true }
+          );
+          transaction.set(
+            memberRef,
+            buildOfficeOwnerMemberRecord({
+              workspaceId,
+              ownerUid: requesterUid,
+              ownerEmail: requesterEmail,
+              ownerName: requesterName,
+              invitedBy: adminUser.uid,
+              now,
+            }),
+            { merge: true }
+          );
+        }
+      });
+
+      response.status(200).json({
+        ok: true,
+        action,
+        requestId,
+        status: nextStatus,
+        grantedEntitlement,
+        message: adminMessage,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'office_review_failed';
+      if (message === 'workspace_not_found' || message === 'office_request_not_found') {
+        response.status(404).json({ ok: false, error: message });
+        return;
+      }
+      if (message === 'office_request_invalid' || message === 'Approve the Office request before granting access.') {
+        response.status(409).json({ ok: false, error: 'office_request_not_ready', message });
+        return;
+      }
+      if (message === 'Office access request is already finalized.') {
+        response.status(409).json({ ok: false, error: 'office_request_finalized', message });
+        return;
+      }
+      logger.error('resolveOfficeAccessRequest failed', { workspaceId, requestId, action, error });
+      response.status(500).json({ ok: false, error: 'office_review_failed' });
+    }
+  }
+);
+
+export const recordOfficeSupportReview = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    if (!adminUser || !isAuthorizedInternalAdminEmail(adminUser.email)) {
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const reason = clean(stringValue(body?.reason));
+    const supportCaseId = clean(stringValue(body?.supportCaseId));
+    const customerApprovedDiagnosticAccess = body?.customerApprovedDiagnosticAccess === true;
+
+    if (!workspaceId || !reason) {
+      response.status(400).json({ ok: false, error: 'support_review_required' });
+      return;
+    }
+
+    try {
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const workspaceSnapshot = await workspaceRef.get();
+      if (!workspaceSnapshot.exists) {
+        response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+
+      const now = new Date();
+      const auditRef = workspaceRef
+        .collection('office_access_audit')
+        .doc(normalizeId(`support_review_${adminUser.uid}_${Date.now()}`));
+
+      await auditRef.set(buildOfficeSupportReviewAuditRecord({
+        workspaceId,
+        actorUid: adminUser.uid,
+        actorEmail: adminUser.email,
+        reason,
+        supportCaseId,
+        customerApprovedDiagnosticAccess,
+        now,
+      }));
+
+      response.status(200).json({
+        ok: true,
+        reviewId: auditRef.id,
+        message: customerApprovedDiagnosticAccess
+          ? 'Support review recorded with approved diagnostic context.'
+          : 'Support review recorded without customer data access.',
+      });
+    } catch (error) {
+      logger.error('recordOfficeSupportReview failed', { workspaceId, supportCaseId, error });
+      response.status(500).json({ ok: false, error: 'support_review_failed' });
+    }
+  }
+);
+
+export const recordSupportCaseAdminAction = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    if (!adminUser || !isAuthorizedInternalAdminEmail(adminUser.email)) {
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const supportCaseId = clean(stringValue(body?.supportCaseId));
+    const action = normalizeSupportCaseAction(clean(stringValue(body?.action)));
+    const note = clean(stringValue(body?.note));
+
+    if (!workspaceId || !supportCaseId || !note) {
+      response.status(400).json({ ok: false, error: 'support_case_update_required' });
+      return;
+    }
+
+    try {
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const caseRef = workspaceRef.collection('support_cases').doc(normalizeId(supportCaseId));
+      const now = new Date();
+      const auditRef = workspaceRef
+        .collection('office_access_audit')
+        .doc(normalizeId(`support_case_${action}_${supportCaseId}_${adminUser.uid}_${Date.now()}`));
+      let nextStatus: SupportCaseStatus = 'open';
+
+      await db.runTransaction(async (transaction) => {
+        const [workspaceSnapshot, caseSnapshot] = await Promise.all([
+          transaction.get(workspaceRef),
+          transaction.get(caseRef),
+        ]);
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+
+        const currentCase = caseSnapshot.exists ? caseSnapshot.data() ?? {} : {};
+        const previousStatus = normalizeSupportCaseStatus(clean(stringValue(currentCase.status)));
+        nextStatus = supportCaseStatusForAction(action);
+        const latestNote = note.slice(0, 500);
+
+        transaction.set(
+          caseRef,
+          buildSupportCaseRecord({
+            workspaceId,
+            supportCaseId,
+            action,
+            status: nextStatus,
+            previousStatus,
+            note: latestNote,
+            actorUid: adminUser.uid,
+            actorEmail: adminUser.email,
+            noteCount: numberValue(currentCase.note_count),
+            createdAt: clean(stringValue(currentCase.created_at)),
+            now,
+          }),
+          { merge: true }
+        );
+        transaction.set(auditRef, {
+          version: 1,
+          workspace_id: workspaceId,
+          actor_uid: adminUser.uid,
+          actor_email: clean(adminUser.email),
+          actor_role: 'internal_support_reviewer',
+          action: 'internal_access_reviewed',
+          target_uid: null,
+          target_email: null,
+          previous_role: null,
+          next_role: null,
+          previous_status: previousStatus,
+          next_status: nextStatus,
+          support_consent_id: null,
+          support_case_id: supportCaseId,
+          customer_approved_diagnostic_access: false,
+          impersonation_allowed: false,
+          reason: supportCaseAuditReason(action, latestNote),
+          created_at: now.toISOString(),
+        });
+      });
+
+      response.status(200).json({
+        ok: true,
+        supportCaseId,
+        caseRecordId: caseRef.id,
+        status: nextStatus,
+        auditId: auditRef.id,
+        message: supportCaseMessageForStatus(nextStatus, action),
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'workspace_not_found') {
+        response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+      logger.error('recordSupportCaseAdminAction failed', { workspaceId, supportCaseId, action, error });
+      response.status(500).json({ ok: false, error: 'support_case_update_failed' });
+    }
+  }
+);
+
+export const queueSupportCaseFollowUpEmail = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    if (!adminUser || !isAuthorizedInternalAdminEmail(adminUser.email)) {
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const supportCaseId = clean(stringValue(body?.supportCaseId));
+    const recipientEmail = clean(stringValue(body?.recipientEmail));
+    const subject = clean(stringValue(body?.subject));
+    const emailBody = clean(stringValue(body?.body));
+
+    if (!workspaceId || !supportCaseId || !recipientEmail || !subject || !emailBody || !isValidEmailAddress(recipientEmail)) {
+      response.status(400).json({ ok: false, error: 'support_case_email_required' });
+      return;
+    }
+
+    try {
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const workspaceSnapshot = await workspaceRef.get();
+      if (!workspaceSnapshot.exists) {
+        response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+
+      const now = new Date();
+      const emailRef = workspaceRef
+        .collection('support_case_email_requests')
+        .doc(normalizeId(`support_case_email_${supportCaseId}_${adminUser.uid}_${Date.now()}`));
+      const auditRef = workspaceRef
+        .collection('office_access_audit')
+        .doc(normalizeId(`support_case_email_${supportCaseId}_${adminUser.uid}_${Date.now()}`));
+
+      await db.runTransaction(async (transaction) => {
+        transaction.set(emailRef, buildSupportCaseEmailRequestRecord({
+          workspaceId,
+          supportCaseId,
+          recipientEmail,
+          subject,
+          body: emailBody,
+          queuedBy: adminUser.uid,
+          queuedByEmail: adminUser.email,
+          now,
+        }));
+        transaction.set(auditRef, {
+          version: 1,
+          workspace_id: workspaceId,
+          actor_uid: adminUser.uid,
+          actor_email: clean(adminUser.email),
+          actor_role: 'internal_support_reviewer',
+          action: 'internal_access_reviewed',
+          target_uid: null,
+          target_email: recipientEmail,
+          previous_role: null,
+          next_role: null,
+          previous_status: null,
+          next_status: null,
+          support_consent_id: null,
+          support_case_id: supportCaseId,
+          customer_approved_diagnostic_access: false,
+          impersonation_allowed: false,
+          reason: 'Support case follow-up email prepared. Delivery is pending email provider connection.',
+          created_at: now.toISOString(),
+        });
+      });
+
+      response.status(200).json({
+        ok: true,
+        requestId: emailRef.id,
+        deliveryStatus: 'pending_provider_connection',
+        message: 'Support follow-up email is ready for provider connection.',
+      });
+    } catch (error) {
+      logger.error('queueSupportCaseFollowUpEmail failed', { workspaceId, supportCaseId, error });
+      response.status(500).json({ ok: false, error: 'support_case_email_failed' });
+    }
+  }
+);
+
+export const createSupportDiagnosticConsent = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 20,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const user = await verifyRequestUser(request);
+    if (!user?.uid) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const supportKind = clean(stringValue(body?.supportKind));
+    const supportCaseId = clean(stringValue(body?.supportCaseId));
+    const sanitizedMessage = clean(stringValue(body?.sanitizedMessage));
+    const safeFields = asRecord(body?.safeFields);
+    const redactedFields = Array.isArray(body?.redactedFields) ? body.redactedFields : [];
+    const privateDataWarnings = Array.isArray(body?.privateDataWarnings) ? body.privateDataWarnings : [];
+
+    if (!workspaceId || !sanitizedMessage || !safeFields) {
+      response.status(400).json({ ok: false, error: 'support_consent_required' });
+      return;
+    }
+
+    try {
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const workspaceSnapshot = await workspaceRef.get();
+      if (!workspaceSnapshot.exists) {
+        response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+
+      const workspace = workspaceSnapshot.data() ?? {};
+      const memberSnapshot = await workspaceRef.collection('office_members').doc(user.uid).get();
+      const member = memberSnapshot.exists ? memberSnapshot.data() ?? {} : null;
+      const ownsWorkspace = clean(stringValue(workspace.owner_uid)) === user.uid;
+      const isOfficeApprover =
+        clean(stringValue(member?.status)) === 'active' &&
+        (clean(stringValue(member?.role)) === 'owner' || clean(stringValue(member?.role)) === 'admin');
+
+      if (!ownsWorkspace && !isOfficeApprover) {
+        response.status(403).json({ ok: false, error: 'support_consent_forbidden' });
+        return;
+      }
+
+      const now = new Date();
+      const consentRef = workspaceRef
+        .collection('support_diagnostic_consents')
+        .doc(normalizeId(`support_consent_${user.uid}_${Date.now()}`));
+      const auditRef = workspaceRef
+        .collection('office_access_audit')
+        .doc(normalizeId(`support_consent_${user.uid}_${Date.now()}`));
+      const consentRecord = buildSupportDiagnosticConsentRecord({
+        workspaceId,
+        userId: user.uid,
+        userEmail: user.email,
+        supportKind,
+        supportCaseId,
+        sanitizedMessage,
+        safeFields,
+        redactedFields,
+        privateDataWarnings,
+        now,
+      });
+
+      await db.runTransaction(async (transaction) => {
+        transaction.set(consentRef, consentRecord);
+        transaction.set(auditRef, {
+          version: 1,
+          workspace_id: workspaceId,
+          actor_uid: user.uid,
+          actor_email: clean(user.email),
+          actor_role: ownsWorkspace ? 'owner' : clean(stringValue(member?.role)),
+          action: 'internal_access_reviewed',
+          target_uid: null,
+          target_email: null,
+          previous_role: null,
+          next_role: null,
+          previous_status: null,
+          next_status: null,
+          support_consent_id: consentRef.id,
+          support_case_id: consentRecord.support_case_id,
+          customer_approved_diagnostic_access: true,
+          impersonation_allowed: false,
+          reason: 'Customer approved a safe diagnostic review pack. Impersonation remains blocked.',
+          created_at: now.toISOString(),
+        });
+      });
+
+      response.status(200).json({
+        ok: true,
+        consentId: consentRef.id,
+        expiresAt: consentRecord.expires_at,
+        message: 'Support review approval saved.',
+      });
+    } catch (error) {
+      logger.error('createSupportDiagnosticConsent failed', { workspaceId, error });
+      response.status(500).json({ ok: false, error: 'support_consent_failed' });
+    }
+  }
+);
+
+export const revokeSupportDiagnosticConsent = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 20,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const user = await verifyRequestUser(request);
+    if (!user?.uid) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const consentId = clean(stringValue(body?.consentId));
+    const reason = clean(stringValue(body?.reason));
+
+    if (!workspaceId || !consentId) {
+      response.status(400).json({ ok: false, error: 'support_consent_revoke_required' });
+      return;
+    }
+
+    try {
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const consentRef = workspaceRef.collection('support_diagnostic_consents').doc(consentId);
+      const now = new Date();
+      const nextStatus = { value: 'active' as SupportConsentStatus };
+
+      await db.runTransaction(async (transaction) => {
+        const [workspaceSnapshot, consentSnapshot, memberSnapshot] = await Promise.all([
+          transaction.get(workspaceRef),
+          transaction.get(consentRef),
+          transaction.get(workspaceRef.collection('office_members').doc(user.uid)),
+        ]);
+
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+        if (!consentSnapshot.exists) {
+          throw new Error('support_consent_not_found');
+        }
+
+        const workspace = workspaceSnapshot.data() ?? {};
+        const consent = consentSnapshot.data() ?? {};
+        const member = memberSnapshot.exists ? memberSnapshot.data() ?? {} : null;
+        const ownsWorkspace = clean(stringValue(workspace.owner_uid)) === user.uid;
+        const isOfficeAdmin =
+          clean(stringValue(member?.status)) === 'active' &&
+          (clean(stringValue(member?.role)) === 'owner' || clean(stringValue(member?.role)) === 'admin');
+        const createdByUser = clean(stringValue(consent.user_id)) === user.uid;
+
+        if (!ownsWorkspace && !isOfficeAdmin && !createdByUser) {
+          throw new Error('support_consent_forbidden');
+        }
+
+        const currentStatus = normalizeSupportConsentStatus(clean(stringValue(consent.status)));
+        if (currentStatus !== 'active') {
+          nextStatus.value = currentStatus;
+          return;
+        }
+
+        const expiresAt = clean(stringValue(consent.expires_at));
+        nextStatus.value = expiresAt && Date.parse(expiresAt) <= now.getTime() ? 'expired' : 'revoked';
+        transaction.set(
+          consentRef,
+          buildSupportDiagnosticConsentStatusUpdate({
+            status: nextStatus.value,
+            actorUid: user.uid,
+            reason: reason ?? (nextStatus.value === 'expired' ? 'Support review approval expired before revocation.' : 'Support review approval revoked by user.'),
+            now,
+          }),
+          { merge: true }
+        );
+        transaction.set(
+          workspaceRef.collection('office_access_audit').doc(normalizeId(`support_consent_${nextStatus.value}_${consentId}_${Date.now()}`)),
+          {
+            version: 1,
+            workspace_id: workspaceId,
+            actor_uid: user.uid,
+            actor_email: clean(user.email),
+            actor_role: ownsWorkspace ? 'owner' : createdByUser ? 'support_consent_owner' : clean(stringValue(member?.role)),
+            action: 'internal_access_reviewed',
+            target_uid: null,
+            target_email: null,
+            previous_role: null,
+            next_role: null,
+            previous_status: 'active',
+            next_status: nextStatus.value,
+            support_consent_id: consentId,
+            support_case_id: clean(stringValue(consent.support_case_id)),
+            customer_approved_diagnostic_access: false,
+            impersonation_allowed: false,
+            reason: nextStatus.value === 'expired'
+              ? 'Support diagnostic approval expired. Internal support review access is no longer active.'
+              : 'Support diagnostic approval revoked. Internal support review access is no longer active.',
+            created_at: now.toISOString(),
+          }
+        );
+      });
+
+      response.status(200).json({
+        ok: true,
+        consentId,
+        status: nextStatus.value,
+        message: nextStatus.value === 'expired' ? 'Support review approval has expired.' : 'Support review approval revoked.',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'support_consent_revoke_failed';
+      if (message === 'workspace_not_found' || message === 'support_consent_not_found') {
+        response.status(404).json({ ok: false, error: message });
+        return;
+      }
+      if (message === 'support_consent_forbidden') {
+        response.status(403).json({ ok: false, error: message });
+        return;
+      }
+      logger.error('revokeSupportDiagnosticConsent failed', { workspaceId, consentId, error });
+      response.status(500).json({ ok: false, error: 'support_consent_revoke_failed' });
+    }
+  }
+);
+
+export const expireSupportDiagnosticConsents = onSchedule(
+  {
+    region: 'asia-south1',
+    schedule: 'every 6 hours',
+    timeZone: 'Asia/Kolkata',
+  },
+  async () => {
+    const now = new Date();
+    const snapshots = await db.collectionGroup('support_diagnostic_consents')
+      .where('status', '==', 'active')
+      .where('expires_at', '<=', now.toISOString())
+      .limit(100)
+      .get();
+
+    if (snapshots.empty) {
+      return;
+    }
+
+    const batch = db.batch();
+    snapshots.docs.forEach((snapshot) => {
+      const consent = snapshot.data() ?? {};
+      const workspaceRef = snapshot.ref.parent.parent;
+      if (!workspaceRef) {
+        return;
+      }
+      const workspaceId = clean(stringValue(consent.workspace_id)) ?? workspaceRef.id;
+      batch.set(
+        snapshot.ref,
+        buildSupportDiagnosticConsentStatusUpdate({
+          status: 'expired',
+          actorUid: 'system',
+          reason: 'Support review approval expired automatically.',
+          now,
+        }),
+        { merge: true }
+      );
+      batch.set(
+        workspaceRef.collection('office_access_audit').doc(normalizeId(`support_consent_expired_${snapshot.id}_${Date.now()}`)),
+        {
+          version: 1,
+          workspace_id: workspaceId,
+          actor_uid: 'system',
+          actor_email: null,
+          actor_role: 'internal_support_reviewer',
+          action: 'internal_access_reviewed',
+          target_uid: null,
+          target_email: null,
+          previous_role: null,
+          next_role: null,
+          previous_status: 'active',
+          next_status: 'expired',
+          support_consent_id: snapshot.id,
+          support_case_id: clean(stringValue(consent.support_case_id)),
+          customer_approved_diagnostic_access: false,
+          impersonation_allowed: false,
+          reason: 'Support diagnostic approval expired automatically.',
+          created_at: now.toISOString(),
+        }
+      );
+    });
+
+    await batch.commit();
+  }
+);
+
+export const acceptOfficeInvitation = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 20,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const user = await verifyRequestUser(request);
+    if (!user?.uid || !user.email) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const invitationId = clean(stringValue(body?.invitationId));
+
+    if (!workspaceId || !invitationId) {
+      response.status(400).json({ ok: false, error: 'invitation_required' });
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const timestamp = now.toISOString();
+      const normalizedEmail = user.email.trim().toLowerCase();
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const invitationRef = workspaceRef.collection('office_invitations').doc(invitationId);
+      const memberRef = workspaceRef.collection('office_members').doc(user.uid);
+      let role: 'admin' | 'manager' | 'staff' | 'accountant' | 'viewer' = 'viewer';
+      let message = 'Office invitation accepted.';
+
+      await db.runTransaction(async (transaction) => {
+        const [workspaceSnapshot, invitationSnapshot, memberSnapshot] = await Promise.all([
+          transaction.get(workspaceRef),
+          transaction.get(invitationRef),
+          transaction.get(memberRef),
+        ]);
+
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+        if (!invitationSnapshot.exists) {
+          throw new Error('invitation_not_found');
+        }
+
+        const invitation = invitationSnapshot.data() ?? {};
+        const invitationEmail = clean(stringValue(invitation.email))?.toLowerCase();
+        const invitationStatus = clean(stringValue(invitation.status)) ?? 'pending';
+        const invitationRole = normalizeAssignableOfficeRole(clean(stringValue(invitation.role)));
+        const invitedBy = clean(stringValue(invitation.invited_by)) ?? clean(stringValue(invitation.invitedBy)) ?? '';
+
+        if (!invitationEmail || invitationEmail !== normalizedEmail) {
+          throw new Error('invitation_email_mismatch');
+        }
+        if (!invitationRole) {
+          throw new Error('invitation_invalid_role');
+        }
+        role = invitationRole;
+
+        if (invitationStatus === 'accepted' && clean(stringValue(invitation.accepted_by)) === user.uid) {
+          if (!memberSnapshot.exists || memberSnapshot.data()?.status !== 'active') {
+            transaction.set(
+              memberRef,
+              buildOfficeInvitedMemberRecord({
+                workspaceId,
+                memberUid: user.uid,
+                memberEmail: normalizedEmail,
+                memberName: clean(stringValue(body?.displayName)),
+                role,
+                invitedBy,
+                invitedAt: clean(stringValue(invitation.created_at)),
+                now,
+              }),
+              { merge: true }
+            );
+          }
+          message = 'Office invitation was already accepted.';
+          return;
+        }
+
+        if (invitationStatus !== 'pending') {
+          throw new Error(`invitation_${invitationStatus}`);
+        }
+
+        const expiresAt = clean(stringValue(invitation.expires_at));
+        if (expiresAt && Date.parse(expiresAt) <= Date.now()) {
+          transaction.set(invitationRef, {
+            status: 'expired',
+            updated_at: timestamp,
+          }, { merge: true });
+          throw new Error('invitation_expired');
+        }
+
+        transaction.set(
+          memberRef,
+          buildOfficeInvitedMemberRecord({
+            workspaceId,
+            memberUid: user.uid,
+            memberEmail: normalizedEmail,
+            memberName: clean(stringValue(body?.displayName)),
+            role,
+            invitedBy,
+            invitedAt: clean(stringValue(invitation.created_at)),
+            now,
+          }),
+          { merge: true }
+        );
+        transaction.set(
+          invitationRef,
+          {
+            status: 'accepted',
+            accepted_by: user.uid,
+            accepted_at: timestamp,
+            updated_at: timestamp,
+          },
+          { merge: true }
+        );
+        transaction.set(
+          workspaceRef.collection('office_access_audit').doc(normalizeId(`office_invite_accept_${invitationId}_${user.uid}`)),
+          buildOfficeInvitationAcceptanceAuditRecord({
+            workspaceId,
+            invitationId,
+            actorUid: user.uid,
+            actorEmail: normalizedEmail,
+            invitedBy,
+            role,
+            now,
+          }),
+          { merge: true }
+        );
+      });
+
+      response.status(200).json({
+        ok: true,
+        workspaceId,
+        invitationId,
+        role,
+        message,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'invitation_accept_failed';
+      if (message === 'workspace_not_found' || message === 'invitation_not_found') {
+        response.status(404).json({ ok: false, error: message });
+        return;
+      }
+      if (message === 'invitation_email_mismatch') {
+        response.status(403).json({
+          ok: false,
+          error: 'invitation_email_mismatch',
+          message: 'Sign in with the email address that received this invitation.',
+        });
+        return;
+      }
+      if (message === 'invitation_invalid_role') {
+        response.status(409).json({ ok: false, error: message });
+        return;
+      }
+      if (message.startsWith('invitation_')) {
+        response.status(409).json({ ok: false, error: message });
+        return;
+      }
+      logger.error('acceptOfficeInvitation failed', { workspaceId, invitationId, error });
+      response.status(500).json({ ok: false, error: 'invitation_accept_failed' });
+    }
+  }
+);
+
+export const createOfficeInvitation = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 20,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const actor = await verifyRequestUser(request);
+    if (!actor?.uid) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const email = clean(stringValue(body?.email))?.toLowerCase();
+    const role = normalizeAssignableOfficeRole(clean(stringValue(body?.role)));
+    const message = clean(stringValue(body?.message));
+    const actorName = clean(stringValue(body?.actorName));
+
+    if (!workspaceId || !email || !role || !isValidEmailAddress(email)) {
+      response.status(400).json({ ok: false, error: 'invitation_create_required' });
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const invitationRef = workspaceRef.collection('office_invitations').doc();
+      const auditRef = workspaceRef
+        .collection('office_access_audit')
+        .doc(normalizeId(`office_invite_create_${invitationRef.id}_${actor.uid}_${Date.now()}`));
+      let actorRole: 'owner' | 'admin' = 'owner';
+
+      await db.runTransaction(async (transaction) => {
+        const [workspaceSnapshot, memberSnapshot, membersSnapshot, invitationsSnapshot] = await Promise.all([
+          transaction.get(workspaceRef),
+          transaction.get(workspaceRef.collection('office_members').doc(actor.uid)),
+          transaction.get(workspaceRef.collection('office_members')),
+          transaction.get(workspaceRef.collection('office_invitations')),
+        ]);
+
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+
+        const workspace = workspaceSnapshot.data() ?? {};
+        const authorization = getOfficeInvitationActionAuthorization({
+          actorUid: actor.uid,
+          workspace,
+          member: memberSnapshot.data(),
+          targetRole: role,
+        });
+        if (!authorization.allowed || !authorization.role) {
+          throw new Error('team_admin_required');
+        }
+        actorRole = authorization.role;
+
+        const capacity = getOfficeInvitationCapacityDecisionFromDocs({
+          members: membersSnapshot.docs.map((entry) => entry.data()),
+          invitations: invitationsSnapshot.docs.map((entry) => entry.data()),
+          targetEmail: email,
+        });
+        if (!capacity.allowed) {
+          throw new Error(capacity.reason);
+        }
+
+        transaction.set(invitationRef, buildOfficeInvitationRecord({
+          workspaceId,
+          email,
+          role,
+          invitedBy: actor.uid,
+          invitedByName: actorName ?? actor.email,
+          message,
+          now,
+        }));
+        transaction.set(auditRef, buildOfficeInvitationCreatedAuditRecord({
+          workspaceId,
+          invitationId: invitationRef.id,
+          actorUid: actor.uid,
+          actorRole,
+          targetEmail: email,
+          role,
+          now,
+        }));
+      });
+
+      response.status(200).json({
+        ok: true,
+        workspaceId,
+        invitationId: invitationRef.id,
+        message: 'Team invitation created.',
+      });
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : 'invitation_create_failed';
+      if (messageText === 'workspace_not_found') {
+        response.status(404).json({ ok: false, error: messageText });
+        return;
+      }
+      if (messageText === 'team_admin_required') {
+        response.status(403).json({ ok: false, error: messageText });
+        return;
+      }
+      if (
+        messageText === 'seat_limit_reached' ||
+        messageText === 'existing_member' ||
+        messageText === 'pending_invitation'
+      ) {
+        response.status(409).json({
+          ok: false,
+          error: messageText,
+          message: officeInvitationCapacityErrorMessage(messageText),
+        });
+        return;
+      }
+      logger.error('createOfficeInvitation failed', { workspaceId, role, error });
+      response.status(500).json({ ok: false, error: 'invitation_create_failed' });
+    }
+  }
+);
+
+export const revokeOfficeInvitation = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 20,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const actor = await verifyRequestUser(request);
+    if (!actor?.uid) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const invitationId = clean(stringValue(body?.invitationId));
+    if (!workspaceId || !invitationId) {
+      response.status(400).json({ ok: false, error: 'invitation_required' });
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const timestamp = now.toISOString();
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const invitationRef = workspaceRef.collection('office_invitations').doc(invitationId);
+      let targetEmail = '';
+
+      await db.runTransaction(async (transaction) => {
+        const [workspaceSnapshot, invitationSnapshot, memberSnapshot] = await Promise.all([
+          transaction.get(workspaceRef),
+          transaction.get(invitationRef),
+          transaction.get(workspaceRef.collection('office_members').doc(actor.uid)),
+        ]);
+
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+        if (!invitationSnapshot.exists) {
+          throw new Error('invitation_not_found');
+        }
+
+        const invitation = invitationSnapshot.data() ?? {};
+        const role = normalizeAssignableOfficeRole(clean(stringValue(invitation.role)));
+        if (!role) {
+          throw new Error('invitation_invalid_role');
+        }
+        const status = clean(stringValue(invitation.status)) ?? 'pending';
+        if (status !== 'pending') {
+          throw new Error(`invitation_${status}`);
+        }
+
+        const workspace = workspaceSnapshot.data() ?? {};
+        const authorization = getOfficeInvitationActionAuthorization({
+          actorUid: actor.uid,
+          workspace,
+          member: memberSnapshot.data(),
+          targetRole: role,
+        });
+        if (!authorization.allowed || !authorization.role) {
+          throw new Error('team_admin_required');
+        }
+
+        targetEmail = clean(stringValue(invitation.email)) ?? '';
+        transaction.set(invitationRef, {
+          status: 'revoked',
+          revoked_by: actor.uid,
+          revoked_at: timestamp,
+          updated_at: timestamp,
+        }, { merge: true });
+        transaction.set(
+          workspaceRef.collection('office_access_audit').doc(normalizeId(`office_invite_revoke_${invitationId}_${actor.uid}_${Date.now()}`)),
+          buildOfficeInvitationRevokedAuditRecord({
+            workspaceId,
+            invitationId,
+            actorUid: actor.uid,
+            actorRole: authorization.role,
+            targetEmail,
+            role,
+            now,
+          }),
+          { merge: true }
+        );
+      });
+
+      response.status(200).json({
+        ok: true,
+        workspaceId,
+        invitationId,
+        targetEmail,
+        message: 'Invitation revoked.',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'invitation_revoke_failed';
+      if (message === 'workspace_not_found' || message === 'invitation_not_found') {
+        response.status(404).json({ ok: false, error: message });
+        return;
+      }
+      if (message === 'team_admin_required') {
+        response.status(403).json({ ok: false, error: message });
+        return;
+      }
+      if (message === 'invitation_invalid_role' || message.startsWith('invitation_')) {
+        response.status(409).json({ ok: false, error: message });
+        return;
+      }
+      logger.error('revokeOfficeInvitation failed', { workspaceId, invitationId, error });
+      response.status(500).json({ ok: false, error: 'invitation_revoke_failed' });
+    }
+  }
+);
+
+export const sendOfficeInvitationEmail = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 20,
+    secrets: [resendApiKey],
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const actor = await verifyRequestUser(request);
+    if (!actor?.uid) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const invitationId = clean(stringValue(body?.invitationId));
+    const origin = clean(stringValue(body?.origin));
+
+    if (!workspaceId || !invitationId || !origin) {
+      response.status(400).json({ ok: false, error: 'invitation_delivery_required' });
+      return;
+    }
+
+    try {
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const invitationRef = workspaceRef.collection('office_invitations').doc(invitationId);
+      const [workspaceSnapshot, invitationSnapshot] = await Promise.all([
+        workspaceRef.get(),
+        invitationRef.get(),
+      ]);
+
+      if (!workspaceSnapshot.exists) {
+        response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+      if (!invitationSnapshot.exists) {
+        response.status(404).json({ ok: false, error: 'invitation_not_found' });
+        return;
+      }
+
+      const workspace = workspaceSnapshot.data() ?? {};
+      const invitation = invitationSnapshot.data() ?? {};
+      const invitationRole = normalizeAssignableOfficeRole(clean(stringValue(invitation.role)));
+      if (!invitationRole) {
+        response.status(409).json({ ok: false, error: 'invitation_invalid_role' });
+        return;
+      }
+      const authorization = await getOfficeInvitationDeliveryAuthorization(workspaceId, actor.uid, workspace, invitationRole);
+      if (!authorization.allowed) {
+        response.status(403).json({ ok: false, error: 'team_admin_required' });
+        return;
+      }
+
+      const status = clean(stringValue(invitation.status)) ?? 'pending';
+      if (status !== 'pending') {
+        response.status(409).json({ ok: false, error: `invitation_${status}` });
+        return;
+      }
+
+      const expiresAt = clean(stringValue(invitation.expires_at));
+      if (expiresAt && Date.parse(expiresAt) <= Date.now()) {
+        await invitationRef.set({
+          status: 'expired',
+          updated_at: new Date().toISOString(),
+        }, { merge: true });
+        response.status(409).json({ ok: false, error: 'invitation_expired' });
+        return;
+      }
+      if (!expiresAt) {
+        await invitationRef.set({
+          expires_at: new Date(Date.now() + 14 * 86_400_000).toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { merge: true });
+      }
+
+      const inviteUrl = buildOfficeInvitationUrl(origin, workspaceId, invitationId);
+      const delivery = await deliverOfficeInvitationEmail({
+        invitation,
+        workspace,
+        inviteUrl,
+      });
+      const resendCount = numberValue(invitation.resend_count, 0) + 1;
+      const now = new Date();
+      const update = buildOfficeInvitationEmailDeliveryUpdate({
+        status: delivery.status,
+        inviteUrl,
+        providerMessageId: delivery.providerMessageId,
+        sentAt: delivery.sentAt,
+        failureReason: delivery.failureReason,
+        resendCount,
+        now,
+      });
+
+      await invitationRef.set(update, { merge: true });
+      await workspaceRef.collection('office_access_audit').doc(normalizeId(`office_invite_delivery_${invitationId}_${actor.uid}_${Date.now()}`)).set(
+        buildOfficeInvitationDeliveryAuditRecord({
+          workspaceId,
+          invitationId,
+          actorUid: actor.uid,
+          actorRole: authorization.role ?? 'owner',
+          targetEmail: clean(stringValue(invitation.email)) ?? '',
+          role: invitationRole,
+          deliveryStatus: delivery.status,
+          now,
+        }),
+        { merge: true }
+      );
+
+      response.status(200).json({
+        ok: true,
+        workspaceId,
+        invitationId,
+        deliveryStatus: delivery.status,
+        sentAt: delivery.sentAt,
+        inviteUrl,
+        message:
+          delivery.status === 'sent'
+            ? 'Invitation email sent.'
+            : delivery.status === 'pending_provider_connection'
+              ? 'Invitation email is ready. Email delivery is not connected yet.'
+              : 'Invitation email could not be sent.',
+      });
+    } catch (error) {
+      logger.error('sendOfficeInvitationEmail failed', { workspaceId, invitationId, error });
+      response.status(500).json({ ok: false, error: 'invitation_delivery_failed' });
+    }
+  }
+);
+
+export const updateOfficeMemberAccess = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 20,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const actor = await verifyRequestUser(request);
+    if (!actor?.uid) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const memberId = clean(stringValue(body?.memberId));
+    const action = normalizeOfficeMemberAccessAction(clean(stringValue(body?.action)));
+    const nextRole = normalizeAssignableOfficeRole(clean(stringValue(body?.nextRole)));
+
+    if (!workspaceId || !memberId || !action) {
+      response.status(400).json({ ok: false, error: 'member_action_required' });
+      return;
+    }
+    if (action === 'change_role' && !nextRole) {
+      response.status(400).json({ ok: false, error: 'role_required' });
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const timestamp = now.toISOString();
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const memberRef = workspaceRef.collection('office_members').doc(memberId);
+      let message = 'Team access updated.';
+
+      await db.runTransaction(async (transaction) => {
+        const [workspaceSnapshot, actorMemberSnapshot, targetMemberSnapshot] = await Promise.all([
+          transaction.get(workspaceRef),
+          transaction.get(workspaceRef.collection('office_members').doc(actor.uid)),
+          transaction.get(memberRef),
+        ]);
+
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+        if (!targetMemberSnapshot.exists) {
+          throw new Error('member_not_found');
+        }
+        if (actor.uid === memberId) {
+          throw new Error('self_member_locked');
+        }
+
+        const workspace = workspaceSnapshot.data() ?? {};
+        const targetMember = targetMemberSnapshot.data() ?? {};
+        const previousRole = normalizeAssignableOfficeRole(clean(stringValue(targetMember.role)));
+        const targetRole = clean(stringValue(targetMember.role));
+        const previousStatus = normalizeOfficeMemberStatus(clean(stringValue(targetMember.status)));
+        const targetEmail = clean(stringValue(targetMember.email)) ?? clean(stringValue(targetMember.display_name));
+
+        if (targetRole === 'owner') {
+          throw new Error('owner_member_locked');
+        }
+        if (!previousRole || !previousStatus) {
+          throw new Error('member_invalid');
+        }
+
+        const authorization = getOfficeMemberAccessAuthorization({
+          actorUid: actor.uid,
+          workspace,
+          member: actorMemberSnapshot.data(),
+          targetRole: previousRole,
+          nextRole: action === 'change_role' ? nextRole : null,
+        });
+        if (!authorization.allowed || !authorization.role) {
+          throw new Error('team_admin_required');
+        }
+
+        if (previousStatus === 'removed') {
+          throw new Error(action === 'remove' ? 'member_already_removed' : 'member_removed');
+        }
+
+        let update: Record<string, unknown> = { updated_at: timestamp };
+        let auditAction: 'member_role_changed' | 'member_suspended' | 'member_restored' | 'member_removed';
+        let auditPreviousRole: OfficeAssignableRole | null = previousRole;
+        let auditNextRole: OfficeAssignableRole | null = previousRole;
+        let auditPreviousStatus: OfficeMemberStatus | null = previousStatus;
+        let auditNextStatus: OfficeMemberStatus | null = previousStatus;
+
+        if (action === 'change_role') {
+          if (!nextRole) {
+            throw new Error('role_required');
+          }
+          if (previousStatus !== 'active') {
+            throw new Error('member_inactive');
+          }
+          if (previousRole === nextRole) {
+            throw new Error('role_unchanged');
+          }
+          auditAction = 'member_role_changed';
+          auditNextRole = nextRole;
+          update = { ...update, role: nextRole };
+          message = 'Team role updated.';
+        } else if (action === 'suspend') {
+          if (previousStatus === 'suspended') {
+            throw new Error('member_already_suspended');
+          }
+          auditAction = 'member_suspended';
+          auditNextStatus = 'suspended';
+          update = {
+            ...update,
+            status: 'suspended',
+            suspended_at: timestamp,
+            removed_at: null,
+          };
+          message = 'Member access suspended.';
+        } else if (action === 'restore') {
+          if (previousStatus === 'active') {
+            throw new Error('member_already_active');
+          }
+          if (previousStatus !== 'suspended') {
+            throw new Error('member_not_suspended');
+          }
+          auditAction = 'member_restored';
+          auditNextStatus = 'active';
+          update = {
+            ...update,
+            status: 'active',
+            suspended_at: null,
+            removed_at: null,
+          };
+          message = 'Member access restored.';
+        } else {
+          auditAction = 'member_removed';
+          auditNextStatus = 'removed';
+          update = {
+            ...update,
+            status: 'removed',
+            suspended_at: null,
+            removed_at: timestamp,
+          };
+          message = 'Member access removed.';
+        }
+
+        transaction.set(memberRef, update, { merge: true });
+        transaction.set(
+          workspaceRef.collection('office_access_audit').doc(normalizeId(`office_member_access_${memberId}_${actor.uid}_${Date.now()}`)),
+          buildOfficeMemberAccessAuditRecord({
+            workspaceId,
+            actorUid: actor.uid,
+            actorRole: authorization.role,
+            targetUid: memberId,
+            targetEmail,
+            action: auditAction,
+            previousRole: auditPreviousRole,
+            nextRole: auditNextRole,
+            previousStatus: auditPreviousStatus,
+            nextStatus: auditNextStatus,
+            now,
+          }),
+          { merge: true }
+        );
+      });
+
+      response.status(200).json({
+        ok: true,
+        workspaceId,
+        memberId,
+        message,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'member_access_update_failed';
+      if (message === 'workspace_not_found' || message === 'member_not_found') {
+        response.status(404).json({ ok: false, error: message });
+        return;
+      }
+      if (
+        message === 'team_admin_required' ||
+        message === 'owner_member_locked' ||
+        message === 'self_member_locked'
+      ) {
+        response.status(403).json({ ok: false, error: message });
+        return;
+      }
+      if (
+        message === 'member_invalid' ||
+        message === 'member_removed' ||
+        message === 'member_inactive' ||
+        message === 'member_not_suspended' ||
+        message === 'member_already_active' ||
+        message === 'member_already_suspended' ||
+        message === 'member_already_removed' ||
+        message === 'role_unchanged' ||
+        message === 'role_required'
+      ) {
+        response.status(409).json({ ok: false, error: message });
+        return;
+      }
+      logger.error('updateOfficeMemberAccess failed', { workspaceId, memberId, error });
+      response.status(500).json({ ok: false, error: 'member_access_update_failed' });
+    }
+  }
+);
+
+export const requestOfficeOwnershipTransfer = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+    secrets: [resendApiKey],
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const actor = await verifyRequestUser(request);
+    if (!actor?.uid) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const targetUid = clean(stringValue(body?.targetUid));
+    if (!workspaceId || !targetUid) {
+      response.status(400).json({ ok: false, error: 'ownership_transfer_required' });
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const transferRef = workspaceRef.collection('office_ownership_transfers').doc();
+      let targetEmail: string | null = null;
+      let transferRecordForEmail: FirebaseFirestore.DocumentData | null = null;
+      let workspaceRecordForEmail: FirebaseFirestore.DocumentData | null = null;
+
+      await db.runTransaction(async (transaction) => {
+        const [workspaceSnapshot, targetMemberSnapshot, pendingTransferSnapshot] = await Promise.all([
+          transaction.get(workspaceRef),
+          transaction.get(workspaceRef.collection('office_members').doc(targetUid)),
+          transaction.get(workspaceRef.collection('office_ownership_transfers').where('status', '==', 'pending')),
+        ]);
+
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+        const workspace = workspaceSnapshot.data() ?? {};
+        if (clean(stringValue(workspace.owner_uid)) !== actor.uid) {
+          throw new Error('owner_required');
+        }
+        if (actor.uid === targetUid) {
+          throw new Error('self_transfer_locked');
+        }
+        if (!targetMemberSnapshot.exists) {
+          throw new Error('member_not_found');
+        }
+        if (!pendingTransferSnapshot.empty) {
+          throw new Error('ownership_transfer_pending');
+        }
+
+        const targetMember = targetMemberSnapshot.data() ?? {};
+        const targetRole = clean(stringValue(targetMember.role));
+        const targetStatus = normalizeOfficeMemberStatus(clean(stringValue(targetMember.status)));
+        if (targetRole === 'owner') {
+          throw new Error('target_already_owner');
+        }
+        if (!targetStatus || targetStatus !== 'active') {
+          throw new Error('target_member_inactive');
+        }
+
+        targetEmail = clean(stringValue(targetMember.email));
+        const targetName = clean(stringValue(targetMember.display_name));
+        const transferRecord = buildOfficeOwnershipTransferRecord({
+          workspaceId,
+          requestedBy: actor.uid,
+          requestedByEmail: actor.email,
+          targetUid,
+          targetEmail,
+          targetName,
+          now,
+        });
+        transferRecordForEmail = transferRecord;
+        workspaceRecordForEmail = workspace;
+        transaction.set(transferRef, transferRecord);
+        transaction.set(
+          workspaceRef.collection('office_access_audit').doc(normalizeId(`office_owner_transfer_request_${transferRef.id}_${actor.uid}_${Date.now()}`)),
+          buildOfficeOwnershipTransferAuditRecord({
+            workspaceId,
+            transferId: transferRef.id,
+            actorUid: actor.uid,
+            actorRole: 'owner',
+            action: 'ownership_transfer_requested',
+            targetUid,
+            targetEmail,
+            previousRole: targetRole === 'admin' || targetRole === 'manager' || targetRole === 'staff' || targetRole === 'accountant' || targetRole === 'viewer'
+              ? targetRole
+              : null,
+            nextRole: 'owner',
+            now,
+          }),
+          { merge: true }
+        );
+      });
+
+      if (transferRecordForEmail && workspaceRecordForEmail) {
+        const delivery = await deliverOfficeOwnershipTransferEmail({
+          transfer: transferRecordForEmail,
+          workspace: workspaceRecordForEmail,
+        });
+        const deliveryNow = new Date();
+        await transferRef.set(
+          buildOfficeOwnershipTransferNotificationUpdate({
+            status: delivery.status,
+            providerMessageId: delivery.providerMessageId,
+            sentAt: delivery.sentAt,
+            failureReason: delivery.failureReason,
+            resendCount: 1,
+            now: deliveryNow,
+          }),
+          { merge: true }
+        );
+        await workspaceRef.collection('office_access_audit').doc(normalizeId(`office_owner_transfer_notify_${transferRef.id}_${actor.uid}_${Date.now()}`)).set(
+          buildOfficeOwnershipTransferAuditRecord({
+            workspaceId,
+            transferId: transferRef.id,
+            actorUid: actor.uid,
+            actorRole: 'owner',
+            action: 'ownership_transfer_notification_sent',
+            targetUid,
+            targetEmail,
+            reason:
+              delivery.status === 'sent'
+                ? 'Ownership transfer approval email sent.'
+                : delivery.status === 'pending_provider_connection'
+                  ? 'Ownership transfer approval email is ready; email delivery is not connected yet.'
+                  : 'Ownership transfer approval email could not be sent.',
+            now: deliveryNow,
+          }),
+          { merge: true }
+        );
+      }
+
+      response.status(200).json({
+        ok: true,
+        workspaceId,
+        transferId: transferRef.id,
+        targetUid,
+        targetEmail,
+        message: 'Ownership transfer requested.',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'ownership_transfer_request_failed';
+      if (message === 'workspace_not_found' || message === 'member_not_found') {
+        response.status(404).json({ ok: false, error: message });
+        return;
+      }
+      if (message === 'owner_required' || message === 'self_transfer_locked') {
+        response.status(403).json({ ok: false, error: message });
+        return;
+      }
+      if (
+        message === 'ownership_transfer_pending' ||
+        message === 'target_already_owner' ||
+        message === 'target_member_inactive'
+      ) {
+        response.status(409).json({ ok: false, error: message });
+        return;
+      }
+      logger.error('requestOfficeOwnershipTransfer failed', { workspaceId, targetUid, error });
+      response.status(500).json({ ok: false, error: 'ownership_transfer_request_failed' });
+    }
+  }
+);
+
+export const resendOfficeOwnershipTransferNotification = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+    secrets: [resendApiKey],
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const actor = await verifyRequestUser(request);
+    if (!actor?.uid) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const transferId = clean(stringValue(body?.transferId));
+    if (!workspaceId || !transferId) {
+      response.status(400).json({ ok: false, error: 'ownership_transfer_notification_required' });
+      return;
+    }
+
+    try {
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const transferRef = workspaceRef.collection('office_ownership_transfers').doc(transferId);
+      const [workspaceSnapshot, transferSnapshot, actorMemberSnapshot] = await Promise.all([
+        workspaceRef.get(),
+        transferRef.get(),
+        workspaceRef.collection('office_members').doc(actor.uid).get(),
+      ]);
+
+      if (!workspaceSnapshot.exists) {
+        response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+      if (!transferSnapshot.exists) {
+        response.status(404).json({ ok: false, error: 'ownership_transfer_not_found' });
+        return;
+      }
+
+      const workspace = workspaceSnapshot.data() ?? {};
+      const transfer = transferSnapshot.data() ?? {};
+      const currentOwnerUid = clean(stringValue(workspace.owner_uid));
+      const targetUid = clean(stringValue(transfer.target_uid));
+      const targetEmail = clean(stringValue(transfer.target_email));
+      const transferStatus = normalizeOfficeOwnershipTransferStatus(clean(stringValue(transfer.status)));
+      const expiresAt = clean(stringValue(transfer.expires_at));
+      if (!currentOwnerUid || !targetUid || !transferStatus) {
+        response.status(409).json({ ok: false, error: 'ownership_transfer_invalid' });
+        return;
+      }
+      if (transferStatus !== 'pending') {
+        response.status(409).json({ ok: false, error: `ownership_transfer_${transferStatus}` });
+        return;
+      }
+      if (expiresAt && Date.parse(expiresAt) <= Date.now()) {
+        const now = new Date();
+        await transferRef.set({
+          status: 'expired',
+          updated_at: now.toISOString(),
+        }, { merge: true });
+        await workspaceRef.collection('office_access_audit').doc(normalizeId(`office_owner_transfer_expired_${transferId}_${Date.now()}`)).set(
+          buildOfficeOwnershipTransferAuditRecord({
+            workspaceId,
+            transferId,
+            actorUid: actor.uid,
+            actorRole: actor.uid === currentOwnerUid ? 'owner' : 'admin',
+            action: 'ownership_transfer_expired',
+            targetUid,
+            targetEmail,
+            reason: 'Ownership transfer expired before reminder could be sent.',
+            now,
+          }),
+          { merge: true }
+        );
+        response.status(409).json({ ok: false, error: 'ownership_transfer_expired' });
+        return;
+      }
+      if (actor.uid !== currentOwnerUid && actor.uid !== targetUid) {
+        response.status(403).json({ ok: false, error: 'ownership_transfer_notification_forbidden' });
+        return;
+      }
+      const actorMemberRole = normalizeAssignableOfficeRole(clean(stringValue(actorMemberSnapshot.data()?.role)));
+      const actorRole: 'owner' | OfficeAssignableRole = actor.uid === currentOwnerUid ? 'owner' : actorMemberRole ?? 'viewer';
+
+      const resendCount = numberValue(transfer.notification_resend_count, 0) + 1;
+      const delivery = await deliverOfficeOwnershipTransferEmail({ transfer, workspace });
+      const now = new Date();
+      await transferRef.set(
+        buildOfficeOwnershipTransferNotificationUpdate({
+          status: delivery.status,
+          providerMessageId: delivery.providerMessageId,
+          sentAt: delivery.sentAt,
+          failureReason: delivery.failureReason,
+          resendCount,
+          now,
+        }),
+        { merge: true }
+      );
+      await workspaceRef.collection('office_access_audit').doc(normalizeId(`office_owner_transfer_notify_${transferId}_${actor.uid}_${Date.now()}`)).set(
+        buildOfficeOwnershipTransferAuditRecord({
+          workspaceId,
+          transferId,
+          actorUid: actor.uid,
+          actorRole,
+          action: 'ownership_transfer_notification_sent',
+          targetUid,
+          targetEmail,
+          reason:
+            delivery.status === 'sent'
+              ? 'Ownership transfer approval reminder sent.'
+              : delivery.status === 'pending_provider_connection'
+                ? 'Ownership transfer approval reminder is ready; email delivery is not connected yet.'
+                : 'Ownership transfer approval reminder could not be sent.',
+          now,
+        }),
+        { merge: true }
+      );
+
+      response.status(200).json({
+        ok: true,
+        workspaceId,
+        transferId,
+        deliveryStatus: delivery.status,
+        sentAt: delivery.sentAt,
+        message:
+          delivery.status === 'sent'
+            ? 'Ownership approval reminder sent.'
+            : delivery.status === 'pending_provider_connection'
+              ? 'Ownership approval reminder is ready.'
+              : 'Ownership approval reminder could not be sent.',
+      });
+    } catch (error) {
+      logger.error('resendOfficeOwnershipTransferNotification failed', { workspaceId, transferId, error });
+      response.status(500).json({ ok: false, error: 'ownership_transfer_notification_failed' });
+    }
+  }
+);
+
+export const resolveOfficeOwnershipTransfer = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const actor = await verifyRequestUser(request);
+    if (!actor?.uid) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const transferId = clean(stringValue(body?.transferId));
+    const action = normalizeOfficeOwnershipTransferResolutionAction(clean(stringValue(body?.action)));
+    if (!workspaceId || !transferId || !action) {
+      response.status(400).json({ ok: false, error: 'ownership_transfer_resolution_required' });
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const timestamp = now.toISOString();
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const transferRef = workspaceRef.collection('office_ownership_transfers').doc(transferId);
+      let message = action === 'approve' ? 'Ownership transfer approved.' : 'Ownership transfer cancelled.';
+
+      await db.runTransaction(async (transaction) => {
+        const [workspaceSnapshot, transferSnapshot] = await Promise.all([
+          transaction.get(workspaceRef),
+          transaction.get(transferRef),
+        ]);
+
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+        if (!transferSnapshot.exists) {
+          throw new Error('ownership_transfer_not_found');
+        }
+
+        const workspace = workspaceSnapshot.data() ?? {};
+        const transfer = transferSnapshot.data() ?? {};
+        const currentOwnerUid = clean(stringValue(workspace.owner_uid));
+        const requestedBy = clean(stringValue(transfer.requested_by));
+        const targetUid = clean(stringValue(transfer.target_uid));
+        const targetEmail = clean(stringValue(transfer.target_email));
+        const transferStatus = normalizeOfficeOwnershipTransferStatus(clean(stringValue(transfer.status)));
+        const expiresAt = clean(stringValue(transfer.expires_at));
+
+        if (!currentOwnerUid || !requestedBy || !targetUid || !transferStatus) {
+          throw new Error('ownership_transfer_invalid');
+        }
+        if (transferStatus !== 'pending') {
+          throw new Error(`ownership_transfer_${transferStatus}`);
+        }
+        if (expiresAt && Date.parse(expiresAt) <= Date.now()) {
+          transaction.set(transferRef, {
+            status: 'expired',
+            updated_at: timestamp,
+          }, { merge: true });
+          transaction.set(
+            workspaceRef.collection('office_access_audit').doc(normalizeId(`office_owner_transfer_expired_${transferId}_${Date.now()}`)),
+            buildOfficeOwnershipTransferAuditRecord({
+              workspaceId,
+              transferId,
+              actorUid: actor.uid,
+              actorRole: actor.uid === currentOwnerUid ? 'owner' : 'admin',
+              action: 'ownership_transfer_expired',
+              targetUid,
+              targetEmail,
+              reason: 'Ownership transfer expired before approval.',
+              now,
+            }),
+            { merge: true }
+          );
+          throw new Error('ownership_transfer_expired');
+        }
+
+        if (action === 'cancel') {
+          if (actor.uid !== currentOwnerUid && actor.uid !== targetUid) {
+            throw new Error('ownership_transfer_cancel_forbidden');
+          }
+          transaction.set(transferRef, {
+            status: 'cancelled',
+            cancelled_by: actor.uid,
+            cancelled_at: timestamp,
+            updated_at: timestamp,
+          }, { merge: true });
+          transaction.set(
+            workspaceRef.collection('office_access_audit').doc(normalizeId(`office_owner_transfer_cancel_${transferId}_${actor.uid}_${Date.now()}`)),
+            buildOfficeOwnershipTransferAuditRecord({
+              workspaceId,
+              transferId,
+              actorUid: actor.uid,
+              actorRole: actor.uid === currentOwnerUid ? 'owner' : 'admin',
+              action: 'ownership_transfer_cancelled',
+              targetUid,
+              targetEmail,
+              nextRole: null,
+              now,
+            }),
+            { merge: true }
+          );
+          return;
+        }
+
+        if (actor.uid !== targetUid) {
+          throw new Error('ownership_transfer_target_required');
+        }
+
+        const [targetMemberSnapshot, ownerMemberSnapshot] = await Promise.all([
+          transaction.get(workspaceRef.collection('office_members').doc(targetUid)),
+          transaction.get(workspaceRef.collection('office_members').doc(currentOwnerUid)),
+        ]);
+        if (!targetMemberSnapshot.exists) {
+          throw new Error('member_not_found');
+        }
+        const targetMember = targetMemberSnapshot.data() ?? {};
+        const targetRole = normalizeAssignableOfficeRole(clean(stringValue(targetMember.role)));
+        const targetStatus = normalizeOfficeMemberStatus(clean(stringValue(targetMember.status)));
+        if (!targetRole || targetStatus !== 'active') {
+          throw new Error('target_member_inactive');
+        }
+
+        transaction.set(workspaceRef, {
+          owner_uid: targetUid,
+          updated_at: timestamp,
+        }, { merge: true });
+        transaction.set(workspaceRef.collection('office_members').doc(targetUid), {
+          role: 'owner',
+          status: 'active',
+          suspended_at: null,
+          removed_at: null,
+          updated_at: timestamp,
+        }, { merge: true });
+        if (ownerMemberSnapshot.exists) {
+          transaction.set(workspaceRef.collection('office_members').doc(currentOwnerUid), {
+            role: 'admin',
+            status: 'active',
+            suspended_at: null,
+            removed_at: null,
+            updated_at: timestamp,
+          }, { merge: true });
+        }
+        transaction.set(transferRef, {
+          status: 'approved',
+          approved_by: actor.uid,
+          approved_at: timestamp,
+          updated_at: timestamp,
+        }, { merge: true });
+        transaction.set(
+          workspaceRef.collection('office_access_audit').doc(normalizeId(`office_owner_transfer_approve_${transferId}_${actor.uid}_${Date.now()}`)),
+          buildOfficeOwnershipTransferAuditRecord({
+            workspaceId,
+            transferId,
+            actorUid: actor.uid,
+            actorRole: 'owner',
+            action: 'ownership_transferred',
+            targetUid,
+            targetEmail,
+            previousRole: targetRole,
+            nextRole: 'owner',
+            now,
+          }),
+          { merge: true }
+        );
+      });
+
+      response.status(200).json({
+        ok: true,
+        workspaceId,
+        transferId,
+        action,
+        message,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'ownership_transfer_resolution_failed';
+      if (message === 'workspace_not_found' || message === 'ownership_transfer_not_found' || message === 'member_not_found') {
+        response.status(404).json({ ok: false, error: message });
+        return;
+      }
+      if (
+        message === 'ownership_transfer_cancel_forbidden' ||
+        message === 'ownership_transfer_target_required'
+      ) {
+        response.status(403).json({ ok: false, error: message });
+        return;
+      }
+      if (
+        message === 'ownership_transfer_invalid' ||
+        message === 'ownership_transfer_expired' ||
+        message === 'ownership_transfer_approved' ||
+        message === 'ownership_transfer_cancelled' ||
+        message === 'target_member_inactive'
+      ) {
+        response.status(409).json({ ok: false, error: message });
+        return;
+      }
+      logger.error('resolveOfficeOwnershipTransfer failed', { workspaceId, transferId, action, error });
+      response.status(500).json({ ok: false, error: 'ownership_transfer_resolution_failed' });
+    }
+  }
+);
+
+export const expireOfficeOwnershipTransfers = onSchedule(
+  {
+    region: 'asia-south1',
+    schedule: 'every 6 hours',
+    timeZone: 'Asia/Kolkata',
+    maxInstances: 1,
+  },
+  async () => {
+    const now = new Date();
+    const timestamp = now.toISOString();
+    const snapshot = await db
+      .collectionGroup('office_ownership_transfers')
+      .where('status', '==', 'pending')
+      .limit(100)
+      .get();
+
+    if (snapshot.empty) {
+      return;
+    }
+
+    const batch = db.batch();
+    snapshot.docs.forEach((transferSnapshot) => {
+      const transfer = transferSnapshot.data() ?? {};
+      const expiresAt = clean(stringValue(transfer.expires_at));
+      if (!expiresAt || Date.parse(expiresAt) > Date.now()) {
+        return;
+      }
+      const workspaceRef = transferSnapshot.ref.parent.parent;
+      if (!workspaceRef) {
+        return;
+      }
+      const workspaceId = clean(stringValue(transfer.workspace_id)) ?? workspaceRef.id;
+      const transferId = transferSnapshot.id;
+      const targetUid = clean(stringValue(transfer.target_uid)) ?? '';
+      const targetEmail = clean(stringValue(transfer.target_email));
+      batch.set(transferSnapshot.ref, {
+        status: 'expired',
+        updated_at: timestamp,
+      }, { merge: true });
+      batch.set(
+        workspaceRef.collection('office_access_audit').doc(normalizeId(`office_owner_transfer_expired_${transferId}_${Date.now()}`)),
+        buildOfficeOwnershipTransferAuditRecord({
+          workspaceId,
+          transferId,
+          actorUid: 'system',
+          actorRole: 'internal_support_reviewer',
+          action: 'ownership_transfer_expired',
+          targetUid,
+          targetEmail,
+          reason: 'Ownership transfer expired automatically.',
+          now,
+        }),
+        { merge: true }
+      );
+    });
+
+    await batch.commit();
+  }
+);
+
 export const providerWebhook = onRequest(
   {
     region: 'asia-south1',
@@ -2874,6 +5767,17 @@ function isAuthorizedMonetizationWebhook(request: { header(name: string): string
   return Boolean(providedSecret) && secureEquals(providedSecret, expectedSecret);
 }
 
+function isAuthorizedInternalAdminEmail(email: string | null): boolean {
+  const allowlist = (process.env.ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  if (!email || !allowlist.length) {
+    return process.env.FUNCTIONS_EMULATOR === 'true';
+  }
+  return allowlist.includes(email.trim().toLowerCase());
+}
+
 function getExpectedWebhookSecret(): string {
   try {
     return providerWebhookSecret.value().trim();
@@ -2943,6 +5847,247 @@ function buildProviderEventId(payload: ProviderWebhookPayload): string {
 
 function normalizeId(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 120) || `evt-${Date.now()}`;
+}
+
+function normalizeOfficeAccessReviewAction(value: string | null): OfficeAccessReviewAction | null {
+  if (value === 'mark_reviewing' || value === 'approve' || value === 'reject' || value === 'grant_access') {
+    return value;
+  }
+  return null;
+}
+
+function normalizeOfficeAccessRequestStatus(value: string | null | undefined): OfficeAccessRequestStatus {
+  if (
+    value === 'submitted' ||
+    value === 'needs_review' ||
+    value === 'reviewing' ||
+    value === 'approved' ||
+    value === 'rejected' ||
+    value === 'granted' ||
+    value === 'cancelled'
+  ) {
+    return value;
+  }
+  return 'needs_review';
+}
+
+function normalizeOfficeRequestedPlanId(value: string | null | undefined): Extract<MonetizationPlanId, 'office_monthly' | 'office_yearly'> {
+  return value === 'office_monthly' ? 'office_monthly' : 'office_yearly';
+}
+
+function normalizeAssignableOfficeRole(value: string | null | undefined): 'admin' | 'manager' | 'staff' | 'accountant' | 'viewer' | null {
+  if (value === 'admin' || value === 'manager' || value === 'staff' || value === 'accountant' || value === 'viewer') {
+    return value;
+  }
+  return null;
+}
+
+function normalizeOfficeMemberStatus(value: string | null | undefined): OfficeMemberStatus | null {
+  if (value === 'active' || value === 'invited' || value === 'suspended' || value === 'removed') {
+    return value;
+  }
+  return null;
+}
+
+function normalizeOfficeMemberAccessAction(value: string | null | undefined): OfficeMemberAccessAction | null {
+  if (value === 'change_role' || value === 'suspend' || value === 'restore' || value === 'remove') {
+    return value;
+  }
+  return null;
+}
+
+function normalizeOfficeOwnershipTransferStatus(value: string | null | undefined): OfficeOwnershipTransferStatus | null {
+  if (value === 'pending' || value === 'approved' || value === 'cancelled' || value === 'expired') {
+    return value;
+  }
+  return null;
+}
+
+function normalizeOfficeOwnershipTransferResolutionAction(value: string | null | undefined): OfficeOwnershipTransferResolutionAction | null {
+  if (value === 'approve' || value === 'cancel') {
+    return value;
+  }
+  return null;
+}
+
+function officeMemberAccessAuditReason(action: 'member_role_changed' | 'member_suspended' | 'member_restored' | 'member_removed') {
+  if (action === 'member_role_changed') {
+    return 'Office member role changed.';
+  }
+  if (action === 'member_suspended') {
+    return 'Office member access suspended.';
+  }
+  if (action === 'member_restored') {
+    return 'Office member access restored.';
+  }
+  return 'Office member access removed.';
+}
+
+function officeOwnershipTransferAuditReason(
+  action:
+    | 'ownership_transfer_requested'
+    | 'ownership_transferred'
+    | 'ownership_transfer_cancelled'
+    | 'ownership_transfer_expired'
+    | 'ownership_transfer_notification_sent'
+) {
+  if (action === 'ownership_transfer_requested') {
+    return 'Ownership transfer requested.';
+  }
+  if (action === 'ownership_transferred') {
+    return 'Workspace ownership transferred.';
+  }
+  if (action === 'ownership_transfer_expired') {
+    return 'Ownership transfer expired.';
+  }
+  if (action === 'ownership_transfer_notification_sent') {
+    return 'Ownership transfer notification updated.';
+  }
+  return 'Ownership transfer cancelled.';
+}
+
+function officeAccessReviewStatus(status: OfficeAccessRequestStatus) {
+  if (status === 'reviewing') {
+    return 'reviewing';
+  }
+  if (status === 'approved') {
+    return 'approved';
+  }
+  if (status === 'granted') {
+    return 'completed';
+  }
+  if (status === 'rejected' || status === 'cancelled') {
+    return 'rejected';
+  }
+  return 'needs_review';
+}
+
+function officeAccessActionLabel(status: OfficeAccessRequestStatus) {
+  if (status === 'approved') {
+    return 'Grant Office access';
+  }
+  if (status === 'granted') {
+    return 'Access granted';
+  }
+  if (status === 'reviewing') {
+    return 'Continue review';
+  }
+  if (status === 'rejected') {
+    return 'Request rejected';
+  }
+  return 'Review request';
+}
+
+function buildOfficeSupportReviewAuditReason(reason: string, supportCaseId: string | null, diagnosticAccess: boolean) {
+  return [
+    `Support review: ${reason}`,
+    supportCaseId ? `Case ${supportCaseId}` : null,
+    diagnosticAccess ? 'Customer-approved diagnostics allowed' : 'No customer data access approved',
+    'Impersonation blocked; no member session started',
+  ].filter(Boolean).join(' · ');
+}
+
+function normalizeSupportConsentStatus(value: string | null | undefined): SupportConsentStatus {
+  if (value === 'revoked' || value === 'expired') {
+    return value;
+  }
+  return 'active';
+}
+
+function normalizeSupportCaseStatus(value: string | null | undefined): SupportCaseStatus {
+  if (value === 'waiting_on_customer' || value === 'resolved' || value === 'reopened') {
+    return value;
+  }
+  return 'open';
+}
+
+function normalizeSupportCaseAction(value: string | null | undefined): SupportCaseAction {
+  if (value === 'resolve' || value === 'reopen') {
+    return value;
+  }
+  return 'add_note';
+}
+
+function supportCaseStatusForAction(action: SupportCaseAction): SupportCaseStatus {
+  if (action === 'resolve') {
+    return 'resolved';
+  }
+  if (action === 'reopen') {
+    return 'reopened';
+  }
+  return 'open';
+}
+
+function supportCaseAuditReason(action: SupportCaseAction, note: string) {
+  const prefix = action === 'resolve'
+    ? 'Support case resolved'
+    : action === 'reopen'
+      ? 'Support case reopened'
+      : 'Support case note added';
+  return `${prefix}: ${note}`;
+}
+
+function supportCaseMessageForStatus(status: SupportCaseStatus, action: SupportCaseAction) {
+  if (status === 'resolved') {
+    return 'Support case marked resolved.';
+  }
+  if (status === 'reopened') {
+    return 'Support case reopened.';
+  }
+  return action === 'add_note' ? 'Support note saved.' : 'Support case updated.';
+}
+
+function supportConsentStatusReason(status: SupportConsentStatus) {
+  if (status === 'revoked') {
+    return 'Support review approval revoked.';
+  }
+  if (status === 'expired') {
+    return 'Support review approval expired.';
+  }
+  return 'Support review approval active.';
+}
+
+function sanitizeDiagnosticSafeFields(value: Record<string, unknown> | null | undefined): Record<string, string | number | boolean | string[]> {
+  if (!value) {
+    return {};
+  }
+
+  const output: Record<string, string | number | boolean | string[]> = {};
+  for (const [key, rawValue] of Object.entries(value).slice(0, 24)) {
+    const safeKey = normalizeId(key).replace(/-/g, '_').slice(0, 48);
+    if (!safeKey) {
+      continue;
+    }
+    if (typeof rawValue === 'string') {
+      const text = clean(rawValue);
+      if (text) {
+        output[safeKey] = text.slice(0, 240);
+      }
+    } else if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+      output[safeKey] = rawValue;
+    } else if (typeof rawValue === 'boolean') {
+      output[safeKey] = rawValue;
+    } else if (Array.isArray(rawValue)) {
+      const list = sanitizeStringList(rawValue).slice(0, 12);
+      if (list.length) {
+        output[safeKey] = list;
+      }
+    }
+  }
+
+  return output;
+}
+
+function sanitizeStringList(value: unknown[] | null | undefined) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => clean(stringValue(item)))
+    .filter((item): item is string => Boolean(item))
+    .map((item) => item.slice(0, 120))
+    .slice(0, 24);
 }
 
 function normalizeProviderStatus(status?: string | null): ProviderPaymentStatus {
@@ -3289,6 +6434,403 @@ async function deliverSubscriptionBillingEmailRequest(
       failureReason: error instanceof Error ? error.message : 'email_failed',
     };
   }
+}
+
+async function getOfficeInvitationDeliveryAuthorization(
+  workspaceId: string,
+  actorUid: string,
+  workspace: FirebaseFirestore.DocumentData,
+  targetRole: OfficeAssignableRole
+): Promise<{ allowed: boolean; role: 'owner' | 'admin' | null }> {
+  const memberSnapshot = await db.collection('workspaces').doc(workspaceId).collection('office_members').doc(actorUid).get();
+  return getOfficeInvitationActionAuthorization({
+    actorUid,
+    workspace,
+    member: memberSnapshot.data(),
+    targetRole,
+  });
+}
+
+function getOfficeInvitationActionAuthorization(input: {
+  actorUid: string;
+  workspace: FirebaseFirestore.DocumentData;
+  member?: FirebaseFirestore.DocumentData;
+  targetRole: OfficeAssignableRole;
+}): { allowed: boolean; role: 'owner' | 'admin' | null } {
+  if (clean(stringValue(input.workspace.owner_uid)) === input.actorUid) {
+    return { allowed: true, role: 'owner' };
+  }
+  if (
+    input.member?.status === 'active' &&
+    input.member.role === 'admin' &&
+    input.targetRole !== 'admin'
+  ) {
+    return { allowed: true, role: 'admin' };
+  }
+  return { allowed: false, role: null };
+}
+
+function getOfficeMemberAccessAuthorization(input: {
+  actorUid: string;
+  workspace: FirebaseFirestore.DocumentData;
+  member?: FirebaseFirestore.DocumentData;
+  targetRole: OfficeAssignableRole;
+  nextRole?: OfficeAssignableRole | null;
+}): { allowed: boolean; role: 'owner' | 'admin' | null } {
+  if (clean(stringValue(input.workspace.owner_uid)) === input.actorUid) {
+    return { allowed: true, role: 'owner' };
+  }
+  if (input.member?.status !== 'active' || input.member.role !== 'admin') {
+    return { allowed: false, role: null };
+  }
+  if (input.targetRole === 'admin' || input.nextRole === 'admin') {
+    return { allowed: false, role: null };
+  }
+  return { allowed: true, role: 'admin' };
+}
+
+function getOfficeInvitationCapacityDecisionFromDocs(input: {
+  members: FirebaseFirestore.DocumentData[];
+  invitations: FirebaseFirestore.DocumentData[];
+  targetEmail: string;
+}): OfficeInvitationCapacityDecision {
+  const targetEmail = input.targetEmail.trim().toLowerCase();
+  const activeMembers = input.members.filter((member) => member.status === 'active').length;
+  const suspendedMembers = input.members.filter((member) => member.status === 'suspended').length;
+  const pendingInvitations = input.invitations.filter((invitation) => invitation.status === 'pending').length;
+  const usedSeats = activeMembers + suspendedMembers + pendingInvitations;
+  const remainingSeats = Math.max(0, officeIncludedSeatLimit - usedSeats);
+  const existingMember = input.members.some((member) => {
+    const email = clean(stringValue(member.email))?.toLowerCase();
+    return member.status !== 'removed' && email === targetEmail;
+  });
+  const pendingInvitation = input.invitations.some((invitation) => {
+    const email = clean(stringValue(invitation.email))?.toLowerCase();
+    return invitation.status === 'pending' && email === targetEmail;
+  });
+
+  if (existingMember) {
+    return {
+      allowed: false,
+      reason: 'existing_member',
+      seatLimit: officeIncludedSeatLimit,
+      usedSeats,
+      remainingSeats,
+      message: officeInvitationCapacityErrorMessage('existing_member'),
+    };
+  }
+  if (pendingInvitation) {
+    return {
+      allowed: false,
+      reason: 'pending_invitation',
+      seatLimit: officeIncludedSeatLimit,
+      usedSeats,
+      remainingSeats,
+      message: officeInvitationCapacityErrorMessage('pending_invitation'),
+    };
+  }
+  if (remainingSeats <= 0) {
+    return {
+      allowed: false,
+      reason: 'seat_limit_reached',
+      seatLimit: officeIncludedSeatLimit,
+      usedSeats,
+      remainingSeats,
+      message: officeInvitationCapacityErrorMessage('seat_limit_reached'),
+    };
+  }
+  return {
+    allowed: true,
+    reason: 'available',
+    seatLimit: officeIncludedSeatLimit,
+    usedSeats,
+    remainingSeats,
+    message: `${remainingSeats} Office ${remainingSeats === 1 ? 'seat is' : 'seats are'} available.`,
+  };
+}
+
+function officeInvitationCapacityErrorMessage(reason: OfficeInvitationCapacityDecision['reason']) {
+  if (reason === 'existing_member') {
+    return 'This email already belongs to an Office member in this workspace.';
+  }
+  if (reason === 'pending_invitation') {
+    return 'This email already has a pending Office invitation.';
+  }
+  if (reason === 'seat_limit_reached') {
+    return 'Office seats are full. Remove or suspend an unused invitation before inviting another teammate.';
+  }
+  return 'Team invitation can be created.';
+}
+
+async function deliverOfficeInvitationEmail(input: {
+  invitation: FirebaseFirestore.DocumentData;
+  workspace: FirebaseFirestore.DocumentData;
+  inviteUrl: string;
+}): Promise<BillingEmailDeliveryResult> {
+  const recipientEmail = clean(stringValue(input.invitation.email));
+  if (!recipientEmail || !isValidEmailAddress(recipientEmail)) {
+    return {
+      status: 'failed',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: 'recipient_required',
+    };
+  }
+
+  const apiKey = getSecretValue(resendApiKey, 'RESEND_API_KEY');
+  if (!apiKey) {
+    return {
+      status: 'pending_provider_connection',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: null,
+    };
+  }
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: getOfficeInvitationFromAddress(),
+        to: [recipientEmail],
+        subject: buildOfficeInvitationEmailSubject(input.invitation, input.workspace),
+        html: buildOfficeInvitationEmailHtml(input.invitation, input.workspace, input.inviteUrl),
+        text: buildOfficeInvitationEmailText(input.invitation, input.workspace, input.inviteUrl),
+      }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!response.ok) {
+      return {
+        status: 'failed',
+        providerMessageId: clean(stringValue(payload.id)),
+        sentAt: null,
+        failureReason: clean(stringValue(payload.message)) ?? `email_failed_${response.status}`,
+      };
+    }
+    return {
+      status: 'sent',
+      providerMessageId: clean(stringValue(payload.id)),
+      sentAt: new Date().toISOString(),
+      failureReason: null,
+    };
+  } catch (error) {
+    return {
+      status: 'failed',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: error instanceof Error ? error.message : 'email_failed',
+    };
+  }
+}
+
+async function deliverOfficeOwnershipTransferEmail(input: {
+  transfer: FirebaseFirestore.DocumentData;
+  workspace: FirebaseFirestore.DocumentData;
+}): Promise<BillingEmailDeliveryResult> {
+  const recipientEmail = clean(stringValue(input.transfer.target_email));
+  if (!recipientEmail || !isValidEmailAddress(recipientEmail)) {
+    return {
+      status: 'failed',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: 'recipient_required',
+    };
+  }
+
+  const apiKey = getSecretValue(resendApiKey, 'RESEND_API_KEY');
+  if (!apiKey) {
+    return {
+      status: 'pending_provider_connection',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: null,
+    };
+  }
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: getOfficeInvitationFromAddress(),
+        to: [recipientEmail],
+        subject: buildOfficeOwnershipTransferEmailSubject(input.transfer, input.workspace),
+        html: buildOfficeOwnershipTransferEmailHtml(input.transfer, input.workspace),
+        text: buildOfficeOwnershipTransferEmailText(input.transfer, input.workspace),
+      }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!response.ok) {
+      return {
+        status: 'failed',
+        providerMessageId: clean(stringValue(payload.id)),
+        sentAt: null,
+        failureReason: clean(stringValue(payload.message)) ?? `email_failed_${response.status}`,
+      };
+    }
+    return {
+      status: 'sent',
+      providerMessageId: clean(stringValue(payload.id)),
+      sentAt: new Date().toISOString(),
+      failureReason: null,
+    };
+  } catch (error) {
+    return {
+      status: 'failed',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: error instanceof Error ? error.message : 'email_failed',
+    };
+  }
+}
+
+function getOfficeInvitationFromAddress() {
+  return process.env.ORBIT_LEDGER_OFFICE_FROM_EMAIL?.trim() || 'Orbit Ledger <office@rudraix.com>';
+}
+
+function getOrbitLedgerWebAppUrl() {
+  return process.env.ORBIT_LEDGER_WEB_APP_URL?.trim() || 'https://orbit-ledger-f41c2.web.app';
+}
+
+function buildOfficeInvitationUrl(origin: string, workspaceId: string, invitationId: string) {
+  const safeOrigin = /^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(origin) || /^http:\/\/localhost(?::\d+)?$/i.test(origin)
+    ? origin
+    : 'https://orbit-ledger-f41c2.web.app';
+  const url = new URL('/team/invite', safeOrigin);
+  url.searchParams.set('workspaceId', workspaceId);
+  url.searchParams.set('invitationId', invitationId);
+  return url.toString();
+}
+
+function buildOfficeInvitationEmailSubject(
+  invitation: FirebaseFirestore.DocumentData,
+  workspace: FirebaseFirestore.DocumentData
+) {
+  const businessName = clean(stringValue(workspace.business_name)) ?? 'an Orbit Ledger workspace';
+  return `You are invited to ${businessName} on Orbit Ledger`;
+}
+
+function buildOfficeInvitationEmailText(
+  invitation: FirebaseFirestore.DocumentData,
+  workspace: FirebaseFirestore.DocumentData,
+  inviteUrl: string
+) {
+  const businessName = clean(stringValue(workspace.business_name)) ?? 'this workspace';
+  const role = clean(stringValue(invitation.role)) ?? 'team member';
+  const invitedByName = clean(stringValue(invitation.invited_by_name));
+  const expiresAt = clean(stringValue(invitation.expires_at));
+  return [
+    `Hello,`,
+    ``,
+    `${invitedByName ?? 'A workspace admin'} invited you to join ${businessName} on Orbit Ledger as ${role}.`,
+    `Accept invitation: ${inviteUrl}`,
+    expiresAt ? `This invitation expires on ${expiresAt.slice(0, 10)}.` : null,
+    ``,
+    `Only accept this invitation if you recognize this business.`,
+    ``,
+    `Orbit Ledger by Rudraix`,
+  ].filter((line) => line !== null).join('\n');
+}
+
+function buildOfficeInvitationEmailHtml(
+  invitation: FirebaseFirestore.DocumentData,
+  workspace: FirebaseFirestore.DocumentData,
+  inviteUrl: string
+) {
+  const businessName = escapeHtml(clean(stringValue(workspace.business_name)) ?? 'this workspace');
+  const role = escapeHtml(clean(stringValue(invitation.role)) ?? 'team member');
+  const invitedByName = escapeHtml(clean(stringValue(invitation.invited_by_name)) ?? 'A workspace admin');
+  const expiresAt = escapeHtml(clean(stringValue(invitation.expires_at))?.slice(0, 10) ?? 'the expiry date shown in Orbit Ledger');
+  const safeInviteUrl = escapeHtml(inviteUrl);
+  return `<!doctype html>
+<html>
+<body style="margin:0;background:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#182233">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:28px">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #d8e2ef;border-radius:18px;padding:28px">
+          <tr>
+            <td>
+              <h1 style="margin:0 0 8px;font-size:24px;line-height:1.2">Join ${businessName}</h1>
+              <p style="margin:0 0 20px;color:#607087;font-size:15px;line-height:1.5">${invitedByName} invited you to Orbit Ledger as <strong>${role}</strong>.</p>
+              <a href="${safeInviteUrl}" style="display:inline-block;background:#2f83f7;color:#ffffff;text-decoration:none;border-radius:12px;padding:12px 18px;font-weight:700">Accept invitation</a>
+              <p style="margin:18px 0 0;color:#607087;font-size:14px;line-height:1.5">This invitation expires on ${expiresAt}. Only accept it if you recognize this business.</p>
+              <p style="margin:24px 0 0;color:#8a98aa;font-size:12px">Orbit Ledger by Rudraix</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+function buildOfficeOwnershipTransferEmailSubject(
+  transfer: FirebaseFirestore.DocumentData,
+  workspace: FirebaseFirestore.DocumentData
+) {
+  const businessName = clean(stringValue(workspace.business_name)) ?? 'an Orbit Ledger workspace';
+  return `Ownership transfer approval needed for ${businessName}`;
+}
+
+function buildOfficeOwnershipTransferEmailText(
+  transfer: FirebaseFirestore.DocumentData,
+  workspace: FirebaseFirestore.DocumentData
+) {
+  const businessName = clean(stringValue(workspace.business_name)) ?? 'this workspace';
+  const requestedByEmail = clean(stringValue(transfer.requested_by_email)) ?? 'the current owner';
+  const expiresAt = clean(stringValue(transfer.expires_at));
+  return [
+    `Hello,`,
+    ``,
+    `${requestedByEmail} requested to transfer ownership of ${businessName} to you in Orbit Ledger.`,
+    `Review ownership transfer: ${getOrbitLedgerWebAppUrl()}/team`,
+    expiresAt ? `This request expires on ${expiresAt.slice(0, 10)}.` : null,
+    ``,
+    `Only approve this transfer if you are ready to become responsible for this workspace.`,
+    ``,
+    `Orbit Ledger by Rudraix`,
+  ].filter((line) => line !== null).join('\n');
+}
+
+function buildOfficeOwnershipTransferEmailHtml(
+  transfer: FirebaseFirestore.DocumentData,
+  workspace: FirebaseFirestore.DocumentData
+) {
+  const businessName = escapeHtml(clean(stringValue(workspace.business_name)) ?? 'this workspace');
+  const requestedByEmail = escapeHtml(clean(stringValue(transfer.requested_by_email)) ?? 'the current owner');
+  const expiresAt = escapeHtml(clean(stringValue(transfer.expires_at))?.slice(0, 10) ?? 'the expiry date shown in Orbit Ledger');
+  const teamUrl = escapeHtml(`${getOrbitLedgerWebAppUrl()}/team`);
+  return `<!doctype html>
+<html>
+<body style="margin:0;background:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#182233">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:28px">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #d8e2ef;border-radius:18px;padding:28px">
+          <tr>
+            <td>
+              <h1 style="margin:0 0 8px;font-size:24px;line-height:1.2">Ownership transfer approval needed</h1>
+              <p style="margin:0 0 20px;color:#607087;font-size:15px;line-height:1.5">${requestedByEmail} requested to transfer ownership of <strong>${businessName}</strong> to you.</p>
+              <a href="${teamUrl}" style="display:inline-block;background:#2f83f7;color:#ffffff;text-decoration:none;border-radius:12px;padding:12px 18px;font-weight:700">Review transfer</a>
+              <p style="margin:18px 0 0;color:#607087;font-size:14px;line-height:1.5">This request expires on ${expiresAt}. Only approve it if you are ready to become responsible for this workspace.</p>
+              <p style="margin:24px 0 0;color:#8a98aa;font-size:12px">Orbit Ledger by Rudraix</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
 function getBillingEmailFromAddress() {
@@ -3664,7 +7206,7 @@ function metadataValue(metadata: Record<string, string>, ...keys: string[]): str
   return null;
 }
 
-async function verifyRequestUserId(request: { header(name: string): string | undefined }): Promise<string | null> {
+async function verifyRequestUser(request: { header(name: string): string | undefined }): Promise<{ uid: string; email: string | null } | null> {
   const authorization = request.header('authorization') ?? '';
   if (!authorization.toLowerCase().startsWith('bearer ')) {
     return null;
@@ -3673,10 +7215,18 @@ async function verifyRequestUserId(request: { header(name: string): string | und
   try {
     const token = authorization.slice(7).trim();
     const decodedToken = await admin.auth().verifyIdToken(token);
-    return decodedToken.uid;
+    return {
+      uid: decodedToken.uid,
+      email: typeof decodedToken.email === 'string' ? decodedToken.email : null,
+    };
   } catch {
     return null;
   }
+}
+
+async function verifyRequestUserId(request: { header(name: string): string | undefined }): Promise<string | null> {
+  const user = await verifyRequestUser(request);
+  return user?.uid ?? null;
 }
 
 async function loadCheckoutContext(userId: string, workspaceId: string, invoiceId: string): Promise<

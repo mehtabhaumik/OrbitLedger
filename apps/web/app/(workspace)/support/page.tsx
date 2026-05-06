@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FOUNDER_SAFE_SUPPORT_GUARDRAILS,
   FOUNDER_SAFE_SUPPORT_SURFACES,
@@ -11,6 +11,13 @@ import {
 } from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
+import {
+  createWebSupportDiagnosticConsent,
+  loadWebSupportCaseCustomerStatuses,
+  revokeWebSupportDiagnosticConsent,
+  type WebSupportCaseCustomerStatus,
+} from '@/lib/support-consent';
+import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 const supportEmail = 'support@rudraix.com';
@@ -54,11 +61,48 @@ const supportKinds: Array<{
 
 export default function SupportPage() {
   const { activeWorkspace } = useWorkspace();
+  const { showToast } = useToast();
   const [kind, setKind] = useState<FounderSafeSupportKind>('general_feedback');
   const [message, setMessage] = useState('');
+  const [supportCaseId, setSupportCaseId] = useState('');
   const [includeDiagnostics, setIncludeDiagnostics] = useState(true);
   const [privacyReviewed, setPrivacyReviewed] = useState(false);
+  const [isSavingConsent, setIsSavingConsent] = useState(false);
+  const [isRevokingConsent, setIsRevokingConsent] = useState(false);
+  const [savedConsent, setSavedConsent] = useState<{ consentId: string; expiresAt: string } | null>(null);
+  const [supportCases, setSupportCases] = useState<WebSupportCaseCustomerStatus[]>([]);
+  const [isLoadingSupportCases, setIsLoadingSupportCases] = useState(false);
   const businessName = activeWorkspace?.businessName ?? 'Orbit Ledger workspace';
+
+  useEffect(() => {
+    if (!activeWorkspace?.workspaceId) {
+      setSupportCases([]);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingSupportCases(true);
+    loadWebSupportCaseCustomerStatuses(activeWorkspace.workspaceId)
+      .then((items) => {
+        if (!cancelled) {
+          setSupportCases(items);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSupportCases([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingSupportCases(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspace?.workspaceId]);
 
   const diagnosticInput = useMemo<FounderSafeDiagnosticInput>(
     () => ({
@@ -103,6 +147,63 @@ export default function SupportPage() {
         }),
       })
     : '#';
+
+  async function approveSupportReviewPack() {
+    if (!activeWorkspace?.workspaceId) {
+      showToast('Select a workspace before approving support review.', 'info');
+      return;
+    }
+    if (!privacyReviewed || !includeDiagnostics || !draft.diagnosticSummary) {
+      showToast('Review and approve the diagnostic summary first.', 'info');
+      return;
+    }
+    if (!draft.sanitizedMessage.trim()) {
+      showToast('Add a short support message before approving review.', 'info');
+      return;
+    }
+
+    setIsSavingConsent(true);
+    try {
+      const result = await createWebSupportDiagnosticConsent({
+        workspaceId: activeWorkspace.workspaceId,
+        supportKind: kind,
+        supportCaseId,
+        sanitizedMessage: draft.sanitizedMessage,
+        diagnosticSummary: draft.diagnosticSummary,
+        privateDataWarnings: draft.privateDataWarnings,
+      });
+      setSavedConsent({
+        consentId: result.consentId,
+        expiresAt: result.expiresAt,
+      });
+      showToast(result.message, 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Support review approval could not be saved.', 'danger');
+    } finally {
+      setIsSavingConsent(false);
+    }
+  }
+
+  async function revokeSupportReviewPack() {
+    if (!activeWorkspace?.workspaceId || !savedConsent) {
+      return;
+    }
+
+    setIsRevokingConsent(true);
+    try {
+      const result = await revokeWebSupportDiagnosticConsent({
+        workspaceId: activeWorkspace.workspaceId,
+        consentId: savedConsent.consentId,
+        reason: 'User revoked support review approval from the Support page.',
+      });
+      showToast(result.message, 'success');
+      setSavedConsent(null);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Support review approval could not be revoked.', 'danger');
+    } finally {
+      setIsRevokingConsent(false);
+    }
+  }
 
   return (
     <AppShell title="Support" subtitle="Get help, send feedback, and review what is shared before anything leaves Orbit Ledger.">
@@ -159,6 +260,19 @@ export default function SupportPage() {
               <span className="ol-field-helper">
                 Avoid customer details, tax IDs, bank details, private keys, or backup contents unless
                 support specifically asks for them.
+              </span>
+            </label>
+
+            <label className="ol-field">
+              <span className="ol-field-label">Support case</span>
+              <input
+                className="ol-input"
+                onChange={(event) => setSupportCaseId(event.target.value)}
+                placeholder="Optional case number if support gave you one"
+                value={supportCaseId}
+              />
+              <span className="ol-field-helper">
+                Leave this blank if you are starting a new request.
               </span>
             </label>
 
@@ -251,6 +365,39 @@ export default function SupportPage() {
                 </p>
               </div>
             ) : null}
+
+            <div className="ol-card-mini">
+              <div className="ol-card-mini-label">Support review approval</div>
+              <p className="ol-panel-copy">
+                Approve this only when you want Orbit Ledger support to review the safe diagnostic summary shown above.
+                This does not share customer records, invoices, payment proof, backups, or private keys.
+              </p>
+              {savedConsent ? (
+                <div className="ol-message ol-message--success" style={{ marginTop: 12 }}>
+                  Support review approval saved. It expires on {formatConsentDate(savedConsent.expiresAt)}.
+                </div>
+              ) : null}
+              <div className="ol-actions" style={{ marginTop: 12 }}>
+                <button
+                  className="ol-button-secondary"
+                  disabled={isSavingConsent || isRevokingConsent || !privacyReviewed || !includeDiagnostics || !draft.diagnosticSummary}
+                  onClick={() => void approveSupportReviewPack()}
+                  type="button"
+                >
+                  {isSavingConsent ? 'Saving approval' : 'Approve support review'}
+                </button>
+                {savedConsent ? (
+                  <button
+                    className="ol-button-ghost"
+                    disabled={isRevokingConsent || isSavingConsent}
+                    onClick={() => void revokeSupportReviewPack()}
+                    type="button"
+                  >
+                    {isRevokingConsent ? 'Revoking' : 'Revoke approval'}
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </div>
         </article>
       </section>
@@ -264,6 +411,58 @@ export default function SupportPage() {
             <p className="ol-panel-copy">{surface.userPromise}</p>
           </article>
         ))}
+      </section>
+
+      <section className="ol-panel">
+        <div className="ol-panel-header">
+          <div>
+            <div className="ol-panel-title">Your support cases</div>
+            <p className="ol-panel-copy">
+              Track current case status and use the case number when sending a follow-up.
+            </p>
+          </div>
+          <span className="ol-chip ol-chip--primary">
+            {isLoadingSupportCases ? 'Checking' : `${supportCases.length} cases`}
+          </span>
+        </div>
+        {supportCases.length ? (
+          <div className="ol-list">
+            {supportCases.map((supportCase) => (
+              <article className="ol-list-item" key={supportCase.id}>
+                <div className="ol-list-icon" data-tone={supportCase.status === 'resolved' ? 'success' : 'neutral'}>
+                  C
+                </div>
+                <div className="ol-list-copy">
+                  <div className="ol-market-card-header">
+                    <div>
+                      <div className="ol-list-title">{supportCase.supportCaseId}</div>
+                      <div className="ol-list-text">Updated {formatConsentDate(supportCase.updatedAt)}</div>
+                    </div>
+                    <span className={`ol-chip ${supportCase.status === 'resolved' ? 'ol-chip--success' : 'ol-chip--primary'}`}>
+                      {supportCase.label}
+                    </span>
+                  </div>
+                  <p className="ol-panel-copy" style={{ marginTop: 8 }}>
+                    {supportCase.followUp}
+                  </p>
+                  <div className="ol-inline-actions" style={{ marginTop: 10 }}>
+                    <button
+                      className="ol-button-secondary"
+                      type="button"
+                      onClick={() => setSupportCaseId(supportCase.supportCaseId)}
+                    >
+                      Use in new request
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="ol-message ol-message--success">
+            {isLoadingSupportCases ? 'Checking support cases.' : 'No support cases are linked to this workspace yet.'}
+          </div>
+        )}
       </section>
 
       <section className="ol-panel">
@@ -318,6 +517,20 @@ function formatDiagnosticLabel(value: string) {
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, (letter) => letter.toUpperCase())
     .trim();
+}
+
+function formatConsentDate(value: string | null) {
+  if (!value) {
+    return 'not set';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
 }
 
 function buildMailto(input: { subject: string; body: string }) {

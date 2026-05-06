@@ -35,6 +35,7 @@ import {
   type WorkspaceTransaction,
 } from '@/lib/workspace-data';
 import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
+import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -47,6 +48,7 @@ export default function PaymentsPage() {
   const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
   const { confirm } = useConfirmDialog();
+  const officeAccess = useOfficeAccess();
   const [events, setEvents] = useState<WorkspacePaymentProviderEvent[]>([]);
   const [manualPayments, setManualPayments] = useState<WorkspaceManualPaymentReviewItem[]>([]);
   const [transactions, setTransactions] = useState<WorkspaceTransaction[]>([]);
@@ -273,6 +275,10 @@ export default function PaymentsPage() {
     if (!activeWorkspace) {
       return;
     }
+    if (!officeAccess.can('manage_payment_allocations')) {
+      showToast(officeAccess.getLockedMessage('manage_payment_allocations'), 'info');
+      return;
+    }
     const invoiceId = selectedInvoices[event.id] || event.invoiceId || '';
     if (!invoiceId) {
       showToast('Choose an invoice before applying this event.', 'danger');
@@ -299,6 +305,10 @@ export default function PaymentsPage() {
     if (!activeWorkspace) {
       return;
     }
+    if (!officeAccess.can('verify_payments')) {
+      showToast(officeAccess.getLockedMessage('verify_payments'), 'info');
+      return;
+    }
     setBusyEventId(event.id);
     try {
       await markWorkspaceProviderEventReviewed(activeWorkspace.workspaceId, event.id, reviewNotes[event.id]);
@@ -317,6 +327,10 @@ export default function PaymentsPage() {
     }
     if (!paymentReversalAccess.allowed) {
       showToast(paymentReversalAccess.message ?? 'Payment reversals are not included in your plan.', 'info');
+      return;
+    }
+    if (!officeAccess.can('reverse_payments')) {
+      showToast(officeAccess.getLockedMessage('reverse_payments'), 'info');
       return;
     }
     const invoiceId = selectedInvoices[event.id] || event.invoiceId || '';
@@ -352,6 +366,10 @@ export default function PaymentsPage() {
 
   async function updateManualPayment(payment: WorkspaceManualPaymentReviewItem, clearanceStatus: PaymentClearanceStatus) {
     if (!activeWorkspace) {
+      return;
+    }
+    if (!officeAccess.can('verify_payments')) {
+      showToast(officeAccess.getLockedMessage('verify_payments'), 'info');
       return;
     }
 
@@ -612,7 +630,7 @@ export default function PaymentsPage() {
               <span className="ol-inline-actions">
                 <button
                   className="ol-button"
-                  disabled={busyManualPaymentId === payment.transactionId || payment.paymentClearanceStatus === 'cleared'}
+                  disabled={busyManualPaymentId === payment.transactionId || payment.paymentClearanceStatus === 'cleared' || !officeAccess.can('verify_payments')}
                   type="button"
                   onClick={() => void updateManualPayment(payment, 'cleared')}
                 >
@@ -620,7 +638,7 @@ export default function PaymentsPage() {
                 </button>
                 <button
                   className="ol-button-ghost"
-                  disabled={busyManualPaymentId === payment.transactionId}
+                  disabled={busyManualPaymentId === payment.transactionId || !officeAccess.can('verify_payments')}
                   type="button"
                   onClick={() => void updateManualPayment(payment, 'bounced')}
                 >
@@ -725,7 +743,7 @@ export default function PaymentsPage() {
             <span className="ol-inline-actions">
               <button
                 className="ol-button"
-                disabled={event.applied || busyEventId === event.id || event.status !== 'succeeded'}
+                disabled={event.applied || busyEventId === event.id || event.status !== 'succeeded' || !officeAccess.can('manage_payment_allocations')}
                 type="button"
                 onClick={() => void applyEvent(event)}
               >
@@ -733,7 +751,7 @@ export default function PaymentsPage() {
               </button>
               <button
                 className="ol-button-ghost"
-                disabled={event.reversed || busyEventId === event.id || (!event.applied && event.status !== 'refunded') || !paymentReversalAccess.allowed}
+                disabled={event.reversed || busyEventId === event.id || (!event.applied && event.status !== 'refunded') || !paymentReversalAccess.allowed || !officeAccess.can('reverse_payments')}
                 type="button"
                 onClick={() => void reverseEvent(event)}
               >
@@ -741,7 +759,7 @@ export default function PaymentsPage() {
               </button>
               <button
                 className="ol-button-secondary"
-                disabled={busyEventId === event.id}
+                disabled={busyEventId === event.id || !officeAccess.can('verify_payments')}
                 type="button"
                 onClick={() => void markReviewed(event)}
               >
