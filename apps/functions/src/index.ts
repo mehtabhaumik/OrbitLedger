@@ -6387,7 +6387,7 @@ async function deliverSubscriptionBillingEmailRequest(
   }
 
   const apiKey = getSecretValue(resendApiKey, 'RESEND_API_KEY');
-  if (!apiKey) {
+  if (!isConfiguredCredential(apiKey)) {
     return {
       status: 'pending_provider_connection',
       providerMessageId: null,
@@ -6578,7 +6578,7 @@ async function deliverOfficeInvitationEmail(input: {
   }
 
   const apiKey = getSecretValue(resendApiKey, 'RESEND_API_KEY');
-  if (!apiKey) {
+  if (!isConfiguredCredential(apiKey)) {
     return {
       status: 'pending_provider_connection',
       providerMessageId: null,
@@ -6642,7 +6642,7 @@ async function deliverOfficeOwnershipTransferEmail(input: {
   }
 
   const apiKey = getSecretValue(resendApiKey, 'RESEND_API_KEY');
-  if (!apiKey) {
+  if (!isConfiguredCredential(apiKey)) {
     return {
       status: 'pending_provider_connection',
       providerMessageId: null,
