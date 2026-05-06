@@ -214,6 +214,7 @@ export type WebTierPlanComparisonItem = OrbitLedgerPlanComparisonRow;
 export const WEB_SUBSCRIPTION_STATUS_VERSION = 1;
 export const WEB_SUBSCRIPTION_STORAGE_PREFIX = 'orbit-ledger:web-subscription-status:';
 export const WEB_CHECKOUT_INTENT_STORAGE_PREFIX = 'orbit-ledger:web-checkout-intent:';
+export const WEB_BETA_FREE_ONLY = true;
 
 const freeTierFeatures: WebSubscriptionFeature[] = [
   'business_setup',

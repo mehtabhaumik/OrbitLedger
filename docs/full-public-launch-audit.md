@@ -1,11 +1,13 @@
 # Orbit Ledger Full Public Launch Audit
 
 Generated: May 5, 2026
-Last updated: May 6, 2026, public readiness pass
+Last updated: May 6, 2026, web-only public readiness pass
 
 ## Verdict
 
-Orbit Ledger is **not ready for full public launch yet**, but the remaining blockers are now narrower and safer to act on.
+Orbit Ledger web is **ready for controlled public beta exposure** with free services only.
+
+This verdict applies to the web app only. The mobile app is intentionally excluded from the first public pass.
 
 The codebase is much stronger than before: typecheck passes, the full test suite passes, the web production build passes, Expo Doctor passes, CI exists, Firebase rules exist, Storage rules exist, and the product has launch-readiness checks for settings, monetization, support, differentiation, and parity.
 
@@ -15,7 +17,8 @@ The blockers are now clear and actionable:
 - Firebase Firestore and Storage rule tests now pass when Java 11+ is active.
 - The default local Java runtime is still Java 8, so the launch machine must set Java 11+ as the active default before release work.
 - Firestore region, point-in-time recovery, delete protection, Storage bucket, rules deployment, and Firebase Hosting deployment are now verified.
-- App Check API, web provider config, production web build, Hosting deploy, and signed-in web App Check traffic are now verified. Firestore/Storage enforcement must remain off until the mobile client initializes App Check because enforcement is project-wide.
+- App Check API, web provider config, production web build, Hosting deploy, signed-in web App Check traffic, and Firestore/Storage enforcement are now verified for the web-only launch path.
+- Paid checkout is intentionally closed. The web app now shows beta copy that free services are available and monetization/Razorpay checkout are coming soon.
 - Mobile and browser launch QA still need real-device and responsive-screen verification.
 - Mobile/web feature parity still has launch-critical gaps tracked by the app.
 - Razorpay is intentionally not connected yet, so paid checkout must stay provider-pending/manual until Razorpay credentials, webhooks, price mapping, and payment recovery are verified.
@@ -55,7 +58,7 @@ The blockers are now clear and actionable:
 | Firebase App Check web provider | Pass | Web app has reCAPTCHA v3 config with token TTL `86400s` and min valid score `0.5`. |
 | Firebase App Check Android provider | Warn | Android Play Integrity config exists, but current minimum recognition level is `NO_INTEGRITY`. |
 | Firebase App Check signed-in traffic proof | Pass | Signed-in live browser traffic carried App Check headers on Firestore and Storage requests without printing token values. |
-| Firebase App Check enforcement | Blocker | Firestore and Storage are intentionally `UNENFORCED` because the mobile source does not initialize App Check yet. Do not enforce until mobile is App Check ready. |
+| Firebase App Check enforcement | Pass for web-only launch | Firestore and Storage are `ENFORCED`. This is acceptable because mobile is not part of the first public pass. |
 
 ## New Launch Audit Module
 
@@ -176,7 +179,7 @@ Phase 6 added:
 - `scripts/smoke-live-app-check.mjs`
 - `npm run smoke:live-app-check`
 
-The live smoke test passes for the current Hosting URL, but App Check traffic verification remains blocked until the real production site key is supplied and a production build is deployed.
+The live smoke test passes for the current Hosting URL. The production site key is present in ignored local env, the production build has been deployed, and signed-in Firestore/Storage App Check traffic has been verified for the web-only launch path.
 
 Phase 7 added:
 
@@ -194,7 +197,7 @@ Phase 8 added:
 - Storage rules coverage for watermark images.
 - Production IAM binding for Storage rules Firestore ownership checks.
 
-The App Check caveat remains: live requests still need a production build with the real reCAPTCHA v3 site key before enforcement can be enabled.
+The older App Check caveat is now resolved for web-only launch: live requests use the production build, and signed-in Firestore/Storage traffic has App Check proof.
 
 Phase 9 added:
 
@@ -202,19 +205,19 @@ Phase 9 added:
 - `npm run verify:app-check-readiness`
 - `docs/production-app-check-build-deploy-enforcement-readiness.md`
 
-The phase intentionally did not build or deploy because the real production reCAPTCHA v3 site key is missing. Firestore and Storage App Check enforcement remains off.
+This phase originally stopped at the safety gate. The later May 6 pass supplied ignored local production env, rebuilt Hosting, proved signed-in App Check traffic, and enabled Firestore/Storage enforcement for web-only launch.
 
 Phase 10 added:
 
 - `docs/real-recaptcha-site-key-injection-production-hosting-redeploy.md`
 
-The phase confirmed that the Firebase App Check web provider exists, but the real site key is not locally available. The production build and deploy remain blocked.
+This phase originally confirmed the provider while the real site key was still unavailable. The later May 6 pass unblocked the production build using ignored local env.
 
 Phase 10B added:
 
 - `docs/site-key-redeploy-attempt-10b.md`
 
-The phase reran the production key-injection gate. The real reCAPTCHA v3 site key is still missing locally, so no production build or Hosting redeploy occurred.
+This phase originally reran the production key-injection gate. The later May 6 pass supplied the real site key through ignored local env, rebuilt, and redeployed Hosting.
 
 May 6 public readiness pass updated this status:
 
@@ -224,8 +227,10 @@ May 6 public readiness pass updated this status:
 - Production web build passed and Hosting was redeployed.
 - Signed-in live QA proved Auth, workspace creation, customer creation, invoice creation, PDF/CSV actions, recurring screens, and Storage upload.
 - Signed-in live Firestore and Storage requests carried App Check headers. Token values were not printed.
-- Firestore and Storage enforcement were returned to `UNENFORCED` after the readiness checker found that the mobile client does not initialize App Check yet.
-- `npm run verify:app-check-readiness` now blocks enforcement unless every active client family is ready, not only web.
+- The root route was changed from a static server redirect to a real client page so Firebase Hosting no longer serves a raw `NEXT_REDIRECT` payload at `/`.
+- The web beta banner was added globally and the Market page keeps all paid plan CTAs in a coming-soon state.
+- Firestore and Storage App Check enforcement were enabled for the web-only launch path.
+- `npm run verify:app-check-readiness` now supports `ORBIT_LEDGER_WEB_ONLY_LAUNCH=yes` so enforcement can be approved when mobile is intentionally out of scope.
 
 ### 5. Finish Responsive And Device QA
 
@@ -271,27 +276,22 @@ Mobile needs production-like device QA for:
 
 ## Launch Decision
 
-Do not open a broad public launch until these are complete:
+Do not open a broad public launch beyond web beta until these are complete:
 
 1. Make Node 24 the active default runtime.
 2. Make Java 11+ the active default runtime.
-3. Inject real production Firebase and reCAPTCHA env values.
-4. Rebuild and redeploy Hosting with `npm run build:web:production`.
-5. Deploy a production App Check build with the real reCAPTCHA v3 site key.
-6. Verify live App Check traffic.
-7. Enable Firestore/Storage App Check enforcement after traffic is verified.
-8. Close or intentionally defer launch-critical mobile/web parity gaps.
-9. Complete mobile device QA.
-10. Keep Razorpay disabled until credentials, price IDs, webhooks, controlled test payment, and recovery flow are proven.
+3. Keep the current web-only launch scope explicit until mobile App Check is implemented.
+4. Close or intentionally defer launch-critical mobile/web parity gaps before mobile release.
+5. Complete mobile device QA before any mobile public release.
+6. Keep Razorpay disabled until credentials, price IDs, webhooks, controlled test payment, and recovery flow are proven.
 
 ## Next Recommended Phase
 
-`EXECUTE LAUNCH HARDENING PHASE 10B: Supply Site Key And Redeploy Production App Check Build`
+`Web Beta Operations: Monitor App Check, Auth, Firestore, Storage, and Hosting after public exposure`
 
 This should:
 
-- Inject the real production Firebase env values and reCAPTCHA v3 App Check site key.
-- Run `npm run build:web:production`.
-- Deploy Hosting from that production build.
-- Repeat signed-in Auth, Firestore, and Storage checks.
-- Confirm Firestore and Storage App Check traffic appears in Firebase Console before enforcement.
+- Keep Firestore and Storage App Check enforcement on for the web launch.
+- Watch Firebase Auth, Firestore, Storage, Hosting, and App Check dashboards after public exposure.
+- Keep paid checkout in coming-soon/free-beta mode until Razorpay is real.
+- Clean up production QA accounts when they are no longer needed.

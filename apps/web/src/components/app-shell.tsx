@@ -156,6 +156,12 @@ export function AppShell({
             </button>
           </div>
         </header>
+        <div className="ol-beta-banner" role="note">
+          <span className="ol-chip ol-chip--success">Beta</span>
+          <span>
+            Orbit Ledger web is in public beta. Free services are available now; paid plans and Razorpay checkout are coming soon.
+          </span>
+        </div>
         <main className="ol-page-content">{children}</main>
       </div>
     </div>

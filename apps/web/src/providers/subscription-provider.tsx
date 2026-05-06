@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import {
+  WEB_BETA_FREE_ONLY,
   attachWebCheckoutProvider,
   canActivateWebCheckoutIntent,
   cancelWebCheckoutIntent,
@@ -58,6 +59,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const checkoutStorageKey = user ? createWebCheckoutIntentStorageKey(user.uid, activeWorkspace?.workspaceId) : null;
 
   function readStatus() {
+    if (WEB_BETA_FREE_ONLY) {
+      return getDefaultWebSubscriptionStatus();
+    }
     if (!storageKey || typeof window === 'undefined') {
       return getDefaultWebSubscriptionStatus();
     }
@@ -66,6 +70,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }
 
   function writeStatus(nextStatus: WebStoredSubscriptionStatus) {
+    if (WEB_BETA_FREE_ONLY) {
+      const freeStatus = getDefaultWebSubscriptionStatus();
+      setStatus(freeStatus);
+      return freeStatus;
+    }
     if (storageKey && typeof window !== 'undefined') {
       window.localStorage.setItem(storageKey, serializeWebStoredSubscriptionStatus(nextStatus));
     }
@@ -75,6 +84,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }
 
   function readCheckoutIntent() {
+    if (WEB_BETA_FREE_ONLY) {
+      return null;
+    }
     if (!checkoutStorageKey || typeof window === 'undefined') {
       return null;
     }
@@ -82,6 +94,13 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }
 
   function writeCheckoutIntent(nextIntent: WebCheckoutIntent | null) {
+    if (WEB_BETA_FREE_ONLY) {
+      if (checkoutStorageKey && typeof window !== 'undefined') {
+        window.localStorage.removeItem(checkoutStorageKey);
+      }
+      setCheckoutIntent(null);
+      return null;
+    }
     if (checkoutStorageKey && typeof window !== 'undefined') {
       if (nextIntent) {
         window.localStorage.setItem(checkoutStorageKey, serializeWebCheckoutIntent(nextIntent));
@@ -190,6 +209,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         return refreshed;
       },
       async recoverFromServer() {
+        if (WEB_BETA_FREE_ONLY) {
+          setStatus(getDefaultWebSubscriptionStatus());
+          setCheckoutIntent(null);
+          return null;
+        }
         if (!user?.uid || !activeWorkspace?.workspaceId) {
           return null;
         }

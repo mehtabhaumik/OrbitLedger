@@ -56,6 +56,7 @@ import {
   type WebPurchaseLaunchMonitoringSnapshot,
 } from '@/lib/purchase-launch-monitoring';
 import {
+  WEB_BETA_FREE_ONLY,
   WEB_COUNTRY_PACK_PRODUCT_CATALOG,
   WEB_PRO_BRAND_THEMES,
   WEB_TIER_PLAN_COMPARISON,
@@ -138,6 +139,11 @@ export default function MarketPage() {
   const statementTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'statement') : [];
 
   async function prepareCheckout(planId: OrbitLedgerPaidPlanId, retryIntentId?: string) {
+    if (WEB_BETA_FREE_ONLY) {
+      showToast('Paid plans are coming soon. All beta users can continue using the free workspace today.', 'info');
+      return;
+    }
+
     if (!activeWorkspace) {
       showToast('Create or select a workspace before starting checkout.', 'info');
       return;
@@ -385,6 +391,17 @@ export default function MarketPage() {
     <AppShell title="Market" subtitle="Plans, document templates, and local business packs for this workspace.">
       <section className="ol-split-grid">
         <article className="ol-panel-dark ol-pricing-panel">
+          {WEB_BETA_FREE_ONLY ? (
+            <div className="ol-beta-market-banner">
+              <span className="ol-chip ol-chip--success">Beta</span>
+              <div>
+                <strong>Free access during beta</strong>
+                <p>
+                  Paid plans and Razorpay checkout are coming soon. For this public beta, Orbit Ledger services remain free to use.
+                </p>
+              </div>
+            </div>
+          ) : null}
           <div className="ol-panel-header">
             <div>
               <div className="ol-panel-title">Orbit Ledger plans</div>
@@ -475,7 +492,13 @@ export default function MarketPage() {
                   <p className="ol-muted">{planChange.helper}</p>
                   <button
                     className={plan.isBestValue && !isPlanLocked ? 'ol-button' : 'ol-button-secondary'}
-                    disabled={isPlanLocked || Boolean(preparingPlanId) || isSavingRenewalChange || Boolean(queuedRenewalChange)}
+                    disabled={
+                      WEB_BETA_FREE_ONLY ||
+                      isPlanLocked ||
+                      Boolean(preparingPlanId) ||
+                      isSavingRenewalChange ||
+                      Boolean(queuedRenewalChange)
+                    }
                     type="button"
                     onClick={() => {
                       if (queuedRenewalChange) {
@@ -495,11 +518,13 @@ export default function MarketPage() {
                   >
                     {queuedRenewalChange
                       ? 'Queued for renewal'
-                      : isPreparingPlan
-                        ? 'Preparing checkout'
-                        : isSavingRenewalChange && planChange.canQueueRenewalChange
-                          ? 'Saving renewal change'
-                          : planChange.buttonLabel}
+                      : WEB_BETA_FREE_ONLY
+                        ? 'Coming soon'
+                        : isPreparingPlan
+                          ? 'Preparing checkout'
+                          : isSavingRenewalChange && planChange.canQueueRenewalChange
+                            ? 'Saving renewal change'
+                            : planChange.buttonLabel}
                   </button>
                 </article>
               );

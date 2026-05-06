@@ -1,4 +1,4 @@
-const liveUrl = process.env.ORBIT_LEDGER_LIVE_WEB_URL || 'https://orbit-ledger-f41c2.web.app/login/';
+const liveBaseUrl = process.env.ORBIT_LEDGER_LIVE_WEB_URL || 'https://orbit-ledger-f41c2.web.app/';
 const requiredTitle = 'Orbit Ledger';
 const forbiddenHtmlPatterns = [
   /dangerouslyAllowBrowser/i,
@@ -10,31 +10,40 @@ const forbiddenHtmlPatterns = [
   /ANTHROPIC_API_KEY/i,
 ];
 
-const response = await fetch(liveUrl, {
-  redirect: 'follow',
-  headers: {
-    'User-Agent': 'OrbitLedgerLaunchSmoke/1.0',
-  },
-});
-
-if (!response.ok) {
-  throw new Error(`Live web smoke failed: ${liveUrl} returned HTTP ${response.status}.`);
-}
-
-const html = await response.text();
 const failures = [];
+const urlsToCheck = [new URL('/', liveBaseUrl).toString(), new URL('/login/', liveBaseUrl).toString()];
 
-if (!html.includes(`<title>${requiredTitle}</title>`)) {
-  failures.push(`Live page does not include <title>${requiredTitle}</title>.`);
-}
+for (const liveUrl of urlsToCheck) {
+  const response = await fetch(liveUrl, {
+    redirect: 'follow',
+    headers: {
+      'User-Agent': 'OrbitLedgerLaunchSmoke/1.0',
+    },
+  });
 
-if (!html.includes('application-name') || !html.includes(requiredTitle)) {
-  failures.push('Live page is missing Orbit Ledger application metadata.');
-}
+  if (!response.ok) {
+    failures.push(`${liveUrl} returned HTTP ${response.status}.`);
+    continue;
+  }
 
-for (const pattern of forbiddenHtmlPatterns) {
-  if (pattern.test(html)) {
-    failures.push(`Live HTML contains forbidden pattern ${pattern}.`);
+  const html = await response.text();
+
+  if (!html.includes(`<title>${requiredTitle}</title>`)) {
+    failures.push(`${liveUrl} does not include <title>${requiredTitle}</title>.`);
+  }
+
+  if (!html.includes('application-name') || !html.includes(requiredTitle)) {
+    failures.push(`${liveUrl} is missing Orbit Ledger application metadata.`);
+  }
+
+  if (/__next_error__|NEXT_REDIRECT/i.test(html)) {
+    failures.push(`${liveUrl} contains a static Next redirect/error payload.`);
+  }
+
+  for (const pattern of forbiddenHtmlPatterns) {
+    if (pattern.test(html)) {
+      failures.push(`${liveUrl} contains forbidden pattern ${pattern}.`);
+    }
   }
 }
 
@@ -47,5 +56,9 @@ if (failures.length) {
 }
 
 console.log('Orbit Ledger live web smoke passed.');
-console.log(`Checked ${liveUrl} without printing API keys or secrets.`);
-console.log('Manual App Check traffic proof is still required in Firebase Console after signed-in Firestore and Storage activity.');
+console.log(`Checked ${urlsToCheck.join(' and ')} without printing API keys or secrets.`);
+if (process.env.ORBIT_LEDGER_SIGNED_IN_APPCHECK_TRAFFIC_VERIFIED === 'yes') {
+  console.log('Signed-in Firestore and Storage App Check traffic proof has been acknowledged for the web launch path.');
+} else {
+  console.log('Manual App Check traffic proof is required before enabling Firestore and Storage enforcement.');
+}

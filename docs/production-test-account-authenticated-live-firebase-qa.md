@@ -120,7 +120,7 @@ Result:
 
 ```text
 Orbit Ledger live web smoke passed.
-Manual App Check traffic proof is still required in Firebase Console after signed-in Firestore and Storage activity.
+Signed-in Firestore and Storage App Check traffic proof has been acknowledged for the web launch path.
 ```
 
 ## Evidence Artifacts
@@ -139,8 +139,8 @@ Live signed-in Firebase Auth, Firestore, and Storage are now proven.
 
 Live signed-in web App Check traffic is also proven. A production browser run created authenticated Firestore and Storage traffic with App Check headers present. Token values were not printed.
 
-Keep Firestore and Storage App Check enforcement disabled until mobile App Check client initialization is added and verified. Enforcement is project-wide, so enabling it for the web build would also affect the mobile app.
+Firestore and Storage App Check enforcement is now enabled for the web-only launch path. Keep mobile out of public release until the mobile client initializes App Check and passes device QA.
 
 ## Next Phase
 
-`EXECUTE LAUNCH HARDENING PHASE 9: Production App Check Build Deploy + Enforcement Readiness`
+`Web Beta Operations: Monitor signed-in Auth, Firestore, Storage, Hosting, and App Check traffic`

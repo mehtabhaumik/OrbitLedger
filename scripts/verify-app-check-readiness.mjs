@@ -8,6 +8,7 @@ const projectNumber = "26507257397";
 const webAppId = "1:26507257397:web:0fd74ca52a0e2ac969737c";
 const androidAppId = "1:26507257397:android:0c4f604d6c59414069737c";
 const requiredTrafficProof = process.env.ORBIT_LEDGER_SIGNED_IN_APPCHECK_TRAFFIC_VERIFIED === "yes";
+const webOnlyLaunch = process.env.ORBIT_LEDGER_WEB_ONLY_LAUNCH === "yes";
 
 function run(command, args, options = {}) {
   return execFileSync(command, args, {
@@ -127,7 +128,7 @@ const firestore = summarizeService(firestoreService);
 const storage = summarizeService(storageService);
 const androidProviderReady = androidPlayIntegrityProvider.ok && Boolean(androidPlayIntegrityProvider.payload?.name);
 const mobileClientAppCheckReady = mobileClientInitializesAppCheck();
-const allActiveClientsReadyForEnforcement = mobileClientAppCheckReady;
+const allActiveClientsReadyForEnforcement = webOnlyLaunch || mobileClientAppCheckReady;
 const enforcementReady =
   productionEnvReady &&
   webProviderReady &&
@@ -141,6 +142,7 @@ const report = {
   webProviderType,
   androidProviderReady,
   mobileClientAppCheckReady,
+  webOnlyLaunch,
   allActiveClientsReadyForEnforcement,
   productionEnvReady,
   signedInAppCheckTrafficVerified: requiredTrafficProof,
@@ -151,7 +153,7 @@ const report = {
   notes: [
     "This command prints readiness booleans only and never prints Firebase API keys or reCAPTCHA site keys.",
     "Set ORBIT_LEDGER_SIGNED_IN_APPCHECK_TRAFFIC_VERIFIED=yes only after Firebase Console shows signed-in Firestore and Storage App Check traffic.",
-    "Firestore and Storage App Check enforcement is project-wide. Do not enforce while an active mobile client is missing App Check initialization.",
+    "Firestore and Storage App Check enforcement is project-wide. For a web-only launch, set ORBIT_LEDGER_WEB_ONLY_LAUNCH=yes after confirming mobile is not part of the public release.",
   ],
 };
 
