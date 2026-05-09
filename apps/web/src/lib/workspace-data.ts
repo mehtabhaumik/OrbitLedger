@@ -147,6 +147,7 @@ export type WorkspaceInvoice = {
   customerName: string | null;
   invoiceNumber: string;
   issueDate: string;
+  dueDate?: string | null;
   billingMonth?: string | null;
   totalAmount: number;
   paidAmount: number;
@@ -253,6 +254,14 @@ export type WorkspaceRecurringEmailQueueItem = {
   lastError: string | null;
   createdAt: string | null;
   lastModified: string | null;
+};
+
+export type WorkspaceDashboardData = {
+  customers: WorkspaceCustomer[];
+  invoices: WorkspaceInvoice[];
+  products: WorkspaceProduct[];
+  recurringRules: WorkspaceRecurringInvoiceRule[];
+  transactions: WorkspaceTransaction[];
 };
 
 export type SaveWorkspaceRecurringInvoiceRuleInput = {
@@ -548,6 +557,80 @@ export async function listWorkspaceCustomers(workspaceId: string): Promise<Works
   return customerSnapshot.docs
     .map((entry) => mapCustomer(entry, undefined, healthStats.get(entry.id)))
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+}
+
+export async function getWorkspaceDashboardData(workspaceId: string): Promise<WorkspaceDashboardData> {
+  const firestore = getWebFirestore();
+  const [customerSnapshot, transactionSnapshot, invoiceSnapshot, productSnapshot, recurringRuleSnapshot] = await Promise.all([
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'customers'),
+        orderBy('updated_at', 'desc'),
+        limitQuery(CUSTOMER_LIST_LIMIT)
+      )
+    ),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'transactions'),
+        orderBy('created_at', 'desc'),
+        limitQuery(TRANSACTION_LIST_LIMIT)
+      )
+    ),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'invoices'),
+        orderBy('issue_date', 'desc'),
+        limitQuery(INVOICE_LIST_LIMIT)
+      )
+    ),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'products'),
+        orderBy('name', 'asc'),
+        limitQuery(PRODUCT_LIST_LIMIT)
+      )
+    ),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'recurring_invoice_rules'),
+        orderBy('next_run_date', 'asc'),
+        limitQuery(100)
+      )
+    ),
+  ]);
+
+  const healthStats = buildCustomerHealthStats(transactionSnapshot.docs);
+  const customerNames = new Map<string, string>();
+  for (const entry of customerSnapshot.docs) {
+    customerNames.set(entry.id, String((entry.data() as { name?: string }).name ?? 'Customer'));
+  }
+
+  const invoices = invoiceSnapshot.docs.map(mapWorkspaceInvoice);
+  const missingCustomerIds = [
+    ...transactionSnapshot.docs.map((entry) => String((entry.data() as { customer_id?: string }).customer_id ?? '')),
+    ...invoices.map((invoice) => invoice.customerId ?? ''),
+  ].filter((id) => id && !customerNames.has(id));
+  const missingCustomerNames = await loadCustomerNamesByIds(firestore, workspaceId, missingCustomerIds);
+  for (const [customerId, name] of missingCustomerNames) {
+    customerNames.set(customerId, name);
+  }
+
+  return {
+    customers: customerSnapshot.docs
+      .map((entry) => mapCustomer(entry, undefined, healthStats.get(entry.id)))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    invoices: invoices.map((invoice) => ({
+      ...invoice,
+      customerName: invoice.customerId ? customerNames.get(invoice.customerId) ?? 'Customer' : null,
+      versions: undefined,
+    })),
+    products: productSnapshot.docs.map(mapWorkspaceProduct),
+    recurringRules: recurringRuleSnapshot.docs.map(mapWorkspaceRecurringInvoiceRule),
+    transactions: transactionSnapshot.docs.map((entry) => {
+      const customerId = String((entry.data() as { customer_id?: string }).customer_id ?? '');
+      return mapWorkspaceTransaction(entry, customerNames.get(customerId) ?? 'Customer');
+    }),
+  };
 }
 
 export async function getWorkspaceCustomer(
@@ -1032,41 +1115,10 @@ export async function listWorkspaceTransactions(
   );
   const customerNames = await loadCustomerNamesForTransactions(firestore, workspaceId, transactionSnapshot.docs);
 
-  return transactionSnapshot.docs
-    .map((entry) => {
-      const data = entry.data() as {
-        customer_id?: string;
-        type?: 'credit' | 'payment';
-        amount?: number;
-        note?: string | null;
-        payment_mode?: string | null;
-        payment_details?: PaymentModeDetails | null;
-        payment_details_json?: string | null;
-        payment_clearance_status?: string | null;
-        payment_attachments?: PaymentInstrumentAttachment[] | null;
-        payment_attachments_json?: string | null;
-        effective_date?: string;
-        created_at?: string;
-      };
-      const paymentDetails = normalizeStoredPaymentDetails(data);
-      const paymentMode = data.payment_mode ? normalizePaymentMode(data.payment_mode) : null;
-      return {
-        id: entry.id,
-        customerId: data.customer_id ?? '',
-        customerName: customerNames.get(data.customer_id ?? '') ?? 'Customer',
-        type: data.type ?? 'payment',
-        amount: data.amount ?? 0,
-        note: data.note ?? null,
-        paymentMode,
-        paymentDetails,
-        paymentClearanceStatus: data.payment_clearance_status
-          ? normalizePaymentClearanceStatus(data.payment_clearance_status, paymentMode, paymentDetails)
-          : null,
-        paymentAttachments: normalizeStoredPaymentAttachments(data),
-        effectiveDate: data.effective_date ?? '',
-        createdAt: data.created_at ?? '',
-      } satisfies WorkspaceTransaction;
-    });
+  return transactionSnapshot.docs.map((entry) => {
+    const customerId = String((entry.data() as { customer_id?: string }).customer_id ?? '');
+    return mapWorkspaceTransaction(entry, customerNames.get(customerId) ?? 'Customer');
+  });
 }
 
 export async function listWorkspaceCustomerTransactions(
@@ -1237,7 +1289,14 @@ export async function createWorkspaceTransaction(
   };
 }
 
-export async function listWorkspaceInvoices(workspaceId: string): Promise<WorkspaceInvoice[]> {
+export type ListWorkspaceInvoicesOptions = {
+  includeVersions?: boolean;
+};
+
+export async function listWorkspaceInvoices(
+  workspaceId: string,
+  options: ListWorkspaceInvoicesOptions = {}
+): Promise<WorkspaceInvoice[]> {
   const firestore = getWebFirestore();
   const snapshot = await getDocs(
     query(
@@ -1249,13 +1308,15 @@ export async function listWorkspaceInvoices(workspaceId: string): Promise<Worksp
   const invoices = snapshot.docs.map(mapWorkspaceInvoice);
   const [customerNames, versionsByInvoice] = await Promise.all([
     loadCustomerNamesForInvoices(firestore, workspaceId, invoices),
-    loadInvoiceVersionsForInvoices(firestore, workspaceId, invoices.map((invoice) => invoice.id)),
+    options.includeVersions === false
+      ? Promise.resolve(new Map<string, WorkspaceInvoiceVersion[]>())
+      : loadInvoiceVersionsForInvoices(firestore, workspaceId, invoices.map((invoice) => invoice.id)),
   ]);
 
   return invoices.map((invoice) => ({
     ...invoice,
     customerName: invoice.customerId ? customerNames.get(invoice.customerId) ?? 'Customer' : null,
-    versions: versionsByInvoice.get(invoice.id) ?? [],
+    versions: options.includeVersions === false ? undefined : versionsByInvoice.get(invoice.id) ?? [],
   }));
 }
 
@@ -3086,6 +3147,7 @@ function mapWorkspaceInvoice(entry: QueryDocumentSnapshot): WorkspaceInvoice {
     customerName: data.customer_name ?? null,
     invoiceNumber: data.invoice_number ?? entry.id.slice(0, 8).toUpperCase(),
     issueDate: data.issue_date ?? '',
+    dueDate: data.due_date ?? null,
     billingMonth: data.billing_month ?? data.issue_date?.slice(0, 7) ?? null,
     totalAmount: data.total_amount ?? 0,
     paidAmount: data.paid_amount ?? 0,
@@ -3928,6 +3990,41 @@ function mapWorkspaceProduct(entry: QueryDocumentSnapshot): WorkspaceProduct {
     createdAt: data.created_at ?? '',
     lastModified: data.last_modified ?? data.created_at ?? '',
     serverRevision: data.server_revision ?? 1,
+  };
+}
+
+function mapWorkspaceTransaction(entry: QueryDocumentSnapshot, customerName: string): WorkspaceTransaction {
+  const data = entry.data() as {
+    customer_id?: string;
+    type?: 'credit' | 'payment';
+    amount?: number;
+    note?: string | null;
+    payment_mode?: string | null;
+    payment_details?: PaymentModeDetails | null;
+    payment_details_json?: string | null;
+    payment_clearance_status?: string | null;
+    payment_attachments?: PaymentInstrumentAttachment[] | null;
+    payment_attachments_json?: string | null;
+    effective_date?: string;
+    created_at?: string;
+  };
+  const paymentDetails = normalizeStoredPaymentDetails(data);
+  const paymentMode = data.payment_mode ? normalizePaymentMode(data.payment_mode) : null;
+  return {
+    id: entry.id,
+    customerId: data.customer_id ?? '',
+    customerName,
+    type: data.type ?? 'payment',
+    amount: data.amount ?? 0,
+    note: data.note ?? null,
+    paymentMode,
+    paymentDetails,
+    paymentClearanceStatus: data.payment_clearance_status
+      ? normalizePaymentClearanceStatus(data.payment_clearance_status, paymentMode, paymentDetails)
+      : null,
+    paymentAttachments: normalizeStoredPaymentAttachments(data),
+    effectiveDate: data.effective_date ?? '',
+    createdAt: data.created_at ?? '',
   };
 }
 

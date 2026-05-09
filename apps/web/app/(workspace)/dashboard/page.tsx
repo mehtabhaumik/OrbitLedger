@@ -16,7 +16,10 @@ import {
   buildLocalBusinessIntelligence,
   buildMistakeRecoveryMode,
   buildOwnerClosingRitual,
+  summarizePaymentMode,
+  type PaymentClearanceStatus,
 } from '@orbit-ledger/core';
+import type { Route } from 'next';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -27,14 +30,11 @@ import {
   ActionableProductDialog,
 } from '@/components/actionable-customer-dialog';
 import { AppShell } from '@/components/app-shell';
+import { DashboardCharts, type DashboardChartInsight } from '@/components/dashboard-charts';
 import { WorkspaceStatusCards } from '@/components/workspace-status-cards';
+import { buildDashboardAnalytics } from '@/lib/dashboard-analytics';
 import {
-  listWorkspaceCustomers,
-  listWorkspaceInvoices,
-  listWorkspaceManualPaymentReviewItems,
-  listWorkspaceProducts,
-  listWorkspaceRecurringInvoiceRules,
-  listWorkspaceTransactions,
+  getWorkspaceDashboardData,
   type WorkspaceCustomer,
   type WorkspaceInvoice,
   type WorkspaceManualPaymentReviewItem,
@@ -46,6 +46,23 @@ import { buildProductReorderSuggestions, summarizeWorkspaceProducts } from '@/li
 import { useWorkspace } from '@/providers/workspace-provider';
 
 type DashboardDialog = 'collections' | 'invoices' | 'inventory' | 'payments' | 'closing' | 'recovery' | null;
+
+type DashboardInsightRow = {
+  id: string;
+  title: string;
+  meta: string;
+  amountText?: string;
+  href: Route;
+  actionLabel: string;
+  tone?: 'primary' | 'success' | 'warning' | 'danger' | 'premium';
+};
+
+type DashboardInsightDialogModel = {
+  title: string;
+  subtitle: string;
+  emptyCopy: string;
+  rows: DashboardInsightRow[];
+};
 
 type ClosingCheckState = Record<Exclude<OwnerClosingRitualStepId, 'review'>, boolean>;
 
@@ -66,6 +83,7 @@ export default function DashboardPage() {
   const [recurringRules, setRecurringRules] = useState<WorkspaceRecurringInvoiceRule[]>([]);
   const [transactions, setTransactions] = useState<WorkspaceTransaction[]>([]);
   const [activeDialog, setActiveDialog] = useState<DashboardDialog>(null);
+  const [activeInsight, setActiveInsight] = useState<DashboardChartInsight | null>(null);
   const [closingChecks, setClosingChecks] = useState<ClosingCheckState>(DEFAULT_CLOSING_CHECKS);
   const [countedCashInput, setCountedCashInput] = useState('');
   const [closingSavedAt, setClosingSavedAt] = useState<string | null>(null);
@@ -293,21 +311,14 @@ export default function DashboardPage() {
       return;
     }
 
-    void Promise.all([
-      listWorkspaceCustomers(activeWorkspace.workspaceId),
-      listWorkspaceInvoices(activeWorkspace.workspaceId),
-      listWorkspaceManualPaymentReviewItems(activeWorkspace.workspaceId),
-      listWorkspaceProducts(activeWorkspace.workspaceId),
-      listWorkspaceRecurringInvoiceRules(activeWorkspace.workspaceId),
-      listWorkspaceTransactions(activeWorkspace.workspaceId),
-    ])
-      .then(([nextCustomers, nextInvoices, nextManualPayments, nextProducts, nextRules, nextTransactions]) => {
-        setCustomers(nextCustomers);
-        setInvoices(nextInvoices);
-        setManualPayments(nextManualPayments);
-        setProducts(nextProducts);
-        setRecurringRules(nextRules);
-        setTransactions(nextTransactions);
+    void getWorkspaceDashboardData(activeWorkspace.workspaceId)
+      .then((nextData) => {
+        setCustomers(nextData.customers);
+        setInvoices(nextData.invoices);
+        setManualPayments(buildDashboardManualPaymentsFromTransactions(nextData.transactions));
+        setProducts(nextData.products);
+        setRecurringRules(nextData.recurringRules);
+        setTransactions(nextData.transactions);
         const saved = loadClosingState(activeWorkspace.workspaceId, today);
         setClosingChecks(saved?.checks ?? DEFAULT_CLOSING_CHECKS);
         setCountedCashInput(saved?.countedCashInput ?? '');
@@ -323,6 +334,32 @@ export default function DashboardPage() {
       });
   }, [activeWorkspace, today]);
   const autoEmailWarnings = useMemo(() => buildDashboardAutoEmailWarnings(recurringRules, invoices), [invoices, recurringRules]);
+  const dashboardAnalytics = useMemo(
+    () =>
+      buildDashboardAnalytics({
+        customers,
+        invoices,
+        products,
+        today,
+        transactions,
+      }),
+    [customers, invoices, products, today, transactions]
+  );
+  const insightDialog = useMemo(
+    () =>
+      activeInsight
+        ? buildDashboardInsightDialog({
+            currency,
+            customers,
+            insight: activeInsight,
+            invoices,
+            products,
+            today,
+            transactions,
+          })
+        : null,
+    [activeInsight, currency, customers, invoices, products, today, transactions]
+  );
 
   function updateClosingCheck(step: Exclude<OwnerClosingRitualStepId, 'review'>, checked: boolean) {
     setClosingSavedAt(null);
@@ -348,15 +385,15 @@ export default function DashboardPage() {
   }
 
   return (
-    <AppShell title="Home" subtitle="Daily actions, receivables, and workspace status.">
+    <AppShell title="Home" subtitle="Daily actions and business health.">
       <section className="ol-panel-dark ol-action-center-hero">
         <div className="ol-panel-header">
           <div>
             <div className="ol-chip-row" style={{ marginBottom: 14 }}>
               <span className={`ol-chip ol-chip--${dailyCenter.topAction.tone === 'danger' ? 'warning' : dailyCenter.topAction.tone}`}>
-                {dailyCenter.topAction.priority === 'critical' ? 'Handle first' : 'Today'}
+                {dailyCenter.topAction.priority === 'critical' ? 'Priority' : 'Today'}
               </span>
-              <span className="ol-chip ol-chip--success">Action ready</span>
+              <span className="ol-chip ol-chip--success">{activeWorkspace?.businessName ?? 'Workspace'}</span>
             </div>
             <div className="ol-onboarding-headline ol-action-center-title">{dailyCenter.topAction.title}</div>
             <p className="ol-panel-copy" style={{ maxWidth: 620 }}>
@@ -382,7 +419,7 @@ export default function DashboardPage() {
               <span className="ol-action-icon">{getActionIcon(item.id)}</span>
               <div>
                 <div className="ol-action-card-title">{item.title}</div>
-                <p>{item.message}</p>
+                <p className="ol-action-card-detail">{item.message}</p>
               </div>
             </div>
             <div className="ol-action-card-footer">
@@ -395,6 +432,53 @@ export default function DashboardPage() {
         ))}
       </section>
 
+      <WorkspaceStatusCards
+        cards={[
+          {
+            label: 'Receivable',
+            value: formatCurrency(dashboardSnapshot?.receivableTotal ?? 0, currency),
+            helper: activeWorkspace ? `Outstanding balance for ${activeWorkspace.businessName}.` : 'No workspace selected.',
+            tone: 'warning',
+          },
+          {
+            label: 'Customers',
+            value: String(dashboardSnapshot?.customerCount ?? 0),
+            helper: 'Active customer records.',
+            tone: 'primary',
+          },
+          {
+            label: 'Invoices',
+            value: String(dashboardSnapshot?.invoiceCount ?? 0),
+            helper: 'Draft, created, and revised invoices.',
+            tone: 'premium',
+          },
+          {
+            label: 'Payments',
+            value: formatCurrency(dashboardSnapshot?.recentPayments ?? 0, currency),
+            helper: 'Recent payment activity.',
+            tone: 'success',
+          },
+        ]}
+      />
+
+      <DashboardCharts
+        analytics={dashboardAnalytics}
+        currency={currency}
+        onOpenInsight={setActiveInsight}
+        onOpenCollections={() => setActiveDialog('collections')}
+        onOpenInvoices={() => setActiveDialog('invoices')}
+        onOpenInventory={() => setActiveDialog('inventory')}
+        onOpenPayments={() => setActiveDialog('payments')}
+      />
+
+      <section className="ol-dashboard-section-header" aria-label="Review tools">
+        <div>
+          <h2>Review tools</h2>
+          <p>Use these when the day needs a closer check.</p>
+        </div>
+      </section>
+
+      <section className="ol-dashboard-operational-grid">
       <section className="ol-panel ol-closing-preview">
         <div className="ol-panel-header">
           <div>
@@ -406,7 +490,7 @@ export default function DashboardPage() {
                 {closingRitual.completion.completed}/{closingRitual.completion.total - 1} checks
               </span>
             </div>
-            <div className="ol-panel-title">3-minute closing</div>
+            <div className="ol-panel-title">Daily closing</div>
             <p className="ol-panel-copy">{closingRitual.summary}</p>
           </div>
           <button className="ol-button" type="button" onClick={() => setActiveDialog('closing')}>
@@ -433,7 +517,7 @@ export default function DashboardPage() {
               </span>
               <span className="ol-chip ol-chip--primary">History protected</span>
             </div>
-            <div className="ol-panel-title">Mistake Recovery</div>
+            <div className="ol-panel-title">Recovery</div>
             <p className="ol-panel-copy">{mistakeRecovery.summary}</p>
           </div>
           <button className="ol-button-secondary" type="button" onClick={() => setActiveDialog('recovery')}>
@@ -456,7 +540,7 @@ export default function DashboardPage() {
                 {localBusinessIntelligence.emptyState ? 'Ready' : 'Local review'}
               </span>
             </div>
-            <div className="ol-panel-title">Local Business Intelligence</div>
+            <div className="ol-panel-title">Local setup</div>
             <p className="ol-panel-copy">{localBusinessIntelligence.summary}</p>
           </div>
           <Link className="ol-button-secondary" href="/settings">
@@ -469,40 +553,12 @@ export default function DashboardPage() {
           ))}
         </div>
       </section>
-
-      <WorkspaceStatusCards
-        cards={[
-          {
-            label: 'Receivable',
-            value: formatCurrency(dashboardSnapshot?.receivableTotal ?? 0, currency),
-            helper: activeWorkspace ? `${activeWorkspace.businessName} workspace` : 'No workspace',
-            tone: 'warning',
-          },
-          {
-            label: 'Customers',
-            value: String(dashboardSnapshot?.customerCount ?? 0),
-            helper: 'Customers in this workspace.',
-            tone: 'primary',
-          },
-          {
-            label: 'Invoices',
-            value: String(dashboardSnapshot?.invoiceCount ?? 0),
-            helper: 'Issued and draft invoices.',
-            tone: 'premium',
-          },
-          {
-            label: 'Payments',
-            value: formatCurrency(dashboardSnapshot?.recentPayments ?? 0, currency),
-            helper: 'Recent payments recorded here.',
-            tone: 'success',
-          },
-        ]}
-      />
+      </section>
 
       <section className="ol-split-grid">
         <article className="ol-panel-glass">
           <div className="ol-panel-title" style={{ marginBottom: 14 }}>
-            Upcoming automation
+            Auto email
           </div>
           <div className="ol-list">
             {autoEmailWarnings.map((warning) => (
@@ -519,8 +575,8 @@ export default function DashboardPage() {
               <div className="ol-list-item">
                 <div className="ol-list-icon">E</div>
                 <div className="ol-list-copy">
-                  <div className="ol-list-title">No scheduled email needs review</div>
-                  <div className="ol-list-text">Automatic invoice emails will appear here when they are close to sending.</div>
+                  <div className="ol-list-title">No email needs review</div>
+                  <div className="ol-list-text">Scheduled invoice emails appear here before sending.</div>
                 </div>
               </div>
             ) : null}
@@ -529,33 +585,33 @@ export default function DashboardPage() {
 
         <article className="ol-panel">
           <div className="ol-panel-title" style={{ marginBottom: 14 }}>
-            Workspace readiness
+            Workspace checks
           </div>
           <div className="ol-list">
             <div className="ol-list-item">
               <div className="ol-list-icon">W</div>
               <div className="ol-list-copy">
-                <div className="ol-list-title">Wide-screen review</div>
+                <div className="ol-list-title">Detailed review</div>
                 <div className="ol-list-text">
-                  Review reports, backups, and invoices with more room for comparison and verification.
+                  Reports, backups, and invoices are ready for desktop review.
                 </div>
               </div>
             </div>
             <div className="ol-list-item">
               <div className="ol-list-icon">S</div>
               <div className="ol-list-copy">
-                <div className="ol-list-title">Business workspace</div>
+                <div className="ol-list-title">Synced workspace</div>
                 <div className="ol-list-text">
-                  Review the same customers, transactions, invoices, and reports across Orbit Ledger.
+                  Customers, transactions, invoices, and reports use the same workspace.
                 </div>
               </div>
             </div>
             <div className="ol-list-item">
               <div className="ol-list-icon">B</div>
               <div className="ol-list-copy">
-                <div className="ol-list-title">Backup discipline</div>
+                <div className="ol-list-title">Backup ready</div>
                 <div className="ol-list-text">
-                  Export reviewed copies before major edits, imports, restores, or launch testing.
+                  Export a reviewed copy before major changes.
                 </div>
               </div>
             </div>
@@ -614,7 +670,83 @@ export default function DashboardPage() {
         onClose={() => setActiveDialog(null)}
         summary={mistakeRecovery.summary}
       />
+      <DashboardInsightDialog
+        insight={insightDialog}
+        isOpen={Boolean(insightDialog)}
+        onClose={() => setActiveInsight(null)}
+      />
     </AppShell>
+  );
+}
+
+function DashboardInsightDialog({
+  insight,
+  isOpen,
+  onClose,
+}: {
+  insight: DashboardInsightDialogModel | null;
+  isOpen: boolean;
+  onClose(): void;
+}) {
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !insight) {
+    return null;
+  }
+
+  return (
+    <div className="ol-dialog-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        aria-label={insight.title}
+        aria-modal="true"
+        className="ol-dialog-card"
+        role="dialog"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="ol-dialog-header">
+          <div>
+            <div className="ol-panel-title">{insight.title}</div>
+            <p className="ol-panel-copy">{insight.subtitle}</p>
+          </div>
+          <button className="ol-button-ghost" type="button" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        <div className="ol-dialog-list">
+          {insight.rows.length ? (
+            insight.rows.map((row) => (
+              <article className="ol-dialog-customer" key={row.id}>
+                <div className="ol-list-icon">{row.title.charAt(0).toUpperCase()}</div>
+                <div className="ol-dialog-customer-main">
+                  <strong>{row.title}</strong>
+                  <span>{row.meta}</span>
+                </div>
+                <div className="ol-dialog-customer-meta">
+                  {row.tone ? <span className={`ol-chip ol-chip--${row.tone}`}>{row.tone}</span> : null}
+                  {row.amountText ? <strong className="ol-amount">{row.amountText}</strong> : null}
+                </div>
+                <Link className="ol-button-secondary" href={row.href} onClick={onClose}>
+                  {row.actionLabel}
+                </Link>
+              </article>
+            ))
+          ) : (
+            <div className="ol-empty">{insight.emptyCopy}</div>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -1037,6 +1169,35 @@ function getActionIcon(id: string) {
   return 'C';
 }
 
+function buildDashboardManualPaymentsFromTransactions(
+  transactions: WorkspaceTransaction[]
+): WorkspaceManualPaymentReviewItem[] {
+  return transactions
+    .filter(
+      (transaction) =>
+        transaction.type === 'payment' &&
+        Boolean(transaction.paymentClearanceStatus) &&
+        transaction.paymentClearanceStatus !== 'cleared'
+    )
+    .map((transaction) => ({
+      transactionId: transaction.id,
+      customerId: transaction.customerId,
+      customerName: transaction.customerName,
+      amount: transaction.amount,
+      note: transaction.note,
+      paymentMode: transaction.paymentMode,
+      paymentDetails: transaction.paymentDetails,
+      paymentClearanceStatus: transaction.paymentClearanceStatus as PaymentClearanceStatus,
+      paymentAttachments: transaction.paymentAttachments,
+      effectiveDate: transaction.effectiveDate,
+      createdAt: transaction.createdAt,
+      allocationId: null,
+      invoiceId: null,
+      invoiceNumber: null,
+      invoiceDueAmount: null,
+    }));
+}
+
 function buildDashboardMistakeRecoverySignals({
   customers,
   invoices,
@@ -1294,6 +1455,229 @@ function buildDashboardAutoEmailWarnings(
                 : `No invoice is selected yet for the ${rule.nextEmailDate} email.`,
       };
     });
+}
+
+function buildDashboardInsightDialog({
+  currency,
+  customers,
+  insight,
+  invoices,
+  products,
+  today,
+  transactions,
+}: {
+  currency: string;
+  customers: WorkspaceCustomer[];
+  insight: DashboardChartInsight;
+  invoices: WorkspaceInvoice[];
+  products: WorkspaceProduct[];
+  today: string;
+  transactions: WorkspaceTransaction[];
+}): DashboardInsightDialogModel {
+  const activeInvoices = invoices.filter((invoice) => !invoice.isArchived && invoice.documentState !== 'cancelled');
+  const unpaid = activeInvoices.filter((invoice) => invoice.paymentStatus !== 'paid');
+
+  if (insight.kind === 'customer') {
+    return {
+      title: insight.label,
+      subtitle: 'Customer behind this dashboard bar.',
+      emptyCopy: 'Customer record was not found.',
+      rows: customers
+        .filter((customer) => customer.id === insight.id)
+        .map((customer) => customerInsightRow(customer, currency)),
+    };
+  }
+
+  if (insight.kind === 'customer-health') {
+    const rows = customers
+      .filter((customer) => !customer.isArchived && customer.health.rank === insight.id)
+      .sort((left, right) => right.balance - left.balance)
+      .map((customer) => customerInsightRow(customer, currency));
+    return {
+      title: `${insight.label} customers`,
+      subtitle: 'Customers in this health group.',
+      emptyCopy: 'No customers match this group.',
+      rows,
+    };
+  }
+
+  if (insight.kind === 'invoice-status') {
+    const rows = activeInvoices
+      .filter((invoice) => invoice.paymentStatus === insight.id)
+      .sort((left, right) => right.issueDate.localeCompare(left.issueDate))
+      .map((invoice) => invoiceInsightRow(invoice, currency));
+    return {
+      title: `${insight.label} invoices`,
+      subtitle: 'Invoices behind this collection health segment.',
+      emptyCopy: 'No invoices match this status.',
+      rows,
+    };
+  }
+
+  if (insight.kind === 'invoice-aging') {
+    const rows = unpaid
+      .filter((invoice) => getAgingBucketId(invoice.dueDate ?? invoice.issueDate, today) === insight.id)
+      .sort((left, right) => right.totalAmount - left.totalAmount)
+      .map((invoice) => invoiceInsightRow(invoice, currency));
+    return {
+      title: `${insight.label} invoice aging`,
+      subtitle: 'Unpaid invoices in this age range.',
+      emptyCopy: 'No unpaid invoices match this range.',
+      rows,
+    };
+  }
+
+  if (insight.kind === 'payment-mode') {
+    const rows = transactions
+      .filter((transaction) => transaction.type === 'payment' && slugify(summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails) || 'Not specified') === insight.id)
+      .sort((left, right) => right.effectiveDate.localeCompare(left.effectiveDate))
+      .map((transaction) => transactionInsightRow(transaction, currency));
+    return {
+      title: `${insight.label} payments`,
+      subtitle: 'Payments behind this payment-mode segment.',
+      emptyCopy: 'No payments match this mode.',
+      rows,
+    };
+  }
+
+  if (insight.kind === 'cash-week') {
+    const rows = transactions
+      .filter((transaction) => transaction.type === 'payment' && getWeekKey(transaction.effectiveDate || transaction.createdAt) === insight.id)
+      .sort((left, right) => right.effectiveDate.localeCompare(left.effectiveDate))
+      .map((transaction) => transactionInsightRow(transaction, currency));
+    return {
+      title: `${insight.label} cash inflow`,
+      subtitle: 'Payments received in this week.',
+      emptyCopy: 'No payments were recorded in this week.',
+      rows,
+    };
+  }
+
+  if (insight.kind === 'month') {
+    const invoiceRows = activeInvoices
+      .filter((invoice) => invoice.issueDate.startsWith(insight.id))
+      .map((invoice) => invoiceInsightRow(invoice, currency));
+    const paymentRows = transactions
+      .filter((transaction) => transaction.type === 'payment' && (transaction.effectiveDate || transaction.createdAt).startsWith(insight.id))
+      .map((transaction) => transactionInsightRow(transaction, currency));
+    return {
+      title: `${insight.label} activity`,
+      subtitle: 'Invoices and payments behind this monthly chart.',
+      emptyCopy: 'No invoice or payment activity matches this month.',
+      rows: [...invoiceRows, ...paymentRows],
+    };
+  }
+
+  if (insight.kind === 'receivable-day') {
+    const rows = transactions
+      .filter((transaction) => (transaction.effectiveDate || transaction.createdAt.slice(0, 10)) === insight.id)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .map((transaction) => transactionInsightRow(transaction, currency));
+    return {
+      title: `${insight.label} receivable activity`,
+      subtitle: 'Credits and payments recorded on this date.',
+      emptyCopy: 'No transaction activity was recorded on this date.',
+      rows,
+    };
+  }
+
+  const rows = products
+    .filter((product) => {
+      if (insight.id === 'out') {
+        return product.stockQuantity <= 0;
+      }
+      if (insight.id === 'low') {
+        return product.stockQuantity > 0 && product.stockQuantity <= 5;
+      }
+      return product.stockQuantity > 5;
+    })
+    .map((product): DashboardInsightRow => {
+      const tone: DashboardInsightRow['tone'] = insight.id === 'out' ? 'danger' : insight.id === 'low' ? 'warning' : 'success';
+      return {
+        id: product.id,
+        title: product.name,
+        meta: `${product.stockQuantity} ${product.unit} in stock`,
+        amountText: formatCurrency(product.price * product.stockQuantity, currency),
+        href: '/products' as Route,
+        actionLabel: 'Open products',
+        tone,
+      };
+    });
+
+  return {
+    title: `${insight.label} products`,
+    subtitle: 'Products behind this inventory segment.',
+    emptyCopy: 'No products match this stock segment.',
+    rows,
+  };
+}
+
+function customerInsightRow(customer: WorkspaceCustomer, currency: string): DashboardInsightRow {
+  return {
+    id: customer.id,
+    title: customer.name,
+    meta: customer.phone || customer.email || customer.health.helper,
+    amountText: formatCurrency(customer.balance, currency),
+    href: `/customers/detail?customerId=${encodeURIComponent(customer.id)}` as Route,
+    actionLabel: 'Open customer',
+    tone: customer.health.tone === 'danger' ? 'warning' : customer.health.tone,
+  };
+}
+
+function invoiceInsightRow(invoice: WorkspaceInvoice, currency: string): DashboardInsightRow {
+  return {
+    id: invoice.id,
+    title: invoice.invoiceNumber,
+    meta: `${invoice.customerName || 'Unlinked customer'} · ${invoice.issueDate}`,
+    amountText: formatCurrency(invoice.totalAmount, currency),
+    href: `/invoices/detail?invoiceId=${encodeURIComponent(invoice.id)}` as Route,
+    actionLabel: 'Open invoice',
+    tone: invoice.paymentStatus === 'paid' ? 'success' : invoice.paymentStatus === 'overdue' ? 'danger' : 'warning',
+  };
+}
+
+function transactionInsightRow(transaction: WorkspaceTransaction, currency: string): DashboardInsightRow {
+  return {
+    id: transaction.id,
+    title: transaction.customerName,
+    meta: `${transaction.type === 'payment' ? 'Payment' : 'Credit'} · ${transaction.effectiveDate}`,
+    amountText: formatCurrency(transaction.amount, currency),
+    href: '/transactions' as Route,
+    actionLabel: 'Open transactions',
+    tone: transaction.type === 'payment' ? 'success' : 'warning',
+  };
+}
+
+function getAgingBucketId(value: string | null | undefined, today: string) {
+  const basis = Date.parse(`${value || today}T00:00:00.000Z`);
+  const current = Date.parse(`${today}T00:00:00.000Z`);
+  const days = Number.isFinite(basis) && Number.isFinite(current) ? Math.max(0, Math.floor((current - basis) / 86_400_000)) : 0;
+  if (days <= 7) {
+    return '0-7';
+  }
+  if (days <= 15) {
+    return '8-15';
+  }
+  if (days <= 30) {
+    return '16-30';
+  }
+  if (days <= 60) {
+    return '31-60';
+  }
+  return '60+';
+}
+
+function getWeekKey(value: string) {
+  const parsed = new Date(value.length === 10 ? `${value}T00:00:00.000Z` : value);
+  const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  const start = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const day = Math.floor((date.getTime() - start.getTime()) / 86_400_000);
+  const week = Math.ceil((day + start.getUTCDay() + 1) / 7);
+  return `${date.getUTCFullYear()}-${String(week).padStart(2, '0')}`;
+}
+
+function slugify(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
 function daysBetween(from: string, to: string): number {

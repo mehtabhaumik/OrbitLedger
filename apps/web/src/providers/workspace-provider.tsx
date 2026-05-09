@@ -17,6 +17,7 @@ type WorkspaceContextValue = {
   workspaces: OrbitWorkspaceSummary[];
   activeWorkspace: OrbitWorkspaceSummary | null;
   isLoading: boolean;
+  workspaceLookupError: string | null;
   refresh(): Promise<void>;
   createFirstWorkspace(input: WorkspaceProfileInput): Promise<OrbitWorkspaceSummary>;
   selectWorkspace(workspaceId: string): void;
@@ -26,11 +27,9 @@ type WorkspaceContextValue = {
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 const WORKSPACE_BOOTSTRAP_HINT_PREFIX = 'orbit-ledger:skip-workspace-bootstrap:';
 const WORKSPACE_CACHE_PREFIX = 'orbit-ledger:workspace-cache:';
-const WORKSPACE_STATE_CACHE_PREFIX = 'orbit-ledger:workspace-state:';
 const WORKSPACE_STATE_HAS = 'has_workspace';
 const WORKSPACE_STATE_NONE = 'no_workspace';
 const WORKSPACE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-const WORKSPACE_LOOKUP_FALLBACK_MS = 1800;
 
 type CachedWorkspaceState = {
   version: 1;
@@ -59,32 +58,6 @@ function clearWorkspaceBootstrapHint(userId: string) {
     window.sessionStorage.removeItem(`${WORKSPACE_BOOTSTRAP_HINT_PREFIX}${userId}`);
   } catch {
     // Session storage is only used to avoid a blocking lookup after account creation.
-  }
-}
-
-function readWorkspaceStateCache(userId: string) {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  try {
-    const value = window.localStorage.getItem(`${WORKSPACE_STATE_CACHE_PREFIX}${userId}`);
-    return value === WORKSPACE_STATE_HAS || value === WORKSPACE_STATE_NONE ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeWorkspaceStateCache(userId: string, hasWorkspace: boolean) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  try {
-    window.localStorage.setItem(
-      `${WORKSPACE_STATE_CACHE_PREFIX}${userId}`,
-      hasWorkspace ? WORKSPACE_STATE_HAS : WORKSPACE_STATE_NONE
-    );
-  } catch {
-    // Local storage is only a startup accelerator.
   }
 }
 
@@ -166,7 +139,6 @@ function writeWorkspaceCache(
   }
 
   const hasWorkspace = workspaces.length > 0;
-  writeWorkspaceStateCache(userId, hasWorkspace);
   try {
     window.localStorage.setItem(
       `${WORKSPACE_CACHE_PREFIX}${userId}`,
@@ -197,6 +169,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [workspaces, setWorkspaces] = useState<OrbitWorkspaceSummary[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [workspaceLookupError, setWorkspaceLookupError] = useState<string | null>(null);
   const [dashboardSnapshot, setDashboardSnapshot] = useState<Awaited<
     ReturnType<typeof loadWorkspaceDashboardSnapshot>
   > | null>(null);
@@ -211,18 +184,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setWorkspaces([]);
       setActiveWorkspaceId(null);
       setDashboardSnapshot(null);
+      setWorkspaceLookupError(null);
       setIsLoading(false);
       return;
     }
     const currentUser = user;
     const cachedWorkspaceState = readWorkspaceCache(currentUser.uid);
-    const cachedState =
-      cachedWorkspaceState?.state ?? readWorkspaceStateCache(currentUser.uid);
+    setWorkspaceLookupError(null);
 
     const shouldSkipBlockingBootstrap =
       isLikelyFirstSignIn(currentUser) ||
-      hasWorkspaceBootstrapHint(currentUser.uid) ||
-      cachedState === WORKSPACE_STATE_NONE;
+      hasWorkspaceBootstrapHint(currentUser.uid);
 
     function applyWorkspaceList(
       nextWorkspaces: OrbitWorkspaceSummary[],
@@ -277,6 +249,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setWorkspaces([]);
       setActiveWorkspaceId(null);
       setDashboardSnapshot(null);
+      setWorkspaceLookupError(null);
       if (isCurrentRequest()) {
         setIsLoading(false);
       }
@@ -289,25 +262,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
 
     try {
-      const nextWorkspaces = await Promise.race([
-        remoteWorkspacePromise,
-        new Promise<null>((resolve) => {
-          window.setTimeout(() => resolve(null), WORKSPACE_LOOKUP_FALLBACK_MS);
-        }),
-      ]);
-
-      if (nextWorkspaces === null) {
-        if (isCurrentRequest()) {
-          setIsLoading(false);
-        }
-        void remoteWorkspacePromise.then(applyRemoteWorkspaceList).catch(() => undefined);
-        return;
-      }
-
+      const nextWorkspaces = await remoteWorkspacePromise;
       applyWorkspaceList(nextWorkspaces);
     } catch {
-      // Keep previous state if remote fetch fails so the UI can continue.
+      // Keep previous state if remote fetch fails. If there is no prior workspace,
+      // show a retry state instead of treating the user as a new workspace setup.
       setWorkspaces((current) => current);
+      if (isCurrentRequest()) {
+        setWorkspaceLookupError('Could not check your saved workspace. Please retry.');
+      }
     } finally {
       if (isCurrentRequest()) {
         setIsLoading(false);
@@ -341,6 +304,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       workspaces,
       activeWorkspace,
       isLoading,
+      workspaceLookupError,
       refresh,
       async createFirstWorkspace(input) {
         if (!user) {
@@ -349,6 +313,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const workspace = await createWorkspace(user.uid, user.email, input);
         clearWorkspaceBootstrapHint(user.uid);
         writeWorkspaceCache(user.uid, [workspace], workspace.workspaceId);
+        setWorkspaceLookupError(null);
         setWorkspaces([workspace]);
         setActiveWorkspaceId(workspace.workspaceId);
         setDashboardSnapshot(null);
@@ -365,7 +330,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       },
       dashboardSnapshot,
     };
-  }, [activeWorkspaceId, dashboardSnapshot, isLoading, user, workspaces]);
+  }, [activeWorkspaceId, dashboardSnapshot, isLoading, user, workspaceLookupError, workspaces]);
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
