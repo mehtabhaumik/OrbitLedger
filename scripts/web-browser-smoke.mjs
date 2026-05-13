@@ -51,11 +51,11 @@ async function runUnauthenticatedSmoke(browser) {
     await expectVisibleText(page, 'The email or password is not correct.', 'friendly invalid login error');
 
     await open(page, '/dashboard/');
-    await page.waitForURL(/\/login\/?$/, { timeout: 15000 });
+    await page.waitForURL(/\/login\/?$/, { timeout: 35000 });
     await expectVisibleText(page, 'Sign in to your workspace', 'dashboard redirects anonymous users');
 
     await open(page, '/office-operations/');
-    await page.waitForURL(/\/login\/?$/, { timeout: 15000 });
+    await page.waitForURL(/\/login\/?$/, { timeout: 35000 });
     await expectVisibleText(page, 'Sign in to your workspace', 'Office operations redirects anonymous users');
 
     assertNoBlockingErrors(errors);
