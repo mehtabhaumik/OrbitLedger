@@ -73,9 +73,14 @@ jobs:
           ORBIT_LEDGER_QA_VIEWER_PASSWORD: ${{ secrets.ORBIT_LEDGER_QA_VIEWER_PASSWORD }}
           ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN: ${{ secrets.ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN }}
           ORBIT_LEDGER_STORAGE_ADMIN_ACCESS_TOKEN: ${{ secrets.ORBIT_LEDGER_STORAGE_ADMIN_ACCESS_TOKEN }}
+          ORBIT_LEDGER_ENABLE_SEEDED_CI_SMOKE: ${{ secrets.ORBIT_LEDGER_ENABLE_SEEDED_CI_SMOKE }}
         run: |
+          if [ "$ORBIT_LEDGER_ENABLE_SEEDED_CI_SMOKE" != "yes" ]; then
+            echo "Skipping seeded web browser smoke. Set ORBIT_LEDGER_ENABLE_SEEDED_CI_SMOKE=yes after a trusted production seed path is configured."
+            exit 0
+          fi
           if [ -z "$ORBIT_LEDGER_QA_EMAIL" ] || [ -z "$ORBIT_LEDGER_QA_PASSWORD" ] || [ -z "$NEXT_PUBLIC_ORBIT_LEDGER_RECAPTCHA_V3_SITE_KEY" ] || [ -z "$NEXT_PUBLIC_ORBIT_LEDGER_APPCHECK_DEBUG_TOKEN" ]; then
-            echo "Skipping seeded web browser smoke because required QA/App Check secrets are not configured."
+            echo "Skipping seeded web browser smoke because required QA/App Check secrets are incomplete."
             exit 0
           fi
           npm run dev --workspace @orbit-ledger/web > /tmp/orbit-ledger-web-seeded.log 2>&1 &

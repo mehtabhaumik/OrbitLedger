@@ -84,6 +84,7 @@ CI always runs anonymous browser smoke after the web build.
 
 CI runs seeded authenticated browser smoke only when these repository secrets exist:
 
+- `ORBIT_LEDGER_ENABLE_SEEDED_CI_SMOKE` set to `yes`
 - `ORBIT_LEDGER_QA_EMAIL`
 - `ORBIT_LEDGER_QA_PASSWORD`
 - `ORBIT_LEDGER_RECAPTCHA_V3_SITE_KEY`
@@ -96,7 +97,7 @@ Optional:
 - `ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN`
 - `ORBIT_LEDGER_STORAGE_ADMIN_ACCESS_TOKEN`
 
-If admin seed tokens are not configured, CI uses the already-seeded QA workspace and runs the authenticated browser smoke only.
+Keep `ORBIT_LEDGER_ENABLE_SEEDED_CI_SMOKE` unset until the production seed path is trusted for CI. Local seeded smoke remains the release gate for authenticated browser coverage.
 
 ## App Check Note
 
