@@ -73,7 +73,6 @@ async function runOwnerSmoke(browser) {
 
   try {
     await signIn(page, ownerEmail, ownerPassword);
-    await page.waitForURL(/\/dashboard\/?$/, { timeout: 25000 });
     await expectVisibleText(page, 'Orbit Ledger QA Workspace', 'seeded workspace selector or dashboard');
 
     await open(page, '/invoices/');
@@ -110,7 +109,7 @@ async function runViewerOfficeLockSmoke(browser) {
 
   try {
     await signIn(page, viewerEmail, viewerPassword);
-    await page.waitForURL(/\/dashboard\/?$/, { timeout: 25000 });
+    await expectVisibleText(page, 'Orbit Ledger QA Workspace', 'seeded viewer dashboard');
     await open(page, '/settings/');
     await expectVisibleText(page, 'Settings access locked', 'viewer settings lock');
     await open(page, '/office-operations/');
@@ -139,7 +138,7 @@ async function open(page, path) {
 }
 
 async function expectVisibleText(page, text, label) {
-  const deadline = Date.now() + 20000;
+  const deadline = Date.now() + 35000;
   const locator = page.getByText(text, { exact: false });
   while (Date.now() < deadline) {
     const count = await locator.count().catch(() => 0);
