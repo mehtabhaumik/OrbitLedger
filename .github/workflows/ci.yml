@@ -64,7 +64,6 @@ jobs:
           npm run qa:web-browser-smoke
 
       - name: Seeded web browser smoke
-        if: ${{ secrets.ORBIT_LEDGER_QA_EMAIL != '' && secrets.ORBIT_LEDGER_QA_PASSWORD != '' && secrets.ORBIT_LEDGER_RECAPTCHA_V3_SITE_KEY != '' && secrets.ORBIT_LEDGER_APPCHECK_DEBUG_TOKEN != '' }}
         env:
           NEXT_PUBLIC_ORBIT_LEDGER_RECAPTCHA_V3_SITE_KEY: ${{ secrets.ORBIT_LEDGER_RECAPTCHA_V3_SITE_KEY }}
           NEXT_PUBLIC_ORBIT_LEDGER_APPCHECK_DEBUG_TOKEN: ${{ secrets.ORBIT_LEDGER_APPCHECK_DEBUG_TOKEN }}
@@ -75,6 +74,10 @@ jobs:
           ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN: ${{ secrets.ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN }}
           ORBIT_LEDGER_STORAGE_ADMIN_ACCESS_TOKEN: ${{ secrets.ORBIT_LEDGER_STORAGE_ADMIN_ACCESS_TOKEN }}
         run: |
+          if [ -z "$ORBIT_LEDGER_QA_EMAIL" ] || [ -z "$ORBIT_LEDGER_QA_PASSWORD" ] || [ -z "$NEXT_PUBLIC_ORBIT_LEDGER_RECAPTCHA_V3_SITE_KEY" ] || [ -z "$NEXT_PUBLIC_ORBIT_LEDGER_APPCHECK_DEBUG_TOKEN" ]; then
+            echo "Skipping seeded web browser smoke because required QA/App Check secrets are not configured."
+            exit 0
+          fi
           npm run dev --workspace @orbit-ledger/web > /tmp/orbit-ledger-web-seeded.log 2>&1 &
           WEB_PID=$!
           trap 'kill $WEB_PID' EXIT
