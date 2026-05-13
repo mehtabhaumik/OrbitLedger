@@ -88,11 +88,7 @@ jobs:
             sleep 2
           done
           curl -fsS http://localhost:3000/login/ >/dev/null
-          if [ -n "$ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN" ]; then
-            npm run qa:seed-web-workspace
-          else
-            echo "No admin seed token configured; using the existing seeded QA workspace."
-          fi
+          npm run qa:seed-web-workspace
           node scripts/web-browser-smoke.mjs --authenticated --skip-unauthenticated
 
       - name: Expo doctor
