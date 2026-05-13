@@ -16,6 +16,11 @@ service cloud.firestore {
         get(workspaceRef(workspaceId)).data.owner_uid == request.auth.uid;
     }
 
+    function ownsWorkspaceDocument() {
+      return signedIn() &&
+        resource.data.owner_uid == request.auth.uid;
+    }
+
     function officeMemberRef(workspaceId, userId) {
       return /databases/$(database)/documents/workspaces/$(workspaceId)/office_members/$(userId);
     }
@@ -33,6 +38,10 @@ service cloud.firestore {
 
     function canReadWorkspace(workspaceId) {
       return ownsWorkspace(workspaceId) || hasActiveOfficeMembership(workspaceId);
+    }
+
+    function canReadWorkspaceDocument(workspaceId) {
+      return ownsWorkspaceDocument() || hasActiveOfficeMembership(workspaceId);
     }
 
     function canManageWorkspaceProfile(workspaceId) {
@@ -269,7 +278,7 @@ service cloud.firestore {
 
     match /workspaces/{workspaceId} {
       allow create: if createsOwnWorkspace();
-      allow read: if signedIn() && canReadWorkspace(workspaceId);
+      allow read: if signedIn() && canReadWorkspaceDocument(workspaceId);
       allow update: if keepsWorkspaceOwner(workspaceId);
       allow delete: if signedIn() && resource.data.owner_uid == request.auth.uid;
 

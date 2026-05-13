@@ -36,6 +36,10 @@
     "smoke:live-app-check": "node scripts/smoke-live-app-check.mjs",
     "verify:app-check-readiness": "node scripts/verify-app-check-readiness.mjs",
     "qa:browser-responsive": "node scripts/browser-responsive-qa.mjs",
+    "qa:seed-web-workspace": "node scripts/seed-web-qa-workspace.mjs",
+    "qa:web-browser-smoke": "node scripts/web-browser-smoke.mjs",
+    "qa:web-browser-smoke:seeded": "node scripts/web-browser-smoke.mjs --authenticated",
+    "qa:web-browser-smoke:seeded:refresh": "npm run qa:seed-web-workspace && node scripts/web-browser-smoke.mjs --authenticated",
     "typecheck": "npm run typecheck --workspace @orbit-ledger/contracts && npm run typecheck --workspace @orbit-ledger/core && npm run typecheck --workspace @orbit-ledger/ui && npm run typecheck --workspace @orbit-ledger/sync && npm run typecheck --workspace @orbit-ledger/mobile && npm run typecheck --workspace @orbit-ledger/web && npm run typecheck --workspace @orbit-ledger/functions",
     "test": "vitest run apps packages",
     "test:rules": "vitest run firebase/*.rules.test.ts firebase/rules.test.ts --fileParallelism=false",
@@ -44,6 +48,7 @@
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.0",
+    "@playwright/test": "^1.60.0",
     "expo": "~54.0.34",
     "vitest": "^4.1.5"
   },

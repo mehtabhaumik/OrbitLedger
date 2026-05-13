@@ -58,6 +58,7 @@ describe('Firestore workspace rules', () => {
     );
 
     await assertSucceeds(workspace.get());
+    await assertSucceeds(owner.collection('workspaces').where('owner_uid', '==', 'owner-1').get());
   });
 
   it('blocks cross-owner workspace reads and writes', async () => {
