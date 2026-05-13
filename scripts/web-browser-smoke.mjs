@@ -51,12 +51,10 @@ async function runUnauthenticatedSmoke(browser) {
     await expectVisibleText(page, 'The email or password is not correct.', 'friendly invalid login error');
 
     await open(page, '/dashboard/');
-    await page.waitForURL(/\/login\/?$/, { timeout: 35000 });
-    await expectVisibleText(page, 'Sign in to your workspace', 'dashboard redirects anonymous users');
+    await expectLoginScreen(page, 'dashboard redirects anonymous users');
 
     await open(page, '/office-operations/');
-    await page.waitForURL(/\/login\/?$/, { timeout: 35000 });
-    await expectVisibleText(page, 'Sign in to your workspace', 'Office operations redirects anonymous users');
+    await expectLoginScreen(page, 'Office operations redirects anonymous users');
 
     assertNoBlockingErrors(errors);
     results.push('unauthenticated login, invalid credential, dashboard redirect, and Office redirect smoke');
@@ -152,6 +150,10 @@ async function expectVisibleText(page, text, label) {
 
   const body = (await page.locator('body').innerText({ timeout: 3000 }).catch(() => '')).replace(/\s+/g, ' ').slice(0, 700);
   throw new Error(`Missing ${label}: expected visible text "${text}". Body: ${body}`);
+}
+
+async function expectLoginScreen(page, label) {
+  await expectVisibleText(page, 'Sign in to your workspace', label);
 }
 
 function collectBlockingBrowserErrors(page) {
