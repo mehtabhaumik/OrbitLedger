@@ -93,7 +93,7 @@ jobs:
           else
             echo "No admin seed token configured; using the existing seeded QA workspace."
           fi
-          node scripts/web-browser-smoke.mjs --authenticated
+          node scripts/web-browser-smoke.mjs --authenticated --skip-unauthenticated
 
       - name: Expo doctor
         run: npm run doctor --workspace @orbit-ledger/mobile

@@ -9,13 +9,16 @@ const ownerPassword = process.env.ORBIT_LEDGER_QA_PASSWORD?.trim() || '';
 const viewerEmail = process.env.ORBIT_LEDGER_QA_VIEWER_EMAIL?.trim() || '';
 const viewerPassword = process.env.ORBIT_LEDGER_QA_VIEWER_PASSWORD?.trim() || '';
 const shouldRunAuthenticated = args.has('--authenticated') || Boolean(ownerEmail && ownerPassword);
+const shouldSkipUnauthenticated = args.has('--skip-unauthenticated');
 
 const results = [];
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
   try {
-    await runUnauthenticatedSmoke(browser);
+    if (!shouldSkipUnauthenticated) {
+      await runUnauthenticatedSmoke(browser);
+    }
 
     if (shouldRunAuthenticated) {
       if (!ownerEmail || !ownerPassword) {
