@@ -45,7 +45,7 @@ const supportKinds: Array<{
   {
     value: 'purchase_help',
     label: 'Purchase help',
-    helper: 'Plan, receipt, entitlement, billing, or checkout readiness.',
+    helper: 'Plan, receipt, billing, or payment access.',
   },
   {
     value: 'feature_request',

@@ -501,7 +501,11 @@ export function getWebProSubscriptionStatus(planId: WebPlanCatalogItem['id'] = '
 
 export function resolveWebFeatureAccess(status: WebSubscriptionStatus, feature: WebSubscriptionFeature) {
   const requiredTier = webFeatureRequiredTier[feature];
-  const allowed = requiredTier === 'free' || isOrbitLedgerTierAtLeast(status.tier, requiredTier);
+  const officeOnlyFeatures: WebSubscriptionFeature[] = ['multi_user_workspace', 'accountant_exports', 'priority_support'];
+  const allowed =
+    (WEB_BETA_FREE_ONLY && !officeOnlyFeatures.includes(feature)) ||
+    requiredTier === 'free' ||
+    isOrbitLedgerTierAtLeast(status.tier, requiredTier);
   const requiredPlanLabel = getOrbitLedgerPlanDefinition(requiredTier).label;
   return {
     feature,
@@ -511,7 +515,9 @@ export function resolveWebFeatureAccess(status: WebSubscriptionStatus, feature: 
     requiredPlanLabel,
     message: allowed
       ? null
-      : `${featureLabel(feature)} is available with Orbit Ledger ${requiredPlanLabel}. Daily ledger tools remain available.`,
+      : WEB_BETA_FREE_ONLY
+        ? `${featureLabel(feature)} is part of Office access. Request Office when your team is ready for it.`
+        : `${featureLabel(feature)} is available with Orbit Ledger ${requiredPlanLabel}. Daily ledger tools remain available.`,
   };
 }
 
@@ -605,6 +611,9 @@ export function buildWebOfficeInvitationMailto(input: WebOfficeInvitationInput):
 
 export function getWebFeaturePlanChip(status: WebSubscriptionStatus, feature: WebSubscriptionFeature): string {
   const access = resolveWebFeatureAccess(status, feature);
+  if (WEB_BETA_FREE_ONLY && access.allowed) {
+    return 'Included during beta';
+  }
   return access.allowed ? `Included in ${status.tierLabel}` : `Requires ${access.requiredPlanLabel}`;
 }
 

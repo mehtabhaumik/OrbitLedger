@@ -108,7 +108,19 @@ export default function LoginPage() {
           </Link>
           <strong>{user ? 'Opening your dashboard...' : 'Checking your secure session...'}</strong>
           {hasAuthCheckTimedOut && !user ? (
-            <span>Still checking. This can take a moment on slower networks.</span>
+            <>
+              <span>Still checking. You can safely return to sign in and try again.</span>
+              <button
+                className="ol-button-secondary"
+                type="button"
+                onClick={() => {
+                  window.sessionStorage.removeItem('orbit-ledger:web-google-redirect-pending');
+                  window.location.reload();
+                }}
+              >
+                Back to sign in
+              </button>
+            </>
           ) : null}
         </div>
       </main>

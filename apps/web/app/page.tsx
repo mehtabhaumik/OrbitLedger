@@ -158,7 +158,7 @@ export default function LandingPage() {
       <section className="ol-landing-beta-banner" aria-label="Public beta pricing note">
         <div>
           <strong>Public beta is free.</strong>
-          <span>Use the web workspace now. Paid plans and Razorpay checkout are coming soon.</span>
+          <span>Use the web workspace now. Paid plans are coming soon.</span>
         </div>
         <Link className="ol-button-secondary" href={appCtaHref}>
           Start free
@@ -242,7 +242,7 @@ export default function LandingPage() {
       <section className="ol-landing-section ol-landing-pricing" id="pricing">
         <span className="ol-eyebrow">Public beta</span>
         <h2>Free during public beta.</h2>
-        <p>Orbit Ledger web is free during beta. Paid plans and Razorpay checkout are coming soon.</p>
+        <p>Orbit Ledger web is free during beta. Paid plans are coming soon.</p>
         <Link className="ol-button" href={appCtaHref}>
           Start free
         </Link>

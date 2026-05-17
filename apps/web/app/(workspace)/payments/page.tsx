@@ -181,7 +181,7 @@ export default function PaymentsPage() {
     const providerItems = events.map((event) => ({
       id: `provider-${event.id}`,
       at: event.lastModified || event.createdAt,
-      title: event.reversed ? 'Provider payment reversed' : event.applied ? 'Provider payment applied' : 'Provider event received',
+      title: event.reversed ? 'Online payment reversed' : event.applied ? 'Online payment applied' : 'Payment event received',
       detail: `${providerLabel(event.source)} · ${event.reference ?? event.providerPaymentId ?? 'No reference'}`,
       amount: event.amount,
       currency: event.currency,
@@ -234,7 +234,7 @@ export default function PaymentsPage() {
 
   async function copyWebhookUrl() {
     await navigator.clipboard.writeText(webhookUrl);
-    showToast('Provider URL copied.', 'success');
+    showToast('Secure setup URL copied.', 'success');
   }
 
   async function copyExamplePayload() {
@@ -263,7 +263,7 @@ export default function PaymentsPage() {
       return;
     }
     await navigator.clipboard.writeText(JSON.stringify(razorpayPaymentLinkDraft, null, 2));
-    showToast('Razorpay test link details copied.', 'success');
+    showToast('Test payment link details copied.', 'success');
   }
 
   async function copyPaymentPageUrl() {
@@ -409,9 +409,9 @@ export default function PaymentsPage() {
   }
 
   return (
-    <AppShell title="Payments" subtitle="Collect manually today, and connect online checkout when a provider is ready.">
+    <AppShell title="Payments" subtitle="Review collections, verify payment status, and keep invoice balances accurate.">
       <section className="ol-metric-grid" style={{ order: 1 }}>
-        <Metric label="Events" value={String(stats.total)} helper="Received from payment providers." tone="primary" />
+        <Metric label="Activity" value={String(stats.total)} helper="Payments recorded or imported." tone="primary" />
         <Metric label="Applied" value={String(stats.applied)} helper="Updated invoices automatically." tone="success" />
         <Metric label="Manual Review" value={String(stats.manualReview)} helper="Manual payments needing follow-up." tone="warning" />
         <Metric label="Pending" value={String(stats.pendingManual)} helper="Received, post-dated, or deposited." tone="warning" />
@@ -420,7 +420,7 @@ export default function PaymentsPage() {
       <section className="ol-panel-dark" style={{ order: 5 }}>
         <div className="ol-panel-header">
           <div>
-            <div className="ol-panel-title">Payment Collection</div>
+            <div className="ol-panel-title">Payment collection</div>
             <p className="ol-panel-copy" style={{ maxWidth: 680 }}>
               {providerPlan.adminCopy}
             </p>
@@ -432,8 +432,6 @@ export default function PaymentsPage() {
         <div className="ol-review-grid">
           <Review label="Collection mode" value={providerPlan.collectionLabel} />
           <Review label="Online checkout" value={providerPlan.canCreateOnlineCheckout ? 'Available' : 'Not connected'} />
-          <Review label="Future provider URL" value={webhookUrl} />
-          <Review label="Signature header" value="X-Razorpay-Signature" />
           <Review label="Region" value="Asia South" />
           <Review label="Payment page" value={paymentPageUrl} />
         </div>
@@ -443,7 +441,7 @@ export default function PaymentsPage() {
         <div className="ol-actions ol-actions--compact" style={{ marginTop: 16 }}>
           {providerPlan.mode !== 'manual' ? (
             <button className="ol-button" type="button" onClick={() => void copyWebhookUrl()}>
-              Copy provider URL
+              Copy secure setup URL
             </button>
           ) : null}
           <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentPageUrl()}>
@@ -451,7 +449,7 @@ export default function PaymentsPage() {
           </button>
           {providerPlan.canCopyGatewayDraft ? (
             <button className="ol-button-secondary" type="button" onClick={() => void copyRazorpayPaymentLinkDraft()}>
-              Copy provider test link
+              Copy test payment link
             </button>
           ) : null}
           {providerPlan.mode !== 'manual' ? (
@@ -465,12 +463,13 @@ export default function PaymentsPage() {
         </div>
       </section>
 
+      {providerPlan.mode !== 'manual' ? (
       <section className="ol-panel" style={{ order: 6 }}>
         <div className="ol-panel-header">
           <div>
-            <div className="ol-panel-title">Provider Connection Gate</div>
+            <div className="ol-panel-title">Online payment readiness</div>
             <p className="ol-panel-copy" style={{ maxWidth: 720 }}>
-              Online checkout stays hidden until the provider setup is explicitly ready.
+              Online checkout stays hidden until setup is explicitly ready.
             </p>
           </div>
           <span className={providerReadiness.canShowOnlineCheckout ? 'ol-chip ol-chip--success' : 'ol-chip ol-chip--warning'}>
@@ -488,13 +487,14 @@ export default function PaymentsPage() {
           </div>
         ) : null}
       </section>
+      ) : null}
 
       <section className="ol-panel" style={{ order: 2 }}>
         <div className="ol-panel-header">
           <div>
             <div className="ol-panel-title">Payment Activity Timeline</div>
             <p className="ol-panel-copy" style={{ maxWidth: 720 }}>
-              Recent manual and provider payment activity in one audit-friendly view.
+              Recent payment activity in one review-friendly view.
             </p>
           </div>
           <span className="ol-chip ol-chip--premium">Audit trail</span>
@@ -530,7 +530,7 @@ export default function PaymentsPage() {
       <section className="ol-panel" style={{ order: 7 }}>
         <div className="ol-panel-header">
           <div>
-            <div className="ol-panel-title">Provider Setup Checklist</div>
+            <div className="ol-panel-title">Online Payment Setup Checklist</div>
             <p className="ol-panel-copy" style={{ maxWidth: 720 }}>
               Use this before accepting real payments so every paid, failed, pending, and refunded payment is handled cleanly.
             </p>
@@ -788,28 +788,28 @@ function getProviderSetupChecklist(mode: string) {
         value: 'Show payment details on invoices and copy payment messages from the invoice editor.',
       },
       {
-        label: 'Future providers',
-        value: 'Razorpay can be connected later without changing manual payment workflows.',
+        label: 'Future online payments',
+        value: 'Online checkout can be connected later without changing manual payment workflows.',
       },
       {
         label: 'Owner review',
-        value: 'Provider event review stays available for future connected checkout or imported events.',
+        value: 'Payment event review stays available for future online checkout or imported events.',
       },
     ];
   }
 
   return [
     {
-      label: 'Provider account',
+      label: 'Payment account',
       value: 'Create the account later and keep it in test mode until the full payment test passes.',
     },
     {
       label: 'Test link details',
-      value: 'Use Copy provider test link after opening an invoice so amount, reference, and invoice details stay aligned.',
+      value: 'Use Copy test payment link after opening an invoice so amount, reference, and invoice details stay aligned.',
     },
     {
-      label: 'Secure provider access',
-      value: 'Add the provider webhook secret inside the payment provider dashboard. Do not place it in the payment link.',
+      label: 'Secure payment access',
+      value: 'Add the payment webhook secret inside the payment dashboard. Do not place it in the payment link.',
     },
     {
       label: 'Success event',
@@ -829,7 +829,7 @@ function getProviderSetupChecklist(mode: string) {
     },
     {
       label: 'Go live',
-      value: 'Keep provider test mode off only after the above checks pass.',
+      value: 'Turn off test mode only after the above checks pass.',
     },
   ];
 }

@@ -158,6 +158,11 @@ a:focus-visible {
   overflow: hidden;
 }
 
+.ol-mobile-menu-button,
+.ol-mobile-nav-layer {
+  display: none;
+}
+
 .ol-sidebar-brand {
   display: flex;
   align-items: center;
@@ -592,7 +597,7 @@ a:focus-visible {
 .ol-workspace-shell {
   min-width: 0;
   display: grid;
-  grid-template-rows: var(--topbar-height) auto minmax(0, 1fr);
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr);
 }
 
 .ol-topbar {
@@ -608,6 +613,13 @@ a:focus-visible {
   border-bottom: 1px solid rgba(190, 204, 225, 0.78);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+}
+
+.ol-topbar-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
 }
 
 .ol-topbar-title {
@@ -5378,6 +5390,51 @@ a:focus-visible {
   -webkit-backdrop-filter: blur(16px);
 }
 
+.ol-invoice-action-bar {
+  align-items: stretch;
+}
+
+.ol-action-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.ol-action-menu summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.ol-action-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.ol-action-menu-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  min-width: 220px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(190, 204, 225, 0.82);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 44px rgba(20, 32, 51, 0.16);
+}
+
+.ol-action-menu-list .ol-button,
+.ol-action-menu-list .ol-button-secondary {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.ol-button-danger-subtle {
+  color: #a3344d;
+  border-color: rgba(218, 154, 168, 0.86);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 246, 248, 0.92) 100%);
+}
+
 .ol-actions--compact {
   gap: 8px;
 }
@@ -6329,10 +6386,65 @@ a:focus-visible {
   }
 
   .ol-sidebar {
-    position: static;
-    height: auto;
-    border-right: none;
-    border-bottom: 1px solid rgba(183, 197, 219, 0.72);
+    display: none;
+  }
+
+  .ol-mobile-menu-button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 5px;
+    border-radius: 12px;
+    border: 1px solid rgba(180, 198, 224, 0.86);
+    background: rgba(255, 255, 255, 0.94);
+    color: var(--text);
+    box-shadow: 0 12px 28px rgba(20, 32, 51, 0.08);
+  }
+
+  .ol-mobile-menu-button span {
+    display: block;
+    width: 18px;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  .ol-mobile-nav-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: block;
+  }
+
+  .ol-mobile-nav-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(13, 23, 41, 0.44);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+  }
+
+  .ol-mobile-nav-panel {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: min(86vw, 340px);
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 18px;
+    padding: 18px;
+    border-right: 1px solid rgba(183, 197, 219, 0.72);
+    background: rgba(248, 251, 255, 0.98);
+    box-shadow: 24px 0 60px rgba(20, 32, 51, 0.18);
+    overflow: auto;
+  }
+
+  .ol-mobile-nav-panel .ol-sidebar-nav-group {
+    overflow: visible;
   }
 
   .ol-loading-shell,
@@ -6515,7 +6627,7 @@ a:focus-visible {
   }
 
   .ol-workspace-shell {
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .ol-topbar-actions {
@@ -6556,6 +6668,25 @@ a:focus-visible {
   .ol-actions--sticky {
     top: calc(var(--topbar-height) + 12px);
     width: 100%;
+  }
+
+  .ol-invoice-action-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ol-invoice-action-bar > .ol-button,
+  .ol-invoice-action-bar > .ol-button-secondary,
+  .ol-invoice-action-bar > .ol-action-menu,
+  .ol-invoice-action-bar > .ol-action-menu > summary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ol-action-menu-list {
+    left: 0;
+    right: auto;
+    width: min(82vw, 320px);
   }
 
   .ol-panel,

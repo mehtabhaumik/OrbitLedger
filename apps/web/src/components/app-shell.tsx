@@ -40,7 +40,9 @@ export function AppShell({
   const { user, signOutUser } = useAuth();
   const { activeWorkspace, workspaces, selectWorkspace } = useWorkspace();
   const [isOnline, setIsOnline] = useState(true);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const accountLabel = user?.displayName || user?.email || 'Owner';
+  const visibleAccountLabel = user?.displayName || 'Account';
   const accountInitial = accountLabel.trim().charAt(0).toUpperCase() || 'O';
   const syncBadge = useMemo(() => {
     if (!activeWorkspace) {
@@ -65,20 +67,24 @@ export function AppShell({
     };
   }, []);
 
-  return (
-    <div className="ol-app-shell">
-      <aside className="ol-sidebar">
-        <div className="ol-sidebar-brand">
-          <div className="ol-sidebar-brand-mark">
-            <img
-              className="ol-brand-logo"
-              alt="Orbit Ledger"
-              src="/branding/orbit-ledger-logo-transparent.png"
-            />
-          </div>
-          <span className="ol-sidebar-badge">Web</span>
-        </div>
+  useEffect(() => {
+    setIsMobileNavOpen(false);
+  }, [pathname]);
 
+  useEffect(() => {
+    if (!isMobileNavOpen || typeof document === 'undefined') {
+      return;
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileNavOpen]);
+
+  function renderNavigation() {
+    return (
+      <>
         <div className="ol-sidebar-group">
           <div className="ol-sidebar-group-label">Status</div>
           <div className="ol-chip-row">
@@ -107,12 +113,27 @@ export function AppShell({
             })}
           </nav>
         </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="ol-app-shell">
+      <aside className="ol-sidebar" aria-label="Workspace navigation">
+        <div className="ol-sidebar-brand">
+          <div className="ol-sidebar-brand-mark">
+            <img
+              className="ol-brand-logo"
+              alt="Orbit Ledger"
+              src="/branding/orbit-ledger-logo-transparent.png"
+            />
+          </div>
+          <span className="ol-sidebar-badge">Web</span>
+        </div>
+
+        {renderNavigation()}
 
         <div className="ol-sidebar-footer">
-          <Link href="/settings#company-settings" className="ol-nav-link">
-            Business settings
-          </Link>
-
           <div className="ol-panel-glass ol-workspace-guide">
             <strong>Workspace guide</strong>
             <span className="ol-muted">
@@ -124,9 +145,23 @@ export function AppShell({
 
       <div className="ol-workspace-shell">
         <header className="ol-topbar">
-          <div>
+          <div className="ol-topbar-heading">
+            <button
+              aria-controls="workspace-mobile-nav"
+              aria-expanded={isMobileNavOpen}
+              aria-label="Open navigation menu"
+              className="ol-mobile-menu-button"
+              type="button"
+              onClick={() => setIsMobileNavOpen(true)}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+            <div>
             <div className="ol-topbar-title">{title}</div>
             <div className="ol-topbar-subtitle">{subtitle}</div>
+            </div>
           </div>
           <div className="ol-topbar-actions">
             {workspaces.length > 0 ? (
@@ -142,9 +177,9 @@ export function AppShell({
                 ))}
               </select>
             ) : null}
-            <span className="ol-account-chip" title={accountLabel}>
+            <span className="ol-account-chip" title={visibleAccountLabel}>
               <span className="ol-account-avatar">{accountInitial}</span>
-              <span className="ol-account-name">{accountLabel}</span>
+              <span className="ol-account-name">{visibleAccountLabel}</span>
             </span>
             <button
               onClick={() => {
@@ -157,14 +192,29 @@ export function AppShell({
             </button>
           </div>
         </header>
-        <div className="ol-beta-banner" role="note">
-          <span className="ol-chip ol-chip--success">Beta</span>
-          <span>
-            Orbit Ledger web is in public beta. Free services are available now; paid plans and Razorpay checkout are coming soon.
-          </span>
-        </div>
         <main className="ol-page-content">{children}</main>
       </div>
+      {isMobileNavOpen ? (
+        <div className="ol-mobile-nav-layer" id="workspace-mobile-nav" role="dialog" aria-modal="true" aria-label="Navigation menu">
+          <button
+            aria-label="Close navigation menu"
+            className="ol-mobile-nav-backdrop"
+            type="button"
+            onClick={() => setIsMobileNavOpen(false)}
+          />
+          <aside className="ol-mobile-nav-panel">
+            <div className="ol-sidebar-brand">
+              <div className="ol-sidebar-brand-mark">
+                <img className="ol-brand-logo" alt="Orbit Ledger" src="/branding/orbit-ledger-logo-transparent.png" />
+              </div>
+              <button className="ol-icon-button ol-button-secondary" type="button" onClick={() => setIsMobileNavOpen(false)} aria-label="Close navigation menu">
+                X
+              </button>
+            </div>
+            {renderNavigation()}
+          </aside>
+        </div>
+      ) : null}
     </div>
   );
 }

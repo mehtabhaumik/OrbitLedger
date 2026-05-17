@@ -335,7 +335,7 @@ export default function DocumentsPage() {
         <section className="ol-panel ol-smart-document-pack">
           <div className="ol-panel-header">
             <div>
-              <div className="ol-panel-title">Smart Document Pack</div>
+              <div className="ol-panel-title">Document pack</div>
               <p className="ol-panel-copy" style={{ maxWidth: 720 }}>
                 {smartDocumentPack.summary}
               </p>

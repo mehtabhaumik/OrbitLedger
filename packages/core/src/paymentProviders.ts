@@ -45,8 +45,8 @@ export function getPaymentProviderPlan(value?: string | null): PaymentProviderPl
       statusTone: 'ready',
       canCreateOnlineCheckout: false,
       canCopyGatewayDraft: true,
-      paymentPageCopy: 'Manual collection is active while provider test setup is being verified.',
-      adminCopy: 'Provider test setup is prepared. Manual collection remains active until connected checkout passes.',
+      paymentPageCopy: 'Manual collection stays active while online payment setup is reviewed.',
+      adminCopy: 'Online payment setup is being reviewed. Manual collection remains active until checkout is ready.',
     };
   }
 

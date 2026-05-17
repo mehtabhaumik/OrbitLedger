@@ -256,6 +256,10 @@ export default function DashboardPage() {
       unpaidInvoices.length,
     ]
   );
+  const visibleDailyActions = useMemo(
+    () => dailyCenter.items.filter((item) => item.id !== dailyCenter.topAction.id).slice(0, 4),
+    [dailyCenter.items, dailyCenter.topAction.id]
+  );
   const localBusinessIntelligence = useMemo(
     () =>
       buildLocalBusinessIntelligence({
@@ -385,7 +389,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <AppShell title="Home" subtitle="Daily actions and business health.">
+    <AppShell title="Home" subtitle="Today’s priorities, collections, and business health.">
       <section className="ol-panel-dark ol-action-center-hero">
         <div className="ol-panel-header">
           <div>
@@ -413,7 +417,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="ol-action-center-grid" aria-label="Daily Action Center">
-        {dailyCenter.items.map((item) => (
+        {visibleDailyActions.map((item) => (
           <article className="ol-action-card" data-tone={item.tone} key={item.id}>
             <div className="ol-action-card-main">
               <span className="ol-action-icon">{getActionIcon(item.id)}</span>
@@ -474,7 +478,7 @@ export default function DashboardPage() {
       <section className="ol-dashboard-section-header" aria-label="Review tools">
         <div>
           <h2>Review tools</h2>
-          <p>Use these when the day needs a closer check.</p>
+          <p>Open records that need attention.</p>
         </div>
       </section>
 

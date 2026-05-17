@@ -297,7 +297,7 @@ export default function OfficeOperationsPage() {
               <div>
                 <div className="ol-panel-title">Office launch freeze</div>
                 <p className="ol-panel-copy">
-                  Office is now in controlled-invite hardening. New work should be limited to fixes, deployment checks, and provider wiring.
+                  Office is in controlled-invite review. Limit changes to fixes, deployment checks, and payment setup readiness.
                 </p>
               </div>
               <span className="ol-chip ol-chip--success">Freeze active</span>
@@ -672,7 +672,7 @@ export default function OfficeOperationsPage() {
                           </div>
                         </div>
                         <span className={`ol-chip ${request.deliveryStatus === 'sent' ? 'ol-chip--success' : 'ol-chip--warning'}`}>
-                          {request.deliveryStatus === 'pending_provider_connection' ? 'provider pending' : request.deliveryStatus}
+                          {request.deliveryStatus === 'pending_provider_connection' ? 'delivery pending' : request.deliveryStatus}
                         </span>
                       </div>
                     </div>

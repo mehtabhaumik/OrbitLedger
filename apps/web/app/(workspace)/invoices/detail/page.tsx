@@ -673,9 +673,9 @@ function InvoiceEditorContent() {
       });
       setPaymentLinkDetails((current) => ({ ...current, paymentPageUrl: checkout.checkoutUrl }));
       await navigator.clipboard.writeText(checkout.checkoutUrl);
-      showToast('Razorpay checkout link copied.', 'success');
+      showToast('Online checkout link copied.', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Razorpay checkout could not be created.', 'info');
+      showToast(error instanceof Error ? error.message : 'Online checkout could not be created.', 'info');
     } finally {
       setIsCreatingCheckout(false);
     }
@@ -959,49 +959,59 @@ function InvoiceEditorContent() {
 
   return (
     <AppShell title="Invoice Editor" subtitle="Edit invoice details, line items, tax, and download a clean copy.">
-      <div className="ol-actions ol-actions--sticky">
+      <div className="ol-actions ol-actions--sticky ol-invoice-action-bar" aria-label="Invoice actions">
         <Link className="ol-button-secondary" href="/invoices">
           Back to invoices
         </Link>
-        <button className="ol-button-secondary" type="button" onClick={viewPdf} disabled={!currentInvoiceDocument}>
-          View / print PDF
-        </button>
-        <button className="ol-button-secondary" type="button" onClick={() => void downloadInvoiceDocument()} disabled={!currentInvoiceDocument}>
-          Download PDF
-        </button>
-        <button className="ol-button-secondary" type="button" onClick={downloadInvoiceCsvFile} disabled={!currentInvoiceDocument}>
-          Download CSV
-        </button>
-        <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentMessage()} disabled={!currentInvoiceDocument || total <= 0}>
-          Copy payment message
-        </button>
-        {providerPlan.canCreateOnlineCheckout && !isReadOnlyVersion ? (
-          <button className="ol-button-secondary" type="button" onClick={() => void createRazorpayCheckout()} disabled={isCreatingCheckout || !invoice || dueAmount <= 0 || !officeAccess.can('record_payments')}>
-            {isCreatingCheckout ? 'Creating checkout...' : 'Create checkout link'}
-          </button>
-        ) : null}
-        <button className="ol-button-secondary" type="button" onClick={() => void recordInvoicePayment(dueAmount)} disabled={isReadOnlyVersion || isRecordingPayment || !invoice || dueAmount <= 0 || !officeAccess.can('record_payments')}>
-          Record due payment
-        </button>
-        {isReadOnlyVersion && invoice ? (
-          <Link className="ol-button-secondary" href={`/invoices/detail?invoiceId=${encodeURIComponent(invoice.id)}`}>
-            Open latest invoice
-          </Link>
-        ) : invoice?.documentState === 'draft' ? (
-          <button className="ol-button-secondary" type="button" onClick={() => void deleteDraftInvoice()} disabled={isSaving || !invoice || !officeAccess.can('cancel_or_archive_invoices')}>
-            Delete draft
-          </button>
-        ) : (
-          <button className="ol-button-secondary" type="button" onClick={() => void toggleInvoiceArchive()} disabled={isSaving || !invoice || !officeAccess.can('cancel_or_archive_invoices')}>
-            {invoice?.isArchived ? 'Unarchive invoice' : 'Archive invoice'}
-          </button>
-        )}
-        <button className="ol-button-secondary" type="button" onClick={() => void cancelInvoice()} disabled={isReadOnlyVersion || isSaving || !invoice || invoice.documentState === 'draft' || invoice.documentState === 'cancelled' || !officeAccess.can('cancel_or_archive_invoices')}>
-          Cancel invoice
-        </button>
         <button className="ol-button" type="button" onClick={() => void saveInvoice()} disabled={!canSaveInvoice}>
           {isSaving ? 'Saving...' : 'Save invoice'}
         </button>
+        <button className="ol-button-secondary" type="button" onClick={viewPdf} disabled={!currentInvoiceDocument}>
+          View / print
+        </button>
+        <details className="ol-action-menu">
+          <summary className="ol-button-secondary">Download</summary>
+          <div className="ol-action-menu-list">
+            <button className="ol-button-secondary" type="button" onClick={() => void downloadInvoiceDocument()} disabled={!currentInvoiceDocument}>
+              PDF
+            </button>
+            <button className="ol-button-secondary" type="button" onClick={downloadInvoiceCsvFile} disabled={!currentInvoiceDocument}>
+              CSV
+            </button>
+          </div>
+        </details>
+        <button className="ol-button-secondary" type="button" onClick={() => void recordInvoicePayment(dueAmount)} disabled={isReadOnlyVersion || isRecordingPayment || !invoice || dueAmount <= 0 || !officeAccess.can('record_payments')}>
+          Record due payment
+        </button>
+        <details className="ol-action-menu">
+          <summary className="ol-button-secondary">More actions</summary>
+          <div className="ol-action-menu-list">
+            <button className="ol-button-secondary" type="button" onClick={() => void copyPaymentMessage()} disabled={!currentInvoiceDocument || total <= 0}>
+              Copy payment message
+            </button>
+            {providerPlan.canCreateOnlineCheckout && !isReadOnlyVersion ? (
+              <button className="ol-button-secondary" type="button" onClick={() => void createRazorpayCheckout()} disabled={isCreatingCheckout || !invoice || dueAmount <= 0 || !officeAccess.can('record_payments')}>
+                {isCreatingCheckout ? 'Creating checkout...' : 'Create checkout link'}
+              </button>
+            ) : null}
+            {isReadOnlyVersion && invoice ? (
+              <Link className="ol-button-secondary" href={`/invoices/detail?invoiceId=${encodeURIComponent(invoice.id)}`}>
+                Open latest invoice
+              </Link>
+            ) : invoice?.documentState === 'draft' ? (
+              <button className="ol-button-secondary ol-button-danger-subtle" type="button" onClick={() => void deleteDraftInvoice()} disabled={isSaving || !invoice || !officeAccess.can('cancel_or_archive_invoices')}>
+                Delete draft
+              </button>
+            ) : (
+              <button className="ol-button-secondary" type="button" onClick={() => void toggleInvoiceArchive()} disabled={isSaving || !invoice || !officeAccess.can('cancel_or_archive_invoices')}>
+                {invoice?.isArchived ? 'Unarchive invoice' : 'Archive invoice'}
+              </button>
+            )}
+            <button className="ol-button-secondary ol-button-danger-subtle" type="button" onClick={() => void cancelInvoice()} disabled={isReadOnlyVersion || isSaving || !invoice || invoice.documentState === 'draft' || invoice.documentState === 'cancelled' || !officeAccess.can('cancel_or_archive_invoices')}>
+              Cancel invoice
+            </button>
+          </div>
+        </details>
       </div>
 
       {message ? (

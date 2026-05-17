@@ -450,7 +450,7 @@ export default function MarketPage() {
               <div>
                 <strong>Free access during beta</strong>
                 <p>
-                  Paid plans and Razorpay checkout are coming soon. For this public beta, Orbit Ledger services remain free to use.
+                  Paid plans are coming soon. During public beta, Orbit Ledger web services remain free to use.
                 </p>
               </div>
             </div>
@@ -693,6 +693,8 @@ export default function MarketPage() {
         </article>
       </section>
 
+      {!WEB_BETA_FREE_ONLY ? (
+        <>
       <PurchaseOperationsDashboard
         snapshot={purchaseOperations}
         isRefreshing={isLoadingPurchaseReview}
@@ -888,6 +890,8 @@ export default function MarketPage() {
           />
         </div>
       </section>
+        </>
+      ) : null}
 
       <section className="ol-panel">
         <div className="ol-panel-header">

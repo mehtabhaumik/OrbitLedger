@@ -217,7 +217,7 @@ function LineChart({
   const range = Math.max(max - min, 1);
   const path = points
     .map((point, index) => {
-      const x = points.length <= 1 ? 0 : (index / (points.length - 1)) * 100;
+      const x = points.length <= 1 ? 4 : 4 + (index / (points.length - 1)) * 92;
       const y = 90 - ((point.value - min) / range) * 72;
       return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
     })
@@ -226,11 +226,11 @@ function LineChart({
   return (
     <div className="ol-chart-shell">
       <svg className="ol-line-chart" viewBox="0 0 100 100" role="img" aria-label="Receivables trend">
-        <path className="ol-chart-grid-line" d="M0 18 H100 M0 54 H100 M0 90 H100" />
-        <path className="ol-line-chart-fill" d={`${path} L 100 94 L 0 94 Z`} />
+        <path className="ol-chart-grid-line" d="M4 18 H96 M4 54 H96 M4 90 H96" />
+        <path className="ol-line-chart-fill" d={`${path} L 96 94 L 4 94 Z`} />
         <path className="ol-line-chart-stroke" d={path} />
         {points.map((point, index) => {
-          const x = points.length <= 1 ? 0 : (index / (points.length - 1)) * 100;
+          const x = points.length <= 1 ? 4 : 4 + (index / (points.length - 1)) * 92;
           const y = 90 - ((point.value - min) / range) * 72;
           return (
             <circle
