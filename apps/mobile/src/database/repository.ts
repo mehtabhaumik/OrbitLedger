@@ -2437,6 +2437,18 @@ export async function listInvoices(options: InvoiceListOptions = {}): Promise<In
   }
 }
 
+export async function getNextInvoiceSequence(): Promise<number> {
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ invoice_count: number }>(
+      'SELECT COUNT(*) AS invoice_count FROM invoices'
+    );
+    return Math.max(1, Math.floor(Number(row?.invoice_count ?? 0)) + 1);
+  } catch (error) {
+    return throwDatabaseError('getNextInvoiceSequence', error);
+  }
+}
+
 export async function listInvoicesForCustomer(customerId: string, limit = 50): Promise<Invoice[]> {
   return listInvoices({ customerId, limit });
 }

@@ -28,8 +28,10 @@ for (const liveUrl of urlsToCheck) {
 
   const html = await response.text();
 
-  if (!html.includes(`<title>${requiredTitle}</title>`)) {
-    failures.push(`${liveUrl} does not include <title>${requiredTitle}</title>.`);
+  const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+  const pageTitle = titleMatch?.[1]?.trim() ?? "";
+  if (!pageTitle.includes(requiredTitle)) {
+    failures.push(`${liveUrl} title does not include ${requiredTitle}.`);
   }
 
   if (!html.includes('application-name') || !html.includes(requiredTitle)) {

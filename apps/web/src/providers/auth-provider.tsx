@@ -44,6 +44,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const GOOGLE_REDIRECT_PENDING_KEY = 'orbit-ledger:web-google-redirect-pending';
 const WORKSPACE_BOOTSTRAP_HINT_PREFIX = 'orbit-ledger:skip-workspace-bootstrap:';
 const AUTH_SESSION_EXPIRED_MESSAGE_KEY = 'orbit-ledger:web-auth-session-expired-message';
+const AUTH_STATE_READY_TIMEOUT_MS = 8_000;
+const GOOGLE_REDIRECT_RESULT_TIMEOUT_MS = 6_000;
 
 function setWorkspaceBootstrapHint(userId: string) {
   if (typeof window === 'undefined') {
@@ -59,12 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
+    let hasResolvedAuthState = false;
     const auth = getWebAuth();
     const shouldResolveRedirect =
       typeof window !== 'undefined' &&
       window.sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === '1';
     if (shouldResolveRedirect) {
-      void getRedirectResult(auth)
+      void withTimeout(getRedirectResult(auth), GOOGLE_REDIRECT_RESULT_TIMEOUT_MS)
         .catch(() => undefined)
         .finally(() => {
           if (typeof window !== 'undefined') {
@@ -73,9 +76,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
     }
 
+    const loadingFallback =
+      typeof window !== 'undefined'
+        ? window.setTimeout(() => {
+            if (!isMounted || hasResolvedAuthState) {
+              return;
+            }
+
+            hasResolvedAuthState = true;
+            if (typeof window !== 'undefined') {
+              window.sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+            }
+
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+              const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), currentUser.uid);
+              writeWebAuthSession(nextSession);
+            } else {
+              clearWebAuthSession();
+            }
+
+            setUser(currentUser);
+            setIsLoading(false);
+          }, AUTH_STATE_READY_TIMEOUT_MS)
+        : null;
+
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       if (!isMounted) {
         return;
+      }
+
+      hasResolvedAuthState = true;
+      if (loadingFallback) {
+        window.clearTimeout(loadingFallback);
       }
 
       const message = readSessionExpiryMessage();
@@ -96,6 +129,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       isMounted = false;
+      if (loadingFallback) {
+        window.clearTimeout(loadingFallback);
+      }
       unsubscribe();
     };
   }, []);
@@ -254,6 +290,28 @@ function clearSessionExpiryMessage() {
     return;
   }
   window.sessionStorage.removeItem(AUTH_SESSION_EXPIRED_MESSAGE_KEY);
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+  if (typeof window === 'undefined') {
+    return promise;
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      resolve(null);
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timeout);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timeout);
+        reject(error);
+      });
+  });
 }
 
 function shouldFallbackToGoogleRedirect(error: unknown) {

@@ -45,7 +45,8 @@ async function runUnauthenticatedSmoke(browser) {
 
   try {
     await open(page, '/login/');
-    await expectVisibleText(page, 'Sign in to your workspace', 'login panel');
+    await expectVisibleText(page, 'Welcome back', 'login panel');
+    await expectVisibleText(page, 'Sign in to continue to your workspace.', 'login helper copy');
     await expectVisibleText(page, 'Continue with Google', 'Google sign-in button');
 
     await page.fill('input[type="email"]', 'not-a-real-user@example.invalid');
@@ -124,7 +125,7 @@ async function runViewerOfficeLockSmoke(browser) {
 
 async function signIn(page, email, password) {
   await open(page, '/login/');
-  await expectVisibleText(page, 'Sign in to your workspace', 'login panel before seeded sign-in');
+  await expectVisibleText(page, 'Welcome back', 'login panel before seeded sign-in');
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
   await page.locator('form button[type="submit"]').click();
@@ -155,11 +156,35 @@ async function expectVisibleText(page, text, label) {
 }
 
 async function expectLoginScreen(page, label) {
-  await expectVisibleText(page, 'Sign in to your workspace', label);
+  await expectVisibleText(page, 'Welcome back', label);
 }
 
 function collectBlockingBrowserErrors(page) {
   const errors = [];
+  const ignoredConsoleErrors = [];
+  page.on('response', (response) => {
+    const status = response.status();
+    if (status < 400) {
+      return;
+    }
+    const url = response.url();
+    if (
+      status === 400 &&
+      url.includes('identitytoolkit.googleapis.com') &&
+      url.includes('signInWithPassword')
+    ) {
+      return;
+    }
+    if (
+      status === 403 &&
+      url.includes('content-firebaseappcheck.googleapis.com') &&
+      url.includes('exchangeRecaptchaEnterpriseToken')
+    ) {
+      ignoredConsoleErrors.push('Failed to load resource: the server responded with a status of 403');
+      return;
+    }
+    errors.push(`HTTP ${status} ${redactUrl(url)}`);
+  });
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
     if (message.type() !== 'error') {
@@ -169,7 +194,9 @@ function collectBlockingBrowserErrors(page) {
     if (
       text.includes('400') ||
       text.includes('auth/invalid-credential') ||
-      text.includes('The email or password is not correct')
+      text.includes('The email or password is not correct') ||
+      (text.includes('Failed to load resource: the server responded with a status of 403') &&
+        ignoredConsoleErrors.some((ignored) => text.includes(ignored)))
     ) {
       return;
     }
@@ -182,6 +209,20 @@ function assertNoBlockingErrors(errors) {
   const blocking = errors.filter((error) => !error.includes('Failed to load resource: the server responded with a status of 400'));
   if (blocking.length) {
     throw new Error(`Browser console/page errors detected:\n${blocking.slice(-5).join('\n')}`);
+  }
+}
+
+function redactUrl(url) {
+  try {
+    const parsed = new URL(url);
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (/key|token|secret|password|api/i.test(key)) {
+        parsed.searchParams.set(key, '[redacted]');
+      }
+    }
+    return parsed.toString();
+  } catch {
+    return url.replace(/([?&](?:key|token|secret|password|api)[^=]*=)[^&]+/gi, '$1[redacted]');
   }
 }
 

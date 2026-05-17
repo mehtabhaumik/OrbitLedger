@@ -1,7 +1,9 @@
 'use client';
 
 import {
+  buildInvoiceNumberMigrationPlan,
   buildCustomerHealthScore,
+  buildSmartInvoiceNumber,
   deriveInvoicePaymentStatus,
   doesPaymentAwaitClearance,
   doesPaymentClearInvoice,
@@ -12,6 +14,8 @@ import {
   normalizePaymentModeDetails,
   normalizeInvoiceDocumentState,
   normalizeInvoicePaymentStatus,
+  normalizeInvoiceNumberKey,
+  normalizeInvoicePrefix,
   validatePaymentModeDetails,
   type PaymentClearanceStatus,
   type PaymentInstrumentAttachment,
@@ -21,6 +25,8 @@ import {
   type CustomerHealthScore,
   type PaymentMode,
   type PaymentModeDetails,
+  type InvoiceNumberDuplicateGroup,
+  type SmartInvoiceNumberResult,
 } from '@orbit-ledger/core';
 import {
   addDoc,
@@ -34,6 +40,7 @@ import {
   limit as limitQuery,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   type QueryDocumentSnapshot,
   where,
@@ -167,6 +174,43 @@ export type WorkspaceInvoice = {
   serverRevision?: number;
   isArchived: boolean;
   versions?: WorkspaceInvoiceVersion[];
+};
+
+export type WorkspaceInvoiceNumberConflictInvoice = {
+  id: string;
+  invoiceNumber: string;
+  issueDate: string | null;
+  documentState: string | null;
+  versionNumber: number | null;
+  totalAmount: number;
+};
+
+export type WorkspaceInvoiceNumberConflictGroup = InvoiceNumberDuplicateGroup & {
+  invoices: WorkspaceInvoiceNumberConflictInvoice[];
+  recommendedKeepInvoiceId: string | null;
+};
+
+export type WorkspaceInvoiceNumberAuditItem = {
+  id: string;
+  actorEmail: string | null;
+  reason: string | null;
+  changedFields: string[];
+  changes: Array<{
+    field: string;
+    label: string;
+    previousValue: string | null;
+    nextValue: string | null;
+  }>;
+  serverRevisionBefore: number | null;
+  serverRevisionAfter: number | null;
+  createdAt: string;
+};
+
+export type WorkspaceInvoiceNumberHealth = {
+  totalInvoices: number;
+  missingKeyCount: number;
+  duplicateGroups: WorkspaceInvoiceNumberConflictGroup[];
+  scannedAt: string;
 };
 
 export type WorkspaceInvoiceItem = {
@@ -2478,6 +2522,8 @@ export async function saveWorkspaceInvoiceDetail(
   const taxAmount = cleanItems.reduce((total, item) => total + item.quantity * item.price * (item.taxRate / 100), 0);
   const totalAmount = subtotal + taxAmount;
   const currentDocumentState = normalizeInvoiceDocumentState(current.document_state ?? current.status);
+  const cleanInvoiceNumber = input.invoiceNumber.trim();
+  await assertWorkspaceInvoiceNumberAvailable(firestore, workspaceId, invoiceId, cleanInvoiceNumber);
   if (currentDocumentState !== 'draft' && !input.revisionReason?.trim()) {
     throw new Error('Choose why this invoice is being updated before saving.');
   }
@@ -2505,7 +2551,7 @@ export async function saveWorkspaceInvoiceDetail(
           : 'created';
   const snapshot = buildInvoiceSnapshot({
     invoiceId,
-    invoiceNumber: input.invoiceNumber.trim(),
+    invoiceNumber: cleanInvoiceNumber,
     customerId: input.customerId,
     customerName: customerSnapshot?.exists() ? String(customerSnapshot.data().name ?? 'Customer') : null,
     issueDate: input.issueDate,
@@ -2561,7 +2607,8 @@ export async function saveWorkspaceInvoiceDetail(
 
   batch.update(invoiceRef, {
     customer_id: input.customerId,
-    invoice_number: input.invoiceNumber.trim(),
+    invoice_number: cleanInvoiceNumber,
+    invoice_number_key: normalizeInvoiceNumberKey(cleanInvoiceNumber),
     issue_date: input.issueDate,
     billing_month: billingMonth,
     due_date: input.dueDate || null,
@@ -2586,7 +2633,8 @@ export async function saveWorkspaceInvoiceDetail(
   if (versionRef) {
     batch.set(versionRef, {
       invoice_id: invoiceId,
-      invoice_number: input.invoiceNumber.trim(),
+      invoice_number: cleanInvoiceNumber,
+      invoice_number_key: normalizeInvoiceNumberKey(cleanInvoiceNumber),
       version_number: nextVersionNumber,
       reason: cleanVersionReason(input.revisionReason, nextVersionNumber),
       created_at: now,
@@ -2943,6 +2991,291 @@ async function buildPaymentAllocationPlan(
   return allocations;
 }
 
+type WorkspaceInvoiceNumberSource = {
+  business_name?: string | null;
+  country_code?: string | null;
+  invoice_number_next_sequence?: number | null;
+  invoice_number_sequence?: number | null;
+  invoice_number_separator?: string | null;
+  invoice_number_padding?: number | null;
+  invoice_number_prefix?: string | null;
+};
+
+async function reserveWorkspaceInvoiceNumber(
+  firestore: Firestore,
+  workspaceId: string,
+  issueDate: string,
+  customPrefix?: string | null
+): Promise<SmartInvoiceNumberResult> {
+  const workspaceRef = doc(firestore, 'workspaces', workspaceId);
+  return runTransaction(firestore, async (transaction) => {
+    const workspaceSnapshot = await transaction.get(workspaceRef);
+    const workspaceData = (workspaceSnapshot.exists()
+      ? workspaceSnapshot.data()
+      : {}) as WorkspaceInvoiceNumberSource;
+    const nextSequence = normalizeInvoiceSequence(
+      workspaceData.invoice_number_next_sequence ?? workspaceData.invoice_number_sequence
+    );
+    const invoiceNumber = buildSmartInvoiceNumber({
+      businessName: workspaceData.business_name ?? 'Orbit Ledger',
+      workspaceId,
+      issueDate,
+      sequenceNumber: nextSequence,
+      countryCode: workspaceData.country_code ?? 'IN',
+      settings: {
+        customPrefix: normalizeInvoicePrefix(customPrefix) ?? normalizeInvoicePrefix(workspaceData.invoice_number_prefix),
+        separator: workspaceData.invoice_number_separator === '-' ? '-' : '/',
+        sequencePadding: workspaceData.invoice_number_padding,
+      },
+    });
+
+    transaction.set(
+      workspaceRef,
+      {
+        invoice_number_next_sequence: nextSequence + 1,
+        invoice_number_last_value: invoiceNumber.invoiceNumber,
+        invoice_number_last_sequence: nextSequence,
+        invoice_number_last_issued_at: new Date().toISOString(),
+        invoice_number_scheme: invoiceNumber.formatStyle,
+      },
+      { merge: true }
+    );
+
+    return invoiceNumber;
+  });
+}
+
+function normalizeInvoiceSequence(value: unknown): number {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue < 1) {
+    return 1;
+  }
+  return Math.floor(numberValue);
+}
+
+function invoiceNumberMetadata(invoiceNumber: SmartInvoiceNumberResult) {
+  return {
+    invoice_number_key: normalizeInvoiceNumberKey(invoiceNumber.invoiceNumber),
+    invoice_number_scheme: invoiceNumber.formatStyle,
+    invoice_number_company_code: invoiceNumber.companyCode,
+    invoice_number_year_code: invoiceNumber.yearCode,
+    invoice_number_fiscal_year: invoiceNumber.fiscalYear,
+    invoice_number_sequence: invoiceNumber.sequenceNumber,
+    invoice_number_country_code: invoiceNumber.countryCode,
+    invoice_number_separator: invoiceNumber.separator,
+  };
+}
+
+async function assertWorkspaceInvoiceNumberAvailable(
+  firestore: Firestore,
+  workspaceId: string,
+  invoiceId: string,
+  invoiceNumber: string
+) {
+  const key = normalizeInvoiceNumberKey(invoiceNumber);
+  if (!key) {
+    throw new Error('Enter an invoice number before saving.');
+  }
+
+  const invoicesRef = collection(firestore, 'workspaces', workspaceId, 'invoices');
+  const [keyedSnapshot, exactSnapshot] = await Promise.all([
+    getDocs(query(invoicesRef, where('invoice_number_key', '==', key), limitQuery(10))),
+    getDocs(query(invoicesRef, where('invoice_number', '==', invoiceNumber.trim()), limitQuery(10))),
+  ]);
+  const candidates = [...keyedSnapshot.docs, ...exactSnapshot.docs];
+  const seenIds = new Set(candidates.map((entry) => entry.id));
+
+  if (!candidates.length) {
+    const legacySnapshot = await getDocs(query(invoicesRef, limitQuery(500)));
+    for (const entry of legacySnapshot.docs) {
+      if (!seenIds.has(entry.id)) {
+        candidates.push(entry);
+        seenIds.add(entry.id);
+      }
+    }
+  }
+
+  const duplicate = candidates.find((entry) => {
+    if (entry.id === invoiceId) {
+      return false;
+    }
+    const data = entry.data() as {
+      invoice_number?: string | null;
+      invoice_number_key?: string | null;
+      document_state?: string | null;
+      status?: string | null;
+    };
+    if (normalizeInvoiceDocumentState(data.document_state ?? data.status) === 'cancelled') {
+      return false;
+    }
+    return (data.invoice_number_key ?? normalizeInvoiceNumberKey(data.invoice_number)) === key;
+  });
+
+  if (duplicate) {
+    throw new Error('This invoice number is already used. Choose a different number before saving.');
+  }
+}
+
+export async function scanWorkspaceInvoiceNumberHealth(workspaceId: string): Promise<WorkspaceInvoiceNumberHealth> {
+  const firestore = getWebFirestore();
+  const invoicesSnapshot = await getDocs(collection(firestore, 'workspaces', workspaceId, 'invoices'));
+  const invoiceMetaById = new Map<string, WorkspaceInvoiceNumberConflictInvoice>();
+  const plan = buildInvoiceNumberMigrationPlan(
+    invoicesSnapshot.docs.map((entry) => {
+      const data = entry.data() as {
+        invoice_number?: string | null;
+        invoice_number_key?: string | null;
+        issue_date?: string | null;
+        document_state?: string | null;
+        status?: string | null;
+        version_number?: number | null;
+        total_amount?: number | null;
+        is_archived?: boolean | null;
+      };
+      invoiceMetaById.set(entry.id, {
+        id: entry.id,
+        invoiceNumber: data.invoice_number ?? entry.id.slice(0, 8).toUpperCase(),
+        issueDate: data.issue_date ?? null,
+        documentState: data.document_state ?? data.status ?? null,
+        versionNumber: typeof data.version_number === 'number' ? data.version_number : null,
+        totalAmount: typeof data.total_amount === 'number' ? data.total_amount : 0,
+      });
+      return {
+        id: entry.id,
+        invoiceNumber: data.invoice_number,
+        invoiceNumberKey: data.invoice_number_key,
+        documentState: data.document_state,
+        status: data.status,
+        isArchived: data.is_archived,
+      };
+    })
+  );
+
+  return {
+    totalInvoices: plan.totalInvoices,
+    missingKeyCount: plan.missingKeyInvoiceIds.length,
+    duplicateGroups: plan.duplicateGroups.map((group) => {
+      const invoices = group.invoiceIds
+        .map((invoiceId) => invoiceMetaById.get(invoiceId))
+        .filter((invoice): invoice is WorkspaceInvoiceNumberConflictInvoice => Boolean(invoice));
+      return {
+        ...group,
+        invoices,
+        recommendedKeepInvoiceId: invoices[0]?.id ?? null,
+      };
+    }),
+    scannedAt: new Date().toISOString(),
+  };
+}
+
+export async function listWorkspaceInvoiceNumberAuditTrail(
+  workspaceId: string
+): Promise<WorkspaceInvoiceNumberAuditItem[]> {
+  const firestore = getWebFirestore();
+  const auditSnapshot = await getDocs(
+    query(
+      collection(firestore, 'workspaces', workspaceId, 'settings_audit'),
+      orderBy('created_at', 'desc'),
+      limitQuery(50)
+    )
+  );
+
+  return auditSnapshot.docs
+    .map((entry) => {
+      const data = entry.data() as {
+        actor_email?: string | null;
+        reason?: string | null;
+        changed_fields?: unknown;
+        changes?: unknown;
+        server_revision_before?: number | null;
+        server_revision_after?: number | null;
+        created_at?: unknown;
+      };
+      const changes = Array.isArray(data.changes)
+        ? data.changes
+            .map((change) => {
+              const item = change as {
+                field?: unknown;
+                label?: unknown;
+                previous_value?: unknown;
+                next_value?: unknown;
+              };
+              return {
+                field: typeof item.field === 'string' ? item.field : '',
+                label: typeof item.label === 'string' ? item.label : '',
+                previousValue: typeof item.previous_value === 'string' ? item.previous_value : null,
+                nextValue: typeof item.next_value === 'string' ? item.next_value : null,
+              };
+            })
+            .filter((change) => change.field || change.label)
+        : [];
+      return {
+        id: entry.id,
+        actorEmail: typeof data.actor_email === 'string' ? data.actor_email : null,
+        reason: typeof data.reason === 'string' ? data.reason : null,
+        changedFields: Array.isArray(data.changed_fields)
+          ? data.changed_fields.filter((field): field is string => typeof field === 'string')
+          : [],
+        changes,
+        serverRevisionBefore:
+          typeof data.server_revision_before === 'number' ? data.server_revision_before : null,
+        serverRevisionAfter:
+          typeof data.server_revision_after === 'number' ? data.server_revision_after : null,
+        createdAt: toWorkspaceDataIsoString(data.created_at),
+      };
+    })
+    .filter((item) =>
+      item.changes.some((change) => change.field.startsWith('invoiceNumber')) ||
+      item.changedFields.some((field) => field.toLowerCase().includes('invoice number'))
+    )
+    .slice(0, 12);
+}
+
+export async function backfillWorkspaceInvoiceNumberKeys(workspaceId: string): Promise<WorkspaceInvoiceNumberHealth> {
+  const firestore = getWebFirestore();
+  const invoicesSnapshot = await getDocs(collection(firestore, 'workspaces', workspaceId, 'invoices'));
+  const now = new Date().toISOString();
+  const entriesToUpdate = invoicesSnapshot.docs.filter((entry) => {
+    const data = entry.data() as {
+      invoice_number?: string | null;
+      invoice_number_key?: string | null;
+    };
+    const key = normalizeInvoiceNumberKey(data.invoice_number);
+    return key && data.invoice_number_key !== key;
+  });
+
+  for (let index = 0; index < entriesToUpdate.length; index += 450) {
+    const batch = writeBatch(firestore);
+    for (const entry of entriesToUpdate.slice(index, index + 450)) {
+      const data = entry.data() as { invoice_number?: string | null };
+      batch.update(entry.ref, {
+        invoice_number_key: normalizeInvoiceNumberKey(data.invoice_number),
+        invoice_number_key_backfilled_at: now,
+        server_revision: increment(1),
+        last_modified: now,
+      });
+    }
+    await batch.commit();
+  }
+
+  return scanWorkspaceInvoiceNumberHealth(workspaceId);
+}
+
+function toWorkspaceDataIsoString(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (
+    value &&
+    typeof value === 'object' &&
+    'toDate' in value &&
+    typeof (value as { toDate?: unknown }).toDate === 'function'
+  ) {
+    return (value as { toDate(): Date }).toDate().toISOString();
+  }
+  return new Date().toISOString();
+}
+
 export async function createDraftWorkspaceInvoice(
   workspaceId: string,
   defaults: { dueDays?: number | null; notes?: string | null; customerId?: string | null } = {}
@@ -2954,9 +3287,12 @@ export async function createDraftWorkspaceInvoice(
     typeof defaults.dueDays === 'number' && Number.isFinite(defaults.dueDays)
       ? addDays(issueDate, Math.max(0, Math.floor(defaults.dueDays)))
       : null;
+  const firestore = getWebFirestore();
+  const invoiceNumber = await reserveWorkspaceInvoiceNumber(firestore, workspaceId, issueDate);
   const payload = {
     customer_id: customerId,
-    invoice_number: `WEB-${Math.floor(Date.now() / 1000).toString().slice(-6)}`,
+    invoice_number: invoiceNumber.invoiceNumber,
+    ...invoiceNumberMetadata(invoiceNumber),
     issue_date: issueDate,
     billing_month: issueDate.slice(0, 7),
     due_date: dueDate,
@@ -2986,7 +3322,7 @@ export async function createDraftWorkspaceInvoice(
     server_revision: 1,
   };
 
-  const ref = await addDoc(collection(getWebFirestore(), 'workspaces', workspaceId, 'invoices'), payload);
+  const ref = await addDoc(collection(firestore, 'workspaces', workspaceId, 'invoices'), payload);
   return {
     id: ref.id,
     customerId,
@@ -3424,12 +3760,18 @@ async function createInvoiceFromRecurringRule(
   const subtotal = roundMoney(rule.items.reduce((total, item) => total + item.quantity * item.price, 0));
   const taxAmount = roundMoney(rule.items.reduce((total, item) => total + item.quantity * item.price * (item.taxRate / 100), 0));
   const totalAmount = roundMoney(subtotal + taxAmount);
-  const invoiceNumber = `${rule.invoiceNumberPrefix}-${runDate.replace(/-/g, '')}`;
+  const invoiceNumber = await reserveWorkspaceInvoiceNumber(
+    firestore,
+    workspaceId,
+    runDate,
+    rule.invoiceNumberPrefix
+  );
   const batch = writeBatch(firestore);
   batch.set(invoiceRef, {
     customer_id: rule.customerId,
     customer_name: rule.customerName,
-    invoice_number: invoiceNumber,
+    invoice_number: invoiceNumber.invoiceNumber,
+    ...invoiceNumberMetadata(invoiceNumber),
     issue_date: runDate,
     billing_month: billingMonth,
     due_date: addDays(runDate, rule.dueDays),
@@ -3496,10 +3838,10 @@ async function createInvoiceFromRecurringRule(
       status: emailDate <= today ? 'ready' : 'scheduled',
       scheduled_for: emailDate,
       recipient_email: rule.emailRecipient,
-      subject: renderRecurringEmailText(rule.emailSubject ?? defaultRecurringEmailSubject(), rule, invoiceNumber, runDate, workspaceName),
-      body: renderRecurringEmailText(rule.emailBody ?? defaultRecurringEmailBody(), rule, invoiceNumber, runDate, workspaceName),
+      subject: renderRecurringEmailText(rule.emailSubject ?? defaultRecurringEmailSubject(), rule, invoiceNumber.invoiceNumber, runDate, workspaceName),
+      body: renderRecurringEmailText(rule.emailBody ?? defaultRecurringEmailBody(), rule, invoiceNumber.invoiceNumber, runDate, workspaceName),
       invoice_id: invoiceId,
-      invoice_number: invoiceNumber,
+      invoice_number: invoiceNumber.invoiceNumber,
       customer_id: rule.customerId,
       recurring_rule_id: rule.id,
       include_payment_link: rule.emailIncludePaymentLink,
@@ -3516,7 +3858,7 @@ async function createInvoiceFromRecurringRule(
     id: invoiceId,
     customerId: rule.customerId,
     customerName: rule.customerName,
-    invoiceNumber,
+    invoiceNumber: invoiceNumber.invoiceNumber,
     issueDate: runDate,
     billingMonth: runDate.slice(0, 7),
     totalAmount,

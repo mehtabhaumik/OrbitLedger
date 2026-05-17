@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import {
+  buildSmartInvoiceNumber,
   getManualPaymentInstructionTemplate,
   type ManualPaymentInstructionDetails,
 } from '@orbit-ledger/core';
@@ -48,6 +49,13 @@ import {
   validateWorkspaceIdentityImage,
   type WorkspaceIdentityAssetKind,
 } from '@/lib/workspace-storage';
+import {
+  backfillWorkspaceInvoiceNumberKeys,
+  listWorkspaceInvoiceNumberAuditTrail,
+  scanWorkspaceInvoiceNumberHealth,
+  type WorkspaceInvoiceNumberAuditItem,
+  type WorkspaceInvoiceNumberHealth,
+} from '@/lib/workspace-data';
 import {
   updateWorkspacePaymentInstructionsAudited,
   updateWorkspaceProfile,
@@ -96,6 +104,10 @@ type ProfileFormState = {
   defaultRecurringEmailCurrentMonthOnly: boolean;
   defaultRecurringEmailSendDayBehavior: 'same_day' | 'custom_day';
   defaultRecurringEmailDay: string;
+  invoiceNumberPrefix: string;
+  invoiceNumberSeparator: '/' | '-';
+  invoiceNumberPadding: string;
+  invoiceNumberNextSequence: string;
   documentFilenameFormat: string;
   documentFooterPreference: string;
   documentBrandHeaderColor: string;
@@ -149,6 +161,10 @@ export default function SettingsPage() {
   const watermarkInputRef = useRef<HTMLInputElement | null>(null);
   const userSettingsReadyRef = useRef(false);
   const userSettingsSignatureRef = useRef('');
+  const [invoiceNumberHealth, setInvoiceNumberHealth] = useState<WorkspaceInvoiceNumberHealth | null>(null);
+  const [invoiceNumberAuditItems, setInvoiceNumberAuditItems] = useState<WorkspaceInvoiceNumberAuditItem[]>([]);
+  const [isInvoiceNumberMaintenanceBusy, setIsInvoiceNumberMaintenanceBusy] = useState(false);
+  const [isInvoiceNumberAuditBusy, setIsInvoiceNumberAuditBusy] = useState(false);
   const [profile, setProfile] = useState<ProfileFormState>({
     businessName: '',
     legalName: '',
@@ -184,6 +200,10 @@ export default function SettingsPage() {
     defaultRecurringEmailCurrentMonthOnly: true,
     defaultRecurringEmailSendDayBehavior: 'same_day',
     defaultRecurringEmailDay: '',
+    invoiceNumberPrefix: '',
+    invoiceNumberSeparator: '/',
+    invoiceNumberPadding: '4',
+    invoiceNumberNextSequence: '1',
     documentFilenameFormat: 'customer_invoice_date_revision_country',
     documentFooterPreference: 'auto',
     documentBrandHeaderColor: WEB_PRO_BRAND_THEMES.ledger_green.accentColor,
@@ -276,6 +296,16 @@ export default function SettingsPage() {
         activeWorkspace.defaultRecurringEmailDay !== null && activeWorkspace.defaultRecurringEmailDay !== undefined
           ? String(activeWorkspace.defaultRecurringEmailDay)
           : '',
+      invoiceNumberPrefix: activeWorkspace.invoiceNumberPrefix ?? '',
+      invoiceNumberSeparator: activeWorkspace.invoiceNumberSeparator ?? '/',
+      invoiceNumberPadding:
+        activeWorkspace.invoiceNumberPadding !== null && activeWorkspace.invoiceNumberPadding !== undefined
+          ? String(activeWorkspace.invoiceNumberPadding)
+          : '4',
+      invoiceNumberNextSequence:
+        activeWorkspace.invoiceNumberNextSequence !== null && activeWorkspace.invoiceNumberNextSequence !== undefined
+          ? String(activeWorkspace.invoiceNumberNextSequence)
+          : '1',
       documentFilenameFormat: activeWorkspace.documentFilenameFormat ?? 'customer_invoice_date_revision_country',
       documentFooterPreference: activeWorkspace.documentFooterPreference ?? 'auto',
       documentBrandHeaderColor: activeWorkspace.documentBrandHeaderColor ?? WEB_PRO_BRAND_THEMES.ledger_green.accentColor,
@@ -413,6 +443,18 @@ export default function SettingsPage() {
   const paymentTemplate = getManualPaymentInstructionTemplate(workspace.countryCode);
   const invoiceTemplates = getWebDocumentTemplates(workspace, 'invoice');
   const statementTemplates = getWebDocumentTemplates(workspace, 'statement');
+  const invoiceNumberPreview = buildSmartInvoiceNumber({
+    businessName: profile.businessName || workspace.businessName,
+    workspaceId: workspace.workspaceId,
+    issueDate: new Date().toISOString().slice(0, 10),
+    sequenceNumber: normalizePositiveInteger(profile.invoiceNumberNextSequence, workspace.invoiceNumberNextSequence ?? 1),
+    countryCode: workspace.countryCode,
+    settings: {
+      customPrefix: profile.invoiceNumberPrefix || workspace.invoiceNumberPrefix,
+      separator: profile.invoiceNumberSeparator,
+      sequencePadding: normalizePositiveInteger(profile.invoiceNumberPadding, workspace.invoiceNumberPadding ?? 4),
+    },
+  }).invoiceNumber;
   const paymentInstructionChanges = buildPaymentInstructionAuditChanges(workspace.paymentInstructions, paymentInstructions);
   const paymentInstructionSummary = summarizePaymentInstructionChanges(paymentInstructionChanges);
 
@@ -502,6 +544,10 @@ export default function SettingsPage() {
       defaultRecurringEmailCurrentMonthOnly: nextProfile.defaultRecurringEmailCurrentMonthOnly,
       defaultRecurringEmailSendDayBehavior: nextProfile.defaultRecurringEmailSendDayBehavior,
       defaultRecurringEmailDay: parseAmount(nextProfile.defaultRecurringEmailDay),
+      invoiceNumberPrefix: nextProfile.invoiceNumberPrefix,
+      invoiceNumberSeparator: nextProfile.invoiceNumberSeparator,
+      invoiceNumberPadding: parseAmount(nextProfile.invoiceNumberPadding),
+      invoiceNumberNextSequence: parseAmount(nextProfile.invoiceNumberNextSequence),
       documentFilenameFormat: nextProfile.documentFilenameFormat,
       documentFooterPreference: nextProfile.documentFooterPreference,
       documentBrandHeaderColor: nextProfile.documentBrandHeaderColor,
@@ -584,6 +630,61 @@ export default function SettingsPage() {
       showToast(nextError instanceof Error ? nextError.message : 'Company profile could not be saved.', 'danger');
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function refreshInvoiceNumberHealth() {
+    setIsInvoiceNumberMaintenanceBusy(true);
+    try {
+      const [nextHealth, nextAuditItems] = await Promise.all([
+        scanWorkspaceInvoiceNumberHealth(workspace.workspaceId),
+        listWorkspaceInvoiceNumberAuditTrail(workspace.workspaceId),
+      ]);
+      setInvoiceNumberHealth(nextHealth);
+      setInvoiceNumberAuditItems(nextAuditItems);
+      showToast('Invoice number check completed.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Invoice number check could not run.', 'danger');
+    } finally {
+      setIsInvoiceNumberMaintenanceBusy(false);
+    }
+  }
+
+  async function backfillInvoiceNumberKeys() {
+    const confirmed = await confirm({
+      title: 'Repair invoice number search keys?',
+      message: 'Orbit Ledger will add missing invoice number keys to older invoices. Existing invoice numbers will not be changed.',
+      confirmLabel: 'Repair keys',
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    setIsInvoiceNumberMaintenanceBusy(true);
+    try {
+      const [nextHealth, nextAuditItems] = await Promise.all([
+        backfillWorkspaceInvoiceNumberKeys(workspace.workspaceId),
+        listWorkspaceInvoiceNumberAuditTrail(workspace.workspaceId),
+      ]);
+      setInvoiceNumberHealth(nextHealth);
+      setInvoiceNumberAuditItems(nextAuditItems);
+      showToast('Invoice number keys repaired.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Invoice number keys could not be repaired.', 'danger');
+    } finally {
+      setIsInvoiceNumberMaintenanceBusy(false);
+    }
+  }
+
+  async function refreshInvoiceNumberAuditTrail() {
+    setIsInvoiceNumberAuditBusy(true);
+    try {
+      setInvoiceNumberAuditItems(await listWorkspaceInvoiceNumberAuditTrail(workspace.workspaceId));
+      showToast('Invoice number audit loaded.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Invoice number audit could not be loaded.', 'danger');
+    } finally {
+      setIsInvoiceNumberAuditBusy(false);
     }
   }
 
@@ -1141,6 +1242,199 @@ export default function SettingsPage() {
             />
             <span className="ol-field-help">New invoices start with this note. Existing saved invoice versions stay unchanged.</span>
           </label>
+        </div>
+        <div className="ol-form-band" style={{ marginTop: 18 }}>
+          <div className="ol-form-band-header">
+            <div>
+              <div className="ol-form-band-title">Invoice numbering</div>
+              <p className="ol-form-band-copy">
+                New invoices use this pattern. Changes are saved with history because invoice numbers appear on customer documents and payments.
+              </p>
+            </div>
+          </div>
+          <div className="ol-form-band-grid">
+            <ProfileField
+              label="Company code override"
+              maxLength={12}
+              placeholder="Auto from business name"
+              value={profile.invoiceNumberPrefix}
+              onChange={(value) => handleFieldChange('invoiceNumberPrefix', value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))}
+            />
+            <label className="ol-field">
+              <span className="ol-field-label">Separator</span>
+              <select
+                className="ol-select"
+                value={profile.invoiceNumberSeparator}
+                onChange={(event) =>
+                  handleFieldChange('invoiceNumberSeparator', event.target.value === '-' ? '-' : '/')
+                }
+              >
+                <option value="/">Slash</option>
+                <option value="-">Dash</option>
+              </select>
+              <span className="ol-field-help">Used between company code, year, and sequence.</span>
+            </label>
+            <label className="ol-field">
+              <span className="ol-field-label">Sequence digits</span>
+              <select
+                className="ol-select"
+                value={profile.invoiceNumberPadding}
+                onChange={(event) => handleFieldChange('invoiceNumberPadding', event.target.value)}
+              >
+                <option value="3">3 digits</option>
+                <option value="4">4 digits</option>
+                <option value="5">5 digits</option>
+                <option value="6">6 digits</option>
+                <option value="7">7 digits</option>
+                <option value="8">8 digits</option>
+              </select>
+              <span className="ol-field-help">Controls the length of the running number.</span>
+            </label>
+            <ProfileField
+              inputMode="numeric"
+              label="Next sequence"
+              value={profile.invoiceNumberNextSequence}
+              onChange={(value) => handleFieldChange('invoiceNumberNextSequence', value.replace(/[^0-9]/g, '').slice(0, 8))}
+            />
+          </div>
+          <div className="ol-form-band-grid" style={{ marginTop: 16 }}>
+            <div className="ol-field ol-field--wide">
+              <span className="ol-field-label">Next invoice preview</span>
+              <div className="ol-summary-card" style={{ minHeight: 'auto', padding: '18px 20px' }}>
+                <strong style={{ color: 'var(--ol-ink)', fontSize: 22 }}>{invoiceNumberPreview}</strong>
+                <span className="ol-field-help" style={{ display: 'block', marginTop: 8 }}>
+                  Leave the company code blank to let Orbit Ledger create a safe code from the business name.
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="ol-settings-toggle-grid" style={{ marginTop: 16 }}>
+            <article className="ol-settings-toggle-card">
+              <div>
+                <div className="ol-settings-toggle-title">Legacy invoice number check</div>
+                <p className="ol-settings-toggle-note">
+                  Check older invoices for missing search keys or reused invoice numbers. Repairing keys does not change customer-facing invoice numbers.
+                </p>
+                {invoiceNumberHealth ? (
+                  <div className="ol-settings-status-row" style={{ marginTop: 12 }}>
+                    <span className="ol-chip">{invoiceNumberHealth.totalInvoices} invoices scanned</span>
+                    <span className={invoiceNumberHealth.missingKeyCount ? 'ol-chip ol-chip--warning' : 'ol-chip ol-chip--success'}>
+                      {invoiceNumberHealth.missingKeyCount} need key repair
+                    </span>
+                    <span className={invoiceNumberHealth.duplicateGroups.length ? 'ol-chip ol-chip--warning' : 'ol-chip ol-chip--success'}>
+                      {invoiceNumberHealth.duplicateGroups.length} duplicate groups
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+              <div className="ol-actions ol-actions--compact">
+                <button
+                  className="ol-button-secondary"
+                  disabled={isInvoiceNumberMaintenanceBusy}
+                  type="button"
+                  onClick={refreshInvoiceNumberHealth}
+                >
+                  Check numbers
+                </button>
+                <button
+                  className="ol-button"
+                  disabled={isInvoiceNumberMaintenanceBusy || !invoiceNumberHealth?.missingKeyCount}
+                  type="button"
+                  onClick={backfillInvoiceNumberKeys}
+                >
+                  Repair keys
+                </button>
+              </div>
+            </article>
+          </div>
+          {invoiceNumberHealth?.duplicateGroups.length ? (
+            <div className="ol-table-card" style={{ marginTop: 16 }}>
+              <div className="ol-table-card-header">
+                <strong>Duplicate invoice numbers need review</strong>
+                <span>Keep one invoice as-is. Open the others and assign unique numbers before saving new versions.</span>
+              </div>
+              <div className="ol-stacked-list">
+                {invoiceNumberHealth.duplicateGroups.map((group) => (
+                  <article className="ol-stacked-list-item" key={group.invoiceNumberKey}>
+                    <div>
+                      <strong>{group.invoiceNumber}</strong>
+                      <span>{group.invoiceIds.length} active invoices share this number.</span>
+                      {group.recommendedKeepInvoiceId ? (
+                        <span>Suggested keeper: {shortId(group.recommendedKeepInvoiceId)}. Give every other invoice a unique number.</span>
+                      ) : null}
+                    </div>
+                    <div className="ol-conflict-invoice-list">
+                      {group.invoices.map((invoice) => (
+                        <div className="ol-conflict-invoice-row" key={invoice.id}>
+                          <div>
+                            <strong>{shortId(invoice.id)}</strong>
+                            <span>
+                              {invoice.issueDate ?? 'No date'} · v{invoice.versionNumber ?? 0} · {formatMoney(invoice.totalAmount, workspace.currency)}
+                            </span>
+                          </div>
+                          <div className="ol-actions ol-actions--compact">
+                            {group.recommendedKeepInvoiceId === invoice.id ? (
+                              <span className="ol-chip ol-chip--success">Keep number</span>
+                            ) : (
+                              <span className="ol-chip ol-chip--warning">Needs new number</span>
+                            )}
+                            <Link
+                              className="ol-button-secondary"
+                              href={`/invoices/detail?invoiceId=${encodeURIComponent(invoice.id)}`}
+                            >
+                              Open invoice
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="ol-table-card" style={{ marginTop: 16 }}>
+            <div className="ol-table-card-header">
+              <div>
+                <strong>Invoice number audit trail</strong>
+                <span>Shows protected changes to numbering rules and sequence settings.</span>
+              </div>
+              <button
+                className="ol-button-secondary"
+                disabled={isInvoiceNumberAuditBusy}
+                type="button"
+                onClick={refreshInvoiceNumberAuditTrail}
+              >
+                {isInvoiceNumberAuditBusy ? 'Loading...' : 'Load audit'}
+              </button>
+            </div>
+            {invoiceNumberAuditItems.length ? (
+              <div className="ol-stacked-list">
+                {invoiceNumberAuditItems.map((item) => (
+                  <article className="ol-stacked-list-item" key={item.id}>
+                    <div>
+                      <strong>{item.reason ?? 'Invoice numbering updated'}</strong>
+                      <span>
+                        {formatAuditDate(item.createdAt)} · {item.actorEmail ?? 'Workspace user'} · revision {item.serverRevisionBefore ?? '-'} to {item.serverRevisionAfter ?? '-'}
+                      </span>
+                    </div>
+                    <div className="ol-conflict-change-list">
+                      {item.changes.map((change) => (
+                        <span className="ol-chip" key={`${item.id}-${change.field}`}>
+                          {change.label}: {change.previousValue ?? 'Blank'} → {change.nextValue ?? 'Blank'}
+                        </span>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="ol-empty-state" style={{ margin: 16 }}>
+                <strong>No invoice-number audit loaded yet.</strong>
+                <span>Load the audit trail to review protected numbering changes.</span>
+              </div>
+            )}
+          </div>
         </div>
         <div className="ol-form-band" style={{ marginTop: 18 }}>
           <div className="ol-form-band-header">
@@ -1839,8 +2133,10 @@ function ProfileField({
   error,
   inputMode,
   label,
+  maxLength,
   onBlur,
   onChange,
+  placeholder,
   type = 'text',
   value,
 }: {
@@ -1848,6 +2144,8 @@ function ProfileField({
   value: string;
   type?: string;
   inputMode?: InputHTMLAttributes<HTMLInputElement>['inputMode'];
+  maxLength?: number;
+  placeholder?: string;
   error?: string | null;
   onBlur?(): void;
   onChange(value: string): void;
@@ -1858,6 +2156,8 @@ function ProfileField({
       <input
         className="ol-input"
         inputMode={inputMode}
+        maxLength={maxLength}
+        placeholder={placeholder}
         type={type}
         value={value}
         onBlur={onBlur}
@@ -1866,6 +2166,34 @@ function ProfileField({
       {error ? <span className="ol-field-error">{error}</span> : null}
     </label>
   );
+}
+
+function normalizePositiveInteger(value: string, fallback: number) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function shortId(value: string) {
+  return value.length > 10 ? `${value.slice(0, 6)}...${value.slice(-4)}` : value;
+}
+
+function formatMoney(value: number, currency: string) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: currency || 'INR',
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(value) ? value : 0);
+}
+
+function formatAuditDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
 }
 
 function TemplateSelect({

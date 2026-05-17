@@ -113,6 +113,24 @@ service cloud.firestore {
         canManageWorkspaceProfile(workspaceId);
     }
 
+    function canAdvanceInvoiceNumberSequence(workspaceId) {
+      return signedIn() &&
+        request.resource.data.owner_uid == resource.data.owner_uid &&
+        canWriteWorkspaceCollection(workspaceId, 'invoices') &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'invoice_number_next_sequence',
+          'invoice_number_last_value',
+          'invoice_number_last_sequence',
+          'invoice_number_last_issued_at',
+          'invoice_number_scheme'
+        ]) &&
+        request.resource.data.invoice_number_next_sequence is number &&
+        request.resource.data.invoice_number_last_value is string &&
+        request.resource.data.invoice_number_last_sequence is number &&
+        request.resource.data.invoice_number_last_issued_at is string &&
+        request.resource.data.invoice_number_scheme is string;
+    }
+
     function clientManagedWorkspaceCollection(collectionName) {
       return collectionName != 'subscription_checkouts' &&
         collectionName != 'subscription_events' &&
@@ -127,9 +145,42 @@ service cloud.firestore {
         collectionName != 'office_access_audit' &&
         collectionName != 'office_access_requests' &&
         collectionName != 'office_access_admin_queue' &&
+        collectionName != 'settings_audit' &&
         collectionName != 'support_cases' &&
         collectionName != 'support_case_email_requests' &&
         collectionName != 'support_diagnostic_consents';
+    }
+
+    function validSettingsAuditDocument(workspaceId) {
+      return request.resource.data.keys().hasOnly([
+          'workspace_id',
+          'scope',
+          'setting_group',
+          'action',
+          'actor_uid',
+          'actor_email',
+          'reason',
+          'changed_fields',
+          'changes',
+          'server_revision_before',
+          'server_revision_after',
+          'created_at'
+        ]) &&
+        request.resource.data.workspace_id == workspaceId &&
+        request.resource.data.scope is string &&
+        request.resource.data.setting_group is string &&
+        request.resource.data.action == 'updated' &&
+        request.resource.data.actor_uid == request.auth.uid &&
+        (request.resource.data.actor_email == null || request.resource.data.actor_email is string) &&
+        request.resource.data.reason is string &&
+        request.resource.data.changed_fields is list &&
+        request.resource.data.changes is list &&
+        request.resource.data.server_revision_before is number &&
+        request.resource.data.server_revision_after is number &&
+        (
+          request.resource.data.created_at is timestamp ||
+          request.resource.data.created_at is string
+        );
     }
 
     function validOfficeRole(role) {
@@ -276,10 +327,10 @@ service cloud.firestore {
         resource.data.status == 'active';
     }
 
-    match /workspaces/{workspaceId} {
+      match /workspaces/{workspaceId} {
       allow create: if createsOwnWorkspace();
       allow read: if signedIn() && canReadWorkspaceDocument(workspaceId);
-      allow update: if keepsWorkspaceOwner(workspaceId);
+      allow update: if keepsWorkspaceOwner(workspaceId) || canAdvanceInvoiceNumberSequence(workspaceId);
       allow delete: if signedIn() && resource.data.owner_uid == request.auth.uid;
 
       match /{collectionName}/{recordId} {
@@ -323,6 +374,13 @@ service cloud.firestore {
       match /office_access_admin_queue/{queueId} {
         allow read: if ownsWorkspace(workspaceId);
         allow create, update, delete: if false;
+      }
+
+      match /settings_audit/{auditId} {
+        allow read: if ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin', 'accountant']);
+        allow create: if validSettingsAuditDocument(workspaceId) &&
+          (ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin']));
+        allow update, delete: if false;
       }
 
       match /support_diagnostic_consents/{consentId} {

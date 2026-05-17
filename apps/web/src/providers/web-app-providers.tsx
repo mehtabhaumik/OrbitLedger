@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 
 import { AuthProvider } from './auth-provider';
@@ -13,7 +14,14 @@ import { WebLockProvider } from './web-lock-provider';
 import { WorkspaceProvider } from './workspace-provider';
 
 export function WebAppProviders({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const isPublicMarketingRoute = pathname === '/' || pathname === '/template-preview';
+
   useEffect(() => {
+    if (isPublicMarketingRoute) {
+      return;
+    }
+
     if (process.env.NODE_ENV !== 'production' && 'serviceWorker' in navigator) {
       void navigator.serviceWorker.getRegistrations().then((registrations) => {
         registrations.forEach((registration) => {
@@ -26,7 +34,11 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
     if ('serviceWorker' in navigator) {
       void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
     }
-  }, []);
+  }, [isPublicMarketingRoute]);
+
+  if (isPublicMarketingRoute) {
+    return <>{children}</>;
+  }
 
   return (
     <AuthProvider>

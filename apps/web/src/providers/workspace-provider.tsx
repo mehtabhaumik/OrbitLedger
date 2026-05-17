@@ -155,15 +155,6 @@ function writeWorkspaceCache(
   }
 }
 
-function isLikelyFirstSignIn(user: User) {
-  const createdAt = Number(user.metadata.creationTime ? Date.parse(user.metadata.creationTime) : NaN);
-  const lastSignInAt = Number(user.metadata.lastSignInTime ? Date.parse(user.metadata.lastSignInTime) : NaN);
-  if (!Number.isFinite(createdAt) || !Number.isFinite(lastSignInAt)) {
-    return false;
-  }
-  return Math.abs(lastSignInAt - createdAt) < 2 * 60 * 1000;
-}
-
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user, isLoading: authLoading } = useAuth();
   const [workspaces, setWorkspaces] = useState<OrbitWorkspaceSummary[]>([]);
@@ -192,9 +183,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const cachedWorkspaceState = readWorkspaceCache(currentUser.uid);
     setWorkspaceLookupError(null);
 
-    const shouldSkipBlockingBootstrap =
-      isLikelyFirstSignIn(currentUser) ||
-      hasWorkspaceBootstrapHint(currentUser.uid);
+    const shouldSkipBlockingBootstrap = hasWorkspaceBootstrapHint(currentUser.uid);
 
     function applyWorkspaceList(
       nextWorkspaces: OrbitWorkspaceSummary[],

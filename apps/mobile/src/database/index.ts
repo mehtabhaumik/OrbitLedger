@@ -28,6 +28,7 @@ export {
   getOldestDueCustomers,
   getActiveTaxPack,
   getInvoice,
+  getNextInvoiceSequence,
   getProduct,
   getRecentTransactions,
   getReportsSummary,

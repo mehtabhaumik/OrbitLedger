@@ -338,6 +338,27 @@ export {
   getLaunchBlockingSettingsQaChecks,
   getSettingsQaReadiness,
 } from './settingsQa';
+
+export {
+  buildInvoiceNumberMigrationPlan,
+  buildCompanyInvoiceCode,
+  buildSmartInvoiceNumber,
+  getInvoiceNumberCountryRules,
+  normalizeInvoiceNumberKey,
+  normalizeInvoicePrefix,
+} from './invoiceNumbering';
+export type {
+  InvoiceNumberCountryCode,
+  InvoiceNumberCountryRules,
+  InvoiceNumberDuplicateGroup,
+  InvoiceNumberFormatStyle,
+  InvoiceNumberMigrationPlan,
+  InvoiceNumberMigrationRecord,
+  InvoiceNumberSeparator,
+  InvoiceNumberSettings,
+  SmartInvoiceNumberInput,
+  SmartInvoiceNumberResult,
+} from './invoiceNumbering';
 export type {
   SettingsQaArea,
   SettingsQaCheck,

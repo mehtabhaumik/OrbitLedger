@@ -110,6 +110,93 @@ describe('Firestore workspace rules', () => {
     await assertSucceeds(customer.get());
   });
 
+  it('lets invoice-capable members advance only invoice numbering metadata', async () => {
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'staff-1', 'staff');
+
+    const staff = testEnv.authenticatedContext('staff-1').firestore();
+    const workspace = staff.collection('workspaces').doc('workspace-1');
+
+    await assertSucceeds(
+      workspace.update({
+        invoice_number_next_sequence: 2,
+        invoice_number_last_value: 'OS12/26/0001',
+        invoice_number_last_sequence: 1,
+        invoice_number_last_issued_at: '2026-05-17T00:00:00.000Z',
+        invoice_number_scheme: 'smart_company_fy_sequence',
+      })
+    );
+    await assertFails(
+      workspace.update({
+        invoice_number_prefix: 'NEW',
+        invoice_number_separator: '-',
+        invoice_number_padding: 5,
+      })
+    );
+    await assertFails(
+      workspace.update({
+        business_name: 'Changed by Staff',
+        invoice_number_next_sequence: 3,
+        invoice_number_last_value: 'OS12/26/0002',
+        invoice_number_last_sequence: 2,
+        invoice_number_last_issued_at: '2026-05-17T00:01:00.000Z',
+        invoice_number_scheme: 'smart_company_fy_sequence',
+      })
+    );
+  });
+
+  it('lets invoice-capable members write invoice number keys but keeps viewers read-only', async () => {
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'staff-1', 'staff');
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'viewer-1', 'viewer');
+
+    const staff = testEnv.authenticatedContext('staff-1').firestore();
+    const viewer = testEnv.authenticatedContext('viewer-1').firestore();
+    const staffInvoice = staff.collection('workspaces').doc('workspace-1').collection('invoices').doc('invoice-1');
+    const viewerInvoice = viewer.collection('workspaces').doc('workspace-1').collection('invoices').doc('invoice-2');
+
+    await assertSucceeds(
+      staffInvoice.set({
+        customer_id: 'customer-1',
+        invoice_number: 'OS12/26/0001',
+        invoice_number_key: 'OS12/26/0001',
+        document_state: 'draft',
+        status: 'draft',
+        created_at: '2026-05-17T00:00:00.000Z',
+      })
+    );
+    await assertFails(
+      viewerInvoice.set({
+        customer_id: 'customer-1',
+        invoice_number: 'OS12/26/0002',
+        invoice_number_key: 'OS12/26/0002',
+        document_state: 'draft',
+        status: 'draft',
+        created_at: '2026-05-17T00:00:00.000Z',
+      })
+    );
+  });
+
+  it('restricts settings audit writes to owners and Office admins', async () => {
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'admin-1', 'admin');
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'accountant-1', 'accountant');
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'staff-1', 'staff');
+
+    const ownerAudit = testEnv.authenticatedContext('owner-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('settings_audit');
+    const adminAudit = testEnv.authenticatedContext('admin-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('settings_audit');
+    const accountantAudit = testEnv.authenticatedContext('accountant-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('settings_audit');
+    const staffAudit = testEnv.authenticatedContext('staff-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('settings_audit');
+
+    await assertSucceeds(ownerAudit.doc('owner-audit').set(settingsAuditPayload('workspace-1', 'owner-1')));
+    await assertSucceeds(adminAudit.doc('admin-audit').set(settingsAuditPayload('workspace-1', 'admin-1')));
+    await assertSucceeds(accountantAudit.doc('owner-audit').get());
+    await assertFails(accountantAudit.doc('accountant-audit').set(settingsAuditPayload('workspace-1', 'accountant-1')));
+    await assertFails(staffAudit.doc('owner-audit').get());
+    await assertFails(staffAudit.doc('staff-audit').set(settingsAuditPayload('workspace-1', 'staff-1')));
+  });
+
   it('lets active Office members discover shared workspaces through membership lookup', async () => {
     await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'manager-1', 'manager');
 
@@ -433,5 +520,29 @@ function invitationPayload(workspaceId: string, invitedBy: string, email: string
     revoked_at: null,
     created_at: '2026-05-06T00:00:00.000Z',
     updated_at: '2026-05-06T00:00:00.000Z',
+  };
+}
+
+function settingsAuditPayload(workspaceId: string, actorUid: string) {
+  return {
+    workspace_id: workspaceId,
+    scope: 'company_settings',
+    setting_group: 'audit_protected_settings',
+    action: 'updated',
+    actor_uid: actorUid,
+    actor_email: `${actorUid}@example.com`,
+    reason: 'Invoice numbering updated',
+    changed_fields: ['Invoice number company code'],
+    changes: [
+      {
+        field: 'invoiceNumberPrefix',
+        label: 'Invoice number company code',
+        previous_value: null,
+        next_value: 'OS',
+      },
+    ],
+    server_revision_before: 1,
+    server_revision_after: 2,
+    created_at: '2026-05-17T00:00:00.000Z',
   };
 }

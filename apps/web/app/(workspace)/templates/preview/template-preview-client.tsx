@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import type { Route } from 'next';
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
@@ -10,13 +11,27 @@ import {
 } from '@/lib/template-preview-demo';
 import type { WebProBrandTheme } from '@/lib/web-monetization';
 
-export function TemplatePreviewSearchClient() {
+export function TemplatePreviewSearchClient({
+  backHref = '/templates',
+  backLabel = 'Back to templates',
+}: {
+  backHref?: string;
+  backLabel?: string;
+}) {
   const searchParams = useSearchParams();
 
-  return <TemplatePreviewClient initialTemplateKey={searchParams.get('template')} />;
+  return <TemplatePreviewClient backHref={backHref} backLabel={backLabel} initialTemplateKey={searchParams.get('template')} />;
 }
 
-export function TemplatePreviewClient({ initialTemplateKey }: { initialTemplateKey: string | null }) {
+export function TemplatePreviewClient({
+  backHref = '/templates',
+  backLabel = 'Back to templates',
+  initialTemplateKey,
+}: {
+  backHref?: string;
+  backLabel?: string;
+  initialTemplateKey: string | null;
+}) {
   const [accentColor, setAccentColor] = useState('#145C52');
   const [surfaceColor, setSurfaceColor] = useState('#E5F1ED');
   const [lineColor, setLineColor] = useState('#B7D6CB');
@@ -93,8 +108,8 @@ export function TemplatePreviewClient({ initialTemplateKey }: { initialTemplateK
             Sample preview only. This tab uses fake business and customer data, and printing is disabled here.
           </p>
         </div>
-        <Link className="ol-button-secondary" href="/templates">
-          Back to templates
+        <Link className="ol-button-secondary" href={backHref as Route}>
+          {backLabel}
         </Link>
       </header>
 

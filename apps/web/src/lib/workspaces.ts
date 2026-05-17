@@ -60,6 +60,10 @@ export type WorkspaceProfileInput = {
   defaultRecurringEmailCurrentMonthOnly?: boolean | null;
   defaultRecurringEmailSendDayBehavior?: 'same_day' | 'custom_day' | null;
   defaultRecurringEmailDay?: number | null;
+  invoiceNumberPrefix?: string | null;
+  invoiceNumberSeparator?: '/' | '-' | null;
+  invoiceNumberPadding?: number | null;
+  invoiceNumberNextSequence?: number | null;
   documentFilenameFormat?: string | null;
   documentFooterPreference?: string | null;
   documentBrandHeaderColor?: string | null;
@@ -137,6 +141,11 @@ type FirestoreWorkspaceDoc = {
   default_recurring_email_current_month_only?: boolean | null;
   default_recurring_email_send_day_behavior?: 'same_day' | 'custom_day' | null;
   default_recurring_email_day?: number | null;
+  invoice_number_prefix?: string | null;
+  invoice_number_separator?: string | null;
+  invoice_number_padding?: number | null;
+  invoice_number_next_sequence?: number | null;
+  invoice_number_last_value?: string | null;
   document_filename_format?: string | null;
   document_footer_preference?: string | null;
   document_brand_header_color?: string | null;
@@ -600,6 +609,17 @@ function mapWorkspace(id: string, data: FirestoreWorkspaceDoc): OrbitWorkspaceSu
       typeof data.default_recurring_email_day === 'number'
         ? Math.min(31, Math.max(1, Math.floor(data.default_recurring_email_day)))
         : null,
+    invoiceNumberPrefix: data.invoice_number_prefix ?? null,
+    invoiceNumberSeparator: data.invoice_number_separator === '-' ? '-' : '/',
+    invoiceNumberPadding:
+      typeof data.invoice_number_padding === 'number'
+        ? Math.min(8, Math.max(3, Math.floor(data.invoice_number_padding)))
+        : null,
+    invoiceNumberNextSequence:
+      typeof data.invoice_number_next_sequence === 'number'
+        ? Math.max(1, Math.floor(data.invoice_number_next_sequence))
+        : null,
+    invoiceNumberLastValue: data.invoice_number_last_value ?? null,
     documentFilenameFormat: data.document_filename_format ?? null,
     documentFooterPreference: data.document_footer_preference ?? null,
     documentBrandHeaderColor: data.document_brand_header_color ?? null,
@@ -701,6 +721,10 @@ function workspaceProfileOptionalPayload(input: WorkspaceProfileInput) {
       typeof input.defaultRecurringEmailDay === 'number' && Number.isFinite(input.defaultRecurringEmailDay)
         ? Math.min(31, Math.max(1, Math.floor(input.defaultRecurringEmailDay)))
         : null,
+    invoice_number_prefix: normalizeInvoiceNumberPrefix(input.invoiceNumberPrefix),
+    invoice_number_separator: input.invoiceNumberSeparator === '-' ? '-' : '/',
+    invoice_number_padding: normalizeInvoiceNumberPadding(input.invoiceNumberPadding),
+    invoice_number_next_sequence: normalizeInvoiceNumberNextSequence(input.invoiceNumberNextSequence),
     document_filename_format: normalizeDocumentFilenameFormat(input.documentFilenameFormat),
     document_footer_preference: normalizeDocumentFooterPreference(input.documentFooterPreference),
     document_brand_header_color: normalizeHexColor(input.documentBrandHeaderColor),
@@ -774,6 +798,10 @@ function workspaceAuditSourceFromDoc(data: FirestoreWorkspaceDoc) {
     defaultTaxRate: data.default_tax_rate,
     defaultInvoiceTemplate: data.default_invoice_template,
     defaultStatementTemplate: data.default_statement_template,
+    invoiceNumberPrefix: data.invoice_number_prefix,
+    invoiceNumberSeparator: data.invoice_number_separator,
+    invoiceNumberPadding: data.invoice_number_padding,
+    invoiceNumberNextSequence: data.invoice_number_next_sequence,
     documentFilenameFormat: data.document_filename_format,
     authorizedPersonName: data.authorized_person_name,
     authorizedPersonTitle: data.authorized_person_title,
@@ -795,6 +823,25 @@ function normalizeDocumentFilenameFormat(value?: string | null) {
   ].includes(normalized ?? '')
     ? normalized
     : 'customer_invoice_date_revision_country';
+}
+
+function normalizeInvoiceNumberPrefix(value?: string | null) {
+  const normalized = value?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') ?? '';
+  return normalized ? normalized.slice(0, 12) : null;
+}
+
+function normalizeInvoiceNumberPadding(value?: number | null) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 4;
+  }
+  return Math.min(8, Math.max(3, Math.floor(value)));
+}
+
+function normalizeInvoiceNumberNextSequence(value?: number | null) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 1;
+  }
+  return Math.max(1, Math.floor(value));
 }
 
 function normalizeDocumentFooterPreference(value?: string | null) {

@@ -13,6 +13,10 @@ export type AuditProtectedSettingsSource = {
   defaultTaxRate?: number | null;
   defaultInvoiceTemplate?: string | null;
   defaultStatementTemplate?: string | null;
+  invoiceNumberPrefix?: string | null;
+  invoiceNumberSeparator?: string | null;
+  invoiceNumberPadding?: number | null;
+  invoiceNumberNextSequence?: number | null;
   documentFilenameFormat?: string | null;
   authorizedPersonName?: string | null;
   authorizedPersonTitle?: string | null;
@@ -43,6 +47,10 @@ const protectedSettingLabels: Record<keyof AuditProtectedSettingsSource, string>
   defaultTaxRate: 'Default tax rate',
   defaultInvoiceTemplate: 'Default invoice template',
   defaultStatementTemplate: 'Default statement template',
+  invoiceNumberPrefix: 'Invoice number company code',
+  invoiceNumberSeparator: 'Invoice number separator',
+  invoiceNumberPadding: 'Invoice number sequence digits',
+  invoiceNumberNextSequence: 'Next invoice sequence',
   documentFilenameFormat: 'Document filename format',
   authorizedPersonName: 'Authorized person',
   authorizedPersonTitle: 'Authorized person title',

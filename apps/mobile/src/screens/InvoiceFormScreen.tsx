@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { buildSmartInvoiceNumber } from '@orbit-ledger/core';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
@@ -25,6 +26,7 @@ import {
   getBusinessSettings,
   getFeatureToggles,
   getInvoice,
+  getNextInvoiceSequence,
   getProduct,
   listProducts,
   searchCustomerSummaries,
@@ -199,6 +201,7 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
           getFeatureToggles(),
           invoiceId ? getInvoice(invoiceId) : Promise.resolve(null),
         ]);
+        const nextInvoiceSequence = invoiceId ? 1 : await getNextInvoiceSequence();
         const taxRate = savedFeatureToggles.tax
           ? await resolveDefaultInvoiceTaxRate(settings)
           : {
@@ -259,6 +262,10 @@ export function InvoiceFormScreen({ navigation, route }: InvoiceFormScreenProps)
               })),
             });
             setVisibleItemCount(INITIAL_VISIBLE_INVOICE_ITEMS);
+          } else if (settings) {
+            setValue('invoiceNumber', buildInvoiceNumber(settings, nextInvoiceSequence), {
+              shouldValidate: true,
+            });
           }
         }
       } catch {
@@ -1007,7 +1014,17 @@ function buildInvoiceItemTaxCacheKey(settings: BusinessSettings, itemName: strin
   ].join('|');
 }
 
-function buildInvoiceNumber(): string {
+function buildInvoiceNumber(settings?: BusinessSettings | null, sequenceNumber = 1): string {
+  if (settings) {
+    return buildSmartInvoiceNumber({
+      businessName: settings.businessName,
+      workspaceId: settings.workspaceId ?? settings.id,
+      countryCode: settings.countryCode,
+      issueDate: getTodayDateInput(),
+      sequenceNumber,
+    }).invoiceNumber;
+  }
+
   const now = new Date();
   const date = getTodayDateInput().replace(/-/g, '');
   const hours = String(now.getHours()).padStart(2, '0');

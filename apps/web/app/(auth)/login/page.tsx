@@ -1,7 +1,7 @@
 'use client';
 
 import type { FormEvent } from 'react';
-import { ORBIT_LEDGER_POSITIONING } from '@orbit-ledger/core';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -10,16 +10,20 @@ import { useAuth } from '@/providers/auth-provider';
 
 const loginFeatures = [
   {
-    title: 'Collections first',
-    copy: 'Review who owes money, what was paid, and which documents need attention.',
+    title: 'Collect today',
+    value: '3 customers',
   },
   {
-    title: 'Backup confidence',
-    copy: 'Save reviewed copies and restore only after checking what will change.',
+    title: 'Verify payments',
+    value: '1 pending',
   },
   {
-    title: 'Local business fit',
-    copy: 'Use familiar money, document, and customer details for everyday business work.',
+    title: 'Review invoices',
+    value: '2 need review',
+  },
+  {
+    title: 'Close the day',
+    value: 'Ready',
   },
 ] as const;
 
@@ -89,18 +93,23 @@ export default function LoginPage() {
     [isGoogleSubmitting, isSubmitting, localHostFixUrl]
   );
 
-  if ((isLoading && !hasAuthCheckTimedOut) || user) {
+  if (isLoading || user) {
     return (
       <main className="ol-auth-page">
         <div className="ol-auth-loading-card" role="status" aria-live="polite">
-          <img
-            className="ol-brand-logo ol-brand-logo--md"
-            alt="Orbit Ledger"
-            src="/branding/orbit-ledger-logo-transparent.png"
-            width={180}
-            height={38}
-          />
-          <strong>{user ? 'Opening your dashboard...' : 'Checking your session...'}</strong>
+          <Link className="ol-auth-logo-link" href="/">
+            <img
+              className="ol-brand-logo ol-brand-logo--md"
+              alt="Orbit Ledger"
+              src="/branding/orbit-ledger-logo-transparent.png"
+              width={180}
+              height={38}
+            />
+          </Link>
+          <strong>{user ? 'Opening your dashboard...' : 'Checking your secure session...'}</strong>
+          {hasAuthCheckTimedOut && !user ? (
+            <span>Still checking. This can take a moment on slower networks.</span>
+          ) : null}
         </div>
       </main>
     );
@@ -209,49 +218,70 @@ export default function LoginPage() {
 
   return (
     <main className="ol-auth-page">
-      <div className="ol-auth-grid">
+      <div className="ol-auth-grid ol-auth-grid--premium">
         <div className="ol-brand-header">
-          <img
-            className="ol-brand-logo"
-            alt="Orbit Ledger"
-            src="/branding/orbit-ledger-logo-transparent.png"
-          />
-          <span className="ol-brand-header-copy">Business workspace</span>
+          <Link className="ol-auth-logo-link" href="/" aria-label="Go to Orbit Ledger home">
+            <img
+              className="ol-brand-logo"
+              alt="Orbit Ledger"
+              src="/branding/orbit-ledger-logo-transparent.png"
+            />
+          </Link>
+          <Link className="ol-brand-header-copy" href="/">
+            Back to website
+          </Link>
         </div>
 
-        <aside className="ol-auth-showcase">
+        <aside className="ol-auth-showcase ol-auth-showcase--compact">
           <div className="ol-chip-row">
             <span className="ol-chip ol-chip--success">
               <span className="ol-dot" />
-              Business workspace
+              Secure workspace
             </span>
-            <span className="ol-chip ol-chip--tax">Ready for web review</span>
           </div>
 
-          <div className="ol-onboarding-headline">Daily money control for small businesses</div>
-          <p className="ol-auth-showcase-copy">
-            {ORBIT_LEDGER_POSITIONING.promise}
-          </p>
+          <div className="ol-onboarding-headline">Today’s workspace</div>
 
-          <div className="ol-auth-feature-grid">
-            {loginFeatures.map((feature) => (
-              <article className="ol-auth-feature" key={feature.title}>
-                <strong>{feature.title}</strong>
-                <span className="ol-auth-showcase-copy" style={{ margin: 0, fontSize: 14 }}>
-                  {feature.copy}
-                </span>
-              </article>
-            ))}
+          <div className="ol-auth-preview-card" aria-label="Workspace preview">
+            <div className="ol-auth-preview-top">
+              <span>Outstanding balance</span>
+              <strong>Rs 84,200</strong>
+              <small>Ready for review</small>
+            </div>
+
+            <div className="ol-auth-preview-bars" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+              <i />
+              <i />
+            </div>
+
+            <div className="ol-auth-preview-list">
+              {loginFeatures.map((feature) => (
+                <div key={feature.title}>
+                  <span>{feature.title}</span>
+                  <strong>{feature.value}</strong>
+                </div>
+              ))}
+            </div>
+
+            <div className="ol-auth-stamp-card">
+              <span>Invoice WEB-1048</span>
+              <strong>Paid</strong>
+            </div>
           </div>
         </aside>
 
         <section className="ol-auth-panel">
           <div>
             <div className="ol-panel-title">
-              {mode === 'sign_in' ? 'Sign in to your workspace' : 'Create your account'}
+              {mode === 'sign_in' ? 'Welcome back' : 'Create your account'}
             </div>
             <p className="ol-panel-copy">
-              Use the web workspace for customer review, invoice preparation, reports, and backup checks.
+              {mode === 'sign_in'
+                ? 'Sign in to continue to your workspace.'
+                : 'Create an account and start your web workspace.'}
             </p>
           </div>
 
@@ -283,6 +313,37 @@ export default function LoginPage() {
           </div>
 
           <form className="ol-form-grid ol-auth-form" onSubmit={submit}>
+            <button
+              className="ol-button-secondary ol-auth-google"
+              disabled={isGoogleDisabled}
+              onClick={() => {
+                if (localHostFixUrl) {
+                  window.location.href = localHostFixUrl;
+                  return;
+                }
+
+                setError(null);
+                setNotice(null);
+                setIsGoogleSubmitting(true);
+                void signInWithGoogle()
+                  .then(() => router.replace('/dashboard'))
+                  .catch((nextError) => {
+                    setError(getAuthErrorMessage(nextError));
+                  })
+                  .finally(() => {
+                    setIsGoogleSubmitting(false);
+                  });
+              }}
+              type="button"
+            >
+              <span className="ol-google-mark" aria-hidden="true">G</span>
+              {isGoogleSubmitting ? 'Opening Google...' : 'Continue with Google'}
+            </button>
+
+            <div className="ol-auth-divider">
+              <span>or</span>
+            </div>
+
             {mode === 'register' ? (
               <label className={`ol-field${fieldErrors.name ? ' is-invalid' : ''}`}>
                 <span className="ol-field-label">Full name</span>
@@ -327,24 +388,21 @@ export default function LoginPage() {
             </label>
 
             {mode === 'sign_in' ? (
-              <button
-                className="ol-inline-link"
-                disabled={isSendingReset || isSubmitting}
-                onClick={() => void handlePasswordReset()}
-                type="button"
-              >
-                {isSendingReset ? 'Sending reset email...' : 'Reset password'}
-              </button>
+              <div className="ol-auth-reset-row">
+                <button
+                  className="ol-inline-link"
+                  disabled={isSendingReset || isSubmitting}
+                  onClick={() => void handlePasswordReset()}
+                  type="button"
+                >
+                  {isSendingReset ? 'Sending reset email...' : 'Forgot password?'}
+                </button>
+              </div>
             ) : null}
 
             {error ? <div className="ol-message ol-message--danger">{error}</div> : null}
             {sessionExpiryMessage ? (
               <div className="ol-message ol-message--warning">{sessionExpiryMessage}</div>
-            ) : null}
-            {hasAuthCheckTimedOut ? (
-              <div className="ol-message ol-message--warning">
-                Sign in to continue. Your secure session could not be confirmed quickly.
-              </div>
             ) : null}
             {notice ? (
               <div className="ol-message ol-message--success">
@@ -364,31 +422,10 @@ export default function LoginPage() {
               <button className="ol-button ol-auth-submit" disabled={isSubmitting} type="submit">
                 {isSubmitting ? 'Please wait...' : mode === 'sign_in' ? 'Sign in' : 'Create account'}
               </button>
-              <button
-                className="ol-button-secondary ol-auth-google"
-                disabled={isGoogleDisabled}
-                onClick={() => {
-                  if (localHostFixUrl) {
-                    window.location.href = localHostFixUrl;
-                    return;
-                  }
+            </div>
 
-                  setError(null);
-                  setNotice(null);
-                  setIsGoogleSubmitting(true);
-                  void signInWithGoogle()
-                    .then(() => router.replace('/dashboard'))
-                    .catch((nextError) => {
-                      setError(getAuthErrorMessage(nextError));
-                    })
-                    .finally(() => {
-                      setIsGoogleSubmitting(false);
-                    });
-                }}
-                type="button"
-              >
-                {isGoogleSubmitting ? 'Opening Google...' : 'Continue with Google'}
-              </button>
+            <div className="ol-auth-beta-note">
+              Free during public beta. Paid plans are coming soon.
             </div>
           </form>
         </section>

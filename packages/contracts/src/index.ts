@@ -60,6 +60,11 @@ export type OrbitWorkspaceSummary = {
   defaultRecurringEmailCurrentMonthOnly?: boolean | null;
   defaultRecurringEmailSendDayBehavior?: 'same_day' | 'custom_day' | null;
   defaultRecurringEmailDay?: number | null;
+  invoiceNumberPrefix?: string | null;
+  invoiceNumberSeparator?: '/' | '-' | null;
+  invoiceNumberPadding?: number | null;
+  invoiceNumberNextSequence?: number | null;
+  invoiceNumberLastValue?: string | null;
   documentFilenameFormat?: string | null;
   documentFooterPreference?: string | null;
   documentBrandHeaderColor?: string | null;

@@ -7424,6 +7424,156 @@ function normalizeScheduledRecurringItem(item: Record<string, unknown> | null) {
   };
 }
 
+type FunctionInvoiceNumberResult = {
+  invoiceNumber: string;
+  companyCode: string;
+  yearCode: string;
+  fiscalYear: string;
+  sequenceNumber: number;
+  countryCode: string;
+  separator: '/' | '-';
+  formatStyle: 'smart_company_fy_sequence' | 'custom_prefix_year_sequence';
+};
+
+async function reserveFunctionInvoiceNumber(
+  workspaceId: string,
+  fallbackWorkspaceName: string,
+  issueDate: string,
+  customPrefix?: string | null
+): Promise<FunctionInvoiceNumberResult> {
+  const workspaceRef = db.collection('workspaces').doc(workspaceId);
+  return db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(workspaceRef);
+    const data = snapshot.exists ? snapshot.data() ?? {} : {};
+    const sequenceNumber = normalizeFunctionInvoiceSequence(
+      numberValue(data.invoice_number_next_sequence, numberValue(data.invoice_number_sequence, 1))
+    );
+    const invoiceNumber = buildFunctionSmartInvoiceNumber({
+      businessName: clean(stringValue(data.business_name)) ?? fallbackWorkspaceName,
+      workspaceId,
+      issueDate,
+      sequenceNumber,
+      countryCode: clean(stringValue(data.country_code)) ?? 'IN',
+      customPrefix: normalizeFunctionInvoicePrefix(customPrefix) ?? normalizeFunctionInvoicePrefix(clean(stringValue(data.invoice_number_prefix))),
+      separator: clean(stringValue(data.invoice_number_separator)) === '-' ? '-' : '/',
+      sequencePadding: numberValue(data.invoice_number_padding, 4),
+    });
+
+    transaction.set(workspaceRef, {
+      invoice_number_next_sequence: sequenceNumber + 1,
+      invoice_number_last_value: invoiceNumber.invoiceNumber,
+      invoice_number_last_sequence: sequenceNumber,
+      invoice_number_last_issued_at: new Date().toISOString(),
+      invoice_number_scheme: invoiceNumber.formatStyle,
+    }, { merge: true });
+
+    return invoiceNumber;
+  });
+}
+
+function functionInvoiceNumberMetadata(invoiceNumber: FunctionInvoiceNumberResult) {
+  return {
+    invoice_number_key: functionInvoiceNumberKey(invoiceNumber.invoiceNumber),
+    invoice_number_scheme: invoiceNumber.formatStyle,
+    invoice_number_company_code: invoiceNumber.companyCode,
+    invoice_number_year_code: invoiceNumber.yearCode,
+    invoice_number_fiscal_year: invoiceNumber.fiscalYear,
+    invoice_number_sequence: invoiceNumber.sequenceNumber,
+    invoice_number_country_code: invoiceNumber.countryCode,
+    invoice_number_separator: invoiceNumber.separator,
+  };
+}
+
+function functionInvoiceNumberKey(invoiceNumber: string | null | undefined) {
+  return (invoiceNumber ?? '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function buildFunctionSmartInvoiceNumber(input: {
+  businessName: string;
+  workspaceId: string;
+  issueDate: string;
+  sequenceNumber: number;
+  countryCode: string;
+  customPrefix?: string | null;
+  separator: '/' | '-';
+  sequencePadding: number;
+}): FunctionInvoiceNumberResult {
+  const countryCode = input.countryCode.trim().toUpperCase() === 'UK' ? 'GB' : input.countryCode.trim().toUpperCase();
+  const yearBasis = countryCode === 'IN' || countryCode === 'GB' || countryCode === 'AU'
+    ? 'financial_year_start'
+    : 'calendar_year';
+  const financialYearStartMonth = countryCode === 'AU' ? 7 : countryCode === 'US' || countryCode === 'CA' ? 1 : 4;
+  const yearInfo = buildFunctionInvoiceYearInfo(input.issueDate, yearBasis, financialYearStartMonth);
+  const sequenceNumber = normalizeFunctionInvoiceSequence(input.sequenceNumber);
+  const sequenceCode = String(sequenceNumber).padStart(Math.min(8, Math.max(3, Math.floor(input.sequencePadding || 4))), '0');
+  const companyCode = input.customPrefix ?? buildFunctionCompanyInvoiceCode(input.businessName, input.workspaceId);
+  const maxLength = countryCode === 'IN' ? 16 : 24;
+  let invoiceNumber = [companyCode, yearInfo.yearCode, sequenceCode].join(input.separator);
+
+  if (invoiceNumber.length > maxLength) {
+    const allowedPrefixLength = Math.max(2, maxLength - yearInfo.yearCode.length - sequenceCode.length - 2);
+    invoiceNumber = [companyCode.slice(0, allowedPrefixLength), yearInfo.yearCode, sequenceCode].join(input.separator);
+  }
+
+  return {
+    invoiceNumber,
+    companyCode,
+    yearCode: yearInfo.yearCode,
+    fiscalYear: yearInfo.fiscalYear,
+    sequenceNumber,
+    countryCode,
+    separator: input.separator,
+    formatStyle: input.customPrefix ? 'custom_prefix_year_sequence' : 'smart_company_fy_sequence',
+  };
+}
+
+function buildFunctionCompanyInvoiceCode(businessName: string, workspaceId: string): string {
+  const words = businessName
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .match(/[A-Z0-9]+/g) ?? [];
+  const compactName = words.join('');
+  const letters = words.length >= 2 ? words.map((word) => word[0]).join('').slice(0, 3) : compactName.slice(0, 3);
+  const hash = functionStableBase36Hash(`${workspaceId}:${compactName || businessName}`).slice(0, 2);
+  return `${letters || 'INV'}${hash}`.slice(0, 5);
+}
+
+function normalizeFunctionInvoicePrefix(value?: string | null): string | null {
+  const cleaned = value?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  return !cleaned || cleaned === 'AUTO' ? null : cleaned;
+}
+
+function normalizeFunctionInvoiceSequence(value: unknown): number {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) && numberValue >= 1 ? Math.floor(numberValue) : 1;
+}
+
+function buildFunctionInvoiceYearInfo(
+  issueDate: string,
+  yearBasis: 'financial_year_start' | 'calendar_year',
+  financialYearStartMonth: number
+) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(issueDate);
+  const date = match ? new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))) : new Date();
+  const calendarYear = date.getUTCFullYear();
+  const financialYearStart = date.getUTCMonth() + 1 >= financialYearStartMonth ? calendarYear : calendarYear - 1;
+  const basisYear = yearBasis === 'financial_year_start' ? financialYearStart : calendarYear;
+  return {
+    yearCode: String(basisYear % 100).padStart(2, '0'),
+    fiscalYear: yearBasis === 'financial_year_start' ? `${financialYearStart}-${financialYearStart + 1}` : `${calendarYear}`,
+  };
+}
+
+function functionStableBase36Hash(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36).toUpperCase().padStart(2, '0');
+}
+
 async function createScheduledRecurringInvoice(
   workspaceId: string,
   workspaceName: string,
@@ -7466,12 +7616,18 @@ async function createScheduledRecurringInvoice(
   const subtotal = roundMoney(rule.items.reduce((sum, item) => sum + item.quantity * item.price, 0));
   const taxAmount = roundMoney(rule.items.reduce((sum, item) => sum + item.quantity * item.price * (item.taxRate / 100), 0));
   const totalAmount = roundMoney(subtotal + taxAmount);
-  const invoiceNumber = `${rule.invoiceNumberPrefix}-${runDate.replace(/-/g, '')}`;
+  const invoiceNumber = await reserveFunctionInvoiceNumber(
+    workspaceId,
+    workspaceName,
+    runDate,
+    rule.invoiceNumberPrefix
+  );
   const batch = db.batch();
   batch.set(invoiceRef, {
     customer_id: rule.customerId,
     customer_name: rule.customerName,
-    invoice_number: invoiceNumber,
+    invoice_number: invoiceNumber.invoiceNumber,
+    ...functionInvoiceNumberMetadata(invoiceNumber),
     issue_date: runDate,
     billing_month: billingMonth,
     due_date: addDaysForFunction(runDate, rule.dueDays),
@@ -7536,10 +7692,10 @@ async function createScheduledRecurringInvoice(
       status: emailDate <= today ? 'ready' : 'scheduled',
       scheduled_for: emailDate,
       recipient_email: rule.emailRecipient,
-      subject: renderRecurringEmailTextForFunction(rule.emailSubject ?? defaultRecurringEmailSubjectForFunction(), rule, invoiceNumber, runDate, workspaceName),
-      body: renderRecurringEmailTextForFunction(rule.emailBody ?? defaultRecurringEmailBodyForFunction(), rule, invoiceNumber, runDate, workspaceName),
+      subject: renderRecurringEmailTextForFunction(rule.emailSubject ?? defaultRecurringEmailSubjectForFunction(), rule, invoiceNumber.invoiceNumber, runDate, workspaceName),
+      body: renderRecurringEmailTextForFunction(rule.emailBody ?? defaultRecurringEmailBodyForFunction(), rule, invoiceNumber.invoiceNumber, runDate, workspaceName),
       invoice_id: invoiceId,
-      invoice_number: invoiceNumber,
+      invoice_number: invoiceNumber.invoiceNumber,
       customer_id: rule.customerId,
       recurring_rule_id: rule.id,
       include_payment_link: rule.emailIncludePaymentLink,
