@@ -202,8 +202,8 @@ describe('web document parity', () => {
     expect(document.html).toContain('<span>Created</span></div></header>');
   });
 
-  it('locks payment proof blocks on Free and renders them for Plus', () => {
-    const lockedDocument = buildInvoiceWebDocument({
+  it('includes payment proof blocks during public beta and renders them for Plus', () => {
+    const betaDocument = buildInvoiceWebDocument({
       workspace,
       invoice: makeInvoice(),
       customer,
@@ -236,14 +236,14 @@ describe('web document parity', () => {
       },
     });
 
-    expect(lockedDocument.html).not.toContain('Payment proof');
+    expect(betaDocument.html).toContain('Payment proof');
     expect(imageDocument.html).toContain('Payment proof');
     expect(imageDocument.html).toContain('<img src="https://example.invalid/cheque.jpg"');
     expect(pdfDocument.html).toContain('PDF proof');
     expect(pdfDocument.html).toContain('instrument-proof-file');
   });
 
-  it('locks invoice payment links on Free and renders them for Plus', () => {
+  it('includes invoice payment links during public beta and renders them for Plus', () => {
     const paymentLink = {
       provider: 'upi' as const,
       label: 'UPI payment',
@@ -251,7 +251,7 @@ describe('web document parity', () => {
       url: 'upi://pay?pa=owner@bank&am=1180',
       reference: 'INV-100',
     };
-    const lockedDocument = buildInvoiceWebDocument({
+    const betaDocument = buildInvoiceWebDocument({
       workspace,
       invoice: makeInvoice(),
       customer,
@@ -265,8 +265,8 @@ describe('web document parity', () => {
       paymentLink,
     });
 
-    expect(lockedDocument.paymentLink).toBeNull();
-    expect(lockedDocument.html).not.toContain('upi://pay');
+    expect(betaDocument.paymentLink?.url).toBe(paymentLink.url);
+    expect(betaDocument.html).toContain('upi://pay');
     expect(plusDocument.paymentLink?.url).toBe(paymentLink.url);
     expect(plusDocument.html).toContain('UPI payment');
   });

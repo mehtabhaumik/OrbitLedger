@@ -38,15 +38,24 @@ describe('web monetization feature gates', () => {
     });
   });
 
-  it('unlocks Plus features without unlocking Pro templates', () => {
+  it('keeps paid feature tiers visible while public beta includes non-Office features', () => {
+    const free = getDefaultWebSubscriptionStatus();
     const plus = getWebPaidSubscriptionStatus('plus_monthly');
 
+    expect(resolveWebFeatureAccess(free, 'payment_links')).toMatchObject({
+      allowed: true,
+      requiredTier: 'plus',
+    });
+    expect(resolveWebFeatureAccess(free, 'advanced_pdf_styling')).toMatchObject({
+      allowed: true,
+      requiredTier: 'pro',
+    });
     expect(resolveWebFeatureAccess(plus, 'payment_links')).toMatchObject({
       allowed: true,
       requiredTier: 'plus',
     });
     expect(resolveWebFeatureAccess(plus, 'advanced_pdf_styling')).toMatchObject({
-      allowed: false,
+      allowed: true,
       requiredTier: 'pro',
     });
   });
@@ -89,11 +98,11 @@ describe('web monetization feature gates', () => {
 
     expect(resolveWebWorkspaceCreationAccess(free, 0)).toMatchObject({ allowed: true });
     expect(resolveWebWorkspaceCreationAccess(free, 1)).toMatchObject({
-      allowed: false,
+      allowed: true,
       requiredTier: 'pro',
       requiredPlanLabel: 'Pro Plus',
     });
-    expect(resolveWebWorkspaceCreationAccess(plus, 1)).toMatchObject({ allowed: false });
+    expect(resolveWebWorkspaceCreationAccess(plus, 1)).toMatchObject({ allowed: true });
     expect(resolveWebWorkspaceCreationAccess(pro, 1)).toMatchObject({ allowed: true });
     expect(resolveWebFeatureAccess(pro, 'multi_user_workspace')).toMatchObject({ allowed: false });
     expect(resolveWebFeatureAccess(office, 'multi_user_workspace')).toMatchObject({ allowed: true });
@@ -128,8 +137,9 @@ describe('web monetization feature gates', () => {
 
     expect(getWebFeatureRequiredPlanLabel('payment_links')).toBe('Plus');
     expect(getWebFeatureRequiredPlanLabel('advanced_pdf_styling')).toBe('Pro Plus');
-    expect(getWebFeaturePlanChip(free, 'payment_links')).toBe('Requires Plus');
-    expect(getWebFeaturePlanChip(getWebPaidSubscriptionStatus('plus_yearly'), 'payment_links')).toBe('Included in Plus');
+    expect(getWebFeaturePlanChip(free, 'payment_links')).toBe('Included during beta');
+    expect(getWebFeaturePlanChip(free, 'multi_user_workspace')).toBe('Requires Office');
+    expect(getWebFeaturePlanChip(getWebPaidSubscriptionStatus('plus_yearly'), 'payment_links')).toBe('Included during beta');
   });
 
   it('persists and hydrates a paid web entitlement', () => {
