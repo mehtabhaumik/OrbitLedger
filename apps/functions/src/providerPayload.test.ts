@@ -25,9 +25,11 @@ import {
   buildOfficeOwnershipTransferNotificationUpdate,
   buildOfficeOwnershipTransferRecord,
   buildOfficeOwnerMemberRecord,
+  buildResendEmailPayload,
   buildBillingPortalSessionRecord,
   buildRazorpayCheckoutPayload,
   buildSubscriptionBillingMetadata,
+  buildSupportCaseEmailDeliveryUpdate,
   buildSubscriptionRenewalAdminQueueRecord,
   buildSubscriptionRenewalAuditRecord,
   buildSubscriptionRenewalChangeRecord,
@@ -907,10 +909,33 @@ describe('provider webhook payload mapping', () => {
       support_case_id: 'CASE-2001',
       recipient_email: 'owner@example.com',
       provider: 'resend',
-      delivery_status: 'pending_provider_connection',
+      delivery_status: 'queued',
       queued_by: 'internal_support_1',
       queued_by_email: 'support@orbitledger.app',
       queued_at: '2026-05-06T12:00:00.000Z',
+    });
+
+    expect(buildSupportCaseEmailDeliveryUpdate({
+      status: 'sent',
+      providerMessageId: 'email_123',
+      sentAt: '2026-05-06T12:02:00.000Z',
+      now,
+    })).toMatchObject({
+      delivery_status: 'sent',
+      email_provider_status: 'sent',
+      provider_message_id: 'email_123',
+      sent_at: '2026-05-06T12:02:00.000Z',
+    });
+
+    expect(buildResendEmailPayload({
+      to: [' owner@example.com ', 'not-an-email'],
+      subject: 'Sample Orbit Ledger email',
+      html: '<p>Sample</p>',
+      text: 'Sample',
+    })).toMatchObject({
+      from: 'Orbit Ledger <no-reply@orbitledger.rudraix.com>',
+      to: ['owner@example.com'],
+      subject: 'Sample Orbit Ledger email',
     });
 
     expect(buildOfficeOwnerMemberRecord({

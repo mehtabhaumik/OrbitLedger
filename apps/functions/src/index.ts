@@ -108,6 +108,13 @@ type BillingEmailDeliveryResult = {
   sentAt: string | null;
   failureReason: string | null;
 };
+type ResendEmailPayload = {
+  from: string;
+  to: string[];
+  subject: string;
+  html: string;
+  text: string;
+};
 type OfficeInvitationCapacityDecision = {
   allowed: boolean;
   reason: 'available' | 'seat_limit_reached' | 'existing_member' | 'pending_invitation';
@@ -737,7 +744,7 @@ export function buildSupportCaseEmailRequestRecord(input: {
     subject: clean(input.subject),
     body: clean(input.body),
     provider: 'resend',
-    delivery_status: 'pending_provider_connection' as SupportCaseEmailDeliveryStatus,
+    delivery_status: 'queued' as SupportCaseEmailDeliveryStatus,
     provider_message_id: null,
     failure_reason: null,
     queued_by: input.queuedBy,
@@ -746,6 +753,32 @@ export function buildSupportCaseEmailRequestRecord(input: {
     sent_at: null,
     updated_at: timestamp,
     created_at: timestamp,
+  };
+}
+
+export function buildSupportCaseEmailDeliveryUpdate(input: {
+  status: SupportCaseEmailDeliveryStatus;
+  providerMessageId?: string | null;
+  sentAt?: string | null;
+  failureReason?: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  return {
+    delivery_status: input.status,
+    email_provider_status:
+      input.status === 'sent'
+        ? 'sent'
+        : input.status === 'failed'
+          ? 'failed'
+          : input.status === 'pending_provider_connection'
+            ? 'pending_connection'
+            : 'queued',
+    provider_message_id: clean(input.providerMessageId),
+    sent_at: input.status === 'sent' ? input.sentAt ?? timestamp : null,
+    failure_reason: clean(input.failureReason),
+    updated_at: timestamp,
   };
 }
 
@@ -2409,6 +2442,122 @@ export const processSubscriptionBillingEmailQueue = onSchedule(
   }
 );
 
+export const processRecurringInvoiceEmailQueue = onSchedule(
+  {
+    region: 'asia-south1',
+    schedule: 'every 15 minutes',
+    timeZone: 'Asia/Kolkata',
+    maxInstances: 1,
+    secrets: [resendApiKey],
+  },
+  async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const snapshot = await db
+      .collectionGroup('email_queue')
+      .where('status', 'in', ['ready', 'scheduled', 'pending_provider_connection'])
+      .limit(50)
+      .get();
+
+    for (const queueSnapshot of snapshot.docs) {
+      const workspaceRef = queueSnapshot.ref.parent.parent;
+      if (!workspaceRef) {
+        continue;
+      }
+      const request = queueSnapshot.data();
+      if (clean(stringValue(request.kind)) !== 'recurring_invoice') {
+        continue;
+      }
+      const scheduledFor = clean(stringValue(request.scheduled_for));
+      if (scheduledFor && scheduledFor > today) {
+        continue;
+      }
+
+      const invoiceId = clean(stringValue(request.invoice_id));
+      if (!invoiceId) {
+        await queueSnapshot.ref.set({
+          status: 'failed',
+          delivery_status: 'failed',
+          failure_reason: 'invoice_required',
+          updated_at: new Date().toISOString(),
+        }, { merge: true });
+        continue;
+      }
+
+      const invoiceRef = workspaceRef.collection('invoices').doc(invoiceId);
+      const invoiceSnapshot = await invoiceRef.get();
+      if (!invoiceSnapshot.exists) {
+        await queueSnapshot.ref.set({
+          status: 'failed',
+          delivery_status: 'failed',
+          failure_reason: 'invoice_not_found',
+          updated_at: new Date().toISOString(),
+        }, { merge: true });
+        continue;
+      }
+
+      const invoice = invoiceSnapshot.data() ?? {};
+      if (clean(stringValue(invoice.document_state ?? invoice.status)) === 'cancelled') {
+        await queueSnapshot.ref.set({
+          status: 'failed',
+          delivery_status: 'failed',
+          failure_reason: 'invoice_cancelled',
+          updated_at: new Date().toISOString(),
+        }, { merge: true });
+        continue;
+      }
+
+      const versionId = await ensureRecurringInvoiceSavedVersion(workspaceRef, invoiceRef, invoiceSnapshot.id, invoice);
+      const delivery = await deliverRecurringInvoiceEmailRequest({
+        workspaceId: workspaceRef.id,
+        invoiceId,
+        invoice,
+        queue: request,
+      });
+      const now = new Date();
+      const sentAt = delivery.sentAt ?? now.toISOString();
+      const queuePatch = {
+        status: delivery.status === 'sent' ? 'sent' : delivery.status,
+        delivery_status: delivery.status,
+        email_provider_status:
+          delivery.status === 'sent'
+            ? 'sent'
+            : delivery.status === 'failed'
+              ? 'failed'
+              : 'pending_connection',
+        provider_message_id: delivery.providerMessageId,
+        sent_at: delivery.status === 'sent' ? sentAt : null,
+        failure_reason: delivery.failureReason,
+        updated_at: now.toISOString(),
+      };
+      const invoicePatch = {
+        has_auto_email_history: delivery.status === 'sent' ? true : Boolean(invoice.has_auto_email_history),
+        latest_auto_email_status: delivery.status,
+        latest_auto_email_sent_at: delivery.status === 'sent' ? sentAt : clean(stringValue(invoice.latest_auto_email_sent_at)),
+        latest_auto_email_version_id: versionId,
+        auto_email_recipient: clean(stringValue(request.recipient_email)),
+        auto_email_queue_id: queueSnapshot.id,
+        last_modified: now.toISOString(),
+      };
+      const versionPatch = {
+        auto_email_sent_at: delivery.status === 'sent' ? sentAt : null,
+        auto_email_scheduled_for: clean(stringValue(request.scheduled_for)),
+        auto_email_recipient: clean(stringValue(request.recipient_email)),
+        auto_email_queue_id: queueSnapshot.id,
+        auto_email_status: delivery.status,
+        auto_email_used_version_id: versionId,
+        updated_at: now.toISOString(),
+      };
+      await Promise.all([
+        queueSnapshot.ref.set(queuePatch, { merge: true }),
+        invoiceRef.set(invoicePatch, { merge: true }),
+        versionId
+          ? workspaceRef.collection('invoice_versions').doc(versionId).set(versionPatch, { merge: true })
+          : Promise.resolve(),
+      ]);
+    }
+  }
+);
+
 export const manageSubscriptionRenewalChange = onRequest(
   {
     region: 'asia-south1',
@@ -3455,6 +3604,7 @@ export const queueSupportCaseFollowUpEmail = onRequest(
     region: 'asia-south1',
     cors: true,
     maxInstances: 10,
+    secrets: [resendApiKey],
   },
   async (request, response) => {
     response.set('Cache-Control', 'no-store');
@@ -3501,17 +3651,27 @@ export const queueSupportCaseFollowUpEmail = onRequest(
         .collection('office_access_audit')
         .doc(normalizeId(`support_case_email_${supportCaseId}_${adminUser.uid}_${Date.now()}`));
 
+      const emailRequestRecord = buildSupportCaseEmailRequestRecord({
+        workspaceId,
+        supportCaseId,
+        recipientEmail,
+        subject,
+        body: emailBody,
+        queuedBy: adminUser.uid,
+        queuedByEmail: adminUser.email,
+        now,
+      });
+      const delivery = await deliverSupportCaseEmailRequest(emailRequestRecord);
+      const emailDeliveryUpdate = buildSupportCaseEmailDeliveryUpdate({
+        status: delivery.status,
+        providerMessageId: delivery.providerMessageId,
+        sentAt: delivery.sentAt,
+        failureReason: delivery.failureReason,
+        now,
+      });
+
       await db.runTransaction(async (transaction) => {
-        transaction.set(emailRef, buildSupportCaseEmailRequestRecord({
-          workspaceId,
-          supportCaseId,
-          recipientEmail,
-          subject,
-          body: emailBody,
-          queuedBy: adminUser.uid,
-          queuedByEmail: adminUser.email,
-          now,
-        }));
+        transaction.set(emailRef, { ...emailRequestRecord, ...emailDeliveryUpdate });
         transaction.set(auditRef, {
           version: 1,
           workspace_id: workspaceId,
@@ -3529,7 +3689,12 @@ export const queueSupportCaseFollowUpEmail = onRequest(
           support_case_id: supportCaseId,
           customer_approved_diagnostic_access: false,
           impersonation_allowed: false,
-          reason: 'Support case follow-up email prepared. Delivery is pending email provider connection.',
+          reason:
+            delivery.status === 'sent'
+              ? 'Support case follow-up email sent.'
+              : delivery.status === 'pending_provider_connection'
+                ? 'Support case follow-up email is ready; email delivery is not connected yet.'
+                : 'Support case follow-up email could not be sent.',
           created_at: now.toISOString(),
         });
       });
@@ -3537,8 +3702,14 @@ export const queueSupportCaseFollowUpEmail = onRequest(
       response.status(200).json({
         ok: true,
         requestId: emailRef.id,
-        deliveryStatus: 'pending_provider_connection',
-        message: 'Support follow-up email is ready for provider connection.',
+        deliveryStatus: delivery.status,
+        sentAt: delivery.sentAt,
+        message:
+          delivery.status === 'sent'
+            ? 'Support follow-up email sent.'
+            : delivery.status === 'pending_provider_connection'
+              ? 'Support follow-up email is ready. Email delivery is not connected yet.'
+              : 'Support follow-up email could not be sent.',
       });
     } catch (error) {
       logger.error('queueSupportCaseFollowUpEmail failed', { workspaceId, supportCaseId, error });
@@ -6396,44 +6567,16 @@ async function deliverSubscriptionBillingEmailRequest(
     };
   }
 
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  return sendResendEmail({
+    apiKey,
+    payload: buildResendEmailPayload({
         from: getBillingEmailFromAddress(),
         to: [recipientEmail],
         subject: buildBillingReceiptEmailSubject(request),
         html: buildBillingReceiptEmailHtml(request),
         text: buildBillingReceiptEmailText(request),
-      }),
-    });
-    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!response.ok) {
-      return {
-        status: 'failed',
-        providerMessageId: clean(stringValue(payload.id)),
-        sentAt: null,
-        failureReason: clean(stringValue(payload.message)) ?? `email_failed_${response.status}`,
-      };
-    }
-    return {
-      status: 'sent',
-      providerMessageId: clean(stringValue(payload.id)),
-      sentAt: new Date().toISOString(),
-      failureReason: null,
-    };
-  } catch (error) {
-    return {
-      status: 'failed',
-      providerMessageId: null,
-      sentAt: null,
-      failureReason: error instanceof Error ? error.message : 'email_failed',
-    };
-  }
+    }),
+  });
 }
 
 async function getOfficeInvitationDeliveryAuthorization(
@@ -6587,44 +6730,16 @@ async function deliverOfficeInvitationEmail(input: {
     };
   }
 
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  return sendResendEmail({
+    apiKey,
+    payload: buildResendEmailPayload({
         from: getOfficeInvitationFromAddress(),
         to: [recipientEmail],
         subject: buildOfficeInvitationEmailSubject(input.invitation, input.workspace),
         html: buildOfficeInvitationEmailHtml(input.invitation, input.workspace, input.inviteUrl),
         text: buildOfficeInvitationEmailText(input.invitation, input.workspace, input.inviteUrl),
-      }),
-    });
-    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!response.ok) {
-      return {
-        status: 'failed',
-        providerMessageId: clean(stringValue(payload.id)),
-        sentAt: null,
-        failureReason: clean(stringValue(payload.message)) ?? `email_failed_${response.status}`,
-      };
-    }
-    return {
-      status: 'sent',
-      providerMessageId: clean(stringValue(payload.id)),
-      sentAt: new Date().toISOString(),
-      failureReason: null,
-    };
-  } catch (error) {
-    return {
-      status: 'failed',
-      providerMessageId: null,
-      sentAt: null,
-      failureReason: error instanceof Error ? error.message : 'email_failed',
-    };
-  }
+    }),
+  });
 }
 
 async function deliverOfficeOwnershipTransferEmail(input: {
@@ -6651,20 +6766,230 @@ async function deliverOfficeOwnershipTransferEmail(input: {
     };
   }
 
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  return sendResendEmail({
+    apiKey,
+    payload: buildResendEmailPayload({
         from: getOfficeInvitationFromAddress(),
         to: [recipientEmail],
         subject: buildOfficeOwnershipTransferEmailSubject(input.transfer, input.workspace),
         html: buildOfficeOwnershipTransferEmailHtml(input.transfer, input.workspace),
         text: buildOfficeOwnershipTransferEmailText(input.transfer, input.workspace),
-      }),
+    }),
+  });
+}
+
+async function deliverSupportCaseEmailRequest(
+  request: FirebaseFirestore.DocumentData
+): Promise<BillingEmailDeliveryResult> {
+  const recipientEmail = clean(stringValue(request.recipient_email));
+  const subject = clean(stringValue(request.subject));
+  const body = clean(stringValue(request.body));
+  if (!recipientEmail || !isValidEmailAddress(recipientEmail) || !subject || !body) {
+    return {
+      status: 'failed',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: 'support_email_required',
+    };
+  }
+
+  const apiKey = getSecretValue(resendApiKey, 'RESEND_API_KEY');
+  if (!isConfiguredCredential(apiKey)) {
+    return {
+      status: 'pending_provider_connection',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: null,
+    };
+  }
+
+  return sendResendEmail({
+    apiKey,
+    payload: buildResendEmailPayload({
+      from: getSupportEmailFromAddress(),
+      to: [recipientEmail],
+      subject,
+      html: buildSupportCaseEmailHtml(body),
+      text: body,
+    }),
+  });
+}
+
+async function deliverRecurringInvoiceEmailRequest(input: {
+  workspaceId: string;
+  invoiceId: string;
+  invoice: FirebaseFirestore.DocumentData;
+  queue: FirebaseFirestore.DocumentData;
+}): Promise<BillingEmailDeliveryResult> {
+  const recipientEmail = clean(stringValue(input.queue.recipient_email));
+  const subject = clean(stringValue(input.queue.subject)) ?? `Invoice ${clean(stringValue(input.invoice.invoice_number)) ?? input.invoiceId}`;
+  const body = clean(stringValue(input.queue.body)) ?? 'Your invoice is ready.';
+  if (!recipientEmail || !isValidEmailAddress(recipientEmail)) {
+    return {
+      status: 'failed',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: 'recipient_required',
+    };
+  }
+
+  const apiKey = getSecretValue(resendApiKey, 'RESEND_API_KEY');
+  if (!isConfiguredCredential(apiKey)) {
+    return {
+      status: 'pending_provider_connection',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: null,
+    };
+  }
+
+  const paymentLink = Boolean(input.queue.include_payment_link)
+    ? buildRecurringInvoicePaymentLink(input.workspaceId, input.invoiceId, input.invoice)
+    : null;
+  const renderedBody = renderRecurringInvoiceEmailBodyForDelivery(body, paymentLink);
+  return sendResendEmail({
+    apiKey,
+    payload: buildResendEmailPayload({
+      from: getOrbitLedgerFromAddress(),
+      to: [recipientEmail],
+      subject,
+      html: buildRecurringInvoiceEmailHtml(renderedBody, input.invoice),
+      text: renderedBody,
+    }),
+  });
+}
+
+async function ensureRecurringInvoiceSavedVersion(
+  workspaceRef: FirebaseFirestore.DocumentReference,
+  invoiceRef: FirebaseFirestore.DocumentReference,
+  invoiceId: string,
+  invoice: FirebaseFirestore.DocumentData
+): Promise<string | null> {
+  const existingVersionId = clean(stringValue(invoice.latest_version_id));
+  if (existingVersionId) {
+    return existingVersionId;
+  }
+
+  const now = new Date().toISOString();
+  const itemSnapshot = await workspaceRef.collection('invoice_items').where('invoice_id', '==', invoiceId).get();
+  const items = itemSnapshot.docs.map((entry) => {
+    const item = entry.data();
+    return {
+      id: entry.id,
+      invoiceId,
+      productId: clean(stringValue(item.product_id)),
+      name: clean(stringValue(item.name)) ?? 'Item',
+      description: clean(stringValue(item.description)),
+      quantity: numberValue(item.quantity, 0),
+      price: numberValue(item.price, 0),
+      taxRate: numberValue(item.tax_rate, 0),
+      total: numberValue(item.total, 0),
+    };
+  });
+  const snapshotHash = functionStableBase36Hash(JSON.stringify({
+    customer_id: clean(stringValue(invoice.customer_id)),
+    invoice_number: clean(stringValue(invoice.invoice_number)),
+    issue_date: clean(stringValue(invoice.issue_date)),
+    due_date: clean(stringValue(invoice.due_date)),
+    subtotal: numberValue(invoice.subtotal, 0),
+    tax_amount: numberValue(invoice.tax_amount, 0),
+    total_amount: numberValue(invoice.total_amount, 0),
+    notes: clean(stringValue(invoice.notes)),
+    items,
+  }));
+  const versionRef = workspaceRef.collection('invoice_versions').doc();
+  const versionNumber = Math.max(1, Math.floor(numberValue(invoice.version_number, 0)) || 1);
+  await db.runTransaction(async (transaction) => {
+    const freshInvoice = await transaction.get(invoiceRef);
+    const freshData = freshInvoice.data() ?? {};
+    const freshVersionId = clean(stringValue(freshData.latest_version_id));
+    if (freshVersionId) {
+      return;
+    }
+    transaction.set(versionRef, {
+      invoice_id: invoiceId,
+      invoice_number: clean(stringValue(invoice.invoice_number)) ?? invoiceId,
+      invoice_number_key: functionInvoiceNumberKey(clean(stringValue(invoice.invoice_number)) ?? invoiceId),
+      version_number: versionNumber,
+      reason: 'First saved recurring invoice',
+      created_at: now,
+      customer_id: clean(stringValue(invoice.customer_id)),
+      customer_name: clean(stringValue(invoice.customer_name)),
+      issue_date: clean(stringValue(invoice.issue_date)) ?? now.slice(0, 10),
+      billing_month: clean(stringValue(invoice.billing_month)) ?? clean(stringValue(invoice.issue_date))?.slice(0, 7),
+      due_date: clean(stringValue(invoice.due_date)),
+      document_state: 'created',
+      payment_status: clean(stringValue(invoice.payment_status)) ?? 'unpaid',
+      payment_status_reason: clean(stringValue(invoice.payment_status_reason)),
+      auto_email_sent_at: null,
+      auto_email_scheduled_for: clean(stringValue(invoice.auto_email_scheduled_for)),
+      auto_email_recipient: clean(stringValue(invoice.auto_email_recipient)),
+      auto_email_queue_id: clean(stringValue(invoice.auto_email_queue_id)),
+      auto_email_status: clean(stringValue(invoice.latest_auto_email_status)) ?? 'scheduled',
+      auto_email_used_version_id: null,
+      subtotal: numberValue(invoice.subtotal, 0),
+      tax_amount: numberValue(invoice.tax_amount, 0),
+      total_amount: numberValue(invoice.total_amount, 0),
+      paid_amount: numberValue(invoice.paid_amount, 0),
+      notes: clean(stringValue(invoice.notes)),
+      snapshot_hash: snapshotHash,
+      items,
+      pdf_file_name: null,
+      csv_file_name: null,
+      sync_status: 'synced',
+      server_revision: 1,
+    });
+    transaction.set(invoiceRef, {
+      status: 'created',
+      document_state: 'created',
+      version_number: versionNumber,
+      latest_version_id: versionRef.id,
+      latest_snapshot_hash: snapshotHash,
+      last_modified: now,
+      server_revision: admin.firestore.FieldValue.increment(1),
+    }, { merge: true });
+  });
+  const latestSnapshot = await invoiceRef.get();
+  return clean(stringValue(latestSnapshot.data()?.latest_version_id)) ?? versionRef.id;
+}
+
+export function buildResendEmailPayload(input: {
+  from?: string | null;
+  to: string[];
+  subject: string;
+  html: string;
+  text: string;
+}): ResendEmailPayload {
+  return {
+    from: clean(input.from) ?? getOrbitLedgerFromAddress(),
+    to: input.to.map((email) => email.trim()).filter(isValidEmailAddress),
+    subject: input.subject,
+    html: input.html,
+    text: input.text,
+  };
+}
+
+async function sendResendEmail(input: {
+  apiKey: string;
+  payload: ResendEmailPayload;
+}): Promise<BillingEmailDeliveryResult> {
+  if (!input.payload.to.length) {
+    return {
+      status: 'failed',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: 'recipient_required',
+    };
+  }
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input.payload),
     });
     const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     if (!response.ok) {
@@ -6691,8 +7016,64 @@ async function deliverOfficeOwnershipTransferEmail(input: {
   }
 }
 
+function getOrbitLedgerFromAddress() {
+  return process.env.ORBIT_LEDGER_FROM_EMAIL?.trim() || 'Orbit Ledger <no-reply@orbitledger.rudraix.com>';
+}
+
+function buildRecurringInvoicePaymentLink(
+  workspaceId: string,
+  invoiceId: string,
+  invoice: FirebaseFirestore.DocumentData
+) {
+  const explicitPaymentPage = normalizeHttpsUrlForFunction(process.env.ORBIT_LEDGER_PAYMENT_PAGE_URL);
+  const url = new URL(explicitPaymentPage ?? `${getOrbitLedgerWebAppUrl()}/pay`);
+  url.searchParams.set('workspaceId', workspaceId);
+  url.searchParams.set('invoiceId', invoiceId);
+  const invoiceNumber = clean(stringValue(invoice.invoice_number));
+  const totalAmount = numberValue(invoice.total_amount, 0);
+  if (invoiceNumber) {
+    url.searchParams.set('invoice', invoiceNumber);
+    url.searchParams.set('reference', `INV-${invoiceNumber.replace(/\s+/g, '-')}`);
+  }
+  if (totalAmount > 0) {
+    url.searchParams.set('amount', totalAmount.toFixed(2));
+  }
+  url.searchParams.set('currency', clean(stringValue(invoice.currency)) ?? 'INR');
+  return url.toString();
+}
+
+function renderRecurringInvoiceEmailBodyForDelivery(body: string, paymentLink: string | null) {
+  if (!paymentLink) {
+    return body
+      .replaceAll('{{paymentLink}}', '')
+      .replaceAll('Payment link will be added before sending.', '')
+      .trim();
+  }
+  return body
+    .replaceAll('{{paymentLink}}', paymentLink)
+    .replaceAll('Payment link will be added before sending.', paymentLink)
+    .trim();
+}
+
+function normalizeHttpsUrlForFunction(value?: string | null): string | null {
+  const cleaned = clean(value);
+  if (!cleaned) {
+    return null;
+  }
+  try {
+    const url = new URL(cleaned);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function getOfficeInvitationFromAddress() {
-  return process.env.ORBIT_LEDGER_OFFICE_FROM_EMAIL?.trim() || 'Orbit Ledger <office@rudraix.com>';
+  return process.env.ORBIT_LEDGER_OFFICE_FROM_EMAIL?.trim() || getOrbitLedgerFromAddress();
+}
+
+function getSupportEmailFromAddress() {
+  return process.env.ORBIT_LEDGER_SUPPORT_FROM_EMAIL?.trim() || getOrbitLedgerFromAddress();
 }
 
 function getOrbitLedgerWebAppUrl() {
@@ -6834,7 +7215,7 @@ function buildOfficeOwnershipTransferEmailHtml(
 }
 
 function getBillingEmailFromAddress() {
-  return process.env.ORBIT_LEDGER_BILLING_FROM_EMAIL?.trim() || 'Orbit Ledger <billing@rudraix.com>';
+  return process.env.ORBIT_LEDGER_BILLING_FROM_EMAIL?.trim() || getOrbitLedgerFromAddress();
 }
 
 function buildBillingReceiptEmailSubject(request: FirebaseFirestore.DocumentData) {
@@ -6880,6 +7261,68 @@ function buildBillingReceiptEmailHtml(request: FirebaseFirestore.DocumentData) {
                 <tr><td style="padding:12px;border-top:1px solid #e6edf6;border-bottom:1px solid #e6edf6;color:#607087">Amount</td><td style="padding:12px;border-top:1px solid #e6edf6;border-bottom:1px solid #e6edf6;text-align:right;font-weight:700">${amount}</td></tr>
               </table>
               <p style="margin:22px 0 0;color:#7b8ba3;font-size:12px">Generated using Orbit Ledger by Rudraix.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+function buildSupportCaseEmailHtml(body: string) {
+  const paragraphs = body
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p style="margin:0 0 14px;color:#41516a;font-size:15px;line-height:1.55">${escapeHtml(paragraph).replaceAll('\n', '<br>')}</p>`)
+    .join('');
+  return `<!doctype html>
+<html>
+<body style="margin:0;background:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#182233">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:28px">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #d8e2ef;border-radius:18px;padding:28px">
+          <tr>
+            <td>
+              <h1 style="margin:0 0 14px;font-size:22px;line-height:1.2">Orbit Ledger support</h1>
+              ${paragraphs || '<p style="margin:0 0 14px;color:#41516a;font-size:15px;line-height:1.55">Support follow-up from Orbit Ledger.</p>'}
+              <p style="margin:24px 0 0;color:#8a98aa;font-size:12px">Orbit Ledger by Rudraix</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+function buildRecurringInvoiceEmailHtml(body: string, invoice: FirebaseFirestore.DocumentData) {
+  const invoiceNumber = escapeHtml(clean(stringValue(invoice.invoice_number)) ?? 'invoice');
+  const totalAmount = numberValue(invoice.total_amount, 0);
+  const currency = escapeHtml(clean(stringValue(invoice.currency)) ?? 'INR');
+  const paragraphs = body
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p style="margin:0 0 14px;color:#41516a;font-size:15px;line-height:1.55">${escapeHtml(paragraph).replaceAll('\n', '<br>')}</p>`)
+    .join('');
+  return `<!doctype html>
+<html>
+<body style="margin:0;background:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#182233">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:28px">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #d8e2ef;border-radius:18px;padding:28px">
+          <tr>
+            <td>
+              <h1 style="margin:0 0 8px;font-size:22px;line-height:1.2">Invoice ${invoiceNumber}</h1>
+              <p style="margin:0 0 20px;color:#607087;font-size:14px;line-height:1.5">Amount due: ${currency} ${escapeHtml(totalAmount.toFixed(2))}</p>
+              ${paragraphs || '<p style="margin:0 0 14px;color:#41516a;font-size:15px;line-height:1.55">Your invoice is ready.</p>'}
+              <p style="margin:24px 0 0;color:#8a98aa;font-size:12px">Orbit Ledger by Rudraix</p>
             </td>
           </tr>
         </table>
