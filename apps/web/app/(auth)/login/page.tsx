@@ -351,7 +351,26 @@ export default function LoginPage() {
               }}
               type="button"
             >
-              <span className="ol-google-mark" aria-hidden="true">G</span>
+              <span className="ol-google-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    fill="#4285F4"
+                  />
+                  <path
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.15v2.84C3.96 20.53 7.67 23 12 23z"
+                    fill="#34A853"
+                  />
+                  <path
+                    d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.15C1.42 8.52 1 10.21 1 12s.42 3.48 1.15 4.94l3.69-2.84z"
+                    fill="#FBBC05"
+                  />
+                  <path
+                    d="M12 5.37c1.62 0 3.06.56 4.21 1.64l3.16-3.16C17.45 2.06 14.97 1 12 1 7.67 1 3.96 3.47 2.15 7.06L5.84 9.9C6.71 7.3 9.14 5.37 12 5.37z"
+                    fill="#EA4335"
+                  />
+                </svg>
+              </span>
               {isGoogleSubmitting ? 'Opening Google...' : 'Continue with Google'}
             </button>
 
