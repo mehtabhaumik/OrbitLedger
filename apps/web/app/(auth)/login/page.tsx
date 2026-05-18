@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import { BrandOrbitalLoader } from '@/components/brand-loader';
 import { validateEmail, validateName } from '@/lib/form-validation';
 import { useAuth } from '@/providers/auth-provider';
 
@@ -106,6 +107,7 @@ export default function LoginPage() {
               height={38}
             />
           </Link>
+          <BrandOrbitalLoader size="md" label={user ? 'Opening dashboard' : 'Checking secure session'} />
           <strong>{user ? 'Opening your dashboard...' : 'Checking your secure session...'}</strong>
           {hasAuthCheckTimedOut && !user ? (
             <>

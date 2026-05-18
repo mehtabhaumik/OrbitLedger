@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
 
+import { BrandOrbitalLoader } from '@/components/brand-loader';
 import { acceptWebOfficeInvitation } from '@/lib/office-team';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -127,7 +128,11 @@ function OfficeInviteLoading() {
           />
           <span className="ol-brand-header-copy">Office invitation</span>
         </div>
-        <div className="ol-message">Opening invitation...</div>
+        <div className="ol-auth-loading-card ol-auth-loading-card--inline" role="status" aria-live="polite">
+          <BrandOrbitalLoader size="md" label="Opening invitation" />
+          <strong>Opening invitation...</strong>
+          <span>Checking the invite link and sign-in session.</span>
+        </div>
       </section>
     </main>
   );

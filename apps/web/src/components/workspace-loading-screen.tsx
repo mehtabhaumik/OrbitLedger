@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { BrandOrbitalLoader } from './brand-loader';
+
 const loadingSteps = [
   'Checking your business',
   'Restoring the latest business profile',
@@ -64,10 +66,7 @@ export function WorkspaceLoadingScreen() {
                 work.
               </p>
             </div>
-            <div className="ol-loader-cluster" aria-hidden="true">
-              <div className="ol-loader-ring" />
-              <div className="ol-loader-core" />
-            </div>
+            <BrandOrbitalLoader size="lg" label="Preparing workspace" />
           </div>
 
           <div className="ol-loading-progress" aria-hidden="true">

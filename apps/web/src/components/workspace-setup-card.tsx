@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from 'react';
 
+import { BrandOrbitalLoader } from './brand-loader';
 import {
   normalizePhoneForCountry,
   validateEmail,
@@ -542,10 +543,7 @@ export function WorkspaceSetupCard() {
                       entries immediately.
                     </p>
                   </div>
-                  <div className="ol-loader-cluster" aria-hidden="true">
-                    <div className="ol-loader-ring" />
-                    <div className="ol-loader-core" />
-                  </div>
+                  <BrandOrbitalLoader size="lg" label="Creating workspace" />
                 </div>
 
                 <div className="ol-loading-progress" aria-hidden="true">

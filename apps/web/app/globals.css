@@ -4434,6 +4434,14 @@ a:focus-visible {
   text-align: center;
 }
 
+.ol-auth-loading-card--inline {
+  width: 100%;
+  box-shadow: none;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(63, 119, 235, 0.1) 0, transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.9));
+}
+
 .ol-auth-loading-card .ol-brand-logo {
   width: min(180px, 68vw);
   height: auto;
@@ -4943,8 +4951,13 @@ a:focus-visible {
   border-radius: 28px;
   padding: 30px;
   border: 1px solid rgba(192, 205, 224, 0.84);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(246, 250, 255, 0.82) 100%);
-  box-shadow: var(--shadow-strong);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(63, 119, 235, 0.12) 0, transparent 36%),
+    radial-gradient(circle at 96% 18%, rgba(56, 166, 132, 0.1) 0, transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(246, 250, 255, 0.86) 100%);
+  box-shadow:
+    0 28px 70px rgba(20, 32, 51, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
   display: grid;
   gap: 22px;
 }
@@ -5022,6 +5035,117 @@ a:focus-visible {
   z-index: 1;
 }
 
+.ol-brand-orbit-loader {
+  --loader-size: 88px;
+  --loader-core: 42px;
+  position: relative;
+  width: var(--loader-size);
+  height: var(--loader-size);
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  isolation: isolate;
+  filter: drop-shadow(0 18px 30px rgba(47, 108, 211, 0.14));
+}
+
+.ol-brand-orbit-loader--sm {
+  --loader-size: 52px;
+  --loader-core: 28px;
+}
+
+.ol-brand-orbit-loader--md {
+  --loader-size: 76px;
+  --loader-core: 38px;
+}
+
+.ol-brand-orbit-loader--lg {
+  --loader-size: 104px;
+  --loader-core: 52px;
+}
+
+.ol-brand-orbit-loader::before {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 38% 34%, rgba(255, 255, 255, 0.96) 0 16%, transparent 17%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(234, 242, 255, 0.68));
+  border: 1px solid rgba(192, 208, 232, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 12px 28px rgba(24, 44, 78, 0.08);
+  z-index: -1;
+}
+
+.ol-brand-orbit-loader__ring {
+  position: absolute;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.ol-brand-orbit-loader__ring--outer {
+  inset: 0;
+  background: conic-gradient(
+    from 18deg,
+    transparent 0deg 34deg,
+    rgba(61, 119, 232, 0.1) 34deg 74deg,
+    #3977ed 74deg 132deg,
+    transparent 132deg 210deg,
+    rgba(55, 177, 137, 0.86) 210deg 254deg,
+    transparent 254deg 360deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  animation: orbit-spin 1.8s linear infinite;
+}
+
+.ol-brand-orbit-loader__ring--middle {
+  inset: 14%;
+  background: conic-gradient(
+    from 230deg,
+    transparent 0deg 42deg,
+    rgba(126, 92, 245, 0.18) 42deg 84deg,
+    #7a5cf4 84deg 136deg,
+    transparent 136deg 236deg,
+    rgba(216, 156, 52, 0.86) 236deg 276deg,
+    transparent 276deg 360deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation: orbit-spin-reverse 2.4s linear infinite;
+}
+
+.ol-brand-orbit-loader__ring--inner {
+  inset: 30%;
+  border: 1px solid rgba(63, 119, 235, 0.2);
+  background: radial-gradient(circle, rgba(63, 119, 235, 0.1), transparent 64%);
+  animation: orbit-loader-breathe 1.8s ease-in-out infinite;
+}
+
+.ol-brand-orbit-loader__core {
+  width: var(--loader-core);
+  height: var(--loader-core);
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(237, 244, 255, 0.92)),
+    #ffffff;
+  border: 1px solid rgba(190, 207, 234, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 10px 24px rgba(48, 88, 160, 0.13);
+}
+
+.ol-brand-orbit-loader__core span {
+  color: #2867d8;
+  font-size: calc(var(--loader-core) * 0.54);
+  font-weight: 950;
+  letter-spacing: -0.08em;
+  line-height: 1;
+}
+
 .ol-loading-progress {
   width: 100%;
   height: 10px;
@@ -5069,6 +5193,18 @@ a:focus-visible {
 
 .ol-loading-step.is-active .ol-dot {
   animation: orbit-pulse 1.5s ease-in-out infinite;
+}
+
+.ol-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .ol-showcase-stack {
@@ -7095,6 +7231,18 @@ a:focus-visible {
   50% {
     transform: scale(1.25);
     opacity: 0.82;
+  }
+}
+
+@keyframes orbit-loader-breathe {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.58;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.96;
   }
 }
 
