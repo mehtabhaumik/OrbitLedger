@@ -450,7 +450,7 @@ export default function TransactionsPage() {
                 <span className="ol-field-label">Quick note</span>
                 <textarea
                   className="ol-textarea"
-                  placeholder="Example: Sonali Traders paid 1500 by UPI"
+                  placeholder="Example: North Star Retail paid 1500 by UPI"
                   value={fastEntryText}
                   onChange={(event) => setFastEntryText(event.target.value)}
                 />

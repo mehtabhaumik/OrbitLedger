@@ -127,9 +127,9 @@ export default function LandingPage() {
                 <span>Collect today</span>
                 <strong>3 customers</strong>
                 <div>
-                  <b>Sonali Traders</b>
-                  <b>Aarav Stores</b>
-                  <b>Mehta Services</b>
+                  <b>North Star Retail</b>
+                  <b>Blue Harbor Supply</b>
+                  <b>Peakline Services</b>
                 </div>
               </a>
 
