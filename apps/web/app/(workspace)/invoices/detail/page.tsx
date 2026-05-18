@@ -13,6 +13,7 @@ import {
   getManualPaymentInstructionTemplate,
   getManualPaymentVerificationPlan,
   getInvoiceDocumentStateLabel,
+  getInvoicePaymentDocumentStatusLine,
   getInvoicePaymentStatusLabel,
   getPaymentClearanceDocumentStatusLine,
   getPaymentClearanceStatusLabel,
@@ -329,9 +330,10 @@ function InvoiceEditorContent() {
   const previewPaymentDocumentStatusLine =
     hasPaymentClearancePreviewOverride
       ? getPaymentClearanceDocumentStatusLine(paymentClearanceStatus, paymentMode)
-      : previewPaymentStatusReason
-        ? `Unpaid - ${previewPaymentStatusReason}`
-        : null;
+      : getInvoicePaymentDocumentStatusLine({
+          paymentStatus: previewPaymentStatus,
+          paymentStatusReason: previewPaymentStatusReason,
+        });
   const previewPaymentDocumentModeLine = hasPaymentClearancePreviewOverride
     ? getPaymentDocumentModeLine(paymentMode, paymentDetails)
     : null;

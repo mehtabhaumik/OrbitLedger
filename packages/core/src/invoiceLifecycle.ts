@@ -22,6 +22,12 @@ export type InvoiceLifecycleInput = {
   today?: string;
 };
 
+export type InvoicePaymentDocumentStatusInput = {
+  paymentStatus?: string | null;
+  paymentStatusLine?: string | null;
+  paymentStatusReason?: string | null;
+};
+
 export const INVOICE_DOCUMENT_STATES: InvoiceDocumentState[] = [
   'draft',
   'created',
@@ -155,6 +161,25 @@ export function getInvoicePaymentStatusLabel(status: InvoicePaymentStatus): stri
   }
 }
 
+export function getInvoicePaymentDocumentStatusLine(input: InvoicePaymentDocumentStatusInput): string | null {
+  const status = normalizeInvoicePaymentStatus({ paymentStatus: input.paymentStatus });
+  const statusLine = clean(input.paymentStatusLine);
+  const reason = clean(input.paymentStatusReason);
+
+  if (status === 'paid') {
+    return statusLine && !startsWithUnpaid(statusLine) ? statusLine : null;
+  }
+
+  if (statusLine) {
+    if (startsWithPaid(statusLine)) {
+      return reason ? `Unpaid - ${stripPaymentPrefix(reason)}` : null;
+    }
+    return statusLine;
+  }
+
+  return reason ? `Unpaid - ${stripPaymentPrefix(reason)}` : null;
+}
+
 export function getGeneratedInvoiceDocumentLabel(state: InvoiceDocumentState): string {
   if (state === 'draft') {
     return 'Working copy';
@@ -165,4 +190,21 @@ export function getGeneratedInvoiceDocumentLabel(state: InvoiceDocumentState): s
 
 function todayDate(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function clean(value?: string | null): string | null {
+  const cleaned = value?.trim();
+  return cleaned ? cleaned : null;
+}
+
+function startsWithUnpaid(value: string): boolean {
+  return /^unpaid\b/i.test(value.trim());
+}
+
+function startsWithPaid(value: string): boolean {
+  return /^paid\b/i.test(value.trim());
+}
+
+function stripPaymentPrefix(value: string): string {
+  return value.replace(/^(unpaid|paid)\s*[-:]\s*/i, '').trim();
 }

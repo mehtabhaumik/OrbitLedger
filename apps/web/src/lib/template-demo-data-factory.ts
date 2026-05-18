@@ -329,7 +329,7 @@ function buildDemoInvoice(
     status: 'created',
     documentState: 'created',
     paymentStatus: isPaidTemplate(templateKey) ? 'paid' : 'unpaid',
-    paymentStatusReason: isPaidTemplate(templateKey) ? 'Paid in full' : 'Sample amount due',
+    paymentStatusReason: isPaidTemplate(templateKey) ? null : 'Sample amount due',
     versionNumber: 1,
     latestVersionId: `${invoiceId}-version-1`,
     latestSnapshotHash: `${invoiceId}-hash`,

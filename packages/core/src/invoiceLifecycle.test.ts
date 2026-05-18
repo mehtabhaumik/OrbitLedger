@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   deriveInvoicePaymentStatus,
+  getInvoicePaymentDocumentStatusLine,
   legacyStatusForInvoiceLifecycle,
 } from './invoiceLifecycle';
 
@@ -38,5 +39,32 @@ describe('invoice payment lifecycle', () => {
         totalAmount: 1000,
       })
     ).toBe('pending_clearance');
+  });
+
+  it('prevents contradictory paid and unpaid document status lines', () => {
+    expect(
+      getInvoicePaymentDocumentStatusLine({
+        paymentStatus: 'paid',
+        paymentStatusReason: 'Paid in full',
+      })
+    ).toBeNull();
+    expect(
+      getInvoicePaymentDocumentStatusLine({
+        paymentStatus: 'paid',
+        paymentStatusLine: 'Unpaid - E-payment pending',
+      })
+    ).toBeNull();
+    expect(
+      getInvoicePaymentDocumentStatusLine({
+        paymentStatus: 'paid',
+        paymentStatusLine: 'E-payment received',
+      })
+    ).toBe('E-payment received');
+    expect(
+      getInvoicePaymentDocumentStatusLine({
+        paymentStatus: 'unpaid',
+        paymentStatusReason: 'cheque pending',
+      })
+    ).toBe('Unpaid - cheque pending');
   });
 });

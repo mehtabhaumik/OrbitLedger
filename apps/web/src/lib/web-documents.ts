@@ -4,6 +4,7 @@ import {
   getAccessibleSharedDocumentTemplate,
   getDefaultSharedDocumentTemplate,
   getGeneratedInvoiceDocumentLabel,
+  getInvoicePaymentDocumentStatusLine,
   getInvoicePaymentStatusLabel,
   getLocalBusinessPack,
   getSharedDocumentTemplateCatalog,
@@ -465,9 +466,11 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
   );
   const paymentStatus = input.invoice.paymentStatus;
   const paymentStatusLabel = getInvoicePaymentStatusLabel(paymentStatus);
-  const paymentStatusLine =
-    input.paymentStatusLine ??
-    (input.invoice.paymentStatusReason ? `Unpaid - ${input.invoice.paymentStatusReason}` : null);
+  const paymentStatusLine = getInvoicePaymentDocumentStatusLine({
+    paymentStatus,
+    paymentStatusLine: input.paymentStatusLine,
+    paymentStatusReason: input.invoice.paymentStatusReason,
+  });
   const invoiceData: InvoiceDocumentData = {
     title: pack.documents.invoiceTitle,
     businessName: input.workspace.businessName,

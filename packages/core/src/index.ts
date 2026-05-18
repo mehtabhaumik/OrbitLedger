@@ -484,6 +484,7 @@ export type {
 
 export {
   deriveInvoicePaymentStatus,
+  getInvoicePaymentDocumentStatusLine,
   getGeneratedInvoiceDocumentLabel,
   getInvoiceDocumentStateLabel,
   getInvoicePaymentStatusLabel,

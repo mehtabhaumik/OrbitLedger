@@ -274,7 +274,13 @@ describe('web document parity', () => {
   it('uses a green paid stamp only for paid invoices', () => {
     const paidDocument = buildInvoiceWebDocument({
       workspace,
-      invoice: { ...makeInvoice(), paidAmount: 1180, paymentStatus: 'paid', status: 'paid' },
+      invoice: {
+        ...makeInvoice(),
+        paidAmount: 1180,
+        paymentStatus: 'paid',
+        paymentStatusReason: 'Paid in full',
+        status: 'paid',
+      },
       customer,
     });
     const unpaidDocument = buildInvoiceWebDocument({
@@ -285,6 +291,7 @@ describe('web document parity', () => {
 
     expect(paidDocument.html).toContain('invoice-paid-stamp');
     expect(paidDocument.html).toContain('Paid</div>');
+    expect(paidDocument.html).not.toContain('Unpaid - Paid in full');
     expect(unpaidDocument.html).not.toContain('<div class="invoice-paid-stamp">Paid</div>');
     expect(unpaidDocument.html).toContain('<strong>Unpaid</strong>');
   });
