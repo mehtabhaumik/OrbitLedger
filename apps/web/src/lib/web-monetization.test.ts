@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   getDefaultWebSubscriptionStatus,
+  WEB_BETA_TO_PAID_POLICY,
   getWebFeaturePlanChip,
   getWebFeatureRequiredPlanLabel,
   getWebPaidPlanCatalogForCountry,
@@ -58,6 +59,13 @@ describe('web monetization feature gates', () => {
       allowed: true,
       requiredTier: 'pro',
     });
+  });
+
+  it('explains beta-to-paid transition without surprise lockout', () => {
+    expect(WEB_BETA_TO_PAID_POLICY.title).toContain('No surprise lockout');
+    expect(WEB_BETA_TO_PAID_POLICY.commitments.join(' ')).toContain('advance notice');
+    expect(WEB_BETA_TO_PAID_POLICY.commitments.join(' ')).toContain('export');
+    expect(WEB_BETA_TO_PAID_POLICY.officeNote).toContain('existing beta workspaces');
   });
 
   it('unlocks Pro Plus features without unlocking Office-only features', () => {

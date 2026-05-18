@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { BrandOrbitalLoader } from '@/components/brand-loader';
 import { validateEmail, validateName } from '@/lib/form-validation';
+import { WEB_BETA_TO_PAID_POLICY } from '@/lib/web-monetization';
 import { useAuth } from '@/providers/auth-provider';
 
 const loginFeatures = [
@@ -439,7 +440,7 @@ export default function LoginPage() {
             </div>
 
             <div className="ol-auth-beta-note">
-              Free during public beta. Paid plans are coming soon.
+              Free during public beta. {WEB_BETA_TO_PAID_POLICY.title}.
             </div>
           </form>
         </section>

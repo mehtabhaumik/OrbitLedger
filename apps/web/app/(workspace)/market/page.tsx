@@ -57,6 +57,7 @@ import {
 } from '@/lib/purchase-launch-monitoring';
 import {
   WEB_BETA_FREE_ONLY,
+  WEB_BETA_TO_PAID_POLICY,
   WEB_OFFICE_INVITATION_SUBJECT,
   WEB_COUNTRY_PACK_PRODUCT_CATALOG,
   WEB_PRO_BRAND_THEMES,
@@ -450,9 +451,26 @@ export default function MarketPage() {
               <div>
                 <strong>Free access during beta</strong>
                 <p>
-                  Paid plans are coming soon. During public beta, Orbit Ledger web services remain free to use.
+                  Use the web workspace during public beta. Before paid plans begin, you will see a clear transition notice.
                 </p>
               </div>
+            </div>
+          ) : null}
+          {WEB_BETA_FREE_ONLY ? (
+            <div className="ol-beta-policy-card" aria-label="Beta to paid transition policy">
+              <div className="ol-beta-policy-card__head">
+                <span className="ol-chip ol-chip--primary">{WEB_BETA_TO_PAID_POLICY.chip}</span>
+                <div>
+                  <strong>{WEB_BETA_TO_PAID_POLICY.title}</strong>
+                  <p>{WEB_BETA_TO_PAID_POLICY.summary}</p>
+                </div>
+              </div>
+              <div className="ol-beta-policy-list">
+                {WEB_BETA_TO_PAID_POLICY.commitments.map((commitment) => (
+                  <span key={commitment}>{commitment}</span>
+                ))}
+              </div>
+              <p className="ol-beta-policy-note">{WEB_BETA_TO_PAID_POLICY.officeNote}</p>
             </div>
           ) : null}
           <div className="ol-panel-header">

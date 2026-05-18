@@ -145,6 +145,14 @@ export type WebPurchaseStatusCopy = {
   chip: string;
 };
 
+export type WebBetaToPaidPolicyCopy = {
+  chip: string;
+  title: string;
+  summary: string;
+  commitments: string[];
+  officeNote: string;
+};
+
 export type WebPlanChangeKind =
   | 'new_purchase'
   | 'current_plan'
@@ -244,6 +252,20 @@ export const WEB_SUBSCRIPTION_STATUS_VERSION = 1;
 export const WEB_SUBSCRIPTION_STORAGE_PREFIX = 'orbit-ledger:web-subscription-status:';
 export const WEB_CHECKOUT_INTENT_STORAGE_PREFIX = 'orbit-ledger:web-checkout-intent:';
 export const WEB_BETA_FREE_ONLY = true;
+export const WEB_BETA_TO_PAID_POLICY: WebBetaToPaidPolicyCopy = {
+  chip: 'Beta transition',
+  title: 'No surprise lockout when paid plans begin',
+  summary:
+    'Public beta gives broad access so businesses can evaluate real workflows. Before paid plans start, Orbit Ledger will give clear notice and a fair transition window.',
+  commitments: [
+    'You will get advance notice before any paid limits are enforced.',
+    'Your records stay available for review and export even if you do not upgrade.',
+    'Premium automation will not be removed mid-workflow without a visible plan choice.',
+    'Office access stays reviewed separately so team and multi-company work remains controlled.',
+  ],
+  officeNote:
+    'Office may be enabled during beta as reviewed access. When paid Office launches, existing beta workspaces will be contacted before any team or multi-company limits change.',
+};
 export const WEB_OFFICE_INVITATION_SUBJECT = 'Orbit Ledger Office invitation request';
 export const WEB_OFFICE_INVITATION_SUPPORT_EMAIL = 'support@rudraix.com';
 

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Route } from 'next';
+import { WEB_BETA_TO_PAID_POLICY } from '@/lib/web-monetization';
 import { LandingTemplateShowcase } from './landing-template-showcase';
 
 const actionTiles = [
@@ -158,7 +159,7 @@ export default function LandingPage() {
       <section className="ol-landing-beta-banner" aria-label="Public beta pricing note">
         <div>
           <strong>Public beta is free.</strong>
-          <span>Use the web workspace now. Paid plans are coming soon.</span>
+          <span>{WEB_BETA_TO_PAID_POLICY.summary}</span>
         </div>
         <Link className="ol-button-secondary" href={appCtaHref}>
           Start free
@@ -242,7 +243,7 @@ export default function LandingPage() {
       <section className="ol-landing-section ol-landing-pricing" id="pricing">
         <span className="ol-eyebrow">Public beta</span>
         <h2>Free during public beta.</h2>
-        <p>Orbit Ledger web is free during beta. Paid plans are coming soon.</p>
+        <p>{WEB_BETA_TO_PAID_POLICY.title}. {WEB_BETA_TO_PAID_POLICY.commitments[1]}</p>
         <Link className="ol-button" href={appCtaHref}>
           Start free
         </Link>
