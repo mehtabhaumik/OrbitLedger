@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default function PublicTemplatePreviewPage() {
   return (
     <Suspense fallback={<main className="ol-template-preview-page">Loading template preview...</main>}>
-      <TemplatePreviewSearchClient backHref="/#templates" backLabel="Back to landing page" />
+      <TemplatePreviewSearchClient backHref="/#templates" backLabel="Back to landing page" previewMode="public" />
     </Suspense>
   );
 }

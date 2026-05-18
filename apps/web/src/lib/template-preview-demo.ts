@@ -108,6 +108,55 @@ export function buildTemplatePreviewDocument(
   });
 }
 
+export function getTemplatePreviewBrandTheme(templateKey: string | null | undefined): WebProBrandTheme {
+  const key = String(templateKey ?? '').toUpperCase();
+  if (key.includes('PAYMENT')) {
+    return {
+      key: 'ledger_green',
+      label: 'Payment Red',
+      description: 'Payment-focused sample colors.',
+      accentColor: '#96322F',
+      surfaceColor: '#FFF1EF',
+      lineColor: '#D9BAB7',
+      textColor: '#1C1514',
+    };
+  }
+  if (key.includes('BRANDED')) {
+    return {
+      key: 'ledger_green',
+      label: 'Branded Purple',
+      description: 'Premium branded sample colors.',
+      accentColor: '#6F42C1',
+      surfaceColor: '#F2ECFF',
+      lineColor: '#C8B8F0',
+      textColor: '#201433',
+    };
+  }
+  if (key.includes('LETTERHEAD') || key.includes('MODERN_BUSINESS')) {
+    return {
+      key: 'graphite',
+      label: 'Letterhead Graphite',
+      description: 'Professional letterhead sample colors.',
+      accentColor: '#253047',
+      surfaceColor: '#EEF2F8',
+      lineColor: '#B8C3D5',
+      textColor: '#172033',
+    };
+  }
+  if (key.includes('RETAIL') || key.includes('COMPACT')) {
+    return {
+      key: 'moss',
+      label: 'Retail Moss',
+      description: 'Compact retail sample colors.',
+      accentColor: '#4F6B3F',
+      surfaceColor: '#EEF4EA',
+      lineColor: '#D5E1CF',
+      textColor: '#18231F',
+    };
+  }
+  return getWebProBrandTheme();
+}
+
 export function protectTemplatePreviewHtml(html: string) {
   const guardStyle = `
     <style>

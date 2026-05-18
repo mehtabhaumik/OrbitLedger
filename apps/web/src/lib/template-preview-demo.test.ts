@@ -7,6 +7,7 @@ import {
   buildSharedTemplateDemoData,
   buildSharedTemplateDemoDataForTemplates,
   buildTemplatePreviewDocument,
+  getTemplatePreviewBrandTheme,
   buildWorkspaceTemplateDemoData,
   protectTemplatePreviewHtml,
 } from './template-preview-demo';
@@ -240,6 +241,96 @@ describe('template preview demo', () => {
     expect(document.html).toContain('brand-watermark brand-watermark-image');
     expect(document.html).toContain('data:image/png;base64,preview-watermark');
     expect(document.html).toContain('--pro-watermark-opacity:0.12');
+  });
+
+  it('builds opened previews from the same workspace demo input as the showcase card', () => {
+    const document = buildTemplatePreviewDocument('IN_PAYMENT_FOCUSED_PRO', {
+      demoDataInput: {
+        mode: 'authenticated',
+        workspace: {
+          workspaceId: 'workspace-1',
+          businessName: 'Rudraix Lab',
+          ownerName: 'Bhaumik Mehta',
+          phone: '+91 90000 12345',
+          email: 'owner@example.invalid',
+          address: 'Workspace Road',
+          currency: 'INR',
+          countryCode: 'IN',
+          stateCode: 'GJ',
+          logoUri: null,
+          authorizedPersonName: '',
+          authorizedPersonTitle: '',
+          signatureUri: null,
+          paymentInstructions: {},
+          createdAt: '2026-05-02T00:00:00.000Z',
+          updatedAt: '2026-05-02T00:00:00.000Z',
+          serverRevision: 1,
+          dataState: 'full_dataset',
+        },
+        customers: [
+          {
+            id: 'customer-1',
+            name: 'Sonali Traders',
+            legalName: 'Sonali Traders',
+            customerType: 'business',
+            contactPerson: 'Sonali',
+            phone: '+91 95555 55555',
+            whatsapp: '+91 95555 55555',
+            email: 'sonali@example.invalid',
+            address: 'Customer Road',
+            billingAddress: 'Customer Road',
+            shippingAddress: 'Customer Road',
+            city: 'Ahmedabad',
+            town: null,
+            stateCode: 'GJ',
+            countryCode: 'IN',
+            postalCode: '380001',
+            gstin: null,
+            pan: null,
+            taxNumber: null,
+            registrationNumber: null,
+            placeOfSupply: 'Gujarat',
+            defaultTaxTreatment: 'Taxable',
+            notes: null,
+            openingBalance: 0,
+            creditLimit: null,
+            paymentTerms: null,
+            preferredPaymentMode: null,
+            preferredInvoiceTemplate: null,
+            preferredLanguage: null,
+            tags: [],
+            isArchived: false,
+            createdAt: '2026-05-02T00:00:00.000Z',
+            updatedAt: '2026-05-02T00:00:00.000Z',
+            balance: 1500,
+            health: buildCustomerHealthScore({ balance: 1500 }),
+          },
+        ],
+        products: [
+          {
+            id: 'product-1',
+            name: 'Monthly Support',
+            price: 2500,
+            stockQuantity: 10,
+            unit: 'Service',
+            createdAt: '2026-05-02T00:00:00.000Z',
+            lastModified: '2026-05-02T00:00:00.000Z',
+            serverRevision: 1,
+          },
+        ],
+      },
+    });
+
+    expect(document.html).toContain('Rudraix Lab');
+    expect(document.html).toContain('Workspace Road');
+    expect(document.html).toContain('Sonali Traders');
+    expect(document.html).toContain('Monthly Support');
+  });
+
+  it('uses distinct preview color themes for Pro template families', () => {
+    expect(getTemplatePreviewBrandTheme('IN_PAYMENT_FOCUSED_PRO').accentColor).toBe('#96322F');
+    expect(getTemplatePreviewBrandTheme('IN_BRANDED_ADVANCED_PRO').accentColor).toBe('#6F42C1');
+    expect(getTemplatePreviewBrandTheme('IN_GST_LETTERHEAD_PRO').accentColor).toBe('#253047');
   });
 
   it('injects the sample preview guard into generated bodies with template classes', () => {

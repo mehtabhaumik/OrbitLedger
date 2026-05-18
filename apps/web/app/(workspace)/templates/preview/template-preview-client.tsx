@@ -3,39 +3,61 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import {
   buildTemplatePreviewDocument,
+  getTemplatePreviewBrandTheme,
   protectTemplatePreviewHtml,
 } from '@/lib/template-preview-demo';
+import type { TemplateDemoMode } from '@/lib/template-demo-data-factory';
+import {
+  listWorkspaceCustomers,
+  listWorkspaceProducts,
+  type WorkspaceCustomer,
+  type WorkspaceProduct,
+} from '@/lib/workspace-data';
 import type { WebProBrandTheme } from '@/lib/web-monetization';
+import { useWorkspace } from '@/providers/workspace-provider';
 
 export function TemplatePreviewSearchClient({
   backHref = '/templates',
   backLabel = 'Back to templates',
+  previewMode = 'authenticated',
 }: {
   backHref?: string;
   backLabel?: string;
+  previewMode?: TemplateDemoMode;
 }) {
   const searchParams = useSearchParams();
 
-  return <TemplatePreviewClient backHref={backHref} backLabel={backLabel} initialTemplateKey={searchParams.get('template')} />;
+  return (
+    <TemplatePreviewClient
+      backHref={backHref}
+      backLabel={backLabel}
+      initialTemplateKey={searchParams.get('template')}
+      previewMode={previewMode}
+    />
+  );
 }
 
 export function TemplatePreviewClient({
   backHref = '/templates',
   backLabel = 'Back to templates',
   initialTemplateKey,
+  previewMode = 'authenticated',
 }: {
   backHref?: string;
   backLabel?: string;
   initialTemplateKey: string | null;
+  previewMode?: TemplateDemoMode;
 }) {
-  const [accentColor, setAccentColor] = useState('#145C52');
-  const [surfaceColor, setSurfaceColor] = useState('#E5F1ED');
-  const [lineColor, setLineColor] = useState('#B7D6CB');
-  const [textColor, setTextColor] = useState('#18231F');
+  const { activeWorkspace } = useWorkspace();
+  const initialTheme = useMemo(() => getTemplatePreviewBrandTheme(initialTemplateKey), [initialTemplateKey]);
+  const [accentColor, setAccentColor] = useState(initialTheme.accentColor);
+  const [surfaceColor, setSurfaceColor] = useState(initialTheme.surfaceColor);
+  const [lineColor, setLineColor] = useState(initialTheme.lineColor);
+  const [textColor, setTextColor] = useState(initialTheme.textColor);
   const [watermarkText, setWatermarkText] = useState('Demo');
   const [useLogoWatermark, setUseLogoWatermark] = useState(false);
   const [watermarkImageUrl, setWatermarkImageUrl] = useState<string | null>(null);
@@ -44,10 +66,57 @@ export function TemplatePreviewClient({
   const [watermarkOpacity, setWatermarkOpacity] = useState(0.08);
   const [includeLogo, setIncludeLogo] = useState(true);
   const [includeSignature, setIncludeSignature] = useState(true);
+  const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
+  const [products, setProducts] = useState<WorkspaceProduct[]>([]);
+  const [sampleLoadError, setSampleLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAccentColor(initialTheme.accentColor);
+    setSurfaceColor(initialTheme.surfaceColor);
+    setLineColor(initialTheme.lineColor);
+    setTextColor(initialTheme.textColor);
+  }, [initialTheme]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (previewMode !== 'authenticated' || !activeWorkspace) {
+      setCustomers([]);
+      setProducts([]);
+      setSampleLoadError(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    Promise.all([
+      listWorkspaceCustomers(activeWorkspace.workspaceId),
+      listWorkspaceProducts(activeWorkspace.workspaceId),
+    ])
+      .then(([nextCustomers, nextProducts]) => {
+        if (!isMounted) {
+          return;
+        }
+        setCustomers(nextCustomers);
+        setProducts(nextProducts);
+        setSampleLoadError(null);
+      })
+      .catch(() => {
+        if (!isMounted) {
+          return;
+        }
+        setCustomers([]);
+        setProducts([]);
+        setSampleLoadError('Workspace sample data could not be loaded, so this preview is using safe sample data.');
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeWorkspace, previewMode]);
 
   const proTheme: WebProBrandTheme = useMemo(
     () => ({
-      key: 'ledger_green',
+      key: initialTheme.key,
       label: 'Custom preview',
       description: 'Custom colors selected for this sample preview.',
       accentColor,
@@ -55,11 +124,21 @@ export function TemplatePreviewClient({
       lineColor,
       textColor,
     }),
-    [accentColor, lineColor, surfaceColor, textColor]
+    [accentColor, initialTheme.key, lineColor, surfaceColor, textColor]
+  );
+  const demoDataInput = useMemo(
+    () => ({
+      mode: previewMode,
+      workspace: previewMode === 'authenticated' ? activeWorkspace : null,
+      customers: previewMode === 'authenticated' ? customers : null,
+      products: previewMode === 'authenticated' ? products : null,
+    }),
+    [activeWorkspace, customers, previewMode, products]
   );
   const document = useMemo(
     () =>
       buildTemplatePreviewDocument(initialTemplateKey, {
+        demoDataInput,
         proTheme,
         watermarkText,
         watermarkImageUrl,
@@ -68,7 +147,7 @@ export function TemplatePreviewClient({
         includeLogo,
         includeSignature,
       }),
-    [includeLogo, includeSignature, initialTemplateKey, proTheme, useLogoWatermark, watermarkImageUrl, watermarkOpacity, watermarkText]
+    [demoDataInput, includeLogo, includeSignature, initialTemplateKey, proTheme, useLogoWatermark, watermarkImageUrl, watermarkOpacity, watermarkText]
   );
   const protectedHtml = useMemo(() => protectTemplatePreviewHtml(document.html), [document.html]);
   const isProTemplate = document.template.tier === 'pro';
@@ -105,8 +184,9 @@ export function TemplatePreviewClient({
         <div>
           <div className="ol-panel-title">{document.template.label}</div>
           <p className="ol-panel-copy">
-            Sample preview only. This tab uses fake business and customer data, and printing is disabled here.
+            Sample preview only. This tab mirrors the selected template sample and keeps printing disabled here.
           </p>
+          {sampleLoadError ? <p className="ol-field-error">{sampleLoadError}</p> : null}
         </div>
         <Link className="ol-button-secondary" href={backHref as Route}>
           {backLabel}
