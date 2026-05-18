@@ -80,6 +80,13 @@ export type WebOfficeMemberPresence = {
   lastSeenAt: string | null;
 };
 
+export type WebOfficeMemberIdentity = {
+  primary: string;
+  secondary: string;
+  memberId: string;
+  isCurrentUser: boolean;
+};
+
 export type WebOfficeTeamSnapshot = {
   access: WebOfficeTeamAccess;
   metrics: WebOfficeTeamMetric[];
@@ -649,6 +656,52 @@ export function getWebOfficeInviteCapacityDecision(
   });
 }
 
+export function getWebOfficeOwnershipTransferCandidates(
+  members: OfficeMembershipRecord[],
+  currentUserId?: string | null
+) {
+  return sortMembers(
+    members.filter((member) =>
+      member.status === 'active' &&
+      member.role !== 'owner' &&
+      member.uid !== currentUserId
+    )
+  );
+}
+
+export function getWebOfficeMemberIdentity(
+  member: OfficeMembershipRecord,
+  context: {
+    currentUserId?: string | null;
+    currentUserEmail?: string | null;
+    currentUserName?: string | null;
+    workspaceOwnerName?: string | null;
+  } = {}
+): WebOfficeMemberIdentity {
+  const isCurrentUser = Boolean(context.currentUserId && member.uid === context.currentUserId);
+  const memberEmail = nullableString(member.email);
+  const fallbackEmail = isCurrentUser ? nullableString(context.currentUserEmail) : null;
+  const email = memberEmail ?? fallbackEmail;
+  const displayName =
+    nullableString(member.displayName) ??
+    (isCurrentUser ? nullableString(context.currentUserName) : null) ??
+    (isCurrentUser && member.role === 'owner' ? nullableString(context.workspaceOwnerName) : null);
+  const roleLabel = getOfficeRoleDefinition(member.role).label;
+
+  return {
+    primary: displayName ?? email ?? (isCurrentUser ? 'You' : `${roleLabel} member`),
+    secondary: email
+      ? isCurrentUser
+        ? `${email} · You`
+        : email
+      : isCurrentUser
+        ? 'Signed in as you'
+        : `Member record ${shortMemberId(member.uid)}`,
+    memberId: member.uid,
+    isCurrentUser,
+  };
+}
+
 export function getWebOfficeAssignableRoles(
   actorRole: OfficeWorkspaceRole | null,
   currentRole: OfficeWorkspaceRole
@@ -1007,6 +1060,13 @@ function sortInvitations(invitations: OfficeInvitationRecord[]) {
   return [...invitations].sort((left, right) =>
     statusRank[left.status] - statusRank[right.status] || right.updatedAt.localeCompare(left.updatedAt)
   );
+}
+
+function shortMemberId(value: string) {
+  if (!value) {
+    return 'unknown';
+  }
+  return value.length > 12 ? `${value.slice(0, 6)}...${value.slice(-4)}` : value;
 }
 
 function sortOwnershipTransfers(transfers: OfficeOwnershipTransferRecord[]) {

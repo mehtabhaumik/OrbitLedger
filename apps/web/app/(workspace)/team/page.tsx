@@ -13,7 +13,9 @@ import {
   getWebOfficeInviteCapacityDecision,
   buildWebOfficeInvitationAcceptUrl,
   getWebOfficeInvitationDisplayStatus,
+  getWebOfficeMemberIdentity,
   getWebOfficeMemberPresence,
+  getWebOfficeOwnershipTransferCandidates,
   inviteWebOfficeMember,
   loadWebOfficeTeamSnapshot,
   requestWebOfficeOwnershipTransfer,
@@ -310,13 +312,22 @@ export default function TeamPage() {
     [inviteForm.email, snapshot]
   );
   const ownershipCandidates = useMemo(
-    () => (snapshot?.members ?? []).filter((member) => member.status === 'active' && member.role !== 'owner' && member.uid !== user?.uid),
+    () => getWebOfficeOwnershipTransferCandidates(snapshot?.members ?? [], user?.uid),
     [snapshot?.members, user?.uid]
   );
   const pendingOwnershipTransfer = useMemo(
     () => (snapshot?.ownershipTransfers ?? []).find((transfer) => transfer.status === 'pending') ?? null,
     [snapshot?.ownershipTransfers]
   );
+
+  useEffect(() => {
+    if (!ownershipTargetUid) {
+      return;
+    }
+    if (!ownershipCandidates.some((member) => member.uid === ownershipTargetUid)) {
+      setOwnershipTargetUid('');
+    }
+  }, [ownershipCandidates, ownershipTargetUid]);
 
   return (
     <AppShell title="Team" subtitle="Manage Office members, invitations, and role-based access.">
@@ -461,11 +472,17 @@ export default function TeamPage() {
           const canChangeRole = canEditThisMember && assignableRoles.length > 0;
           const canRemove = canEditThisMember && snapshot.access.canRemoveMembers && member.status !== 'removed';
           const presence = getWebOfficeMemberPresence(member);
+          const identity = getWebOfficeMemberIdentity(member, {
+            currentUserId: user?.uid,
+            currentUserEmail: user?.email,
+            currentUserName: user?.displayName,
+            workspaceOwnerName: activeWorkspace?.ownerName,
+          });
           return (
             <div className="ol-table-row" key={member.uid} style={{ gridTemplateColumns: '1.2fr 0.65fr 0.65fr 0.85fr 1fr 1.05fr' }}>
               <div>
-                <strong>{member.displayName || member.email || member.uid}</strong>
-                <div className="ol-muted">{member.email || 'No email saved'}</div>
+                <strong>{identity.primary}</strong>
+                <div className="ol-muted">{identity.secondary}</div>
               </div>
               <div>
                 {canChangeRole ? (
@@ -538,24 +555,28 @@ export default function TeamPage() {
               <span className="ol-field-label">Receiving member</span>
               <select
                 className="ol-select"
-                disabled={Boolean(pendingOwnershipTransfer) || Boolean(busyActionId)}
+                disabled={!ownershipCandidates.length || Boolean(pendingOwnershipTransfer) || Boolean(busyActionId)}
                 onChange={(event) => setOwnershipTargetUid(event.target.value)}
                 value={ownershipTargetUid}
               >
-                <option value="">Choose active member</option>
+                <option value="">{ownershipCandidates.length ? 'Choose active member' : 'No eligible member yet'}</option>
                 {ownershipCandidates.map((member) => (
                   <option key={member.uid} value={member.uid}>
-                    {member.displayName || member.email || member.uid} · {getOfficeRoleDefinition(member.role).label}
+                    {getWebOfficeMemberIdentity(member).primary} · {getOfficeRoleDefinition(member.role).label}
                   </option>
                 ))}
               </select>
-              <span className="ol-field-help">The receiving member must sign in and approve before ownership changes.</span>
+              <span className="ol-field-help">
+                {ownershipCandidates.length
+                  ? 'The receiving member must sign in and approve before ownership changes.'
+                  : 'Invite another person and wait until they accept before transferring ownership.'}
+              </span>
             </label>
             <div className="ol-field">
               <span className="ol-field-label">Action</span>
               <button
                 className="ol-button"
-                disabled={!ownershipTargetUid || Boolean(pendingOwnershipTransfer) || Boolean(busyActionId)}
+                disabled={!ownershipTargetUid || !ownershipCandidates.length || Boolean(pendingOwnershipTransfer) || Boolean(busyActionId)}
                 type="button"
                 onClick={() => void requestOwnershipTransfer()}
               >

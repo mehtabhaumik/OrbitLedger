@@ -6,7 +6,9 @@ import {
   getWebOfficeAssignableRoles,
   getWebOfficeInviteCapacityDecision,
   getWebOfficeInvitationDisplayStatus,
+  getWebOfficeMemberIdentity,
   getWebOfficeMemberPresence,
+  getWebOfficeOwnershipTransferCandidates,
   parseWebOfficeAuditItem,
   parseWebOfficeInvitation,
   parseWebOfficeMember,
@@ -61,6 +63,37 @@ describe('office team management', () => {
     expect(getWebOfficeAssignableRoles('admin', 'staff')).toEqual(['manager', 'staff', 'accountant', 'viewer']);
     expect(getWebOfficeAssignableRoles('admin', 'admin')).toEqual([]);
     expect(getWebOfficeAssignableRoles('admin', 'owner')).toEqual([]);
+  });
+
+  it('shows readable identity for current Office owner records without saved email', () => {
+    const owner = {
+      ...member('owner-1', 'owner', 'active'),
+      email: null,
+      displayName: null,
+    };
+
+    expect(getWebOfficeMemberIdentity(owner, {
+      currentUserId: 'owner-1',
+      currentUserEmail: 'owner@example.com',
+      currentUserName: null,
+      workspaceOwnerName: 'Bhaumik Mehta',
+    })).toMatchObject({
+      primary: 'Bhaumik Mehta',
+      secondary: 'owner@example.com · You',
+      isCurrentUser: true,
+    });
+  });
+
+  it('limits ownership transfer candidates to separate active non-owner members', () => {
+    const candidates = getWebOfficeOwnershipTransferCandidates([
+      member('owner-1', 'owner', 'active'),
+      member('admin-1', 'admin', 'active'),
+      member('manager-1', 'manager', 'suspended'),
+      member('staff-1', 'staff', 'removed'),
+      member('viewer-1', 'viewer', 'active'),
+    ], 'owner-1');
+
+    expect(candidates.map((candidate) => candidate.uid)).toEqual(['admin-1', 'viewer-1']);
   });
 
   it('shows a locked state when Office has not been granted', () => {
