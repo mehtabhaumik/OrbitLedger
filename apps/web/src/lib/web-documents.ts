@@ -20,6 +20,7 @@ import type {
   WorkspaceInvoiceDetail,
   WorkspaceTransaction,
 } from './workspace-data';
+import { formatWorkspaceDocumentAddress } from './workspace-address';
 import { buildCsv, downloadTextFile } from './workspace-power';
 import {
   getDefaultWebSubscriptionStatus,
@@ -474,7 +475,7 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
   const invoiceData: InvoiceDocumentData = {
     title: pack.documents.invoiceTitle,
     businessName: input.workspace.businessName,
-    businessAddress: input.workspace.address,
+    businessAddress: formatWorkspaceDocumentAddress(input.workspace),
     businessContact: `${input.workspace.phone} | ${input.workspace.email}`,
     customerName,
     customerPhone: input.customer?.phone ?? null,
@@ -637,7 +638,7 @@ export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
   const statementData: StatementDocumentData = {
     title: pack.documents.statementTitle,
     businessName: input.workspace.businessName,
-    businessAddress: input.workspace.address,
+    businessAddress: formatWorkspaceDocumentAddress(input.workspace),
     businessContact: `${input.workspace.phone} | ${input.workspace.email}`,
     customerName: input.customer.name,
     customerPhone: input.customer.phone,
@@ -1387,7 +1388,7 @@ function headerBlock(input: {
   const templateBadge = input.showTemplateName === false
     ? ''
     : `<em class="style-badge">${escapeHtml(input.template.tier === 'pro' ? `${input.template.label} · Pro` : input.template.label)}</em>`;
-  return `<header class="document-header"><div class="brand-row">${logo}<div class="business-copy"><h1>${escapeHtml(input.workspace.businessName)}</h1><p>${escapeHtml(input.workspace.address)}</p><p class="business-contact">${escapeHtml(input.workspace.phone)} | ${escapeHtml(input.workspace.email)}</p></div></div><div class="statement-title"><p class="label">${escapeHtml(input.title)}</p><strong>${escapeHtml(input.strong)}</strong><span>${escapeHtml(input.meta)}</span>${templateBadge}</div></header>`;
+  return `<header class="document-header"><div class="brand-row">${logo}<div class="business-copy"><h1>${escapeHtml(input.workspace.businessName)}</h1><p>${escapeHtml(formatWorkspaceDocumentAddress(input.workspace))}</p><p class="business-contact">${escapeHtml(input.workspace.phone)} | ${escapeHtml(input.workspace.email)}</p></div></div><div class="statement-title"><p class="label">${escapeHtml(input.title)}</p><strong>${escapeHtml(input.strong)}</strong><span>${escapeHtml(input.meta)}</span>${templateBadge}</div></header>`;
 }
 
 function signatureBlock(workspace: OrbitWorkspaceSummary, includeBranding: boolean) {

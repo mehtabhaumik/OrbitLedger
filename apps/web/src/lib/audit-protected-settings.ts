@@ -1,6 +1,12 @@
 export type AuditProtectedSettingsSource = {
   businessName?: string | null;
   legalName?: string | null;
+  address?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  town?: string | null;
+  postalCode?: string | null;
   gstin?: string | null;
   pan?: string | null;
   taxNumber?: string | null;
@@ -35,6 +41,12 @@ export type AuditProtectedSettingsChange = {
 const protectedSettingLabels: Record<keyof AuditProtectedSettingsSource, string> = {
   businessName: 'Business name',
   legalName: 'Legal name',
+  address: 'Company address',
+  addressLine1: 'Registered address line 1',
+  addressLine2: 'Registered address line 2',
+  city: 'Registered city',
+  town: 'Registered town or village',
+  postalCode: 'PIN or postcode',
   gstin: 'GSTIN',
   pan: 'PAN',
   taxNumber: 'Tax number',

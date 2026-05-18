@@ -19,6 +19,7 @@ const defaultValues: WorkspaceProfileInput = {
   phone: '',
   email: '',
   address: '',
+  postalCode: '',
   currency: INDIA_COUNTRY.currency,
   countryCode: INDIA_COUNTRY.code,
   stateCode: 'GJ',
@@ -127,17 +128,25 @@ export function WorkspaceSetupCard() {
   const [activeCreateHighlight, setActiveCreateHighlight] = useState(0);
 
   const reviewRows = useMemo(
-    () => [
-      { label: 'Business', value: values.businessName || 'Not set yet' },
-      { label: 'Owner', value: values.ownerName || 'Not set yet' },
-      { label: 'Phone', value: values.phone || 'Optional for now' },
-      { label: 'Email', value: values.email || 'Optional for now' },
-      { label: 'Address', value: values.address || 'Optional for now' },
-      {
-        label: 'Location',
-        value: `${INDIA_COUNTRY.name} · ${getIndianStateName(values.stateCode || 'GJ')}`,
-      },
-    ],
+    () => {
+      const addressParts = [values.address, values.postalCode].map((part) => part?.trim()).filter(Boolean);
+
+      return [
+        { label: 'Business', value: values.businessName || 'Not set yet' },
+        { label: 'Owner', value: values.ownerName || 'Not set yet' },
+        { label: 'Phone', value: values.phone || 'Optional for now' },
+        { label: 'Email', value: values.email || 'Optional for now', wide: true },
+        {
+          label: 'Company address',
+          value: addressParts.length ? addressParts.join(', ') : 'Optional for now',
+          wide: true,
+        },
+        {
+          label: 'Location',
+          value: `${INDIA_COUNTRY.name} · ${getIndianStateName(values.stateCode || 'GJ')}`,
+        },
+      ];
+    },
     [values]
   );
   const createProgress = useMemo(
@@ -295,6 +304,7 @@ export function WorkspaceSetupCard() {
         phone: values.phone.trim(),
         email: values.email.trim(),
         address: values.address.trim(),
+        postalCode: values.postalCode?.trim() ?? '',
         currency: INDIA_COUNTRY.currency,
         countryCode: INDIA_COUNTRY.code,
         stateCode: values.stateCode,
@@ -417,7 +427,7 @@ export function WorkspaceSetupCard() {
                 value={values.address}
                 onChange={(address) => setValues({ ...values, address })}
               />
-              <div className="ol-form-row ol-form-row--3">
+              <div className="ol-form-row ol-form-row--auto">
                 <SelectField
                   disabled
                   label="Country"
@@ -440,6 +450,12 @@ export function WorkspaceSetupCard() {
                   onBlur={() => handleFieldBlur('stateCode')}
                   onChange={(stateCode) => handleFieldChange('stateCode', stateCode)}
                 />
+                <Field
+                  inputMode="numeric"
+                  label="PIN / postcode"
+                  value={values.postalCode ?? ''}
+                  onChange={(postalCode) => setValues({ ...values, postalCode })}
+                />
               </div>
               <div className="ol-note">
                 <strong>India-first web workspace</strong>
@@ -453,9 +469,13 @@ export function WorkspaceSetupCard() {
 
           {step === 2 ? (
             <div className="ol-onboarding-summary">
-              <div className="ol-review-grid">
+              <div className="ol-business-review-panel">
                 {reviewRows.map((item) => (
-                  <div className="ol-review-item" key={item.label}>
+                  <div
+                    className="ol-review-item ol-business-review-item"
+                    data-wide={item.wide ? 'true' : 'false'}
+                    key={item.label}
+                  >
                     <span className="ol-review-label">{item.label}</span>
                     <span className="ol-review-value">{item.value}</span>
                   </div>

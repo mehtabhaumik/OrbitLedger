@@ -786,6 +786,12 @@ function workspaceAuditSourceFromDoc(data: FirestoreWorkspaceDoc) {
   return {
     businessName: data.business_name,
     legalName: data.legal_name,
+    address: data.address,
+    addressLine1: data.address_line_1,
+    addressLine2: data.address_line_2,
+    city: data.city,
+    town: data.town,
+    postalCode: data.postal_code,
     gstin: data.gstin,
     pan: data.pan,
     taxNumber: data.tax_number,

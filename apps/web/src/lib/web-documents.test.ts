@@ -194,6 +194,40 @@ describe('web document parity', () => {
     expect(document.html).toContain('SGST');
   });
 
+  it('uses registered business address on invoices and falls back to company address', () => {
+    const registeredWorkspace: OrbitWorkspaceSummary = {
+      ...workspace,
+      address: 'General Company Address',
+      addressLine1: 'Registered Office, Tower A',
+      addressLine2: 'Near Navrachna University',
+      city: 'Vadodara',
+      postalCode: '391410',
+    };
+
+    const registeredDocument = buildInvoiceWebDocument({
+      workspace: registeredWorkspace,
+      invoice: makeInvoice(),
+      customer,
+    });
+    const fallbackDocument = buildInvoiceWebDocument({
+      workspace: {
+        ...registeredWorkspace,
+        addressLine1: null,
+        addressLine2: null,
+        city: null,
+        postalCode: null,
+      },
+      invoice: makeInvoice(),
+      customer,
+    });
+
+    expect(registeredDocument.html).toContain(
+      'Registered Office, Tower A, Near Navrachna University, Vadodara, GJ, 391410, IN'
+    );
+    expect(registeredDocument.html).not.toContain('General Company Address</p>');
+    expect(fallbackDocument.html).toContain('General Company Address, GJ, IN');
+  });
+
   it('does not show invoice template names on generated invoices', () => {
     const document = buildInvoiceWebDocument({ workspace, invoice: makeInvoice(), customer });
 

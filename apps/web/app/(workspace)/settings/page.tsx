@@ -252,6 +252,7 @@ export default function SettingsPage() {
   const [pinError, setPinError] = useState<string | null>(null);
   const [paymentInstructions, setPaymentInstructions] = useState<ManualPaymentInstructionDetails>({});
   const [paymentAuditReason, setPaymentAuditReason] = useState('');
+  const [useCompanyAddressForRegistered, setUseCompanyAddressForRegistered] = useState(false);
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -350,6 +351,7 @@ export default function SettingsPage() {
       email: false,
       stateCode: false,
     });
+    setUseCompanyAddressForRegistered(false);
     setPaymentInstructions(activeWorkspace.paymentInstructions);
     setPaymentAuditReason('');
   }, [activeWorkspace]);
@@ -475,7 +477,7 @@ export default function SettingsPage() {
   }
 
   function handleFieldChange(field: keyof ProfileFormState, value: string) {
-    const next =
+    let next =
       field === 'stateCode'
         ? {
             ...profile,
@@ -485,12 +487,27 @@ export default function SettingsPage() {
               : getDefaultIndianCity(value),
           }
         : { ...profile, [field]: value };
+
+    if (useCompanyAddressForRegistered && (field === 'address' || field === 'stateCode')) {
+      next = withCompanyAddressAsRegistered(next);
+    }
+    if (['addressLine1', 'addressLine2', 'city', 'town'].includes(field)) {
+      setUseCompanyAddressForRegistered(false);
+    }
     setProfile(next);
 
     if (field in touched && touched[field as ProfileFieldKey]) {
       const nextError = validateField(field as ProfileFieldKey, next);
       setFieldErrors((current) => ({ ...current, [field as ProfileFieldKey]: nextError }));
     }
+  }
+
+  function handleUseCompanyAddressForRegistered(checked: boolean) {
+    setUseCompanyAddressForRegistered(checked);
+    if (!checked) {
+      return;
+    }
+    setProfile((current) => withCompanyAddressAsRegistered(current));
   }
 
   function handleFieldBlur(field: ProfileFieldKey) {
@@ -1150,6 +1167,17 @@ export default function SettingsPage() {
                 <p className="ol-form-band-copy">Structured address fields keep documents and exports cleaner than one long address line.</p>
               </div>
             </div>
+            <label className="ol-inline-check ol-inline-check--panel">
+              <input
+                checked={useCompanyAddressForRegistered}
+                type="checkbox"
+                onChange={(event) => handleUseCompanyAddressForRegistered(event.target.checked)}
+              />
+              <span>
+                <strong>Use company address</strong>
+                <small>Copy the company address into the registered-address fields used on invoices and statements.</small>
+              </span>
+            </label>
             <div className="ol-form-band-grid">
               <ProfileField label="Address line 1" value={profile.addressLine1} onChange={(value) => handleFieldChange('addressLine1', value)} />
               <ProfileField label="Address line 2" value={profile.addressLine2} onChange={(value) => handleFieldChange('addressLine2', value)} />
@@ -2127,6 +2155,16 @@ function defaultRecurringEmailSubject(): string {
 
 function defaultRecurringEmailBody(): string {
   return 'Hello {{customerName}},\n\nYour invoice {{invoiceNumber}} is attached.\n\nYou can pay here:\n{{paymentLink}}\n\nThank you,\n{{businessName}}';
+}
+
+function withCompanyAddressAsRegistered(profile: ProfileFormState): ProfileFormState {
+  return {
+    ...profile,
+    addressLine1: profile.address.trim(),
+    addressLine2: '',
+    city: profile.city || getDefaultIndianCity(profile.stateCode || 'GJ'),
+    town: '',
+  };
 }
 
 function ProfileField({
