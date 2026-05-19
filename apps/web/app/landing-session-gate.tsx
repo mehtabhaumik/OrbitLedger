@@ -10,6 +10,7 @@ export function LandingSessionGate() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
   const [isOpeningDashboard, setIsOpeningDashboard] = useState(false);
+  const [hasPublicCheckTimedOut, setHasPublicCheckTimedOut] = useState(false);
 
   useEffect(() => {
     if (!isLoading && user) {
@@ -18,7 +19,20 @@ export function LandingSessionGate() {
     }
   }, [isLoading, router, user]);
 
-  if (!isLoading && !user && !isOpeningDashboard) {
+  useEffect(() => {
+    if (!isLoading || user || isOpeningDashboard) {
+      setHasPublicCheckTimedOut(false);
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setHasPublicCheckTimedOut(true);
+    }, 2500);
+
+    return () => window.clearTimeout(timeout);
+  }, [isLoading, isOpeningDashboard, user]);
+
+  if ((!isLoading || hasPublicCheckTimedOut) && !user && !isOpeningDashboard) {
     return null;
   }
 

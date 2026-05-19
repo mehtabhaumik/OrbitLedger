@@ -159,8 +159,8 @@ export function AppShell({
               <span />
             </button>
             <div>
-            <div className="ol-topbar-title">{title}</div>
-            <div className="ol-topbar-subtitle">{subtitle}</div>
+              <div className="ol-topbar-title">{title}</div>
+              <div className="ol-topbar-subtitle">{subtitle}</div>
             </div>
           </div>
           <div className="ol-topbar-actions">
@@ -207,8 +207,9 @@ export function AppShell({
               <div className="ol-sidebar-brand-mark">
                 <img className="ol-brand-logo" alt="Orbit Ledger" src="/branding/orbit-ledger-logo-transparent.png" />
               </div>
-              <button className="ol-icon-button ol-button-secondary" type="button" onClick={() => setIsMobileNavOpen(false)} aria-label="Close navigation menu">
-                X
+              <button className="ol-mobile-nav-close" type="button" onClick={() => setIsMobileNavOpen(false)} aria-label="Close navigation menu">
+                <span aria-hidden="true" />
+                <span aria-hidden="true" />
               </button>
             </div>
             {renderNavigation()}
