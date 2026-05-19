@@ -418,6 +418,18 @@ describe('Firestore workspace rules', () => {
     await assertFails(owner.collection('workspaces').doc('workspace-1').collection('support_case_email_requests').doc('email-1').set({
       delivery_status: 'pending_provider_connection',
     }));
+    await assertFails(owner.collection('workspaces').doc('workspace-1').collection('live_payment_events').doc('event-1').set({
+      processing_status: 'pending_reconciliation',
+    }));
+    await assertFails(owner.collection('workspaces').doc('workspace-1').collection('live_payment_event_raw').doc('event-1').set({
+      raw_payload: {},
+    }));
+    await assertFails(owner.collection('workspaces').doc('workspace-1').collection('live_payment_audit').doc('audit-1').set({
+      action: 'payment_applied',
+    }));
+    await assertFails(owner.collection('workspaces').doc('workspace-1').collection('live_payment_notifications').doc('notification-1').set({
+      kind: 'payment_received',
+    }));
   });
 
   it('limits Office support review reads to intended workspace roles', async () => {
@@ -432,6 +444,10 @@ describe('Firestore workspace rules', () => {
       await workspace.collection('support_diagnostic_consents').doc('consent-1').set({ status: 'active' });
       await workspace.collection('support_cases').doc('case-1').set({ status: 'open' });
       await workspace.collection('support_case_email_requests').doc('email-1').set({ delivery_status: 'pending_provider_connection' });
+      await workspace.collection('live_payment_events').doc('event-1').set({ processing_status: 'reconciled' });
+      await workspace.collection('live_payment_event_raw').doc('event-1').set({ raw_payload: { secret: true } });
+      await workspace.collection('live_payment_audit').doc('audit-1').set({ action: 'payment_applied' });
+      await workspace.collection('live_payment_notifications').doc('notification-1').set({ kind: 'payment_received' });
     });
 
     const owner = testEnv.authenticatedContext('owner-1').firestore().collection('workspaces').doc('workspace-1');
@@ -449,11 +465,16 @@ describe('Firestore workspace rules', () => {
     await assertSucceeds(accountant.collection('support_diagnostic_consents').doc('consent-1').get());
     await assertSucceeds(accountant.collection('support_cases').doc('case-1').get());
     await assertSucceeds(accountant.collection('support_case_email_requests').doc('email-1').get());
+    await assertSucceeds(accountant.collection('live_payment_audit').doc('audit-1').get());
 
     await assertFails(staff.collection('office_access_audit').doc('audit-1').get());
     await assertFails(staff.collection('support_diagnostic_consents').doc('consent-1').get());
     await assertFails(staff.collection('support_cases').doc('case-1').get());
     await assertFails(staff.collection('support_case_email_requests').doc('email-1').get());
+    await assertSucceeds(staff.collection('live_payment_events').doc('event-1').get());
+    await assertSucceeds(staff.collection('live_payment_notifications').doc('notification-1').get());
+    await assertFails(staff.collection('live_payment_event_raw').doc('event-1').get());
+    await assertFails(staff.collection('live_payment_audit').doc('audit-1').get());
   });
 });
 

@@ -76,7 +76,13 @@ type LiveCollectionsEventRecord = {
   provider_status: LiveCollectionsProviderStatus;
   verification_status: LiveCollectionsVerificationStatus;
   idempotency_key: string;
-  processing_status: 'pending_reconciliation';
+  processing_status:
+    | 'pending_reconciliation'
+    | 'reconciled'
+    | 'needs_review'
+    | 'failed'
+    | 'refunded'
+    | 'ignored';
   received_at: string;
   verified_at: string;
   raw_event_path: string;
@@ -5670,6 +5676,101 @@ export const razorpayLiveCollectionsWebhook = onRequest(
   }
 );
 
+export const processLiveCollectionsReconciliationQueue = onSchedule(
+  {
+    region: 'asia-south1',
+    schedule: 'every 5 minutes',
+    timeZone: 'Asia/Kolkata',
+    maxInstances: 1,
+  },
+  async () => {
+    const snapshot = await db
+      .collectionGroup('live_payment_events')
+      .where('processing_status', '==', 'pending_reconciliation')
+      .limit(25)
+      .get();
+
+    for (const eventSnapshot of snapshot.docs) {
+      const workspaceRef = eventSnapshot.ref.parent.parent;
+      if (!workspaceRef) {
+        continue;
+      }
+      try {
+        await reconcileLiveCollectionsPaymentEvent(workspaceRef, eventSnapshot.ref);
+      } catch (error) {
+        logger.error('processLiveCollectionsReconciliationQueue event failed', {
+          eventId: eventSnapshot.id,
+          workspacePath: workspaceRef.path,
+          error,
+        });
+      }
+    }
+  }
+);
+
+export async function reconcileLiveCollectionsPaymentEvent(
+  workspaceRef: FirebaseFirestore.DocumentReference,
+  eventRef: FirebaseFirestore.DocumentReference
+) {
+  const now = new Date().toISOString();
+  return db.runTransaction(async (transaction) => {
+    const eventSnapshot = await transaction.get(eventRef);
+    if (!eventSnapshot.exists) {
+      return { reconciled: false, status: 'event_missing' };
+    }
+
+    const event = eventSnapshot.data() ?? {};
+    const processingStatus = clean(stringValue(event.processing_status));
+    if (processingStatus !== 'pending_reconciliation') {
+      return { reconciled: false, status: processingStatus ?? 'not_pending' };
+    }
+    if (clean(stringValue(event.verification_status)) !== 'verified') {
+      const update = buildLiveCollectionsNeedsReviewEventUpdate('Event is not verified by backend.', now);
+      transaction.set(eventRef, update, { merge: true });
+      transaction.set(
+        workspaceRef.collection('live_payment_audit').doc(normalizeId(`audit_${eventRef.id}_unverified_${Date.now()}`)),
+        buildLiveCollectionsReconciliationAuditRecord({
+          eventId: eventRef.id,
+          event,
+          action: 'event_rejected',
+          message: 'Unverified live payment event blocked from reconciliation.',
+          now,
+        })
+      );
+      return { reconciled: false, status: 'unverified' };
+    }
+
+    const providerStatus = normalizeLiveCollectionsProviderStatus(clean(stringValue(event.provider_status)));
+    if (providerStatus === 'captured') {
+      return reconcileLiveCollectionsCapturedPayment(transaction, workspaceRef, eventRef, event, now);
+    }
+    if (providerStatus === 'refunded' || providerStatus === 'partially_refunded') {
+      return reconcileLiveCollectionsRefund(transaction, workspaceRef, eventRef, event, now);
+    }
+    if (providerStatus === 'failed' || providerStatus === 'disputed' || providerStatus === 'needs_review') {
+      return reconcileLiveCollectionsReviewOnly(transaction, workspaceRef, eventRef, event, providerStatus, now);
+    }
+
+    const update = buildLiveCollectionsNeedsReviewEventUpdate(
+      `Provider status ${providerStatus} is waiting for a final payment event.`,
+      now,
+      'ignored'
+    );
+    transaction.set(eventRef, update, { merge: true });
+    transaction.set(
+      workspaceRef.collection('live_payment_audit').doc(normalizeId(`audit_${eventRef.id}_ignored_${Date.now()}`)),
+      buildLiveCollectionsReconciliationAuditRecord({
+        eventId: eventRef.id,
+        event,
+        action: 'event_received',
+        message: `Live payment event ${providerStatus} recorded without ledger changes.`,
+        now,
+      })
+    );
+    return { reconciled: false, status: 'ignored' };
+  });
+}
+
 async function applyProviderEvent(
   workspaceId: string,
   eventId: string,
@@ -6232,6 +6333,705 @@ export function buildLiveCollectionsWebhookAuditRecord(input: {
     message: input.message,
     created_at: input.now,
   };
+}
+
+async function reconcileLiveCollectionsCapturedPayment(
+  transaction: FirebaseFirestore.Transaction,
+  workspaceRef: FirebaseFirestore.DocumentReference,
+  eventRef: FirebaseFirestore.DocumentReference,
+  event: FirebaseFirestore.DocumentData,
+  now: string
+) {
+  const invoiceSnapshot = await findLiveCollectionsInvoiceSnapshot(transaction, workspaceRef, event);
+  const paymentCheckoutSnapshot = await findLiveCollectionsCheckoutSnapshot(transaction, workspaceRef, event);
+  if (!invoiceSnapshot) {
+    transaction.set(eventRef, buildLiveCollectionsNeedsReviewEventUpdate('No matching invoice was found.', now), { merge: true });
+    transaction.set(
+      workspaceRef.collection('live_payment_audit').doc(normalizeId(`audit_${eventRef.id}_missing_invoice_${Date.now()}`)),
+      buildLiveCollectionsReconciliationAuditRecord({
+        eventId: eventRef.id,
+        event,
+        action: 'payment_review_required',
+        message: 'Live payment could not be reconciled because no invoice matched the provider event.',
+        now,
+      })
+    );
+    return { reconciled: false, status: 'missing_invoice' };
+  }
+
+  const invoice = invoiceSnapshot.data() ?? {};
+  const invoiceId = invoiceSnapshot.id;
+  const documentState = clean(stringValue(invoice.document_state ?? invoice.status)) ?? 'created';
+  const customerId = clean(stringValue(event.customer_id)) ?? clean(stringValue(invoice.customer_id));
+  if (documentState === 'cancelled' || !customerId) {
+    const message = documentState === 'cancelled'
+      ? 'Matched invoice is cancelled.'
+      : 'Matched invoice does not have a customer.';
+    transaction.set(eventRef, buildLiveCollectionsNeedsReviewEventUpdate(message, now), { merge: true });
+    transaction.set(
+      workspaceRef.collection('live_payment_audit').doc(normalizeId(`audit_${eventRef.id}_review_${Date.now()}`)),
+      buildLiveCollectionsReconciliationAuditRecord({
+        eventId: eventRef.id,
+        event,
+        action: 'payment_review_required',
+        message,
+        now,
+        invoiceId,
+        customerId,
+      })
+    );
+    return { reconciled: false, status: 'needs_review', invoiceId, customerId };
+  }
+
+  const transactionRef = workspaceRef.collection('transactions').doc(`txn_live_${eventRef.id}`);
+  const allocationRef = workspaceRef.collection('payment_allocations').doc(`pal_live_${eventRef.id}`);
+  const notificationRef = workspaceRef.collection('live_payment_notifications').doc(`notif_${eventRef.id}`);
+  const [transactionSnapshot, allocationSnapshot] = await Promise.all([
+    transaction.get(transactionRef),
+    transaction.get(allocationRef),
+  ]);
+  if (transactionSnapshot.exists || allocationSnapshot.exists) {
+    transaction.set(
+      eventRef,
+      {
+        processing_status: 'reconciled',
+        reconciliation_status: 'already_reconciled',
+        transaction_id: transactionRef.id,
+        allocation_id: allocationRef.id,
+        last_modified: now,
+      },
+      { merge: true }
+    );
+    transaction.set(
+      workspaceRef.collection('live_payment_audit').doc(normalizeId(`audit_${eventRef.id}_already_reconciled_${Date.now()}`)),
+      buildLiveCollectionsReconciliationAuditRecord({
+        eventId: eventRef.id,
+        event,
+        action: 'duplicate_ignored',
+        message: 'Live payment reconciliation found existing transaction records and did not apply twice.',
+        now,
+        invoiceId,
+        customerId,
+      })
+    );
+    return { reconciled: true, status: 'already_reconciled', invoiceId, customerId };
+  }
+
+  const amount = money(event.amount);
+  const totalAmount = money(invoice.total_amount);
+  const paidAmount = money(invoice.paid_amount);
+  const dueAmount = roundMoney(Math.max(totalAmount - paidAmount, 0));
+  if (amount <= 0 || dueAmount <= 0) {
+    const message = amount <= 0 ? 'Payment amount is missing.' : 'Matched invoice is already paid.';
+    transaction.set(eventRef, buildLiveCollectionsNeedsReviewEventUpdate(message, now), { merge: true });
+    transaction.set(
+      workspaceRef.collection('live_payment_audit').doc(normalizeId(`audit_${eventRef.id}_amount_review_${Date.now()}`)),
+      buildLiveCollectionsReconciliationAuditRecord({
+        eventId: eventRef.id,
+        event,
+        action: 'payment_review_required',
+        message,
+        now,
+        invoiceId,
+        customerId,
+      })
+    );
+    return { reconciled: false, status: 'needs_review', invoiceId, customerId };
+  }
+
+  const allocationAmount = roundMoney(Math.min(amount, dueAmount));
+  const nextPaidAmount = roundMoney(paidAmount + allocationAmount);
+  const nextPaymentStatus = deriveProviderInvoicePaymentStatus({
+    totalAmount,
+    paidAmount: nextPaidAmount,
+    dueDate: clean(stringValue(invoice.due_date)),
+    now,
+  });
+  const nextLegacyStatus =
+    documentState === 'cancelled'
+      ? 'cancelled'
+      : nextPaymentStatus === 'paid'
+        ? 'paid'
+        : nextPaymentStatus === 'overdue'
+          ? 'overdue'
+          : 'issued';
+  const auditRef = workspaceRef.collection('live_payment_audit').doc(normalizeId(`audit_${eventRef.id}_applied_${Date.now()}`));
+  const eventUpdate = buildLiveCollectionsReconciledEventUpdate({
+    status: amount > dueAmount ? 'overpaid_applied' : 'applied',
+    invoiceId,
+    customerId,
+    transactionId: transactionRef.id,
+    allocationId: allocationRef.id,
+    allocationAmount,
+    auditId: auditRef.id,
+    now,
+  });
+
+  transaction.set(transactionRef, buildLiveCollectionsPaymentTransactionRecord({
+    eventId: eventRef.id,
+    event,
+    customerId,
+    invoiceNumber: clean(stringValue(invoice.invoice_number)) ?? invoiceId,
+    amount,
+    now,
+  }));
+  transaction.set(allocationRef, buildLiveCollectionsPaymentAllocationRecord({
+    eventId: eventRef.id,
+    transactionId: transactionRef.id,
+    invoiceId,
+    customerId,
+    amount: allocationAmount,
+    now,
+  }));
+  transaction.update(invoiceSnapshot.ref, {
+    paid_amount: nextPaidAmount,
+    payment_status: nextPaymentStatus,
+    status: nextLegacyStatus,
+    last_modified: now,
+    server_revision: admin.firestore.FieldValue.increment(1),
+  });
+  transaction.update(workspaceRef.collection('customers').doc(customerId), {
+    current_balance: admin.firestore.FieldValue.increment(-amount),
+    updated_at: now,
+    last_modified: now,
+    server_revision: admin.firestore.FieldValue.increment(1),
+  });
+  if (paymentCheckoutSnapshot) {
+    transaction.set(paymentCheckoutSnapshot.ref, {
+      provider_status: 'captured',
+      live_payment_event_id: eventRef.id,
+      captured_at: now,
+      last_modified: now,
+    }, { merge: true });
+  }
+  transaction.set(eventRef, eventUpdate, { merge: true });
+  transaction.set(auditRef, buildLiveCollectionsReconciliationAuditRecord({
+    eventId: eventRef.id,
+    event,
+    action: 'payment_applied',
+    message: 'Verified Razorpay payment reconciled to invoice and ledger.',
+    now,
+    invoiceId,
+    customerId,
+  }));
+  transaction.set(notificationRef, buildLiveCollectionsNotificationRecord({
+    id: notificationRef.id,
+    eventId: eventRef.id,
+    event,
+    kind: 'payment_received',
+    title: 'Payment received',
+    message: `${normalizeCurrency(stringValue(event.currency))} ${amount.toFixed(2)} received for invoice ${clean(stringValue(invoice.invoice_number)) ?? invoiceId}.`,
+    invoiceId,
+    customerId,
+    amount,
+    now,
+  }));
+
+  return {
+    reconciled: true,
+    status: eventUpdate.reconciliation_status,
+    invoiceId,
+    customerId,
+    transactionId: transactionRef.id,
+    allocationId: allocationRef.id,
+    allocationAmount,
+  };
+}
+
+async function reconcileLiveCollectionsRefund(
+  transaction: FirebaseFirestore.Transaction,
+  workspaceRef: FirebaseFirestore.DocumentReference,
+  eventRef: FirebaseFirestore.DocumentReference,
+  event: FirebaseFirestore.DocumentData,
+  now: string
+) {
+  const providerPaymentId = clean(stringValue(event.provider_payment_id));
+  if (!providerPaymentId) {
+    transaction.set(eventRef, buildLiveCollectionsNeedsReviewEventUpdate('Refund event does not include original payment id.', now), { merge: true });
+    return { reconciled: false, status: 'refund_needs_review' };
+  }
+
+  const originalEvents = await transaction.get(
+    workspaceRef.collection('live_payment_events')
+      .where('provider_payment_id', '==', providerPaymentId)
+      .limit(10)
+  );
+  const originalEvent = originalEvents.docs.find((entry) => (
+    entry.id !== eventRef.id &&
+    entry.get('provider_status') === 'captured' &&
+    entry.get('processing_status') === 'reconciled'
+  ));
+  if (!originalEvent) {
+    transaction.set(eventRef, buildLiveCollectionsNeedsReviewEventUpdate('Original captured payment was not found for this refund.', now), { merge: true });
+    transaction.set(
+      workspaceRef.collection('live_payment_audit').doc(normalizeId(`audit_${eventRef.id}_refund_review_${Date.now()}`)),
+      buildLiveCollectionsReconciliationAuditRecord({
+        eventId: eventRef.id,
+        event,
+        action: 'payment_review_required',
+        message: 'Refund could not be reconciled because the original captured payment was not found.',
+        now,
+      })
+    );
+    return { reconciled: false, status: 'refund_needs_review' };
+  }
+
+  const original = originalEvent.data() ?? {};
+  const invoiceId = clean(stringValue(original.invoice_id));
+  const customerId = clean(stringValue(original.customer_id));
+  const originalTransactionId = clean(stringValue(original.transaction_id));
+  const originalAllocationAmount = money(original.allocation_amount);
+  if (!invoiceId || !customerId || !originalTransactionId || originalAllocationAmount <= 0) {
+    transaction.set(eventRef, buildLiveCollectionsNeedsReviewEventUpdate('Original payment is missing invoice or allocation details.', now), { merge: true });
+    return { reconciled: false, status: 'refund_needs_review' };
+  }
+
+  const invoiceRef = workspaceRef.collection('invoices').doc(invoiceId);
+  const reversalRef = workspaceRef.collection('payment_reversals').doc(`rev_live_${eventRef.id}`);
+  const reversalTransactionRef = workspaceRef.collection('transactions').doc(`txn_live_refund_${eventRef.id}`);
+  const [invoiceSnapshot, reversalSnapshot] = await Promise.all([
+    transaction.get(invoiceRef),
+    transaction.get(reversalRef),
+  ]);
+  if (!invoiceSnapshot.exists) {
+    transaction.set(eventRef, buildLiveCollectionsNeedsReviewEventUpdate('Invoice for the original payment was not found.', now), { merge: true });
+    return { reconciled: false, status: 'refund_needs_review', invoiceId, customerId };
+  }
+  if (reversalSnapshot.exists) {
+    transaction.set(eventRef, {
+      processing_status: 'refunded',
+      reconciliation_status: 'already_refunded',
+      reversal_id: reversalRef.id,
+      reversal_transaction_id: reversalTransactionRef.id,
+      last_modified: now,
+    }, { merge: true });
+    return { reconciled: true, status: 'already_refunded', invoiceId, customerId };
+  }
+
+  const invoice = invoiceSnapshot.data() ?? {};
+  const refundAmount = roundMoney(Math.min(money(event.amount), money(original.amount)));
+  const reversalAllocationAmount = roundMoney(Math.min(refundAmount, originalAllocationAmount));
+  const nextPaidAmount = roundMoney(Math.max(money(invoice.paid_amount) - reversalAllocationAmount, 0));
+  const nextPaymentStatus = deriveProviderInvoicePaymentStatus({
+    totalAmount: money(invoice.total_amount),
+    paidAmount: nextPaidAmount,
+    dueDate: clean(stringValue(invoice.due_date)),
+    now,
+  });
+  const documentState = clean(stringValue(invoice.document_state ?? invoice.status)) ?? 'created';
+  const nextLegacyStatus =
+    documentState === 'cancelled'
+      ? 'cancelled'
+      : nextPaymentStatus === 'paid'
+        ? 'paid'
+        : nextPaymentStatus === 'overdue'
+          ? 'overdue'
+          : 'issued';
+  const auditRef = workspaceRef.collection('live_payment_audit').doc(normalizeId(`audit_${eventRef.id}_refunded_${Date.now()}`));
+  const notificationRef = workspaceRef.collection('live_payment_notifications').doc(`notif_${eventRef.id}`);
+
+  transaction.set(reversalTransactionRef, {
+    customer_id: customerId,
+    type: 'credit',
+    amount: refundAmount,
+    note: `Razorpay refund for ${providerPaymentId}`,
+    payment_mode: null,
+    payment_details: null,
+    payment_details_json: null,
+    payment_clearance_status: null,
+    payment_attachments: [],
+    payment_attachments_json: null,
+    effective_date: now.slice(0, 10),
+    created_at: now,
+    last_modified: now,
+    sync_status: 'synced',
+    server_revision: 1,
+    provider_event_id: eventRef.id,
+    live_payment_event_id: eventRef.id,
+    reversal_of_transaction_id: originalTransactionId,
+  });
+  transaction.set(reversalRef, {
+    provider_event_id: eventRef.id,
+    live_payment_event_id: eventRef.id,
+    original_live_payment_event_id: originalEvent.id,
+    original_transaction_id: originalTransactionId,
+    reversal_transaction_id: reversalTransactionRef.id,
+    invoice_id: invoiceId,
+    customer_id: customerId,
+    amount: refundAmount,
+    allocation_amount: reversalAllocationAmount,
+    reason: 'Razorpay refund',
+    created_at: now,
+    last_modified: now,
+    source: 'razorpay',
+    reference: clean(stringValue(event.provider_event_id)) ?? providerPaymentId,
+  });
+  transaction.update(invoiceRef, {
+    paid_amount: nextPaidAmount,
+    payment_status: nextPaymentStatus,
+    status: nextLegacyStatus,
+    last_modified: now,
+    server_revision: admin.firestore.FieldValue.increment(1),
+  });
+  transaction.update(workspaceRef.collection('customers').doc(customerId), {
+    current_balance: admin.firestore.FieldValue.increment(refundAmount),
+    updated_at: now,
+    last_modified: now,
+    server_revision: admin.firestore.FieldValue.increment(1),
+  });
+  transaction.set(eventRef, {
+    processing_status: 'refunded',
+    reconciliation_status: 'refunded',
+    invoice_id: invoiceId,
+    customer_id: customerId,
+    original_live_payment_event_id: originalEvent.id,
+    reversal_id: reversalRef.id,
+    reversal_transaction_id: reversalTransactionRef.id,
+    refunded_amount: refundAmount,
+    allocation_amount: reversalAllocationAmount,
+    reconciliation_audit_id: auditRef.id,
+    reconciled_at: now,
+    last_modified: now,
+  }, { merge: true });
+  transaction.set(auditRef, buildLiveCollectionsReconciliationAuditRecord({
+    eventId: eventRef.id,
+    event,
+    action: 'payment_refunded',
+    message: 'Verified Razorpay refund reconciled to invoice and ledger.',
+    now,
+    invoiceId,
+    customerId,
+  }));
+  transaction.set(notificationRef, buildLiveCollectionsNotificationRecord({
+    id: notificationRef.id,
+    eventId: eventRef.id,
+    event,
+    kind: 'payment_refunded',
+    title: 'Payment refunded',
+    message: `${normalizeCurrency(stringValue(event.currency))} ${refundAmount.toFixed(2)} refund recorded.`,
+    invoiceId,
+    customerId,
+    amount: refundAmount,
+    now,
+  }));
+
+  return { reconciled: true, status: 'refunded', invoiceId, customerId, refundAmount };
+}
+
+async function reconcileLiveCollectionsReviewOnly(
+  transaction: FirebaseFirestore.Transaction,
+  workspaceRef: FirebaseFirestore.DocumentReference,
+  eventRef: FirebaseFirestore.DocumentReference,
+  event: FirebaseFirestore.DocumentData,
+  providerStatus: LiveCollectionsProviderStatus,
+  now: string
+) {
+  const invoiceSnapshot = await findLiveCollectionsInvoiceSnapshot(transaction, workspaceRef, event);
+  const paymentCheckoutSnapshot = await findLiveCollectionsCheckoutSnapshot(transaction, workspaceRef, event);
+  const invoiceId = invoiceSnapshot?.id ?? clean(stringValue(event.invoice_id));
+  const customerId = clean(stringValue(event.customer_id)) ?? clean(stringValue(invoiceSnapshot?.data()?.customer_id));
+  const processingStatus = providerStatus === 'failed' ? 'failed' : 'needs_review';
+  const auditRef = workspaceRef.collection('live_payment_audit').doc(normalizeId(`audit_${eventRef.id}_${processingStatus}_${Date.now()}`));
+  const notificationRef = workspaceRef.collection('live_payment_notifications').doc(`notif_${eventRef.id}`);
+
+  if (paymentCheckoutSnapshot) {
+    transaction.set(paymentCheckoutSnapshot.ref, {
+      provider_status: providerStatus,
+      live_payment_event_id: eventRef.id,
+      last_modified: now,
+    }, { merge: true });
+  }
+  transaction.set(eventRef, {
+    processing_status: processingStatus,
+    reconciliation_status: providerStatus,
+    invoice_id: invoiceId ?? null,
+    customer_id: customerId ?? null,
+    reconciliation_audit_id: auditRef.id,
+    reconciled_at: now,
+    last_modified: now,
+  }, { merge: true });
+  transaction.set(auditRef, buildLiveCollectionsReconciliationAuditRecord({
+    eventId: eventRef.id,
+    event,
+    action: 'payment_review_required',
+    message: `Razorpay event ${providerStatus} recorded for review without changing invoice payment state.`,
+    now,
+    invoiceId,
+    customerId,
+  }));
+  transaction.set(notificationRef, buildLiveCollectionsNotificationRecord({
+    id: notificationRef.id,
+    eventId: eventRef.id,
+    event,
+    kind: providerStatus === 'failed' ? 'payment_failed' : 'payment_needs_review',
+    title: providerStatus === 'failed' ? 'Payment failed' : 'Payment needs review',
+    message: `Razorpay payment status ${providerStatus} needs attention.`,
+    invoiceId,
+    customerId,
+    amount: money(event.amount),
+    now,
+  }));
+
+  return { reconciled: false, status: processingStatus, invoiceId, customerId };
+}
+
+async function findLiveCollectionsInvoiceSnapshot(
+  transaction: FirebaseFirestore.Transaction,
+  workspaceRef: FirebaseFirestore.DocumentReference,
+  event: FirebaseFirestore.DocumentData
+) {
+  const invoiceId = clean(stringValue(event.invoice_id));
+  if (invoiceId) {
+    const snapshot = await transaction.get(workspaceRef.collection('invoices').doc(invoiceId));
+    return snapshot.exists ? snapshot : null;
+  }
+
+  const paymentLinkId = clean(stringValue(event.provider_payment_link_id));
+  if (paymentLinkId) {
+    const checkoutSnapshot = await transaction.get(workspaceRef.collection('payment_checkouts').doc(paymentLinkId));
+    if (checkoutSnapshot.exists) {
+      const checkoutInvoiceId = clean(stringValue(checkoutSnapshot.get('invoice_id')));
+      if (checkoutInvoiceId) {
+        const invoiceSnapshot = await transaction.get(workspaceRef.collection('invoices').doc(checkoutInvoiceId));
+        if (invoiceSnapshot.exists) {
+          return invoiceSnapshot;
+        }
+      }
+    }
+
+    const checkoutQuery = await transaction.get(
+      workspaceRef.collection('payment_checkouts')
+        .where('provider_checkout_id', '==', paymentLinkId)
+        .limit(1)
+    );
+    const checkoutInvoiceId = clean(stringValue(checkoutQuery.docs[0]?.get('invoice_id')));
+    if (checkoutInvoiceId) {
+      const invoiceSnapshot = await transaction.get(workspaceRef.collection('invoices').doc(checkoutInvoiceId));
+      if (invoiceSnapshot.exists) {
+        return invoiceSnapshot;
+      }
+    }
+  }
+
+  const invoiceNumber = clean(stringValue(event.invoice_number));
+  if (invoiceNumber) {
+    const invoiceQuery = await transaction.get(
+      workspaceRef.collection('invoices')
+        .where('invoice_number', '==', invoiceNumber)
+        .limit(1)
+    );
+    return invoiceQuery.docs[0] ?? null;
+  }
+
+  return null;
+}
+
+async function findLiveCollectionsCheckoutSnapshot(
+  transaction: FirebaseFirestore.Transaction,
+  workspaceRef: FirebaseFirestore.DocumentReference,
+  event: FirebaseFirestore.DocumentData
+) {
+  const paymentLinkId = clean(stringValue(event.provider_payment_link_id));
+  if (!paymentLinkId) {
+    return null;
+  }
+
+  const directSnapshot = await transaction.get(workspaceRef.collection('payment_checkouts').doc(paymentLinkId));
+  if (directSnapshot.exists) {
+    return directSnapshot;
+  }
+
+  const querySnapshot = await transaction.get(
+    workspaceRef.collection('payment_checkouts')
+      .where('provider_checkout_id', '==', paymentLinkId)
+      .limit(1)
+  );
+  return querySnapshot.docs[0] ?? null;
+}
+
+export function buildLiveCollectionsPaymentTransactionRecord(input: {
+  eventId: string;
+  event: FirebaseFirestore.DocumentData;
+  customerId: string;
+  invoiceNumber: string;
+  amount: number;
+  now: string;
+}) {
+  const providerPaymentId = clean(stringValue(input.event.provider_payment_id));
+  const providerEventId = clean(stringValue(input.event.provider_event_id));
+  return {
+    customer_id: input.customerId,
+    type: 'payment',
+    amount: input.amount,
+    note: providerPaymentId
+      ? `Razorpay payment ${providerPaymentId} for invoice ${input.invoiceNumber}`
+      : `Razorpay payment for invoice ${input.invoiceNumber}`,
+    payment_mode: 'wallet',
+    payment_details: {
+      referenceNumber: providerPaymentId ?? providerEventId,
+      provider: 'Razorpay',
+      paymentLinkId: clean(stringValue(input.event.provider_payment_link_id)),
+    },
+    payment_details_json: JSON.stringify({
+      referenceNumber: providerPaymentId ?? providerEventId,
+      provider: 'Razorpay',
+      paymentLinkId: clean(stringValue(input.event.provider_payment_link_id)),
+    }),
+    payment_clearance_status: 'cleared',
+    payment_attachments: [],
+    payment_attachments_json: null,
+    effective_date: (clean(stringValue(input.event.received_at)) ?? input.now).slice(0, 10),
+    created_at: input.now,
+    last_modified: input.now,
+    sync_status: 'synced',
+    server_revision: 1,
+    provider_event_id: input.eventId,
+    live_payment_event_id: input.eventId,
+  };
+}
+
+export function buildLiveCollectionsPaymentAllocationRecord(input: {
+  eventId: string;
+  transactionId: string;
+  invoiceId: string;
+  customerId: string;
+  amount: number;
+  now: string;
+}) {
+  return {
+    transaction_id: input.transactionId,
+    invoice_id: input.invoiceId,
+    customer_id: input.customerId,
+    amount: input.amount,
+    created_at: input.now,
+    last_modified: input.now,
+    sync_status: 'synced',
+    server_revision: 1,
+    provider_event_id: input.eventId,
+    live_payment_event_id: input.eventId,
+  };
+}
+
+export function buildLiveCollectionsReconciledEventUpdate(input: {
+  status: string;
+  invoiceId: string;
+  customerId: string;
+  transactionId: string;
+  allocationId: string;
+  allocationAmount: number;
+  auditId: string;
+  now: string;
+}) {
+  return {
+    processing_status: 'reconciled',
+    reconciliation_status: input.status,
+    invoice_id: input.invoiceId,
+    customer_id: input.customerId,
+    transaction_id: input.transactionId,
+    allocation_id: input.allocationId,
+    allocation_amount: input.allocationAmount,
+    reconciliation_audit_id: input.auditId,
+    reconciled_at: input.now,
+    last_modified: input.now,
+  };
+}
+
+function buildLiveCollectionsNeedsReviewEventUpdate(
+  reason: string,
+  now: string,
+  processingStatus: 'needs_review' | 'ignored' = 'needs_review'
+) {
+  return {
+    processing_status: processingStatus,
+    reconciliation_status: processingStatus,
+    review_reason: reason,
+    reconciled_at: now,
+    last_modified: now,
+  };
+}
+
+export function buildLiveCollectionsReconciliationAuditRecord(input: {
+  eventId: string;
+  event: FirebaseFirestore.DocumentData;
+  action: LiveCollectionsAuditAction;
+  message: string;
+  now: string;
+  invoiceId?: string | null;
+  customerId?: string | null;
+}) {
+  return {
+    version: 1,
+    workspace_id: clean(stringValue(input.event.workspace_id)),
+    action: input.action,
+    payment_event_id: input.eventId,
+    invoice_id: input.invoiceId ?? clean(stringValue(input.event.invoice_id)),
+    invoice_version_id: clean(stringValue(input.event.invoice_version_id)),
+    customer_id: input.customerId ?? clean(stringValue(input.event.customer_id)),
+    actor: 'system',
+    source: 'provider_webhook',
+    provider: clean(stringValue(input.event.provider)) ?? 'razorpay',
+    provider_event_id: clean(stringValue(input.event.provider_event_id)),
+    idempotency_key: clean(stringValue(input.event.idempotency_key)),
+    amount: money(input.event.amount),
+    currency: normalizeCurrency(stringValue(input.event.currency)),
+    message: input.message,
+    created_at: input.now,
+  };
+}
+
+export function buildLiveCollectionsNotificationRecord(input: {
+  id: string;
+  eventId: string;
+  event: FirebaseFirestore.DocumentData;
+  kind: 'payment_received' | 'payment_failed' | 'payment_needs_review' | 'payment_refunded';
+  title: string;
+  message: string;
+  invoiceId?: string | null;
+  customerId?: string | null;
+  amount: number;
+  now: string;
+}) {
+  const invoiceId = input.invoiceId ?? clean(stringValue(input.event.invoice_id));
+  const customerId = input.customerId ?? clean(stringValue(input.event.customer_id));
+  return {
+    id: input.id,
+    workspace_id: clean(stringValue(input.event.workspace_id)),
+    kind: input.kind,
+    source: 'orbit_ledger_state',
+    invoice_id: invoiceId ?? null,
+    invoice_version_id: clean(stringValue(input.event.invoice_version_id)),
+    customer_id: customerId ?? null,
+    payment_event_id: input.eventId,
+    amount: input.amount,
+    currency: normalizeCurrency(stringValue(input.event.currency)),
+    title: input.title,
+    message: input.message,
+    deep_link_path: invoiceId
+      ? `/invoices/detail/?invoiceId=${encodeURIComponent(invoiceId)}`
+      : customerId
+        ? `/customers/detail/?customerId=${encodeURIComponent(customerId)}`
+        : '/payments',
+    created_at: input.now,
+    read_at: null,
+  };
+}
+
+function normalizeLiveCollectionsProviderStatus(value: string | null): LiveCollectionsProviderStatus {
+  if (
+    value === 'pending' ||
+    value === 'checkout_opened' ||
+    value === 'payment_initiated' ||
+    value === 'authorized' ||
+    value === 'captured' ||
+    value === 'failed' ||
+    value === 'refunded' ||
+    value === 'partially_refunded' ||
+    value === 'disputed' ||
+    value === 'needs_review'
+  ) {
+    return value;
+  }
+  return 'needs_review';
 }
 
 function isAuthorizedRazorpayLiveCollectionsWebhook(rawBody: Buffer | string, providedSignature?: string | null): boolean {

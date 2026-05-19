@@ -29,6 +29,11 @@ import {
   buildLiveCollectionsIdempotencyKey,
   buildLiveCollectionsWebhookAuditRecord,
   buildLiveCollectionsWebhookEventRecord,
+  buildLiveCollectionsNotificationRecord,
+  buildLiveCollectionsPaymentAllocationRecord,
+  buildLiveCollectionsPaymentTransactionRecord,
+  buildLiveCollectionsReconciledEventUpdate,
+  buildLiveCollectionsReconciliationAuditRecord,
   buildResendEmailPayload,
   buildBillingPortalSessionRecord,
   buildRazorpayCheckoutPayload,
@@ -278,6 +283,99 @@ describe('provider webhook payload mapping', () => {
       action: 'event_received',
       source: 'provider_webhook',
       provider: 'razorpay',
+    });
+  });
+
+  it('builds live collection ledger records from reconciled provider state', () => {
+    const event = {
+      workspace_id: 'workspace_1',
+      provider: 'razorpay',
+      provider_event_id: 'evt_live_3',
+      provider_payment_id: 'pay_789',
+      provider_payment_link_id: 'plink_789',
+      invoice_id: 'invoice_3',
+      invoice_version_id: 'version_3',
+      customer_id: 'customer_3',
+      amount: 1770,
+      currency: 'INR',
+      idempotency_key: 'razorpay:evt_live_3',
+      received_at: '2026-05-20T10:00:00.000Z',
+    };
+    const now = '2026-05-20T10:01:00.000Z';
+
+    const transaction = buildLiveCollectionsPaymentTransactionRecord({
+      eventId: 'razorpay_evt_live_3',
+      event,
+      customerId: 'customer_3',
+      invoiceNumber: 'WEB-3',
+      amount: 1770,
+      now,
+    });
+    const allocation = buildLiveCollectionsPaymentAllocationRecord({
+      eventId: 'razorpay_evt_live_3',
+      transactionId: 'txn_live_razorpay_evt_live_3',
+      invoiceId: 'invoice_3',
+      customerId: 'customer_3',
+      amount: 1770,
+      now,
+    });
+    const eventUpdate = buildLiveCollectionsReconciledEventUpdate({
+      status: 'applied',
+      invoiceId: 'invoice_3',
+      customerId: 'customer_3',
+      transactionId: 'txn_live_razorpay_evt_live_3',
+      allocationId: 'pal_live_razorpay_evt_live_3',
+      allocationAmount: 1770,
+      auditId: 'audit_3',
+      now,
+    });
+    const audit = buildLiveCollectionsReconciliationAuditRecord({
+      eventId: 'razorpay_evt_live_3',
+      event,
+      action: 'payment_applied',
+      message: 'Verified Razorpay payment reconciled to invoice and ledger.',
+      now,
+      invoiceId: 'invoice_3',
+      customerId: 'customer_3',
+    });
+    const notification = buildLiveCollectionsNotificationRecord({
+      id: 'notif_3',
+      eventId: 'razorpay_evt_live_3',
+      event,
+      kind: 'payment_received',
+      title: 'Payment received',
+      message: 'INR 1770.00 received.',
+      invoiceId: 'invoice_3',
+      customerId: 'customer_3',
+      amount: 1770,
+      now,
+    });
+
+    expect(transaction).toMatchObject({
+      type: 'payment',
+      payment_clearance_status: 'cleared',
+      live_payment_event_id: 'razorpay_evt_live_3',
+    });
+    expect(transaction.payment_details_json).toContain('Razorpay');
+    expect(allocation).toMatchObject({
+      invoice_id: 'invoice_3',
+      amount: 1770,
+      live_payment_event_id: 'razorpay_evt_live_3',
+    });
+    expect(eventUpdate).toMatchObject({
+      processing_status: 'reconciled',
+      reconciliation_status: 'applied',
+      allocation_amount: 1770,
+    });
+    expect(audit).toMatchObject({
+      actor: 'system',
+      action: 'payment_applied',
+      payment_event_id: 'razorpay_evt_live_3',
+    });
+    expect(notification).toMatchObject({
+      source: 'orbit_ledger_state',
+      kind: 'payment_received',
+      deep_link_path: '/invoices/detail/?invoiceId=invoice_3',
     });
   });
 
