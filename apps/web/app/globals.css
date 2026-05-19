@@ -9225,6 +9225,23 @@ a:focus-visible {
   margin-bottom: 0;
 }
 
+.ol-landing-session-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 24%, rgba(67, 127, 255, 0.12), transparent 34%),
+    rgba(248, 251, 255, 0.94);
+  backdrop-filter: blur(18px);
+}
+
+.ol-landing-session-gate-card {
+  box-shadow: 0 28px 70px rgba(18, 33, 62, 0.16);
+}
+
 /* Landing section rhythm: one gutter and one vertical cadence across all major blocks. */
 .ol-landing-page .ol-landing-section,
 .ol-landing-page .ol-landing-story-grid,

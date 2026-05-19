@@ -15,7 +15,9 @@ import { WorkspaceProvider } from './workspace-provider';
 
 export function WebAppProviders({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isPublicMarketingRoute = pathname === '/' || pathname === '/template-preview';
+  const isLandingRoute = pathname === '/';
+  const isPublicPreviewRoute = pathname === '/template-preview';
+  const isPublicMarketingRoute = isLandingRoute || isPublicPreviewRoute;
 
   useEffect(() => {
     if (isPublicMarketingRoute) {
@@ -36,8 +38,12 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
     }
   }, [isPublicMarketingRoute]);
 
-  if (isPublicMarketingRoute) {
+  if (isPublicPreviewRoute) {
     return <>{children}</>;
+  }
+
+  if (isLandingRoute) {
+    return <AuthProvider>{children}</AuthProvider>;
   }
 
   return (

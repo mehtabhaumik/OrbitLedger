@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { WEB_BETA_TO_PAID_POLICY } from '@/lib/web-monetization';
+import { LandingSessionGate } from './landing-session-gate';
 import { LandingTemplateShowcase } from './landing-template-showcase';
 
 const actionTiles = [
@@ -51,6 +52,7 @@ export default function LandingPage() {
 
   return (
     <main className="ol-landing-page">
+      <LandingSessionGate />
       <header className="ol-landing-nav" aria-label="Landing navigation">
         <Link className="ol-landing-brand" href="/">
           <img
