@@ -9,10 +9,13 @@ type Toast = {
   id: string;
   message: string;
   tone: ToastTone;
+  title?: string;
+  actionLabel?: string;
+  onAction?: () => void;
 };
 
 type ToastContextValue = {
-  showToast(message: string, tone?: ToastTone): void;
+  showToast(message: string, tone?: ToastTone, options?: Omit<Toast, 'id' | 'message' | 'tone'>): void;
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -20,9 +23,9 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const showToast = useCallback((message: string, tone: ToastTone = 'info') => {
+  const showToast = useCallback((message: string, tone: ToastTone = 'info', options: Omit<Toast, 'id' | 'message' | 'tone'> = {}) => {
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    setToasts((current) => [...current.slice(-2), { id, message, tone }]);
+    setToasts((current) => [...current.slice(-2), { id, message, tone, ...options }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 4200);
@@ -37,7 +40,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div className="ol-toast" data-tone={toast.tone} key={toast.id}>
             <span className="ol-toast-dot" />
-            <span>{toast.message}</span>
+            <span className="ol-toast-copy">
+              {toast.title ? <strong>{toast.title}</strong> : null}
+              <span>{toast.message}</span>
+              {toast.actionLabel && toast.onAction ? (
+                <button
+                  className="ol-toast-action"
+                  type="button"
+                  onClick={() => {
+                    toast.onAction?.();
+                    setToasts((current) => current.filter((item) => item.id !== toast.id));
+                  }}
+                >
+                  {toast.actionLabel}
+                </button>
+              ) : null}
+            </span>
             <button
               aria-label="Dismiss"
               className="ol-toast-close"

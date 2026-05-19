@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { AuthProvider } from './auth-provider';
 import { ConfirmDialogProvider } from './confirm-dialog-provider';
 import { DeviceSettingsProvider } from './device-settings-provider';
+import { LiveCollectionsFeedProvider } from './live-collections-feed-provider';
 import { OfficeAccessProvider } from './office-access-provider';
 import { ToastProvider } from './toast-provider';
 import { SubscriptionProvider } from './subscription-provider';
@@ -54,7 +55,9 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
             <DeviceSettingsProvider>
               <WebLockProvider>
                 <ToastProvider>
-                  <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+                  <LiveCollectionsFeedProvider>
+                    <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+                  </LiveCollectionsFeedProvider>
                 </ToastProvider>
               </WebLockProvider>
             </DeviceSettingsProvider>
