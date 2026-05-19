@@ -531,6 +531,27 @@ export function buildWebOfficeInvitationAcceptUrl(input: {
   return url.toString();
 }
 
+export function buildDefaultWebOfficeMemberInvitationMessage(input: {
+  businessName?: string | null;
+  adminName?: string | null;
+}) {
+  const businessName = cleanDisplayName(input.businessName, 'your company');
+  const adminName = cleanDisplayName(input.adminName, 'Workspace admin');
+
+  return [
+    'Hello,',
+    '',
+    `You are invited to join Orbit Ledger Invoicing System for ${businessName}.`,
+    '',
+    'Please use this invitation to access the company workspace, review assigned invoices and records, and work within the role assigned to you.',
+    '',
+    'If you were not expecting this invitation, please contact me before accepting it.',
+    '',
+    'Yours faithfully,',
+    adminName,
+  ].join('\n');
+}
+
 export function getWebOfficeInvitationDisplayStatus(invitation: OfficeInvitationRecord) {
   if (invitation.status === 'pending' && isWebOfficeInvitationExpired(invitation)) {
     return 'expired';
@@ -1141,6 +1162,11 @@ function normalizeEmail(value: string) {
 function cleanNullable(value?: string | null) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function cleanDisplayName(value: string | null | undefined, fallback: string) {
+  const trimmed = value?.replace(/\s+/g, ' ').trim();
+  return trimmed || fallback;
 }
 
 function stringValue(value: unknown) {

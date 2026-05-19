@@ -53,17 +53,19 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const [isOpeningDashboard, setIsOpeningDashboard] = useState(false);
   const [localHostFixUrl, setLocalHostFixUrl] = useState<string | null>(null);
   const [hasAuthCheckTimedOut, setHasAuthCheckTimedOut] = useState(false);
 
   useEffect(() => {
     if (!isLoading && user) {
+      setIsOpeningDashboard(true);
       router.replace('/dashboard');
     }
   }, [isLoading, router, user]);
 
   useEffect(() => {
-    if (!isLoading || user) {
+    if (!isLoading || user || isOpeningDashboard) {
       setHasAuthCheckTimedOut(false);
       return undefined;
     }
@@ -73,7 +75,7 @@ export default function LoginPage() {
     }, 6500);
 
     return () => window.clearTimeout(timeout);
-  }, [isLoading, user]);
+  }, [isLoading, isOpeningDashboard, user]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -91,11 +93,12 @@ export default function LoginPage() {
   }, []);
 
   const isGoogleDisabled = useMemo(
-    () => Boolean(localHostFixUrl) || isGoogleSubmitting || isSubmitting,
-    [isGoogleSubmitting, isSubmitting, localHostFixUrl]
+    () => Boolean(localHostFixUrl) || isGoogleSubmitting || isSubmitting || isOpeningDashboard,
+    [isGoogleSubmitting, isOpeningDashboard, isSubmitting, localHostFixUrl]
   );
 
-  if (isLoading || user) {
+  if (isLoading || user || isOpeningDashboard) {
+    const loaderLabel = user || isOpeningDashboard ? 'Opening dashboard' : 'Checking secure session';
     return (
       <main className="ol-auth-page">
         <div className="ol-auth-loading-card" role="status" aria-live="polite">
@@ -108,15 +111,16 @@ export default function LoginPage() {
               height={38}
             />
           </Link>
-          <BrandOrbitalLoader size="md" label={user ? 'Opening dashboard' : 'Checking secure session'} />
-          <strong>{user ? 'Opening your dashboard...' : 'Checking your secure session...'}</strong>
-          {hasAuthCheckTimedOut && !user ? (
+          <BrandOrbitalLoader size="md" label={loaderLabel} />
+          <strong>{user || isOpeningDashboard ? 'Opening your dashboard...' : 'Checking your secure session...'}</strong>
+          {hasAuthCheckTimedOut && !user && !isOpeningDashboard ? (
             <>
               <span>Still checking. You can safely return to sign in and try again.</span>
               <button
                 className="ol-button-secondary"
                 type="button"
                 onClick={() => {
+                  setIsOpeningDashboard(false);
                   window.sessionStorage.removeItem('orbit-ledger:web-google-redirect-pending');
                   window.location.reload();
                 }}
@@ -193,6 +197,7 @@ export default function LoginPage() {
     setError(null);
     setNotice(null);
     setIsSubmitting(true);
+    setIsOpeningDashboard(true);
     try {
       if (mode === 'sign_in') {
         await signIn(form.email, form.password);
@@ -201,6 +206,7 @@ export default function LoginPage() {
       }
       router.replace('/dashboard');
     } catch (nextError) {
+      setIsOpeningDashboard(false);
       setError(getAuthErrorMessage(nextError));
     } finally {
       setIsSubmitting(false);
@@ -340,9 +346,11 @@ export default function LoginPage() {
                 setError(null);
                 setNotice(null);
                 setIsGoogleSubmitting(true);
+                setIsOpeningDashboard(true);
                 void signInWithGoogle()
                   .then(() => router.replace('/dashboard'))
                   .catch((nextError) => {
+                    setIsOpeningDashboard(false);
                     setError(getAuthErrorMessage(nextError));
                   })
                   .finally(() => {

@@ -2,13 +2,14 @@
 
 import type { Route } from 'next';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { getOfficeRoleDefinition, type OfficeMembershipRecord, type OfficeWorkspaceRole } from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
 import {
   buildWebOfficeAuditTimeline,
+  buildDefaultWebOfficeMemberInvitationMessage,
   getWebOfficeAssignableRoles,
   getWebOfficeInviteCapacityDecision,
   buildWebOfficeInvitationAcceptUrl,
@@ -56,10 +57,20 @@ export default function TeamPage() {
     role: '',
     message: '',
   });
+  const lastDefaultInviteMessageRef = useRef('');
 
   const defaultInviteRole = useMemo(
     () => snapshot?.availableInviteRoles[0] ?? '',
     [snapshot?.availableInviteRoles]
+  );
+  const inviteAdminName = useMemo(() => resolveOfficeInviteAdminName(user?.displayName, user?.email), [user?.displayName, user?.email]);
+  const defaultInviteMessage = useMemo(
+    () =>
+      buildDefaultWebOfficeMemberInvitationMessage({
+        businessName: activeWorkspace?.businessName,
+        adminName: inviteAdminName,
+      }),
+    [activeWorkspace?.businessName, inviteAdminName]
   );
 
   useEffect(() => {
@@ -77,6 +88,20 @@ export default function TeamPage() {
       role: current.role || defaultInviteRole,
     }));
   }, [defaultInviteRole]);
+
+  useEffect(() => {
+    setInviteForm((current) => {
+      const previousDefaultMessage = lastDefaultInviteMessageRef.current;
+      lastDefaultInviteMessageRef.current = defaultInviteMessage;
+      if (current.message.trim() && current.message !== previousDefaultMessage) {
+        return current;
+      }
+      return {
+        ...current,
+        message: defaultInviteMessage,
+      };
+    });
+  }, [defaultInviteMessage]);
 
   async function refreshTeam() {
     if (!activeWorkspace?.workspaceId || !user?.uid) {
@@ -122,7 +147,7 @@ export default function TeamPage() {
         role: inviteForm.role,
         message: inviteForm.message,
       });
-      setInviteForm({ email: '', role: defaultInviteRole, message: '' });
+      setInviteForm({ email: '', role: defaultInviteRole, message: defaultInviteMessage });
       showToast('Team invitation created.', 'success');
       await refreshTeam();
       if (typeof window !== 'undefined') {
@@ -435,10 +460,10 @@ export default function TeamPage() {
               className="ol-textarea"
               disabled={!snapshot?.access.canInvite || isSaving}
               onChange={(event) => setInviteForm((current) => ({ ...current, message: event.target.value }))}
-              placeholder="Optional message for this invitation"
+              placeholder="Invitation message"
               value={inviteForm.message}
             />
-            <span className="ol-field-help">Keep this short and practical. Delivery and acceptance are handled in the next Office phase.</span>
+            <span className="ol-field-help">This message is ready to send. You can edit it before creating the invitation.</span>
           </label>
         </div>
         <div className="ol-actions">
@@ -831,6 +856,24 @@ function getOwnershipNotificationLabel(status: string | null) {
     return 'Approval email queued';
   }
   return 'Approval email not sent yet';
+}
+
+function resolveOfficeInviteAdminName(displayName: string | null | undefined, email: string | null | undefined) {
+  const normalizedName = displayName?.replace(/\s+/g, ' ').trim();
+  if (normalizedName) {
+    return normalizedName;
+  }
+
+  const emailName = email?.split('@')[0]?.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (emailName) {
+    return emailName
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+  return 'Workspace admin';
 }
 
 function formatTeamDate(value: string) {

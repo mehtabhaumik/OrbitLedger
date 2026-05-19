@@ -92,7 +92,7 @@ export function buildTemplatePreviewDocument(
     invoice: demoData.invoice,
     subscription,
     templateKey: template.key,
-    proTheme: options.proTheme ?? getWebProBrandTheme(),
+    proTheme: options.proTheme ?? getTemplatePreviewBrandTheme(template.key),
     brandWatermarkText: options.watermarkText ?? 'Demo',
     brandWatermarkImageUrl: options.watermarkImageUrl ?? (options.useLogoWatermark ? demoData.workspace.logoUri : null),
     brandWatermarkOpacity: options.watermarkOpacity ?? 0.08,

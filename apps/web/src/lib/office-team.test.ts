@@ -1,5 +1,6 @@
 import { getWebPaidSubscriptionStatus } from './web-monetization';
 import {
+  buildDefaultWebOfficeMemberInvitationMessage,
   buildWebOfficeInvitationAcceptUrl,
   buildWebOfficeAuditTimeline,
   buildWebOfficeTeamSnapshot,
@@ -417,6 +418,18 @@ describe('office team management', () => {
       allowed: false,
       reason: 'pending_invitation',
     });
+  });
+
+  it('builds a professional default Office member invitation without placeholders', () => {
+    const message = buildDefaultWebOfficeMemberInvitationMessage({
+      businessName: 'Rudraix Private Limited',
+      adminName: 'Bhaumik Mehta',
+    });
+
+    expect(message).toContain('Orbit Ledger Invoicing System for Rudraix Private Limited');
+    expect(message).toContain('Yours faithfully,\nBhaumik Mehta');
+    expect(message).not.toContain('{{');
+    expect(message).not.toContain('}}');
   });
 });
 

@@ -333,6 +333,16 @@ describe('template preview demo', () => {
     expect(getTemplatePreviewBrandTheme('IN_GST_LETTERHEAD_PRO').accentColor).toBe('#253047');
   });
 
+  it('keeps opened Pro previews on the same default color family as the selected template', () => {
+    const paymentPreview = buildTemplatePreviewDocument('IN_PAYMENT_FOCUSED_PRO');
+    const brandedPreview = buildTemplatePreviewDocument('IN_BRANDED_ADVANCED_PRO');
+
+    expect(paymentPreview.html).toContain('--pro-accent:#96322F');
+    expect(paymentPreview.html).toContain('--pro-surface:#FFF1EF');
+    expect(brandedPreview.html).toContain('--pro-accent:#6F42C1');
+    expect(brandedPreview.html).toContain('--pro-surface:#F2ECFF');
+  });
+
   it('injects the sample preview guard into generated bodies with template classes', () => {
     const guarded = protectTemplatePreviewHtml('<html><head></head><body class="document-invoice"><main>Invoice</main></body></html>');
 

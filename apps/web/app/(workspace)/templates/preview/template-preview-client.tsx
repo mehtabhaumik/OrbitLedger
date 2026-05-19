@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { Route } from 'next';
+import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -19,6 +20,13 @@ import {
 } from '@/lib/workspace-data';
 import type { WebProBrandTheme } from '@/lib/web-monetization';
 import { useWorkspace } from '@/providers/workspace-provider';
+
+type TemplatePreviewClientProps = {
+  backHref?: string;
+  backLabel?: string;
+  initialTemplateKey: string | null;
+  previewMode?: TemplateDemoMode;
+};
 
 export function TemplatePreviewSearchClient({
   backHref = '/templates',
@@ -46,40 +54,46 @@ export function TemplatePreviewClient({
   backLabel = 'Back to templates',
   initialTemplateKey,
   previewMode = 'authenticated',
-}: {
-  backHref?: string;
-  backLabel?: string;
-  initialTemplateKey: string | null;
-  previewMode?: TemplateDemoMode;
-}) {
+}: TemplatePreviewClientProps) {
+  if (previewMode === 'public') {
+    return (
+      <TemplatePreviewCore
+        activeWorkspace={null}
+        backHref={backHref}
+        backLabel={backLabel}
+        customers={[]}
+        initialTemplateKey={initialTemplateKey}
+        previewMode={previewMode}
+        products={[]}
+        sampleLoadError={null}
+      />
+    );
+  }
+
+  return (
+    <AuthenticatedTemplatePreviewClient
+      backHref={backHref}
+      backLabel={backLabel}
+      initialTemplateKey={initialTemplateKey}
+      previewMode={previewMode}
+    />
+  );
+}
+
+function AuthenticatedTemplatePreviewClient({
+  backHref,
+  backLabel,
+  initialTemplateKey,
+  previewMode = 'authenticated',
+}: TemplatePreviewClientProps) {
   const { activeWorkspace } = useWorkspace();
-  const initialTheme = useMemo(() => getTemplatePreviewBrandTheme(initialTemplateKey), [initialTemplateKey]);
-  const [accentColor, setAccentColor] = useState(initialTheme.accentColor);
-  const [surfaceColor, setSurfaceColor] = useState(initialTheme.surfaceColor);
-  const [lineColor, setLineColor] = useState(initialTheme.lineColor);
-  const [textColor, setTextColor] = useState(initialTheme.textColor);
-  const [watermarkText, setWatermarkText] = useState('Demo');
-  const [useLogoWatermark, setUseLogoWatermark] = useState(false);
-  const [watermarkImageUrl, setWatermarkImageUrl] = useState<string | null>(null);
-  const [watermarkImageName, setWatermarkImageName] = useState<string | null>(null);
-  const [watermarkUploadError, setWatermarkUploadError] = useState<string | null>(null);
-  const [watermarkOpacity, setWatermarkOpacity] = useState(0.08);
-  const [includeLogo, setIncludeLogo] = useState(true);
-  const [includeSignature, setIncludeSignature] = useState(true);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [products, setProducts] = useState<WorkspaceProduct[]>([]);
   const [sampleLoadError, setSampleLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    setAccentColor(initialTheme.accentColor);
-    setSurfaceColor(initialTheme.surfaceColor);
-    setLineColor(initialTheme.lineColor);
-    setTextColor(initialTheme.textColor);
-  }, [initialTheme]);
-
-  useEffect(() => {
     let isMounted = true;
-    if (previewMode !== 'authenticated' || !activeWorkspace) {
+    if (!activeWorkspace) {
       setCustomers([]);
       setProducts([]);
       setSampleLoadError(null);
@@ -112,7 +126,61 @@ export function TemplatePreviewClient({
     return () => {
       isMounted = false;
     };
-  }, [activeWorkspace, previewMode]);
+  }, [activeWorkspace]);
+
+  return (
+    <TemplatePreviewCore
+      activeWorkspace={activeWorkspace}
+      backHref={backHref}
+      backLabel={backLabel}
+      customers={customers}
+      initialTemplateKey={initialTemplateKey}
+      previewMode={previewMode}
+      products={products}
+      sampleLoadError={sampleLoadError}
+    />
+  );
+}
+
+function TemplatePreviewCore({
+  activeWorkspace,
+  backHref = '/templates',
+  backLabel = 'Back to templates',
+  customers,
+  initialTemplateKey,
+  previewMode,
+  products,
+  sampleLoadError,
+}: {
+  activeWorkspace: OrbitWorkspaceSummary | null;
+  backHref?: string;
+  backLabel?: string;
+  customers: WorkspaceCustomer[];
+  initialTemplateKey: string | null;
+  previewMode: TemplateDemoMode;
+  products: WorkspaceProduct[];
+  sampleLoadError: string | null;
+}) {
+  const initialTheme = useMemo(() => getTemplatePreviewBrandTheme(initialTemplateKey), [initialTemplateKey]);
+  const [accentColor, setAccentColor] = useState(initialTheme.accentColor);
+  const [surfaceColor, setSurfaceColor] = useState(initialTheme.surfaceColor);
+  const [lineColor, setLineColor] = useState(initialTheme.lineColor);
+  const [textColor, setTextColor] = useState(initialTheme.textColor);
+  const [watermarkText, setWatermarkText] = useState('Demo');
+  const [useLogoWatermark, setUseLogoWatermark] = useState(false);
+  const [watermarkImageUrl, setWatermarkImageUrl] = useState<string | null>(null);
+  const [watermarkImageName, setWatermarkImageName] = useState<string | null>(null);
+  const [watermarkUploadError, setWatermarkUploadError] = useState<string | null>(null);
+  const [watermarkOpacity, setWatermarkOpacity] = useState(0.08);
+  const [includeLogo, setIncludeLogo] = useState(true);
+  const [includeSignature, setIncludeSignature] = useState(true);
+
+  useEffect(() => {
+    setAccentColor(initialTheme.accentColor);
+    setSurfaceColor(initialTheme.surfaceColor);
+    setLineColor(initialTheme.lineColor);
+    setTextColor(initialTheme.textColor);
+  }, [initialTheme]);
 
   const proTheme: WebProBrandTheme = useMemo(
     () => ({
@@ -129,9 +197,9 @@ export function TemplatePreviewClient({
   const demoDataInput = useMemo(
     () => ({
       mode: previewMode,
-      workspace: previewMode === 'authenticated' ? activeWorkspace : null,
-      customers: previewMode === 'authenticated' ? customers : null,
-      products: previewMode === 'authenticated' ? products : null,
+      workspace: previewMode === 'public' ? null : activeWorkspace,
+      customers: previewMode === 'public' ? null : customers,
+      products: previewMode === 'public' ? null : products,
     }),
     [activeWorkspace, customers, previewMode, products]
   );
