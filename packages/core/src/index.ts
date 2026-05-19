@@ -594,6 +594,27 @@ export type {
   PaymentReconciliationInvoice,
   PaymentReconciliationStatus,
 } from './paymentReconciliation';
+export {
+  LIVE_COLLECTIONS_GUARDRAILS,
+  buildLivePaymentAuditEntry,
+  buildLivePaymentIdempotencyKey,
+  buildLivePaymentNotification,
+  canLivePaymentEventChangePaymentState,
+  deriveLiveInvoicePaymentStatus,
+  isTrustedLivePaymentEventSource,
+  redactOnlinePaymentProviderConfig,
+  shouldCreateLivePaymentNotification,
+  validatePaymentCapabilitySeparation,
+} from './liveCollections';
+export type {
+  LiveCollectionsGuardrailName,
+  LivePaymentAllocationInput,
+  LivePaymentAuditDraftInput,
+  LivePaymentIdempotencyInput,
+  LivePaymentNotificationDraftInput,
+  LivePaymentPublicProviderConfig,
+  LivePaymentTrustedEventDecision,
+} from './liveCollections';
 export type {
   InvoiceDocumentState,
   InvoiceLifecycleInput,

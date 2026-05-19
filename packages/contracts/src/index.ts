@@ -4,6 +4,184 @@ export type OrbitSyncStatus = 'pending' | 'synced' | 'conflict';
 
 export type OrbitWorkspaceDataState = 'profile_only' | 'full_dataset';
 
+export type OnlinePaymentProvider = 'razorpay';
+
+export type OnlinePaymentProviderMode = 'test' | 'live';
+
+export type OnlinePaymentSettingsStatus =
+  | 'not_connected'
+  | 'test_mode'
+  | 'ready_for_verification'
+  | 'active'
+  | 'disabled';
+
+export type ProviderBackedPaymentStatus =
+  | 'pending'
+  | 'checkout_opened'
+  | 'payment_initiated'
+  | 'authorized'
+  | 'captured'
+  | 'failed'
+  | 'refunded'
+  | 'partially_refunded'
+  | 'disputed'
+  | 'needs_review';
+
+export type AllocationDerivedInvoicePaymentStatus =
+  | 'unpaid'
+  | 'partially_paid'
+  | 'paid'
+  | 'overdue'
+  | 'refunded'
+  | 'needs_review';
+
+export type LivePaymentEventSource =
+  | 'provider_webhook'
+  | 'trusted_backend_verification';
+
+export type LivePaymentEventVerificationStatus =
+  | 'verified'
+  | 'rejected'
+  | 'duplicate'
+  | 'needs_review';
+
+export type LivePaymentNotificationKind =
+  | 'payment_received'
+  | 'payment_failed'
+  | 'payment_needs_review'
+  | 'payment_refunded';
+
+export type LivePaymentAuditAction =
+  | 'event_received'
+  | 'event_rejected'
+  | 'duplicate_ignored'
+  | 'payment_applied'
+  | 'payment_review_required'
+  | 'payment_refunded';
+
+export type OnlinePaymentSettings = {
+  provider: OnlinePaymentProvider;
+  mode: OnlinePaymentProviderMode;
+  status: OnlinePaymentSettingsStatus;
+  enabled: boolean;
+  currency: string;
+  workspaceId: string;
+  providerAccountLabel?: string | null;
+  providerAccountLast4?: string | null;
+  webhookVerifiedAt?: string | null;
+  paymentLinksEnabled: boolean;
+  automaticReconciliationEnabled: boolean;
+  liveNotificationsEnabled: boolean;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+export type OnlinePaymentProviderServerConfig = {
+  provider: OnlinePaymentProvider;
+  mode: OnlinePaymentProviderMode;
+  workspaceId: string;
+  keyIdSecretName: string;
+  keySecretSecretName: string;
+  webhookSecretName: string;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+export type PaymentCapabilitySettings = {
+  manualInstructionsEnabled: boolean;
+  manualInstructionsSource: 'workspace_payment_instructions';
+  onlinePayments: OnlinePaymentSettings | null;
+};
+
+export type LivePaymentLink = {
+  id: string;
+  workspaceId: string;
+  invoiceId: string;
+  invoiceVersionId: string | null;
+  customerId: string | null;
+  provider: OnlinePaymentProvider;
+  providerPaymentLinkId: string;
+  publicPaymentUrl: string;
+  amount: number;
+  currency: string;
+  status: ProviderBackedPaymentStatus;
+  expiresAt: string | null;
+  createdAt: string;
+  createdBy: string | null;
+};
+
+export type LivePaymentEvent = {
+  id: string;
+  workspaceId: string;
+  provider: OnlinePaymentProvider;
+  source: LivePaymentEventSource;
+  providerEventId: string;
+  providerPaymentId?: string | null;
+  providerPaymentLinkId?: string | null;
+  invoiceId?: string | null;
+  invoiceVersionId?: string | null;
+  customerId?: string | null;
+  amount: number;
+  currency: string;
+  providerStatus: ProviderBackedPaymentStatus;
+  verificationStatus: LivePaymentEventVerificationStatus;
+  idempotencyKey: string;
+  receivedAt: string;
+  verifiedAt: string | null;
+  rawEventPath: string | null;
+  auditEntryId: string | null;
+};
+
+export type LivePaymentAllocationSummary = {
+  invoiceId: string;
+  invoiceVersionId: string | null;
+  invoiceTotal: number;
+  capturedAmount: number;
+  refundedAmount: number;
+  needsReviewAmount: number;
+  dueDate: string | null;
+  today: string;
+  status: AllocationDerivedInvoicePaymentStatus;
+};
+
+export type LivePaymentNotification = {
+  id: string;
+  workspaceId: string;
+  kind: LivePaymentNotificationKind;
+  source: 'orbit_ledger_state';
+  invoiceId: string | null;
+  invoiceVersionId: string | null;
+  customerId: string | null;
+  paymentEventId: string;
+  amount: number;
+  currency: string;
+  title: string;
+  message: string;
+  deepLinkPath: string;
+  createdAt: string;
+  readAt: string | null;
+};
+
+export type LivePaymentAuditEntry = {
+  id: string;
+  workspaceId: string;
+  action: LivePaymentAuditAction;
+  paymentEventId: string;
+  invoiceId: string | null;
+  invoiceVersionId: string | null;
+  customerId: string | null;
+  actor: 'system';
+  source: LivePaymentEventSource;
+  provider: OnlinePaymentProvider;
+  providerEventId: string;
+  idempotencyKey: string;
+  amount: number;
+  currency: string;
+  message: string;
+  createdAt: string;
+};
+
 export type OrbitSyncMetadata = {
   syncId: string;
   lastModified: string;
