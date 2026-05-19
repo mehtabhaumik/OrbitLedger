@@ -146,6 +146,10 @@ service cloud.firestore {
         collectionName != 'office_access_requests' &&
         collectionName != 'office_access_admin_queue' &&
         collectionName != 'settings_audit' &&
+        collectionName != 'live_payment_events' &&
+        collectionName != 'live_payment_event_raw' &&
+        collectionName != 'live_payment_audit' &&
+        collectionName != 'live_payment_notifications' &&
         collectionName != 'support_cases' &&
         collectionName != 'support_case_email_requests' &&
         collectionName != 'support_diagnostic_consents';
@@ -381,6 +385,25 @@ service cloud.firestore {
         allow create: if validSettingsAuditDocument(workspaceId) &&
           (ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin']));
         allow update, delete: if false;
+      }
+
+      match /live_payment_events/{eventId} {
+        allow read: if canReadWorkspace(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /live_payment_event_raw/{eventId} {
+        allow read, create, update, delete: if false;
+      }
+
+      match /live_payment_audit/{auditId} {
+        allow read: if ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin', 'accountant']);
+        allow create, update, delete: if false;
+      }
+
+      match /live_payment_notifications/{notificationId} {
+        allow read: if canReadWorkspace(workspaceId);
+        allow create, update, delete: if false;
       }
 
       match /support_diagnostic_consents/{consentId} {

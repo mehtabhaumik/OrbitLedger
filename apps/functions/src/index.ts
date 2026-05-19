@@ -18,6 +18,74 @@ const resendApiKey = defineSecret('RESEND_API_KEY');
 type ProviderSource = 'upi' | 'payment_page' | 'bank_transfer' | 'card' | 'wallet' | 'other';
 type ProviderPaymentStatus = 'succeeded' | 'pending' | 'failed' | 'refunded';
 
+type LiveCollectionsProviderStatus =
+  | 'pending'
+  | 'checkout_opened'
+  | 'payment_initiated'
+  | 'authorized'
+  | 'captured'
+  | 'failed'
+  | 'refunded'
+  | 'partially_refunded'
+  | 'disputed'
+  | 'needs_review';
+
+type LiveCollectionsVerificationStatus = 'verified' | 'rejected' | 'duplicate' | 'needs_review';
+
+type LiveCollectionsAuditAction =
+  | 'event_received'
+  | 'event_rejected'
+  | 'duplicate_ignored'
+  | 'payment_applied'
+  | 'payment_review_required'
+  | 'payment_refunded';
+
+type LiveCollectionsRazorpayEventPayload = {
+  provider: 'razorpay';
+  providerEventId: string;
+  providerEventName: string;
+  providerPaymentId?: string | null;
+  providerPaymentLinkId?: string | null;
+  workspaceId?: string | null;
+  invoiceId?: string | null;
+  invoiceVersionId?: string | null;
+  invoiceNumber?: string | null;
+  customerId?: string | null;
+  amount: number;
+  currency: string;
+  providerStatus: LiveCollectionsProviderStatus;
+  receivedAt?: string | null;
+  rawPayload: Record<string, unknown>;
+};
+
+type LiveCollectionsEventRecord = {
+  version: 1;
+  workspace_id: string;
+  provider: 'razorpay';
+  source: 'provider_webhook';
+  provider_event_id: string;
+  provider_event_name: string;
+  provider_payment_id: string | null;
+  provider_payment_link_id: string | null;
+  invoice_id: string | null;
+  invoice_version_id: string | null;
+  invoice_number: string | null;
+  customer_id: string | null;
+  amount: number;
+  currency: string;
+  provider_status: LiveCollectionsProviderStatus;
+  verification_status: LiveCollectionsVerificationStatus;
+  idempotency_key: string;
+  processing_status: 'pending_reconciliation';
+  received_at: string;
+  verified_at: string;
+  raw_event_path: string;
+  audit_entry_id: string | null;
+  duplicate_count: number;
+  created_at: string;
+  last_modified: string;
+};
+
 type ProviderWebhookPayload = {
   provider?: string | null;
   workspaceId?: string | null;
@@ -5486,6 +5554,122 @@ export const providerWebhook = onRequest(
   }
 );
 
+export const razorpayLiveCollectionsWebhook = onRequest(
+  {
+    region: 'asia-south1',
+    cors: false,
+    maxInstances: 20,
+    secrets: [razorpayWebhookSecret],
+  },
+  async (request, response) => {
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const rawBody = request.rawBody ?? Buffer.from(JSON.stringify(request.body ?? {}));
+    if (!isAuthorizedRazorpayLiveCollectionsWebhook(rawBody, request.header('x-razorpay-signature'))) {
+      response.status(401).json({ ok: false, error: 'unauthorized' });
+      return;
+    }
+
+    const payload = normalizeRazorpayLiveCollectionsPayload(request.body);
+    const validationError = validateRazorpayLiveCollectionsPayload(payload);
+    if (validationError) {
+      response.status(400).json({ ok: false, error: validationError });
+      return;
+    }
+
+    const workspaceId = payload.workspaceId as string;
+    const now = new Date().toISOString();
+    const eventId = buildLiveCollectionsEventId(payload);
+    const workspaceRef = db.collection('workspaces').doc(workspaceId);
+    const eventRef = workspaceRef.collection('live_payment_events').doc(eventId);
+    const rawRef = workspaceRef.collection('live_payment_event_raw').doc(eventId);
+    const auditRef = workspaceRef.collection('live_payment_audit').doc(`audit_${eventId}_${Date.now()}`);
+
+    try {
+      const result = await db.runTransaction(async (transaction) => {
+        const workspaceSnapshot = await transaction.get(workspaceRef);
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+
+        const existingEvent = await transaction.get(eventRef);
+        if (existingEvent.exists) {
+          transaction.set(
+            eventRef,
+            {
+              duplicate_count: admin.firestore.FieldValue.increment(1),
+              last_duplicate_at: now,
+              last_modified: now,
+            },
+            { merge: true }
+          );
+          transaction.set(
+            auditRef,
+            buildLiveCollectionsWebhookAuditRecord({
+              id: auditRef.id,
+              action: 'duplicate_ignored',
+              eventId,
+              payload,
+              workspaceId,
+              now,
+              message: 'Duplicate Razorpay webhook ignored by idempotency key.',
+            })
+          );
+          return { duplicate: true, eventId, processingStatus: 'duplicate_ignored' };
+        }
+
+        const record = buildLiveCollectionsWebhookEventRecord({
+          eventId,
+          payload,
+          workspaceId,
+          rawEventPath: rawRef.path,
+          auditEntryId: auditRef.id,
+          now,
+        });
+
+        transaction.set(rawRef, {
+          version: 1,
+          workspace_id: workspaceId,
+          provider: 'razorpay',
+          provider_event_id: payload.providerEventId,
+          provider_event_name: payload.providerEventName,
+          idempotency_key: record.idempotency_key,
+          signature_verified: true,
+          raw_payload: payload.rawPayload,
+          created_at: now,
+        });
+        transaction.set(eventRef, record);
+        transaction.set(
+          auditRef,
+          buildLiveCollectionsWebhookAuditRecord({
+            id: auditRef.id,
+            action: 'event_received',
+            eventId,
+            payload,
+            workspaceId,
+            now,
+            message: 'Verified Razorpay webhook received and queued for reconciliation.',
+          })
+        );
+
+        return { duplicate: false, eventId, processingStatus: record.processing_status };
+      });
+
+      response.status(200).json({ ok: true, ...result });
+    } catch (error) {
+      logger.error('razorpayLiveCollectionsWebhook failed', { eventId, workspaceId, error });
+      response.status(error instanceof Error && error.message === 'workspace_not_found' ? 404 : 500).json({
+        ok: false,
+        eventId,
+        error: error instanceof Error && error.message === 'workspace_not_found' ? 'workspace_not_found' : 'webhook_ingest_failed',
+      });
+    }
+  }
+);
+
 async function applyProviderEvent(
   workspaceId: string,
   eventId: string,
@@ -5904,6 +6088,191 @@ function buildEventPayload(
     last_modified: input.now,
     raw_payload: payload.rawPayload ?? compactPayload(payload),
   };
+}
+
+export function normalizeRazorpayLiveCollectionsPayload(body: unknown): LiveCollectionsRazorpayEventPayload {
+  const payload = asRecord(body) ?? {};
+  const eventName = clean(stringValue(payload.event)) ?? 'unknown';
+  const payment = asRecord(asRecord(asRecord(payload.payload)?.payment)?.entity);
+  const paymentLink = asRecord(asRecord(asRecord(payload.payload)?.payment_link)?.entity);
+  const refund = asRecord(asRecord(asRecord(payload.payload)?.refund)?.entity);
+  const dispute = asRecord(asRecord(asRecord(payload.payload)?.dispute)?.entity);
+  const entity = refund ?? dispute ?? payment ?? paymentLink ?? {};
+  const notes = normalizeMetadata(
+    asRecord(payment?.notes) ?? asRecord(paymentLink?.notes) ?? asRecord(refund?.notes) ?? asRecord(dispute?.notes) ?? asRecord(entity.notes)
+  );
+  const providerPaymentId =
+    clean(stringValue(refund?.payment_id)) ??
+    clean(stringValue(dispute?.payment_id)) ??
+    clean(stringValue(payment?.id)) ??
+    clean(stringValue(entity.id));
+  const providerPaymentLinkId =
+    metadataValue(notes, 'orbit_payment_link_id', 'payment_link_id', 'paymentLinkId') ??
+    clean(stringValue(paymentLink?.id)) ??
+    clean(stringValue(payment?.payment_link_id)) ??
+    clean(stringValue(entity.payment_link_id));
+  const amount = normalizeMinorUnitAmount(
+    numberLike(refund?.amount ?? dispute?.amount ?? payment?.amount ?? paymentLink?.amount_paid ?? paymentLink?.amount ?? entity.amount)
+  );
+  const createdAt = epochSecondsToIso(numberLike(entity.created_at ?? payment?.created_at ?? paymentLink?.created_at));
+
+  return {
+    provider: 'razorpay',
+    providerEventId: clean(stringValue(payload.id)) ?? buildSyntheticRazorpayEventId(eventName, providerPaymentId, providerPaymentLinkId),
+    providerEventName: eventName,
+    providerPaymentId,
+    providerPaymentLinkId,
+    workspaceId: metadataValue(notes, 'workspaceId', 'workspace_id', 'orbit_workspace_id'),
+    invoiceId: metadataValue(notes, 'invoiceId', 'invoice_id', 'orbit_invoice_id'),
+    invoiceVersionId: metadataValue(notes, 'invoiceVersionId', 'invoice_version_id', 'orbit_invoice_version_id'),
+    invoiceNumber: metadataValue(notes, 'invoiceNumber', 'invoice_number', 'orbit_invoice_number'),
+    customerId: metadataValue(notes, 'customerId', 'customer_id', 'orbit_customer_id'),
+    amount,
+    currency: clean(stringValue(entity.currency ?? payment?.currency ?? paymentLink?.currency)) ?? 'INR',
+    providerStatus: razorpayLiveCollectionsStatus(eventName, clean(stringValue(entity.status))),
+    receivedAt: createdAt,
+    rawPayload: payload,
+  };
+}
+
+export function validateRazorpayLiveCollectionsPayload(payload: LiveCollectionsRazorpayEventPayload): string | null {
+  if (payload.provider !== 'razorpay') {
+    return 'provider_required';
+  }
+  if (!clean(payload.workspaceId)) {
+    return 'workspace_required';
+  }
+  if (!clean(payload.providerEventId)) {
+    return 'provider_event_required';
+  }
+  if (!clean(payload.providerPaymentId) && !clean(payload.providerPaymentLinkId)) {
+    return 'provider_payment_required';
+  }
+  if (payload.amount <= 0 && payload.providerStatus !== 'failed' && payload.providerStatus !== 'disputed') {
+    return 'amount_required';
+  }
+  return null;
+}
+
+export function buildLiveCollectionsEventId(payload: LiveCollectionsRazorpayEventPayload): string {
+  return normalizeId(`razorpay_${payload.providerEventId}`);
+}
+
+export function buildLiveCollectionsIdempotencyKey(payload: LiveCollectionsRazorpayEventPayload): string {
+  const identity =
+    clean(payload.providerEventId) ??
+    clean(payload.providerPaymentId) ??
+    clean(payload.providerPaymentLinkId) ??
+    'missing-provider-identity';
+  return `razorpay:${normalizeId(identity)}`;
+}
+
+export function buildLiveCollectionsWebhookEventRecord(input: {
+  eventId: string;
+  payload: LiveCollectionsRazorpayEventPayload;
+  workspaceId: string;
+  rawEventPath: string;
+  auditEntryId: string | null;
+  now: string;
+}): LiveCollectionsEventRecord {
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    provider: 'razorpay',
+    source: 'provider_webhook',
+    provider_event_id: input.payload.providerEventId,
+    provider_event_name: input.payload.providerEventName,
+    provider_payment_id: clean(input.payload.providerPaymentId),
+    provider_payment_link_id: clean(input.payload.providerPaymentLinkId),
+    invoice_id: clean(input.payload.invoiceId),
+    invoice_version_id: clean(input.payload.invoiceVersionId),
+    invoice_number: clean(input.payload.invoiceNumber),
+    customer_id: clean(input.payload.customerId),
+    amount: input.payload.amount,
+    currency: normalizeCurrency(input.payload.currency),
+    provider_status: input.payload.providerStatus,
+    verification_status: 'verified',
+    idempotency_key: buildLiveCollectionsIdempotencyKey(input.payload),
+    processing_status: 'pending_reconciliation',
+    received_at: input.payload.receivedAt ?? input.now,
+    verified_at: input.now,
+    raw_event_path: input.rawEventPath,
+    audit_entry_id: input.auditEntryId,
+    duplicate_count: 0,
+    created_at: input.now,
+    last_modified: input.now,
+  };
+}
+
+export function buildLiveCollectionsWebhookAuditRecord(input: {
+  id: string;
+  action: LiveCollectionsAuditAction;
+  eventId: string;
+  payload: LiveCollectionsRazorpayEventPayload;
+  workspaceId: string;
+  now: string;
+  message: string;
+}) {
+  return {
+    version: 1,
+    id: input.id,
+    workspace_id: input.workspaceId,
+    action: input.action,
+    payment_event_id: input.eventId,
+    invoice_id: clean(input.payload.invoiceId),
+    invoice_version_id: clean(input.payload.invoiceVersionId),
+    customer_id: clean(input.payload.customerId),
+    actor: 'system',
+    source: 'provider_webhook',
+    provider: 'razorpay',
+    provider_event_id: input.payload.providerEventId,
+    idempotency_key: buildLiveCollectionsIdempotencyKey(input.payload),
+    amount: input.payload.amount,
+    currency: normalizeCurrency(input.payload.currency),
+    message: input.message,
+    created_at: input.now,
+  };
+}
+
+function isAuthorizedRazorpayLiveCollectionsWebhook(rawBody: Buffer | string, providedSignature?: string | null): boolean {
+  return verifyRazorpayWebhookSignature(
+    rawBody,
+    providedSignature,
+    getSecretValue(razorpayWebhookSecret, 'RAZORPAY_WEBHOOK_SECRET')
+  );
+}
+
+function buildSyntheticRazorpayEventId(
+  eventName: string,
+  providerPaymentId?: string | null,
+  providerPaymentLinkId?: string | null
+): string {
+  return [eventName, providerPaymentId, providerPaymentLinkId].filter(Boolean).join('_') || `razorpay_${Date.now()}`;
+}
+
+function razorpayLiveCollectionsStatus(
+  eventName: string,
+  entityStatus: string | null
+): LiveCollectionsProviderStatus {
+  if (eventName === 'payment_link.paid' || eventName === 'payment.captured' || entityStatus === 'captured' || entityStatus === 'paid') {
+    return 'captured';
+  }
+  if (eventName === 'payment.authorized' || entityStatus === 'authorized') {
+    return 'authorized';
+  }
+  if (eventName === 'payment.failed' || entityStatus === 'failed') {
+    return 'failed';
+  }
+  if (eventName.startsWith('refund.')) {
+    return entityStatus === 'processed' || entityStatus === 'refunded' ? 'refunded' : 'needs_review';
+  }
+  if (eventName.startsWith('payment.dispute')) {
+    return 'disputed';
+  }
+  if (eventName === 'payment_link.cancelled' || entityStatus === 'cancelled') {
+    return 'failed';
+  }
+  return 'needs_review';
 }
 
 function isAuthorizedWebhook(request: {

@@ -25,6 +25,10 @@ import {
   buildOfficeOwnershipTransferNotificationUpdate,
   buildOfficeOwnershipTransferRecord,
   buildOfficeOwnerMemberRecord,
+  buildLiveCollectionsEventId,
+  buildLiveCollectionsIdempotencyKey,
+  buildLiveCollectionsWebhookAuditRecord,
+  buildLiveCollectionsWebhookEventRecord,
   buildResendEmailPayload,
   buildBillingPortalSessionRecord,
   buildRazorpayCheckoutPayload,
@@ -34,11 +38,13 @@ import {
   buildSubscriptionRenewalAuditRecord,
   buildSubscriptionRenewalChangeRecord,
   normalizeMonetizationWebhookPayload,
+  normalizeRazorpayLiveCollectionsPayload,
   normalizeProviderWebhookPayload,
   resolveSubscriptionCheckoutPricing,
   resolveSubscriptionCheckoutPricingFromRecord,
   resolveMonetizationPlanChange,
   validateMonetizationWebhookPayload,
+  validateRazorpayLiveCollectionsPayload,
   verifyRazorpayWebhookSignature,
 } from './index';
 
@@ -163,6 +169,115 @@ describe('provider webhook payload mapping', () => {
       providerPaymentId: 'pay_123',
       payerName: 'Customer One',
       payerContact: '+919999999999',
+    });
+  });
+
+  it('normalizes Razorpay live collection payment link events for verified backend ingestion', () => {
+    const payload = normalizeRazorpayLiveCollectionsPayload({
+      id: 'evt_live_1',
+      entity: 'event',
+      event: 'payment_link.paid',
+      payload: {
+        payment_link: {
+          entity: {
+            id: 'plink_123',
+            amount_paid: 177000,
+            currency: 'INR',
+            status: 'paid',
+            created_at: 1777666574,
+            notes: {
+              orbit_workspace_id: 'workspace_1',
+              orbit_invoice_id: 'invoice_1',
+              orbit_invoice_version_id: 'version_1',
+              orbit_invoice_number: 'WEB-1',
+              orbit_customer_id: 'customer_1',
+            },
+          },
+        },
+        payment: {
+          entity: {
+            id: 'pay_123',
+            amount: 177000,
+            currency: 'INR',
+            status: 'captured',
+            method: 'upi',
+          },
+        },
+      },
+    });
+
+    expect(payload).toMatchObject({
+      provider: 'razorpay',
+      providerEventId: 'evt_live_1',
+      providerEventName: 'payment_link.paid',
+      providerPaymentId: 'pay_123',
+      providerPaymentLinkId: 'plink_123',
+      workspaceId: 'workspace_1',
+      invoiceId: 'invoice_1',
+      invoiceVersionId: 'version_1',
+      customerId: 'customer_1',
+      amount: 1770,
+      currency: 'INR',
+      providerStatus: 'captured',
+    });
+    expect(validateRazorpayLiveCollectionsPayload(payload)).toBeNull();
+    expect(buildLiveCollectionsEventId(payload)).toBe('razorpay_evt_live_1');
+    expect(buildLiveCollectionsIdempotencyKey(payload)).toBe('razorpay:evt_live_1');
+  });
+
+  it('builds pending reconciliation records without applying invoice payment state', () => {
+    const payload = normalizeRazorpayLiveCollectionsPayload({
+      id: 'evt_live_2',
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_456',
+            amount: 200000,
+            currency: 'INR',
+            status: 'captured',
+            created_at: 1777666574,
+            notes: {
+              orbit_workspace_id: 'workspace_1',
+              orbit_invoice_id: 'invoice_2',
+              orbit_customer_id: 'customer_2',
+            },
+          },
+        },
+      },
+    });
+    const now = '2026-05-20T10:00:00.000Z';
+    const eventRecord = buildLiveCollectionsWebhookEventRecord({
+      eventId: buildLiveCollectionsEventId(payload),
+      payload,
+      workspaceId: 'workspace_1',
+      rawEventPath: 'workspaces/workspace_1/live_payment_event_raw/razorpay_evt_live_2',
+      auditEntryId: 'audit_1',
+      now,
+    });
+    const auditRecord = buildLiveCollectionsWebhookAuditRecord({
+      id: 'audit_1',
+      action: 'event_received',
+      eventId: buildLiveCollectionsEventId(payload),
+      payload,
+      workspaceId: 'workspace_1',
+      now,
+      message: 'Verified Razorpay webhook received and queued for reconciliation.',
+    });
+
+    expect(eventRecord).toMatchObject({
+      verification_status: 'verified',
+      processing_status: 'pending_reconciliation',
+      provider_status: 'captured',
+      idempotency_key: 'razorpay:evt_live_2',
+      audit_entry_id: 'audit_1',
+    });
+    expect(eventRecord).not.toHaveProperty('payment_status');
+    expect(auditRecord).toMatchObject({
+      actor: 'system',
+      action: 'event_received',
+      source: 'provider_webhook',
+      provider: 'razorpay',
     });
   });
 
