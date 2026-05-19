@@ -20,6 +20,15 @@ export type LiveCollectionNotification = {
   tone: LiveCollectionNotificationTone;
 };
 
+export type LiveCollectionConfirmation = {
+  title: string;
+  amountLabel: string | null;
+  message: string;
+  invoiceId: string | null;
+  customerId: string | null;
+  primaryPath: string;
+};
+
 const KNOWN_KINDS = new Set<LiveCollectionNotificationKind>([
   'payment_received',
   'payment_failed',
@@ -90,6 +99,23 @@ export function formatLiveCollectionAmount(amount: number | null, currency: stri
   } catch {
     return `${currency} ${amount.toFixed(2)}`;
   }
+}
+
+export function buildLiveCollectionConfirmation(
+  notification: LiveCollectionNotification
+): LiveCollectionConfirmation | null {
+  if (notification.kind !== 'payment_received') {
+    return null;
+  }
+
+  return {
+    title: notification.title || 'Payment received',
+    amountLabel: formatLiveCollectionAmount(notification.amount, notification.currency),
+    message: notification.message,
+    invoiceId: notification.invoiceId,
+    customerId: notification.customerId,
+    primaryPath: notification.deepLinkPath,
+  };
 }
 
 export function titleForNotificationKind(kind: LiveCollectionNotificationKind) {

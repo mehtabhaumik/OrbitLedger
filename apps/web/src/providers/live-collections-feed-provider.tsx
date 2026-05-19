@@ -7,13 +7,16 @@ import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestor
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  buildLiveCollectionConfirmation,
   formatLiveCollectionAmount,
   parseLiveCollectionNotification,
   shouldSurfaceLiveCollectionNotification,
+  type LiveCollectionConfirmation,
   type LiveCollectionNotification,
 } from '@/lib/live-collections-notifications';
 import { getWebFirestore } from '@/lib/firebase';
 import { useAuth } from './auth-provider';
+import { useWebDeviceSettings } from './device-settings-provider';
 import { useToast } from './toast-provider';
 import { useWorkspace } from './workspace-provider';
 
@@ -25,9 +28,11 @@ export function LiveCollectionsFeedProvider({ children }: { children: ReactNode 
   const pathname = usePathname();
   const { user } = useAuth();
   const { activeWorkspace } = useWorkspace();
+  const { settings: deviceSettings } = useWebDeviceSettings();
   const { showToast } = useToast();
   const [notifications, setNotifications] = useState<LiveCollectionNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [confirmation, setConfirmation] = useState<LiveCollectionConfirmation | null>(null);
   const [listenerError, setListenerError] = useState<string | null>(null);
   const mountedAtRef = useRef(Date.now());
   const seenIdsRef = useRef<Set<string>>(new Set());
@@ -43,7 +48,16 @@ export function LiveCollectionsFeedProvider({ children }: { children: ReactNode 
   const openNotification = useCallback(
     (notification: LiveCollectionNotification) => {
       setIsOpen(false);
+      setConfirmation(null);
       router.push(notification.deepLinkPath as Route);
+    },
+    [router]
+  );
+
+  const openConfirmationPath = useCallback(
+    (path: string) => {
+      setConfirmation(null);
+      router.push(path as Route);
     },
     [router]
   );
@@ -93,6 +107,11 @@ export function LiveCollectionsFeedProvider({ children }: { children: ReactNode 
 
           seenIdsRef.current.add(notification.id);
           persistSeenIds(storageKey, seenIdsRef.current);
+          const nextConfirmation = buildLiveCollectionConfirmation(notification);
+          if (nextConfirmation) {
+            setConfirmation(nextConfirmation);
+            playLiveCollectionChime({ muted: deviceSettings.reducedMotion });
+          }
           showToast(notification.message, notification.tone === 'warning' ? 'info' : notification.tone, {
             title: notification.title,
             actionLabel: 'View',
@@ -106,15 +125,67 @@ export function LiveCollectionsFeedProvider({ children }: { children: ReactNode 
     );
 
     return () => unsubscribe();
-  }, [openNotification, showToast, storageKey, user, workspaceId]);
+  }, [deviceSettings.reducedMotion, openNotification, showToast, storageKey, user, workspaceId]);
 
   useEffect(() => {
     setIsOpen(false);
+    setConfirmation(null);
   }, [pathname, workspaceId]);
+
+  useEffect(() => {
+    if (!confirmation) {
+      return undefined;
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setConfirmation(null);
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [confirmation]);
 
   return (
     <>
       {children}
+      {confirmation ? (
+        <div className="ol-paid-confirmation-backdrop" role="presentation" onMouseDown={() => setConfirmation(null)}>
+          <section
+            aria-modal="true"
+            aria-labelledby="live-payment-confirmation-title"
+            className="ol-paid-confirmation-card"
+            role="dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="ol-paid-confirmation-mark" aria-hidden="true" />
+            <div className="ol-paid-confirmation-copy">
+              <p className="ol-paid-confirmation-eyebrow">Verified payment</p>
+              <h2 id="live-payment-confirmation-title">{confirmation.title}</h2>
+              {confirmation.amountLabel ? <div className="ol-paid-confirmation-amount">{confirmation.amountLabel}</div> : null}
+              <p>{confirmation.message}</p>
+            </div>
+            <div className="ol-paid-confirmation-actions">
+              <button className="ol-button" type="button" onClick={() => openConfirmationPath(confirmation.primaryPath)}>
+                {confirmation.invoiceId ? 'View invoice' : 'View payment'}
+              </button>
+              {confirmation.customerId ? (
+                <button
+                  className="ol-button-secondary"
+                  type="button"
+                  onClick={() => openConfirmationPath(`/customers/detail/?customerId=${encodeURIComponent(confirmation.customerId!)}`)}
+                >
+                  View customer
+                </button>
+              ) : null}
+              <button className="ol-button-ghost" type="button" onClick={() => setConfirmation(null)}>
+                Close
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       {workspaceId ? (
         <aside className="ol-live-feed" aria-label="Live payment updates">
           <button
@@ -226,5 +297,41 @@ function persistSeenIds(storageKey: string | null, seenIds: Set<string>) {
     window.localStorage.setItem(storageKey, JSON.stringify(Array.from(seenIds).slice(-MAX_SEEN_IDS)));
   } catch {
     // Local read-state is a notification convenience only.
+  }
+}
+
+function playLiveCollectionChime({ muted }: { muted: boolean }) {
+  if (muted || typeof window === 'undefined' || typeof document === 'undefined' || document.visibilityState !== 'visible') {
+    return;
+  }
+
+  try {
+    const AudioContextConstructor =
+      window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) {
+      return;
+    }
+    const context = new AudioContextConstructor();
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.045, context.currentTime + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.42);
+    gain.connect(context.destination);
+
+    for (const [index, frequency] of [587.33, 783.99].entries()) {
+      const oscillator = context.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, context.currentTime + index * 0.09);
+      oscillator.connect(gain);
+      oscillator.start(context.currentTime + index * 0.09);
+      oscillator.stop(context.currentTime + 0.34 + index * 0.09);
+    }
+
+    window.setTimeout(() => {
+      void context.close().catch(() => undefined);
+    }, 650);
+  } catch {
+    // Browsers may block audio until the user interacts with the page.
   }
 }

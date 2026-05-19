@@ -4562,6 +4562,110 @@ a:focus-visible {
   text-align: left;
 }
 
+.ol-paid-confirmation-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(11, 22, 38, 0.42);
+  backdrop-filter: blur(14px);
+}
+
+.ol-paid-confirmation-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  width: min(520px, 100%);
+  padding: 30px;
+  border: 1px solid rgba(144, 218, 182, 0.88);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(174, 244, 207, 0.34), transparent 42%),
+    rgba(255, 255, 255, 0.98);
+  box-shadow: 0 32px 90px rgba(12, 40, 28, 0.28);
+  color: var(--text);
+  text-align: center;
+}
+
+.ol-paid-confirmation-mark {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  border: 6px solid rgba(37, 135, 88, 0.9);
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(236, 255, 244, 0.96), rgba(209, 248, 226, 0.9));
+  box-shadow:
+    0 0 0 14px rgba(78, 205, 135, 0.12),
+    0 18px 36px rgba(34, 122, 79, 0.22);
+}
+
+.ol-paid-confirmation-mark::before {
+  content: "";
+  position: absolute;
+  left: 29px;
+  top: 30px;
+  width: 38px;
+  height: 20px;
+  border-left: 7px solid #1d7c51;
+  border-bottom: 7px solid #1d7c51;
+  border-radius: 3px;
+  transform: rotate(-45deg);
+}
+
+.ol-paid-confirmation-copy {
+  display: grid;
+  gap: 8px;
+  max-width: 420px;
+}
+
+.ol-paid-confirmation-eyebrow {
+  margin: 0;
+  color: #257654;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ol-paid-confirmation-card h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(28px, 4vw, 38px);
+  line-height: 1.05;
+}
+
+.ol-paid-confirmation-amount {
+  color: #1f7b51;
+  font-size: clamp(34px, 7vw, 52px);
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.ol-paid-confirmation-copy p:not(.ol-paid-confirmation-eyebrow) {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 760;
+  line-height: 1.5;
+}
+
+.ol-paid-confirmation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.ol-paid-confirmation-actions .ol-button,
+.ol-paid-confirmation-actions .ol-button-secondary,
+.ol-paid-confirmation-actions .ol-button-ghost {
+  min-width: 132px;
+}
+
 .ol-confirm-backdrop {
   position: fixed;
   inset: 0;
@@ -9911,6 +10015,43 @@ a:focus-visible {
 
   .ol-live-feed-list {
     max-height: min(56vh, 420px);
+  }
+
+  .ol-paid-confirmation-backdrop {
+    align-items: end;
+    padding: 14px;
+  }
+
+  .ol-paid-confirmation-card {
+    gap: 14px;
+    padding: 22px;
+    border-radius: 26px;
+  }
+
+  .ol-paid-confirmation-mark {
+    width: 82px;
+    height: 82px;
+    border-width: 5px;
+  }
+
+  .ol-paid-confirmation-mark::before {
+    left: 22px;
+    top: 23px;
+    width: 31px;
+    height: 16px;
+    border-left-width: 6px;
+    border-bottom-width: 6px;
+  }
+
+  .ol-paid-confirmation-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .ol-paid-confirmation-actions .ol-button,
+  .ol-paid-confirmation-actions .ol-button-secondary,
+  .ol-paid-confirmation-actions .ol-button-ghost {
+    width: 100%;
   }
 
   .ol-template-preview-toolbar {

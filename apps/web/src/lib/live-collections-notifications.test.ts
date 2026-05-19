@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildLiveCollectionConfirmation,
   formatLiveCollectionAmount,
   parseLiveCollectionNotification,
   shouldSurfaceLiveCollectionNotification,
@@ -93,5 +94,35 @@ describe('live collections notifications', () => {
   it('formats collection amounts for invoice notifications', () => {
     expect(formatLiveCollectionAmount(1770, 'INR')).toContain('1,770');
     expect(formatLiveCollectionAmount(null, 'INR')).toBeNull();
+  });
+
+  it('builds a paid confirmation only for backend-received payments', () => {
+    const received = parseLiveCollectionNotification('notif_paid', {
+      kind: 'payment_received',
+      title: 'Payment received',
+      message: 'INR 1770.00 received for invoice INV-1.',
+      amount: 1770,
+      currency: 'INR',
+      invoice_id: 'invoice-1',
+      customer_id: 'customer-1',
+      deep_link_path: '/invoices/detail/?invoiceId=invoice-1',
+      created_at: '2026-05-20T10:00:00.000Z',
+    });
+    const failed = parseLiveCollectionNotification('notif_failed', {
+      kind: 'payment_failed',
+      message: 'Payment failed.',
+      amount: 1770,
+      currency: 'INR',
+      deep_link_path: '/payments',
+      created_at: '2026-05-20T10:00:00.000Z',
+    });
+
+    expect(buildLiveCollectionConfirmation(received!)).toMatchObject({
+      title: 'Payment received',
+      invoiceId: 'invoice-1',
+      customerId: 'customer-1',
+      primaryPath: '/invoices/detail/?invoiceId=invoice-1',
+    });
+    expect(buildLiveCollectionConfirmation(failed!)).toBeNull();
   });
 });
