@@ -37,6 +37,13 @@ import {
   renderReminderTemplate,
 } from '@/lib/notification-preferences';
 import {
+  buildLivePaymentLinkStatus,
+  formatLivePaymentLinkStatusTime,
+  getLivePaymentLinkStatusChipTone,
+  getLivePaymentLinkStatusRank,
+  type LivePaymentLinkStatus,
+} from '@/lib/live-collections-status';
+import {
   addWorkspaceCustomerTimelineNote,
   addWorkspacePaymentPromise,
   addWorkspacePaymentReminder,
@@ -46,12 +53,14 @@ import {
   listWorkspaceInvoicesForCustomer,
   listWorkspacePaymentPromisesForCustomer,
   listWorkspacePaymentRemindersForCustomer,
+  listWorkspacePaymentProviderEvents,
   listWorkspaceRecurringInvoiceRules,
   updateWorkspacePaymentPromiseStatus,
   updateWorkspaceCustomer,
   type WorkspaceCustomerTimelineNote,
   type WorkspaceCustomer,
   type WorkspaceInvoice,
+  type WorkspacePaymentProviderEvent,
   type WorkspacePaymentPromise,
   type WorkspacePaymentPromiseStatus,
   type WorkspacePaymentReminder,
@@ -124,6 +133,7 @@ function CustomerDetailContent() {
   const [paymentPromises, setPaymentPromises] = useState<WorkspacePaymentPromise[]>([]);
   const [paymentReminders, setPaymentReminders] = useState<WorkspacePaymentReminder[]>([]);
   const [customerInvoices, setCustomerInvoices] = useState<WorkspaceInvoice[]>([]);
+  const [providerEvents, setProviderEvents] = useState<WorkspacePaymentProviderEvent[]>([]);
   const [recurringRules, setRecurringRules] = useState<WorkspaceRecurringInvoiceRule[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -146,6 +156,7 @@ function CustomerDetailContent() {
   useEffect(() => {
     if (!activeWorkspace || !customerId) {
       setStatus(customerId ? null : 'Choose a customer from the customer list.');
+      setProviderEvents([]);
       return;
     }
     setStatus(null);
@@ -156,9 +167,10 @@ function CustomerDetailContent() {
       listWorkspacePaymentPromisesForCustomer(activeWorkspace.workspaceId, customerId),
       listWorkspacePaymentRemindersForCustomer(activeWorkspace.workspaceId, customerId),
       listWorkspaceInvoicesForCustomer(activeWorkspace.workspaceId, customerId),
+      listWorkspacePaymentProviderEvents(activeWorkspace.workspaceId),
       listWorkspaceRecurringInvoiceRules(activeWorkspace.workspaceId),
     ])
-      .then(([nextCustomer, nextTransactions, nextTimelineNotes, nextPaymentPromises, nextPaymentReminders, nextInvoices, nextRules]) => {
+      .then(([nextCustomer, nextTransactions, nextTimelineNotes, nextPaymentPromises, nextPaymentReminders, nextInvoices, nextProviderEvents, nextRules]) => {
         setCustomer(nextCustomer);
         setProfileDraft(nextCustomer ? customerToProfileDraft(nextCustomer, activeWorkspace.countryCode) : null);
         setTransactions(nextTransactions);
@@ -166,13 +178,17 @@ function CustomerDetailContent() {
         setPaymentPromises(nextPaymentPromises);
         setPaymentReminders(nextPaymentReminders);
         setCustomerInvoices(nextInvoices);
+        setProviderEvents(nextProviderEvents.filter((event) => event.customerId === customerId));
         setRecurringRules(nextRules.filter((rule) => rule.customerId === customerId));
         setSelectedTransactionIds(new Set());
         if (!nextCustomer) {
           setStatus('Customer could not be found.');
         }
       })
-      .catch((error) => setStatus(error instanceof Error ? error.message : 'Customer could not be loaded.'));
+      .catch((error) => {
+        setProviderEvents([]);
+        setStatus(error instanceof Error ? error.message : 'Customer could not be loaded.');
+      });
   }, [activeWorkspace, customerId]);
 
   const totals = useMemo(() => {
@@ -188,6 +204,10 @@ function CustomerDetailContent() {
       { credits: 0, payments: 0 }
     );
   }, [transactions]);
+  const livePaymentStatuses = useMemo(
+    () => buildCustomerLivePaymentStatuses(customerInvoices, providerEvents),
+    [customerInvoices, providerEvents]
+  );
   const filteredTransactions = useMemo(
     () =>
       filterWorkspaceTransactions(transactions, {
@@ -716,6 +736,43 @@ function CustomerDetailContent() {
                       <div className="ol-list-title">{warning.title}</div>
                       <div className="ol-list-text">{warning.message}</div>
                       <span className="ol-action-link">View auto email settings</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {livePaymentStatuses.length ? (
+            <section className="ol-panel">
+              <div className="ol-panel-header">
+                <div>
+                  <div className="ol-panel-title">Online payment activity</div>
+                  <p className="ol-panel-copy">Recent payment-link status for this customer.</p>
+                </div>
+                <Link className="ol-button-secondary" href="/payments">
+                  View payments
+                </Link>
+              </div>
+              <div className="ol-live-payment-grid">
+                {livePaymentStatuses.map((item) => (
+                  <Link
+                    className="ol-live-payment-status-card ol-live-payment-status-card--link"
+                    data-tone={item.status.tone}
+                    href={`/invoices/detail?invoiceId=${encodeURIComponent(item.invoice.id)}` as Route}
+                    key={`${item.invoice.id}-${item.status.eventId ?? item.status.state}`}
+                  >
+                    <div className="ol-live-payment-status-mark" aria-hidden="true" />
+                    <div className="ol-live-payment-status-copy">
+                      <div className="ol-live-payment-status-kicker">{item.invoice.invoiceNumber}</div>
+                      <strong>{item.status.title}</strong>
+                      <p>{item.status.helper}</p>
+                    </div>
+                    <div className="ol-live-payment-status-meta">
+                      <span className={`ol-chip ol-chip--${getLivePaymentLinkStatusChipTone(item.status.tone)}`}>
+                        {item.status.label}
+                      </span>
+                      <span>{formatLivePaymentLinkStatusTime(item.status.updatedAt)}</span>
                     </div>
                   </Link>
                 ))}
@@ -1306,6 +1363,40 @@ function buildCustomerAutoEmailWarnings(
                 : `No invoice is selected yet for the ${rule.nextEmailDate} email.`,
       };
     });
+}
+
+function buildCustomerLivePaymentStatuses(
+  invoices: WorkspaceInvoice[],
+  events: WorkspacePaymentProviderEvent[]
+): Array<{ invoice: WorkspaceInvoice; status: LivePaymentLinkStatus }> {
+  const invoiceById = new Map(invoices.map((invoice) => [invoice.id, invoice]));
+  const eventInvoiceIds = new Set(events.map((event) => event.invoiceId).filter((id): id is string => Boolean(id)));
+
+  return Array.from(eventInvoiceIds)
+    .map((invoiceId) => {
+      const invoice = invoiceById.get(invoiceId);
+      if (!invoice || invoice.isArchived || invoice.documentState === 'cancelled') {
+        return null;
+      }
+
+      return {
+        invoice,
+        status: buildLivePaymentLinkStatus({
+          invoice,
+          events,
+          hasPaymentLink: true,
+        }),
+      };
+    })
+    .filter((item): item is { invoice: WorkspaceInvoice; status: LivePaymentLinkStatus } => Boolean(item))
+    .sort((left, right) => {
+      const rankDelta = getLivePaymentLinkStatusRank(left.status) - getLivePaymentLinkStatusRank(right.status);
+      if (rankDelta !== 0) {
+        return rankDelta;
+      }
+      return (right.status.updatedAt ?? '').localeCompare(left.status.updatedAt ?? '');
+    })
+    .slice(0, 4);
 }
 
 function daysBetween(from: string, to: string): number {

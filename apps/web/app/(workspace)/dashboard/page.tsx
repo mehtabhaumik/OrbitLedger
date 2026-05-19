@@ -34,10 +34,19 @@ import { DashboardCharts, type DashboardChartInsight } from '@/components/dashbo
 import { WorkspaceStatusCards } from '@/components/workspace-status-cards';
 import { buildDashboardAnalytics } from '@/lib/dashboard-analytics';
 import {
+  buildLivePaymentLinkStatus,
+  formatLivePaymentLinkStatusTime,
+  getLivePaymentLinkStatusChipTone,
+  getLivePaymentLinkStatusRank,
+  type LivePaymentLinkStatus,
+} from '@/lib/live-collections-status';
+import {
   getWorkspaceDashboardData,
+  listWorkspacePaymentProviderEvents,
   type WorkspaceCustomer,
   type WorkspaceInvoice,
   type WorkspaceManualPaymentReviewItem,
+  type WorkspacePaymentProviderEvent,
   type WorkspaceProduct,
   type WorkspaceRecurringInvoiceRule,
   type WorkspaceTransaction,
@@ -80,6 +89,7 @@ export default function DashboardPage() {
   const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
   const [manualPayments, setManualPayments] = useState<WorkspaceManualPaymentReviewItem[]>([]);
   const [products, setProducts] = useState<WorkspaceProduct[]>([]);
+  const [providerEvents, setProviderEvents] = useState<WorkspacePaymentProviderEvent[]>([]);
   const [recurringRules, setRecurringRules] = useState<WorkspaceRecurringInvoiceRule[]>([]);
   const [transactions, setTransactions] = useState<WorkspaceTransaction[]>([]);
   const [activeDialog, setActiveDialog] = useState<DashboardDialog>(null);
@@ -307,6 +317,7 @@ export default function DashboardPage() {
       setInvoices([]);
       setManualPayments([]);
       setProducts([]);
+      setProviderEvents([]);
       setRecurringRules([]);
       setTransactions([]);
       setClosingChecks(DEFAULT_CLOSING_CHECKS);
@@ -315,12 +326,16 @@ export default function DashboardPage() {
       return;
     }
 
-    void getWorkspaceDashboardData(activeWorkspace.workspaceId)
-      .then((nextData) => {
+    void Promise.all([
+      getWorkspaceDashboardData(activeWorkspace.workspaceId),
+      listWorkspacePaymentProviderEvents(activeWorkspace.workspaceId),
+    ])
+      .then(([nextData, nextProviderEvents]) => {
         setCustomers(nextData.customers);
         setInvoices(nextData.invoices);
         setManualPayments(buildDashboardManualPaymentsFromTransactions(nextData.transactions));
         setProducts(nextData.products);
+        setProviderEvents(nextProviderEvents);
         setRecurringRules(nextData.recurringRules);
         setTransactions(nextData.transactions);
         const saved = loadClosingState(activeWorkspace.workspaceId, today);
@@ -333,11 +348,16 @@ export default function DashboardPage() {
         setInvoices([]);
         setManualPayments([]);
         setProducts([]);
+        setProviderEvents([]);
         setRecurringRules([]);
         setTransactions([]);
       });
   }, [activeWorkspace, today]);
   const autoEmailWarnings = useMemo(() => buildDashboardAutoEmailWarnings(recurringRules, invoices), [invoices, recurringRules]);
+  const livePaymentStatuses = useMemo(
+    () => buildDashboardLivePaymentStatuses(invoices, providerEvents),
+    [invoices, providerEvents]
+  );
   const dashboardAnalytics = useMemo(
     () =>
       buildDashboardAnalytics({
@@ -474,6 +494,43 @@ export default function DashboardPage() {
         onOpenInventory={() => setActiveDialog('inventory')}
         onOpenPayments={() => setActiveDialog('payments')}
       />
+
+      {livePaymentStatuses.length ? (
+        <section className="ol-panel">
+          <div className="ol-panel-header">
+            <div>
+              <div className="ol-panel-title">Live collections</div>
+              <p className="ol-panel-copy">Online payment links with recent verified Orbit Ledger status.</p>
+            </div>
+            <Link className="ol-button-secondary" href="/payments">
+              View payments
+            </Link>
+          </div>
+          <div className="ol-live-payment-grid">
+            {livePaymentStatuses.map((item) => (
+              <Link
+                className="ol-live-payment-status-card ol-live-payment-status-card--link"
+                data-tone={item.status.tone}
+                href={`/invoices/detail?invoiceId=${encodeURIComponent(item.invoice.id)}` as Route}
+                key={`${item.invoice.id}-${item.status.eventId ?? item.status.state}`}
+              >
+                <div className="ol-live-payment-status-mark" aria-hidden="true" />
+                <div className="ol-live-payment-status-copy">
+                  <div className="ol-live-payment-status-kicker">{item.invoice.invoiceNumber}</div>
+                  <strong>{item.status.title}</strong>
+                  <p>{item.invoice.customerName ?? 'Customer'} · {item.status.helper}</p>
+                </div>
+                <div className="ol-live-payment-status-meta">
+                  <span className={`ol-chip ol-chip--${getLivePaymentLinkStatusChipTone(item.status.tone)}`}>
+                    {item.status.label}
+                  </span>
+                  <span>{formatLivePaymentLinkStatusTime(item.status.updatedAt)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="ol-dashboard-section-header" aria-label="Review tools">
         <div>
@@ -1650,6 +1707,40 @@ function transactionInsightRow(transaction: WorkspaceTransaction, currency: stri
     actionLabel: 'Open transactions',
     tone: transaction.type === 'payment' ? 'success' : 'warning',
   };
+}
+
+function buildDashboardLivePaymentStatuses(
+  invoices: WorkspaceInvoice[],
+  events: WorkspacePaymentProviderEvent[]
+): Array<{ invoice: WorkspaceInvoice; status: LivePaymentLinkStatus }> {
+  const invoiceById = new Map(invoices.map((invoice) => [invoice.id, invoice]));
+  const eventInvoiceIds = new Set(events.map((event) => event.invoiceId).filter((id): id is string => Boolean(id)));
+
+  return Array.from(eventInvoiceIds)
+    .map((invoiceId) => {
+      const invoice = invoiceById.get(invoiceId);
+      if (!invoice || invoice.isArchived || invoice.documentState === 'cancelled') {
+        return null;
+      }
+
+      return {
+        invoice,
+        status: buildLivePaymentLinkStatus({
+          invoice,
+          events,
+          hasPaymentLink: true,
+        }),
+      };
+    })
+    .filter((item): item is { invoice: WorkspaceInvoice; status: LivePaymentLinkStatus } => Boolean(item))
+    .sort((left, right) => {
+      const rankDelta = getLivePaymentLinkStatusRank(left.status) - getLivePaymentLinkStatusRank(right.status);
+      if (rankDelta !== 0) {
+        return rankDelta;
+      }
+      return (right.status.updatedAt ?? '').localeCompare(left.status.updatedAt ?? '');
+    })
+    .slice(0, 4);
 }
 
 function getAgingBucketId(value: string | null | undefined, today: string) {

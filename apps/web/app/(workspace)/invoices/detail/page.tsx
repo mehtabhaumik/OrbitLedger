@@ -42,6 +42,7 @@ import {
   getWorkspaceInvoiceDetail,
   listWorkspaceInvoicePaymentAllocations,
   listWorkspaceCustomers,
+  listWorkspacePaymentProviderEvents,
   listWorkspaceProducts,
   reverseWorkspaceInvoicePaymentAllocation,
   saveWorkspaceInvoiceDetail,
@@ -50,6 +51,7 @@ import {
   type WorkspaceInvoiceDetail,
   type WorkspaceInvoiceVersion,
   type WorkspaceInvoicePaymentAllocation,
+  type WorkspacePaymentProviderEvent,
   type WorkspaceProduct,
 } from '@/lib/workspace-data';
 import {
@@ -67,6 +69,11 @@ import {
 } from '@/lib/web-monetization';
 import { getWebPaymentProviderPlan } from '@/lib/payment-provider-mode';
 import { createRazorpayCheckoutLink } from '@/lib/provider-checkout';
+import {
+  buildLivePaymentLinkStatus,
+  formatLivePaymentLinkStatusTime,
+  getLivePaymentLinkStatusChipTone,
+} from '@/lib/live-collections-status';
 import { uploadPaymentInstrumentImage } from '@/lib/workspace-storage';
 import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
@@ -155,6 +162,7 @@ function InvoiceEditorContent() {
   const [paymentLinkDetails, setPaymentLinkDetails] = useState<PaymentLinkDetails>({});
   const [includePaymentLinkInDocument, setIncludePaymentLinkInDocument] = useState(true);
   const [allocations, setAllocations] = useState<WorkspaceInvoicePaymentAllocation[]>([]);
+  const [providerEvents, setProviderEvents] = useState<WorkspacePaymentProviderEvent[]>([]);
   const [revisionReasonChoice, setRevisionReasonChoice] = useState('');
   const [revisionReason, setRevisionReason] = useState('');
   const [notes, setNotes] = useState('');
@@ -193,6 +201,7 @@ function InvoiceEditorContent() {
   useEffect(() => {
     if (!activeWorkspace || !invoiceId) {
       setMessage(invoiceId ? null : 'Choose an invoice from the invoice list.');
+      setProviderEvents([]);
       return;
     }
     setMessage(null);
@@ -201,10 +210,12 @@ function InvoiceEditorContent() {
       listWorkspaceCustomers(activeWorkspace.workspaceId),
       listWorkspaceProducts(activeWorkspace.workspaceId),
       listWorkspaceInvoicePaymentAllocations(activeWorkspace.workspaceId, invoiceId),
+      listWorkspacePaymentProviderEvents(activeWorkspace.workspaceId),
     ])
-      .then(([nextInvoice, nextCustomers, nextProducts, nextAllocations]) => {
+      .then(([nextInvoice, nextCustomers, nextProducts, nextAllocations, nextProviderEvents]) => {
         setCustomers(nextCustomers);
         setProducts(nextProducts);
+        setProviderEvents(nextProviderEvents.filter((event) => event.invoiceId === invoiceId));
         if (!nextInvoice) {
           setMessage('Invoice could not be found.');
           return;
@@ -215,6 +226,7 @@ function InvoiceEditorContent() {
         if (versionId && !selectedVersion) {
           setInvoice(null);
           setAllocations([]);
+          setProviderEvents([]);
           setMessage('Saved invoice version could not be found.');
           return;
         }
@@ -272,6 +284,7 @@ function InvoiceEditorContent() {
         );
       })
       .catch((error) => {
+        setProviderEvents([]);
         setMessage(error instanceof Error ? error.message : 'Invoice could not be loaded.');
       });
   }, [activeWorkspace, invoiceId, versionId]);
@@ -360,6 +373,18 @@ function InvoiceEditorContent() {
           })
         : null,
     [activeWorkspace, currency, dueAmount, dueDate, hostedPaymentPageUrl, invoiceNumber, paymentLinkDetails, selectedCustomer?.name, total]
+  );
+  const hasProviderBackedPaymentLink = Boolean(paymentLinkDetails.paymentPageUrl?.trim());
+  const livePaymentLinkStatus = useMemo(
+    () =>
+      invoice
+        ? buildLivePaymentLinkStatus({
+            invoice,
+            events: providerEvents,
+            hasPaymentLink: hasProviderBackedPaymentLink,
+          })
+        : null,
+    [hasProviderBackedPaymentLink, invoice, providerEvents]
   );
   const paymentVerificationPlan = useMemo(
     () =>
@@ -1272,6 +1297,22 @@ function InvoiceEditorContent() {
                 {getInvoicePaymentStatusLabel(paymentStatus)}
               </span>
             </div>
+            {livePaymentLinkStatus ? (
+              <div className="ol-live-payment-status-card" data-tone={livePaymentLinkStatus.tone}>
+                <div className="ol-live-payment-status-mark" aria-hidden="true" />
+                <div className="ol-live-payment-status-copy">
+                  <div className="ol-live-payment-status-kicker">Live payment link</div>
+                  <strong>{livePaymentLinkStatus.title}</strong>
+                  <p>{livePaymentLinkStatus.helper}</p>
+                </div>
+                <div className="ol-live-payment-status-meta">
+                  <span className={`ol-chip ol-chip--${getLivePaymentLinkStatusChipTone(livePaymentLinkStatus.tone)}`}>
+                    {livePaymentLinkStatus.label}
+                  </span>
+                  <span>{formatLivePaymentLinkStatusTime(livePaymentLinkStatus.updatedAt)}</span>
+                </div>
+              </div>
+            ) : null}
             <div className="ol-form-row ol-form-row--4">
               <label className="ol-field">
                 <span className="ol-field-label">Payment amount</span>
