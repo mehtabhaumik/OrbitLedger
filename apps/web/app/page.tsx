@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { WEB_BETA_TO_PAID_POLICY } from '@/lib/web-monetization';
+import { LandingNav } from './landing-nav';
 import { LandingSessionGate } from './landing-session-gate';
 import { LandingTemplateShowcase } from './landing-template-showcase';
 
@@ -53,29 +54,7 @@ export default function LandingPage() {
   return (
     <main className="ol-landing-page">
       <LandingSessionGate />
-      <header className="ol-landing-nav" aria-label="Landing navigation">
-        <Link className="ol-landing-brand" href="/">
-          <img
-            alt="Orbit Ledger"
-            className="ol-brand-logo"
-            src="/branding/orbit-ledger-logo-transparent.png"
-          />
-        </Link>
-        <nav className="ol-landing-links" aria-label="Page sections">
-          <a href="#templates">Templates</a>
-          <a href="#how-it-works">How it works</a>
-          <a href="#office">Office</a>
-          <a href="#pricing">Pricing</a>
-        </nav>
-        <div className="ol-landing-nav-actions">
-          <Link className="ol-button-ghost ol-landing-signin" href="/login">
-            Sign in
-          </Link>
-          <Link className="ol-button ol-landing-primary" href={appCtaHref}>
-            Start free
-          </Link>
-        </div>
-      </header>
+      <LandingNav appCtaHref={appCtaHref} />
 
       <section className="ol-landing-hero" aria-labelledby="landing-hero-title">
         <div className="ol-landing-hero-glow" aria-hidden="true" />
