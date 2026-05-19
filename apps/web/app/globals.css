@@ -32,6 +32,7 @@
   --control-radius: 12px;
   --radius: 10px;
   --radius-lg: 18px;
+  --section-stack-gap: 18px;
   --sidebar-width: 280px;
   --topbar-height: 78px;
 }
@@ -1320,6 +1321,48 @@ a:focus-visible {
   padding: 22px;
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+}
+
+.ol-panel > :where(
+  .ol-chip-row,
+  .ol-message,
+  .ol-field,
+  .ol-form-grid,
+  .ol-form-row,
+  .ol-form-stack,
+  .ol-form-band,
+  .ol-actions,
+  .ol-list,
+  .ol-table,
+  .ol-table-card,
+  .ol-metric-grid,
+  .ol-page-grid,
+  .ol-review-grid,
+  .ol-business-review-panel,
+  .ol-card-mini
+) + :where(
+  .ol-chip-row,
+  .ol-message,
+  .ol-field,
+  .ol-form-grid,
+  .ol-form-row,
+  .ol-form-stack,
+  .ol-form-band,
+  .ol-actions,
+  .ol-list,
+  .ol-table,
+  .ol-table-card,
+  .ol-metric-grid,
+  .ol-page-grid,
+  .ol-review-grid,
+  .ol-business-review-panel,
+  .ol-card-mini
+) {
+  margin-top: var(--section-stack-gap);
+}
+
+.ol-dialog-list > :where(.ol-chip-row, .ol-message, .ol-field, .ol-form-grid, .ol-form-row, .ol-form-stack, .ol-actions, .ol-card-mini) + :where(.ol-chip-row, .ol-message, .ol-field, .ol-form-grid, .ol-form-row, .ol-form-stack, .ol-actions, .ol-card-mini) {
+  margin-top: 4px;
 }
 
 .ol-panel {
@@ -4183,6 +4226,18 @@ a:focus-visible {
   font-weight: 650;
   font-size: 13px;
   line-height: 1.45;
+}
+
+.ol-message > :first-child {
+  margin-top: 0;
+}
+
+.ol-message > :last-child {
+  margin-bottom: 0;
+}
+
+.ol-message p {
+  margin: 6px 0 0;
 }
 
 .ol-message--danger {
