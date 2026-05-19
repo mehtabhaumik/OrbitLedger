@@ -6441,6 +6441,24 @@ async function reconcileLiveCollectionsCapturedPayment(
     return { reconciled: false, status: 'needs_review', invoiceId, customerId };
   }
 
+  if (amount > dueAmount) {
+    const message = 'Payment amount is higher than the invoice balance.';
+    transaction.set(eventRef, buildLiveCollectionsNeedsReviewEventUpdate(message, now), { merge: true });
+    transaction.set(
+      workspaceRef.collection('live_payment_audit').doc(normalizeId(`audit_${eventRef.id}_amount_review_${Date.now()}`)),
+      buildLiveCollectionsReconciliationAuditRecord({
+        eventId: eventRef.id,
+        event,
+        action: 'payment_review_required',
+        message,
+        now,
+        invoiceId,
+        customerId,
+      })
+    );
+    return { reconciled: false, status: 'needs_review', invoiceId, customerId };
+  }
+
   const allocationAmount = roundMoney(Math.min(amount, dueAmount));
   const nextPaidAmount = roundMoney(paidAmount + allocationAmount);
   const nextPaymentStatus = deriveProviderInvoicePaymentStatus({

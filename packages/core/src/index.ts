@@ -606,6 +606,11 @@ export {
   shouldCreateLivePaymentNotification,
   validatePaymentCapabilitySeparation,
 } from './liveCollections';
+export {
+  LIVE_COLLECTIONS_RAZORPAY_QA_MATRIX,
+  getLiveCollectionsQaBlockers,
+  getLiveCollectionsQaScenario,
+} from './liveCollectionsQa';
 export type {
   LiveCollectionsGuardrailName,
   LivePaymentAllocationInput,
@@ -615,6 +620,11 @@ export type {
   LivePaymentPublicProviderConfig,
   LivePaymentTrustedEventDecision,
 } from './liveCollections';
+export type {
+  LiveCollectionsQaBackendAction,
+  LiveCollectionsQaScenario,
+  LiveCollectionsQaScenarioKind,
+} from './liveCollectionsQa';
 export type {
   InvoiceDocumentState,
   InvoiceLifecycleInput,

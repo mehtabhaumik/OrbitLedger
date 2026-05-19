@@ -61,6 +61,27 @@ describe('live collection receipt automation', () => {
     expect(automation.receiptMessage).toContain('after a verified payment');
   });
 
+  it('does not create receipt copy from refunded or reversed payment events', () => {
+    const automation = buildLiveCollectionReceiptAutomation({
+      workspace,
+      customer: { name: 'Sonali Traders', email: null, whatsapp: null },
+      invoice: invoice({ paymentStatus: 'partially_paid', paidAmount: 500 }),
+      events: [
+        event({
+          applied: true,
+          status: 'refunded',
+          reversed: true,
+          refundedAmount: 1270,
+          allocationAmount: 1270,
+        }),
+      ],
+    });
+
+    expect(automation.eligible).toBe(false);
+    expect(automation.sourceLabel).toBe('Waiting for verified payment');
+    expect(automation.followUpState).toBe('continue');
+  });
+
   it('can create a receipt from saved payment allocation when no live event exists', () => {
     const automation = buildLiveCollectionReceiptAutomation({
       workspace,

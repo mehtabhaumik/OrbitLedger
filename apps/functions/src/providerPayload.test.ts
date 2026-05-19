@@ -288,6 +288,92 @@ describe('provider webhook payload mapping', () => {
     });
   });
 
+  it('keeps failed live collection events review-only with no invoice payment mutation fields', () => {
+    const payload = normalizeRazorpayLiveCollectionsPayload({
+      id: 'evt_failed_1',
+      event: 'payment.failed',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_failed_1',
+            amount: 177000,
+            currency: 'INR',
+            status: 'failed',
+            notes: {
+              orbit_workspace_id: 'workspace_1',
+              orbit_invoice_id: 'invoice_failed',
+              orbit_customer_id: 'customer_failed',
+            },
+          },
+        },
+      },
+    });
+    const now = '2026-05-20T10:00:00.000Z';
+    const eventRecord = buildLiveCollectionsWebhookEventRecord({
+      eventId: buildLiveCollectionsEventId(payload),
+      payload,
+      workspaceId: 'workspace_1',
+      rawEventPath: 'workspaces/workspace_1/live_payment_event_raw/razorpay_evt_failed_1',
+      auditEntryId: 'audit_failed_1',
+      now,
+    });
+    const notification = buildLiveCollectionsNotificationRecord({
+      id: 'notif_failed_1',
+      eventId: buildLiveCollectionsEventId(payload),
+      event: eventRecord,
+      kind: 'payment_failed',
+      title: 'Payment failed',
+      message: 'Online payment failed.',
+      invoiceId: 'invoice_failed',
+      customerId: 'customer_failed',
+      amount: 1770,
+      now,
+    });
+
+    expect(payload.providerStatus).toBe('failed');
+    expect(eventRecord).toMatchObject({
+      provider_status: 'failed',
+      verification_status: 'verified',
+      processing_status: 'pending_reconciliation',
+    });
+    expect(eventRecord).not.toHaveProperty('payment_status');
+    expect(eventRecord).not.toHaveProperty('paid_amount');
+    expect(notification).toMatchObject({
+      source: 'orbit_ledger_state',
+      kind: 'payment_failed',
+      deep_link_path: '/invoices/detail/?invoiceId=invoice_failed',
+    });
+  });
+
+  it('maps authorized live collection events as non-final provider state', () => {
+    const payload = normalizeRazorpayLiveCollectionsPayload({
+      id: 'evt_authorized_1',
+      event: 'payment.authorized',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_authorized_1',
+            amount: 177000,
+            currency: 'INR',
+            status: 'authorized',
+            notes: {
+              orbit_workspace_id: 'workspace_1',
+              orbit_invoice_id: 'invoice_authorized',
+            },
+          },
+        },
+      },
+    });
+
+    expect(payload).toMatchObject({
+      providerStatus: 'authorized',
+      workspaceId: 'workspace_1',
+      invoiceId: 'invoice_authorized',
+      amount: 1770,
+    });
+    expect(validateRazorpayLiveCollectionsPayload(payload)).toBeNull();
+  });
+
   it('builds live collection ledger records from reconciled provider state', () => {
     const event = {
       workspace_id: 'workspace_1',
