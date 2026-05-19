@@ -6386,6 +6386,8 @@ async function reconcileLiveCollectionsCapturedPayment(
   const transactionRef = workspaceRef.collection('transactions').doc(`txn_live_${eventRef.id}`);
   const allocationRef = workspaceRef.collection('payment_allocations').doc(`pal_live_${eventRef.id}`);
   const notificationRef = workspaceRef.collection('live_payment_notifications').doc(`notif_${eventRef.id}`);
+  const receiptRef = workspaceRef.collection('live_payment_receipts').doc(`receipt_${eventRef.id}`);
+  const followUpRef = workspaceRef.collection('live_follow_up_automation').doc(`followup_${eventRef.id}`);
   const [transactionSnapshot, allocationSnapshot] = await Promise.all([
     transaction.get(transactionRef),
     transaction.get(allocationRef),
@@ -6524,6 +6526,27 @@ async function reconcileLiveCollectionsCapturedPayment(
     invoiceId,
     customerId,
     amount,
+    now,
+  }));
+  transaction.set(receiptRef, buildLiveCollectionsReceiptRecord({
+    id: receiptRef.id,
+    eventId: eventRef.id,
+    event,
+    invoiceId,
+    invoiceNumber: clean(stringValue(invoice.invoice_number)) ?? invoiceId,
+    customerId,
+    transactionId: transactionRef.id,
+    allocationId: allocationRef.id,
+    amount: allocationAmount,
+    now,
+  }));
+  transaction.set(followUpRef, buildLiveCollectionsFollowUpAutomationRecord({
+    id: followUpRef.id,
+    eventId: eventRef.id,
+    invoiceId,
+    customerId,
+    invoicePaymentStatus: nextPaymentStatus,
+    amountDueAfterPayment: roundMoney(Math.max(totalAmount - nextPaidAmount, 0)),
     now,
   }));
 
@@ -7013,6 +7036,72 @@ export function buildLiveCollectionsNotificationRecord(input: {
         : '/payments',
     created_at: input.now,
     read_at: null,
+  };
+}
+
+export function buildLiveCollectionsReceiptRecord(input: {
+  id: string;
+  eventId: string;
+  event: FirebaseFirestore.DocumentData;
+  invoiceId: string;
+  invoiceNumber: string;
+  customerId: string;
+  transactionId: string;
+  allocationId: string;
+  amount: number;
+  now: string;
+}) {
+  const datePart = input.now.slice(0, 10).replaceAll('-', '');
+  const suffix = normalizeId(input.eventId).slice(-10).toUpperCase();
+  return {
+    version: 1,
+    id: input.id,
+    source: 'verified_payment',
+    status: 'ready',
+    receipt_number: `OLR-${datePart}-${suffix}`,
+    live_payment_event_id: input.eventId,
+    provider_event_id: clean(stringValue(input.event.provider_event_id)) ?? input.eventId,
+    provider_payment_id: clean(stringValue(input.event.provider_payment_id)) ?? null,
+    invoice_id: input.invoiceId,
+    invoice_number: input.invoiceNumber,
+    customer_id: input.customerId,
+    transaction_id: input.transactionId,
+    allocation_id: input.allocationId,
+    amount: money(input.amount),
+    currency: normalizeCurrency(stringValue(input.event.currency)),
+    message: `Receipt ready for invoice ${input.invoiceNumber}.`,
+    created_at: input.now,
+    last_modified: input.now,
+    sync_status: 'synced',
+  };
+}
+
+export function buildLiveCollectionsFollowUpAutomationRecord(input: {
+  id: string;
+  eventId: string;
+  invoiceId: string;
+  customerId: string;
+  invoicePaymentStatus: string;
+  amountDueAfterPayment: number;
+  now: string;
+}) {
+  const shouldStop = input.invoicePaymentStatus === 'paid' && money(input.amountDueAfterPayment) <= 0;
+  return {
+    version: 1,
+    id: input.id,
+    source: 'verified_payment',
+    status: shouldStop ? 'stopped' : 'adjusted',
+    live_payment_event_id: input.eventId,
+    invoice_id: input.invoiceId,
+    customer_id: input.customerId,
+    invoice_payment_status: input.invoicePaymentStatus,
+    amount_due_after_payment: money(input.amountDueAfterPayment),
+    message: shouldStop
+      ? 'Payment follow-ups for this invoice should stop because the verified payment cleared the balance.'
+      : 'Payment follow-ups should continue only for the remaining invoice balance.',
+    created_at: input.now,
+    last_modified: input.now,
+    sync_status: 'synced',
   };
 }
 

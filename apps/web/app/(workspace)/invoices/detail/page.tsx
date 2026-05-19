@@ -74,6 +74,10 @@ import {
   formatLivePaymentLinkStatusTime,
   getLivePaymentLinkStatusChipTone,
 } from '@/lib/live-collections-status';
+import {
+  buildLiveCollectionReceiptAutomation,
+  shouldStopInvoiceFollowUps,
+} from '@/lib/live-collections-receipts';
 import { uploadPaymentInstrumentImage } from '@/lib/workspace-storage';
 import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
@@ -386,6 +390,18 @@ function InvoiceEditorContent() {
         : null,
     [hasProviderBackedPaymentLink, invoice, providerEvents]
   );
+  const receiptAutomation = useMemo(
+    () =>
+      activeWorkspace && invoice
+        ? buildLiveCollectionReceiptAutomation({
+            workspace: activeWorkspace,
+            customer: selectedCustomer,
+            invoice,
+            events: providerEvents,
+          })
+        : null,
+    [activeWorkspace, invoice, providerEvents, selectedCustomer]
+  );
   const paymentVerificationPlan = useMemo(
     () =>
       getManualPaymentVerificationPlan({
@@ -668,6 +684,20 @@ function InvoiceEditorContent() {
     });
     await navigator.clipboard.writeText(appendPaymentLinkToMessage(messageText, invoicePaymentLink));
     showToast('Payment message copied.', 'success');
+  }
+
+  async function copyReceiptMessage(channel: 'email' | 'whatsapp') {
+    if (!receiptAutomation?.eligible) {
+      showToast('Receipt copy is available after a verified payment is applied.', 'info');
+      return;
+    }
+
+    const text =
+      channel === 'email'
+        ? `Subject: ${receiptAutomation.emailSubject}\n\n${receiptAutomation.receiptMessage}`
+        : receiptAutomation.whatsappMessage;
+    await navigator.clipboard.writeText(text);
+    showToast(channel === 'email' ? 'Receipt email copy copied.' : 'Receipt WhatsApp copy copied.', 'success');
   }
 
   async function createRazorpayCheckout() {
@@ -1310,6 +1340,32 @@ function InvoiceEditorContent() {
                     {livePaymentLinkStatus.label}
                   </span>
                   <span>{formatLivePaymentLinkStatusTime(livePaymentLinkStatus.updatedAt)}</span>
+                </div>
+              </div>
+            ) : null}
+            {receiptAutomation?.eligible ? (
+              <div className="ol-live-receipt-card" data-follow-up={receiptAutomation.followUpState}>
+                <div>
+                  <div className="ol-live-payment-status-kicker">Receipt and follow-up</div>
+                  <strong>{receiptAutomation.title}</strong>
+                  <p>
+                    {receiptAutomation.amountLabel} recorded for invoice {receiptAutomation.receiptReference}. {receiptAutomation.followUpHelper}
+                  </p>
+                  <div className="ol-inline-actions" style={{ marginTop: 12 }}>
+                    <button className="ol-button-secondary" type="button" onClick={() => void copyReceiptMessage('email')}>
+                      Copy receipt email
+                    </button>
+                    <button className="ol-button-ghost" type="button" onClick={() => void copyReceiptMessage('whatsapp')}>
+                      Copy WhatsApp receipt
+                    </button>
+                  </div>
+                </div>
+                <div className="ol-live-receipt-meta">
+                  <span className={`ol-chip ol-chip--${shouldStopInvoiceFollowUps(receiptAutomation) ? 'success' : 'warning'}`}>
+                    {receiptAutomation.followUpLabel}
+                  </span>
+                  <span>{receiptAutomation.sourceLabel}</span>
+                  <span>{formatLivePaymentLinkStatusTime(receiptAutomation.recordedAt)}</span>
                 </div>
               </div>
             ) : null}

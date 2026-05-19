@@ -30,8 +30,10 @@ import {
   buildLiveCollectionsWebhookAuditRecord,
   buildLiveCollectionsWebhookEventRecord,
   buildLiveCollectionsNotificationRecord,
+  buildLiveCollectionsFollowUpAutomationRecord,
   buildLiveCollectionsPaymentAllocationRecord,
   buildLiveCollectionsPaymentTransactionRecord,
+  buildLiveCollectionsReceiptRecord,
   buildLiveCollectionsReconciledEventUpdate,
   buildLiveCollectionsReconciliationAuditRecord,
   buildResendEmailPayload,
@@ -350,6 +352,27 @@ describe('provider webhook payload mapping', () => {
       amount: 1770,
       now,
     });
+    const receipt = buildLiveCollectionsReceiptRecord({
+      id: 'receipt_3',
+      eventId: 'razorpay_evt_live_3',
+      event,
+      invoiceId: 'invoice_3',
+      invoiceNumber: 'WEB-3',
+      customerId: 'customer_3',
+      transactionId: 'txn_live_razorpay_evt_live_3',
+      allocationId: 'pal_live_razorpay_evt_live_3',
+      amount: 1770,
+      now,
+    });
+    const followUp = buildLiveCollectionsFollowUpAutomationRecord({
+      id: 'followup_3',
+      eventId: 'razorpay_evt_live_3',
+      invoiceId: 'invoice_3',
+      customerId: 'customer_3',
+      invoicePaymentStatus: 'paid',
+      amountDueAfterPayment: 0,
+      now,
+    });
 
     expect(transaction).toMatchObject({
       type: 'payment',
@@ -376,6 +399,19 @@ describe('provider webhook payload mapping', () => {
       source: 'orbit_ledger_state',
       kind: 'payment_received',
       deep_link_path: '/invoices/detail/?invoiceId=invoice_3',
+    });
+    expect(receipt).toMatchObject({
+      source: 'verified_payment',
+      status: 'ready',
+      receipt_number: 'OLR-20260520-EVT_LIVE_3',
+      invoice_id: 'invoice_3',
+      amount: 1770,
+    });
+    expect(followUp).toMatchObject({
+      source: 'verified_payment',
+      status: 'stopped',
+      invoice_payment_status: 'paid',
+      amount_due_after_payment: 0,
     });
   });
 
