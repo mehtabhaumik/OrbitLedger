@@ -11122,3 +11122,313 @@ a:focus-visible {
     animation: none !important;
   }
 }
+
+/* Phase 2: command-center hero rebuild. */
+.ol-landing-page .ol-landing-hero {
+  padding-top: clamp(42px, 5.2vw, 76px);
+  padding-bottom: clamp(58px, 7vw, 104px);
+}
+
+.ol-landing-page .ol-landing-hero h1 {
+  font-size: clamp(46px, 6.6vw, 84px);
+  line-height: 0.92;
+}
+
+.ol-landing-page .ol-command-stage {
+  margin-top: clamp(22px, 2.8vw, 34px);
+}
+
+.ol-command-frame {
+  max-width: 1240px;
+  margin-inline: auto;
+}
+
+.ol-command-dashboard {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(210px, 0.74fr) minmax(420px, 1.52fr) minmax(230px, 0.86fr);
+  grid-template-areas:
+    "rail main queue"
+    "rail main invoice"
+    "rail verify close";
+  gap: 14px;
+}
+
+.ol-command-rail {
+  grid-area: rail;
+  display: grid;
+  gap: 12px;
+}
+
+.ol-command-rail-item,
+.ol-command-main-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(190, 205, 229, 0.5);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(245, 249, 255, 0.88)),
+    repeating-linear-gradient(0deg, transparent 0 34px, rgba(121, 143, 180, 0.08) 34px 35px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  color: #101827;
+}
+
+.ol-command-rail-item {
+  display: grid;
+  gap: 8px;
+  min-height: 118px;
+  align-content: center;
+  padding: 18px;
+  border-radius: 22px;
+}
+
+.ol-command-rail-item::before,
+.ol-command-main-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, #2f8b63, #4379e8);
+  opacity: 0.84;
+}
+
+.ol-command-rail-item span,
+.ol-command-main-top span,
+.ol-command-live-card span {
+  color: #68778d;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ol-command-rail-item strong {
+  color: #101827;
+  font-size: 16px;
+  line-height: 1.14;
+}
+
+.ol-command-rail-item em,
+.ol-command-live-card em {
+  color: #5d6b80;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.ol-command-main-panel {
+  grid-area: main;
+  min-height: 434px;
+  padding: clamp(20px, 2.2vw, 30px);
+  border-radius: 28px;
+}
+
+.ol-command-main-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ol-command-main-top > div {
+  display: grid;
+  gap: 9px;
+}
+
+.ol-command-main-top strong {
+  color: #0d1422;
+  font-size: clamp(38px, 5vw, 66px);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+}
+
+.ol-command-main-top b {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(47, 139, 99, 0.22);
+  border-radius: 999px;
+  background: rgba(235, 249, 243, 0.88);
+  color: #247451;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.ol-command-dashboard .ol-command-wave {
+  inset: auto clamp(20px, 2.2vw, 30px) 42px;
+  height: 170px;
+}
+
+.ol-command-dashboard .ol-command-pill-row {
+  left: clamp(20px, 2.2vw, 30px);
+  right: clamp(20px, 2.2vw, 30px);
+  bottom: 234px;
+}
+
+.ol-command-live-card {
+  position: absolute;
+  right: clamp(20px, 2.2vw, 30px);
+  bottom: 128px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: min(360px, calc(100% - 40px));
+  padding: 16px;
+  border: 1px solid rgba(47, 139, 99, 0.22);
+  border-radius: 22px;
+  background: rgba(244, 252, 248, 0.94);
+  box-shadow: 0 20px 42px rgba(32, 75, 61, 0.14);
+}
+
+.ol-command-live-card > div {
+  display: grid;
+  gap: 5px;
+}
+
+.ol-command-live-card strong {
+  color: #15724b;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.ol-command-live-card b {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  border: 2px solid rgba(36, 116, 81, 0.36);
+  border-radius: 50%;
+  background: #e8f8f1;
+  color: #247451;
+  font-size: 25px;
+  box-shadow: 0 0 0 8px rgba(47, 139, 99, 0.08);
+  animation: ol-ledger-stamp 4.8s ease-in-out infinite;
+}
+
+.ol-command-dashboard .ol-command-side-card {
+  min-height: 132px;
+  border-color: rgba(190, 205, 229, 0.5);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.88)),
+    repeating-linear-gradient(0deg, transparent 0 34px, rgba(121, 143, 180, 0.08) 34px 35px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  transform: none;
+}
+
+.ol-command-dashboard .ol-command-side-card:hover,
+.ol-command-dashboard .ol-command-side-card:focus-visible {
+  transform: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.ol-command-side-card--queue {
+  grid-area: queue;
+}
+
+.ol-command-side-card--invoice {
+  grid-area: invoice;
+}
+
+.ol-command-side-card--verify {
+  grid-area: verify;
+}
+
+.ol-command-side-card--close {
+  grid-area: close;
+}
+
+.ol-command-side-card--close {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 249, 247, 0.88)),
+    repeating-linear-gradient(0deg, transparent 0 34px, rgba(121, 143, 180, 0.08) 34px 35px);
+}
+
+@media (max-width: 1080px) {
+  .ol-command-dashboard {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "main main"
+      "rail queue"
+      "rail invoice"
+      "verify close";
+  }
+
+  .ol-command-rail {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .ol-command-dashboard {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "main"
+      "rail"
+      "queue"
+      "invoice"
+      "verify"
+      "close";
+  }
+
+  .ol-command-main-panel {
+    min-height: 420px;
+  }
+
+  .ol-command-main-top {
+    display: grid;
+  }
+
+  .ol-command-dashboard .ol-command-pill-row {
+    bottom: 224px;
+  }
+
+  .ol-command-live-card {
+    left: 20px;
+    right: 20px;
+    width: auto;
+  }
+}
+
+@media (max-width: 460px) {
+  .ol-command-main-panel {
+    min-height: 450px;
+    padding: 18px;
+  }
+
+  .ol-command-main-top strong {
+    font-size: 42px;
+  }
+
+  .ol-command-dashboard .ol-command-wave {
+    inset-inline: 18px;
+    bottom: 36px;
+    height: 142px;
+  }
+
+  .ol-command-dashboard .ol-command-pill-row {
+    left: 18px;
+    right: 18px;
+    bottom: 214px;
+  }
+
+  .ol-command-live-card {
+    left: 18px;
+    right: 18px;
+    bottom: 116px;
+    align-items: flex-start;
+  }
+
+  .ol-command-live-card strong {
+    font-size: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ol-command-live-card b {
+    animation: none !important;
+  }
+}

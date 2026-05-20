@@ -130,18 +130,35 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="ol-command-stage" aria-label="Animated command center preview">
+        <div className="ol-command-stage" aria-label="Command center product preview">
           <div className="ol-command-frame">
             <div className="ol-command-frame-top">
               <span>Today</span>
-              <strong>Receivables Command Center</strong>
-              <em>Live preview</em>
+              <strong>Receivables command center</strong>
+              <em>Live collection radar</em>
             </div>
-            <div className="ol-command-focus-grid">
-              <a className="ol-command-primary-card" href="#pricing">
-                <div>
-                  <span>Outstanding balance</span>
-                  <strong>Rs 84,200</strong>
+            <div className="ol-command-dashboard">
+              <div className="ol-command-rail" aria-hidden="true">
+                {[
+                  ['Live', 'Payment received', 'Rs 5,000'],
+                  ['Review', '2 payments need verification', 'UPI + cheque'],
+                  ['Auto email', 'Invoice WEB-1048 scheduled', 'May 22'],
+                ].map(([state, label, value]) => (
+                  <div className="ol-command-rail-item" key={label}>
+                    <span>{state}</span>
+                    <strong>{label}</strong>
+                    <em>{value}</em>
+                  </div>
+                ))}
+              </div>
+
+              <div className="ol-command-main-panel">
+                <div className="ol-command-main-top">
+                  <div>
+                    <span>Outstanding balance</span>
+                    <strong>Rs 84,200</strong>
+                  </div>
+                  <b>Down 18%</b>
                 </div>
                 <div className="ol-command-wave" aria-hidden="true">
                   <i />
@@ -155,10 +172,19 @@ export default function LandingPage() {
                 <div className="ol-command-pill-row">
                   <span>Collected Rs 21,400</span>
                   <span>Overdue Rs 12,700</span>
+                  <span>Pending Rs 8,600</span>
                 </div>
-              </a>
+                <div className="ol-command-live-card" aria-hidden="true">
+                  <div>
+                    <span>Payment received</span>
+                    <strong>Rs 5,000</strong>
+                    <em>Northline Repair · Invoice WEB-1048</em>
+                  </div>
+                  <b>✓</b>
+                </div>
+              </div>
 
-              <a className="ol-command-side-card ol-command-side-card--queue" href="#how-it-works">
+              <div className="ol-command-side-card ol-command-side-card--queue">
                 <span>Collect today</span>
                 <strong>3 customers</strong>
                 <div>
@@ -166,25 +192,26 @@ export default function LandingPage() {
                   <b>Blue Harbor Supply</b>
                   <b>Peakline Services</b>
                 </div>
-              </a>
+              </div>
 
-              <a className="ol-command-side-card ol-command-side-card--invoice" href="#templates">
+              <div className="ol-command-side-card ol-command-side-card--invoice">
                 <span>Invoice WEB-1048</span>
                 <strong>Rs 17,700</strong>
                 <b>PAID</b>
-              </a>
+                <em>Version 3 sent automatically</em>
+              </div>
 
-              <a className="ol-command-side-card ol-command-side-card--verify" href="#how-it-works">
+              <div className="ol-command-side-card ol-command-side-card--verify">
                 <span>Payment verification</span>
                 <strong>2 waiting</strong>
                 <em>UPI and cheque</em>
-              </a>
+              </div>
 
-              <a className="ol-command-side-card ol-command-side-card--auto" href="#office">
-                <span>Auto email</span>
-                <strong>Scheduled</strong>
-                <em>Latest approved version</em>
-              </a>
+              <div className="ol-command-side-card ol-command-side-card--close">
+                <span>Daily close</span>
+                <strong>5 checks</strong>
+                <em>Cash, credit, stock, follow-up, backup</em>
+              </div>
             </div>
           </div>
         </div>
