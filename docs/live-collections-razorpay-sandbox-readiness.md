@@ -74,6 +74,36 @@ Run signed capture smoke:
 RAZORPAY_WEBHOOK_SECRET=xxx npm run smoke:razorpay-capture
 ```
 
+## Controlled Sandbox Smoke Sequence
+
+Use the combined runner after Razorpay test keys are available locally. It refuses live keys, does not print secret values, and requires an explicit Firestore admin access token for controlled setup and cleanup because production Firestore rules correctly reject direct smoke seeding with a normal user token.
+
+```sh
+RAZORPAY_KEY_ID=rzp_test_xxx \
+RAZORPAY_KEY_SECRET=xxx \
+RAZORPAY_WEBHOOK_SECRET=xxx \
+ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN=xxx \
+npm run smoke:razorpay-controlled-sandbox
+```
+
+To store the test credentials in Firebase Secret Manager first, add `-- --store-secrets`:
+
+```sh
+RAZORPAY_KEY_ID=rzp_test_xxx \
+RAZORPAY_KEY_SECRET=xxx \
+RAZORPAY_WEBHOOK_SECRET=xxx \
+ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN=xxx \
+npm run smoke:razorpay-controlled-sandbox -- --store-secrets
+```
+
+The runner executes:
+
+1. Signed Live Collections webhook boundary smoke.
+2. Authenticated checkout creation smoke.
+3. Signed capture reconciliation smoke.
+
+It still does not replace the manual Razorpay test payment below. The manual payment is required to prove Razorpay dashboard configuration, payment-link behavior, webhook delivery, and Orbit Ledger realtime UI together.
+
 ## Manual Razorpay Test Payment
 
 After both smoke tests pass:

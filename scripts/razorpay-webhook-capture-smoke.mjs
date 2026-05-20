@@ -28,6 +28,7 @@ const amount = 1770;
 
 let idToken = null;
 let localId = null;
+let firestoreAccessToken = null;
 
 async function main() {
   if (!webhookSecret || ['not_configured', 'placeholder', 'todo'].includes(webhookSecret.toLowerCase())) {
@@ -44,6 +45,7 @@ async function main() {
     const signUp = await createSmokeUser();
     idToken = signUp.idToken;
     localId = signUp.localId;
+    firestoreAccessToken = process.env.ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN?.trim() || idToken;
     await createSandboxData();
     await sendSignedCaptureWebhook();
     await verifyInvoicePaid();
@@ -192,24 +194,24 @@ async function writeDocument(path, data) {
   const response = await fetch(firestoreDocumentUrl(path), {
     method: 'PATCH',
     headers: {
-      Authorization: `Bearer ${idToken}`,
+      Authorization: `Bearer ${firestoreToken()}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ fields: toFirestoreFields(data) }),
   });
   const body = await safeJson(response);
   if (!response.ok) {
-    throw new Error(`Could not write ${path}: ${response.status} ${JSON.stringify(body)}`);
+    throw new Error(formatFirestoreWriteFailure('write', path, response.status, body));
   }
 }
 
 async function readDocument(path) {
   const response = await fetch(firestoreDocumentUrl(path), {
-    headers: { Authorization: `Bearer ${idToken}` },
+    headers: { Authorization: `Bearer ${firestoreToken()}` },
   });
   const body = await safeJson(response);
   if (!response.ok) {
-    throw new Error(`Could not read ${path}: ${response.status} ${JSON.stringify(body)}`);
+    throw new Error(formatFirestoreWriteFailure('read', path, response.status, body));
   }
   return body;
 }
@@ -217,12 +219,28 @@ async function readDocument(path) {
 async function deleteDocument(path) {
   const response = await fetch(firestoreDocumentUrl(path), {
     method: 'DELETE',
-    headers: { Authorization: `Bearer ${idToken}` },
+    headers: { Authorization: `Bearer ${firestoreToken()}` },
   });
   if (![200, 404].includes(response.status)) {
     const body = await safeJson(response);
     console.warn(`WARN: cleanup could not delete ${path}: ${response.status} ${JSON.stringify(body)}`);
   }
+}
+
+function firestoreToken() {
+  return firestoreAccessToken || idToken;
+}
+
+function formatFirestoreWriteFailure(action, path, status, body) {
+  const base = `Could not ${action} ${path}: ${status} ${JSON.stringify(body)}`;
+  if (status === 403 && !process.env.ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN?.trim()) {
+    return [
+      base,
+      'Production Firestore rules rejected direct sandbox setup with a normal user token.',
+      'Provide ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN for controlled sandbox setup/cleanup, or run this smoke against a seeded QA workspace.',
+    ].join('\n');
+  }
+  return base;
 }
 
 function firestoreDocumentUrl(path) {

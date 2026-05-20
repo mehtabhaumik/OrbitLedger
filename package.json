@@ -31,6 +31,7 @@
     "smoke:razorpay-checkout:connected": "node scripts/razorpay-checkout-smoke.mjs --expect-connected",
     "smoke:razorpay-capture": "node scripts/razorpay-webhook-capture-smoke.mjs",
     "smoke:razorpay-live-collections-webhook": "node scripts/razorpay-live-collections-webhook-smoke.mjs",
+    "smoke:razorpay-controlled-sandbox": "node scripts/razorpay-controlled-sandbox-run.mjs",
     "prepare:web-production-env": "node scripts/prepare-web-production-env.mjs",
     "verify:web-production-env": "node scripts/verify-web-production-env.mjs",
     "build:web:production": "npm run verify:web-production-env && npm run build --workspace @orbit-ledger/web",
