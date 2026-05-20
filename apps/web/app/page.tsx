@@ -60,6 +60,22 @@ const trustSignals = [
   'Approved automation',
 ] as const;
 
+const proofSignals = [
+  ['Live payment updates', 'Know when money arrives.'],
+  ['Invoice version history', 'See exactly what changed.'],
+  ['Customer follow-up memory', 'Track reminders and promises.'],
+  ['Office-ready audit trail', 'Keep team activity accountable.'],
+  ['Print-ready documents', 'Share clean records anywhere.'],
+] as const;
+
+const productFlow = [
+  ['Create invoice', 'Prepare branded invoices with tax, payment, and version details.'],
+  ['Share payment link', 'Send the invoice by email or message with payment instructions attached.'],
+  ['Track payment', 'Live collection status updates when the customer pays.'],
+  ['Update ledger', 'Verified payments update invoice state and customer balance.'],
+  ['Close the day', 'Review collections, pending work, and tomorrow’s follow-ups.'],
+] as const;
+
 export default function LandingPage() {
   const appCtaHref = '/login' as Route;
 
@@ -217,18 +233,35 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="ol-landing-beta-banner" aria-label="Public beta pricing note">
-        <div>
-          <strong>Public beta is free.</strong>
-          <span>{WEB_BETA_TO_PAID_POLICY.summary}</span>
+      <section className="ol-proof-strip" aria-label="Orbit Ledger product proof points">
+        <div className="ol-proof-beta">
+          <span>Public beta</span>
+          <strong>Free while beta is active</strong>
         </div>
-        <Link className="ol-button-secondary" href={appCtaHref}>
-          Start free
-        </Link>
+        {proofSignals.map(([label, detail]) => (
+          <div className="ol-proof-item" key={label}>
+            <strong>{label}</strong>
+            <span>{detail}</span>
+          </div>
+        ))}
       </section>
 
-      <section className="ol-landing-section" id="how-it-works">
+      <section className="ol-landing-section ol-product-flow-section" id="how-it-works">
         <div className="ol-landing-section-head">
+          <span className="ol-eyebrow">How it works</span>
+          <h2>From invoice to closed day, every step stays visible.</h2>
+          <p>Orbit Ledger follows the money path from document creation to collection and review.</p>
+        </div>
+        <div className="ol-product-flow" aria-label="Orbit Ledger product flow">
+          {productFlow.map(([title, copy], index) => (
+            <article className="ol-product-flow-step" key={title}>
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <h3>{title}</h3>
+              <p>{copy}</p>
+            </article>
+          ))}
+        </div>
+        <div className="ol-landing-section-head ol-landing-section-head--compact">
           <span className="ol-eyebrow">Daily control</span>
           <h2>Start each day with the work that matters.</h2>
           <p>Short, actionable views keep owners focused without hiding important records.</p>
