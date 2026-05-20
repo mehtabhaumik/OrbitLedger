@@ -1,5 +1,6 @@
 const requiredWebEnvironment = [
   'NEXT_PUBLIC_ORBIT_LEDGER_ENV',
+  'NEXT_PUBLIC_ORBIT_LEDGER_SITE_URL',
   'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_API_KEY',
   'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN',
   'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_PROJECT_ID',
@@ -26,6 +27,15 @@ for (const key of requiredWebEnvironment) {
 
 if (process.env.NEXT_PUBLIC_ORBIT_LEDGER_ENV !== 'production') {
   errors.push('NEXT_PUBLIC_ORBIT_LEDGER_ENV must be production.');
+}
+
+if (
+  process.env.NEXT_PUBLIC_ORBIT_LEDGER_SITE_URL &&
+  !['https://orbitledger.rudraix.com', 'https://orbitledger.bhaumikmehta.com'].includes(
+    process.env.NEXT_PUBLIC_ORBIT_LEDGER_SITE_URL.trim().replace(/\/$/, '')
+  )
+) {
+  errors.push('NEXT_PUBLIC_ORBIT_LEDGER_SITE_URL must be an Orbit Ledger custom domain.');
 }
 
 if (

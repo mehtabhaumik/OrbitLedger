@@ -4,7 +4,7 @@ import './globals.css';
 
 import { WebAppProviders } from '@/providers/web-app-providers';
 
-const siteUrl = process.env.NEXT_PUBLIC_ORBIT_LEDGER_SITE_URL ?? 'https://orbit-ledger-f41c2.web.app';
+const siteUrl = process.env.NEXT_PUBLIC_ORBIT_LEDGER_SITE_URL ?? 'https://orbitledger.rudraix.com';
 const landingDescription =
   'Orbit Ledger helps small businesses track receivables, invoices, payments, reminders, and daily review from one calm web workspace.';
 
