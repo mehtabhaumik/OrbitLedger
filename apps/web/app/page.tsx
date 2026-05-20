@@ -15,27 +15,39 @@ const actionTiles = [
 const storyCards = [
   {
     eyebrow: 'Collection coach',
-    title: 'Recover dues with a guided follow-up rhythm.',
-    copy: 'Know who to contact first, what to say, and which promises need attention.',
+    title: 'Recover dues with guided follow-up.',
+    copy: 'Know who to contact first, the right tone, and which promises need attention.',
+    signal: '3 follow-ups ready',
+    detail: 'Best next action',
     points: ['Reminder tone', 'Promise tracking', 'Broken-promise history'],
+    tone: 'collect',
   },
   {
     eyebrow: 'Customer memory',
-    title: 'Every customer has a clear business history.',
+    title: 'Know the full customer story.',
     copy: 'Invoices, reminders, payments, notes, disputes, and risk signals stay in one timeline.',
-    points: ['Payment behavior', 'Trust timeline', 'Risk notes'],
+    signal: 'One timeline',
+    detail: 'Payment behavior',
+    points: ['Trust timeline', 'Risk notes', 'Customer health'],
+    tone: 'memory',
   },
   {
     eyebrow: 'Recurring invoices',
     title: 'Monthly billing without surprise emails.',
     copy: 'Prepare before send day, require approval, and mark the exact version that went out.',
-    points: ['72-hour review', 'Approved email', 'Version badge'],
+    signal: '72-hour review',
+    detail: 'Approved email',
+    points: ['Version badge', 'Payment link', 'PDF attached'],
+    tone: 'recurring',
   },
   {
     eyebrow: 'Closing ritual',
     title: 'Close each day with fewer loose ends.',
     copy: 'Review collections, pending clearance, new credit, overdue work, and tomorrow’s follow-ups.',
+    signal: '3-minute close',
+    detail: 'Tomorrow ready',
     points: ['Daily close', 'Pending clearance', 'Next actions'],
+    tone: 'closing',
   },
 ] as const;
 
@@ -176,19 +188,39 @@ export default function LandingPage() {
         <LandingTemplateShowcase />
       </section>
 
-      <section className="ol-landing-story-grid">
-        {storyCards.map((card) => (
-          <article className="ol-landing-story-card" key={card.title}>
-            <span className="ol-eyebrow">{card.eyebrow}</span>
-            <h2>{card.title}</h2>
-            <p>{card.copy}</p>
-            <div className="ol-story-chip-row">
-              {card.points.map((point) => (
-                <span key={point}>{point}</span>
-              ))}
-            </div>
-          </article>
-        ))}
+      <section
+        className="ol-landing-section ol-landing-story-section"
+        aria-label="Orbit Ledger business workflows"
+      >
+        <div className="ol-landing-section-head">
+          <span className="ol-eyebrow">Business control</span>
+          <h2>Four workflows that keep daily money work under control.</h2>
+          <p>
+            Collection, customer history, recurring invoices, and daily close stay organized
+            without turning the workspace into a manual.
+          </p>
+        </div>
+        <div className="ol-landing-story-grid">
+          {storyCards.map((card) => (
+            <article className="ol-landing-story-card" data-tone={card.tone} key={card.title}>
+              <div className="ol-story-card-copy">
+                <span className="ol-eyebrow">{card.eyebrow}</span>
+                <h3>{card.title}</h3>
+                <p>{card.copy}</p>
+              </div>
+              <div className="ol-story-card-panel" aria-hidden="true">
+                <span>{card.signal}</span>
+                <strong>{card.detail}</strong>
+                <i />
+              </div>
+              <div className="ol-story-chip-row" aria-label={`${card.eyebrow} capabilities`}>
+                {card.points.map((point) => (
+                  <span key={point}>{point}</span>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="ol-landing-section ol-landing-office-section" id="office">
