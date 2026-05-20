@@ -126,11 +126,48 @@ ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN=xxx \
 npm run smoke:razorpay-checkout:connected -- --keep --proof-file=artifacts/razorpay-sandbox-payment-proof.json
 ```
 
+Or run the Phase 12 wrapper, which validates local test credentials, runs the signed boundary smoke, creates the kept checkout, writes the proof file, and prints the Razorpay test checkout URL:
+
+```sh
+RAZORPAY_KEY_ID=rzp_test_xxx \
+RAZORPAY_KEY_SECRET=xxx \
+RAZORPAY_WEBHOOK_SECRET=xxx \
+ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN=xxx \
+npm run live-collections:razorpay-sandbox-payment -- --prepare-only --proof-file=artifacts/razorpay-sandbox-payment-proof.json
+```
+
+To store the test credentials before preparing the payment link:
+
+```sh
+RAZORPAY_KEY_ID=rzp_test_xxx \
+RAZORPAY_KEY_SECRET=xxx \
+RAZORPAY_WEBHOOK_SECRET=xxx \
+ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN=xxx \
+npm run live-collections:razorpay-sandbox-payment -- --store-secrets --prepare-only --proof-file=artifacts/razorpay-sandbox-payment-proof.json
+```
+
 Pay the `checkoutUrl` from the proof file with a Razorpay test method. After the webhook has been delivered and reconciliation has run, verify Orbit Ledger state:
 
 ```sh
 ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN=xxx \
 npm run proof:razorpay-sandbox-payment -- --proof-file=artifacts/razorpay-sandbox-payment-proof.json
+```
+
+The same wrapper can verify an existing proof file:
+
+```sh
+ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN=xxx \
+npm run live-collections:razorpay-sandbox-payment -- --verify-only --proof-file=artifacts/razorpay-sandbox-payment-proof.json
+```
+
+For an attended test, the wrapper can poll while the tester pays:
+
+```sh
+RAZORPAY_KEY_ID=rzp_test_xxx \
+RAZORPAY_KEY_SECRET=xxx \
+RAZORPAY_WEBHOOK_SECRET=xxx \
+ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN=xxx \
+npm run live-collections:razorpay-sandbox-payment -- --poll-seconds=300 --proof-file=artifacts/razorpay-sandbox-payment-proof.json
 ```
 
 The proof command checks:
