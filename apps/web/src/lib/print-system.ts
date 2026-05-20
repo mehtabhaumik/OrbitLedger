@@ -365,8 +365,9 @@ const printStyles = `
     .ol-print-table td.is-center { text-align: right; }
   }
   @media print {
-    body { background: #fff; }
-    .ol-print-page { display: block; width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+    html,
+    body { background: #fff !important; }
+    .ol-print-page { display: block; width: auto; min-height: auto; margin: 0; padding: 0; background: #fff !important; box-shadow: none; }
     .ol-print-footer { margin-top: 16px; }
     .ol-print-section, .ol-print-metric, .ol-print-table tr, .ol-print-image-section figure { break-inside: avoid; page-break-inside: avoid; }
     @page { size: A4; margin: 10mm; }
