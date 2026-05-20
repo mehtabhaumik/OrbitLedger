@@ -13,6 +13,8 @@ const callbackUrl = process.env.ORBIT_LEDGER_PAYMENT_CALLBACK_URL || `https://${
 const args = new Set(process.argv.slice(2));
 const expectConnected = args.has('--expect-connected');
 const keepSandbox = args.has('--keep');
+const proofFileArg = process.argv.find((arg) => arg.startsWith('--proof-file='));
+const proofFile = proofFileArg ? proofFileArg.slice('--proof-file='.length).trim() : '';
 
 const now = Date.now();
 const uidSafeSuffix = now.toString(36);
@@ -41,6 +43,7 @@ async function main() {
     await createSandboxData();
     const checkout = await createCheckout();
     await verifyCheckoutResult(checkout);
+    await writeProofFileIfRequested(checkout);
   } finally {
     if (!keepSandbox) {
       await cleanupSandbox();
@@ -48,6 +51,31 @@ async function main() {
       console.log(`Kept sandbox workspace ${workspaceId}`);
     }
   }
+}
+
+async function writeProofFileIfRequested(checkout) {
+  if (!proofFile || !checkoutId || checkout.status !== 200 || checkout.body?.ok !== true || !checkout.body?.checkoutUrl) {
+    return;
+  }
+
+  const { mkdir, writeFile } = await import('node:fs/promises');
+  const { dirname } = await import('node:path');
+  const proof = {
+    createdAt: new Date().toISOString(),
+    projectId,
+    workspaceId,
+    customerId,
+    invoiceId,
+    invoiceNumber,
+    checkoutId,
+    checkoutUrl: checkout.body.checkoutUrl,
+    amount: 1770,
+    currency: 'INR',
+    note: 'No secrets are stored in this file. Use this only for controlled Razorpay sandbox payment proof.',
+  };
+  await mkdir(dirname(proofFile), { recursive: true });
+  await writeFile(proofFile, `${JSON.stringify(proof, null, 2)}\n`, 'utf8');
+  console.log(`PASS: sandbox proof file written: ${proofFile}`);
 }
 
 async function assertMethodGuard() {

@@ -116,6 +116,34 @@ After both smoke tests pass:
 6. Replay the webhook and confirm no duplicate allocation.
 7. Refund the payment and confirm reversal and recalculated invoice balance.
 
+For a controlled manual test, keep the checkout sandbox and write a proof file:
+
+```sh
+RAZORPAY_KEY_ID=rzp_test_xxx \
+RAZORPAY_KEY_SECRET=xxx \
+RAZORPAY_WEBHOOK_SECRET=xxx \
+ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN=xxx \
+npm run smoke:razorpay-checkout:connected -- --keep --proof-file=artifacts/razorpay-sandbox-payment-proof.json
+```
+
+Pay the `checkoutUrl` from the proof file with a Razorpay test method. After the webhook has been delivered and reconciliation has run, verify Orbit Ledger state:
+
+```sh
+ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN=xxx \
+npm run proof:razorpay-sandbox-payment -- --proof-file=artifacts/razorpay-sandbox-payment-proof.json
+```
+
+The proof command checks:
+
+- checkout status is captured,
+- invoice payment status is allocation-derived,
+- customer balance reduced,
+- exactly one transaction and allocation exist,
+- payment received notification exists,
+- receipt exists,
+- payment-applied audit exists,
+- follow-up automation update exists.
+
 ## Live Pilot Guardrails
 
 - Keep the pilot limited to one internal/test business first.
