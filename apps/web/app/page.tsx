@@ -12,6 +12,19 @@ const actionTiles = [
   ['Close the day', '3 min', 'Confirm cash, dues, and tomorrow.'],
 ] as const;
 
+const liveCollectionEvents = [
+  ['10:42 AM', 'Payment link opened', 'Sonali Traders'],
+  ['10:44 AM', 'Payment received', 'Rs 13,334'],
+  ['10:44 AM', 'Invoice marked paid', 'WEB-1048'],
+] as const;
+
+const dailyControlChecks = [
+  ['Collections', '3 follow-ups'],
+  ['Verification', '2 payments'],
+  ['Invoices', '5 overdue'],
+  ['Closing', 'Ready in 3 min'],
+] as const;
+
 const storyCards = [
   {
     eyebrow: 'Collection coach',
@@ -261,19 +274,71 @@ export default function LandingPage() {
             </article>
           ))}
         </div>
-        <div className="ol-landing-section-head ol-landing-section-head--compact">
-          <span className="ol-eyebrow">Daily control</span>
-          <h2>Start each day with the work that matters.</h2>
-          <p>Short, actionable views keep owners focused without hiding important records.</p>
+      </section>
+
+      <section className="ol-landing-section ol-live-control-section" aria-labelledby="live-control-title">
+        <div className="ol-landing-section-head">
+          <span className="ol-eyebrow">Live collections + daily control</span>
+          <h2 id="live-control-title">Know the moment money moves, then close the day cleanly.</h2>
+          <p>
+            Payment events, invoice state, follow-ups, and closing checks stay visible without
+            turning daily work into a spreadsheet hunt.
+          </p>
         </div>
-        <div className="ol-daily-action-strip">
-          {actionTiles.map(([title, value, copy]) => (
-            <a className="ol-landing-action-card" href="#final-cta" key={title}>
-              <span>{title}</span>
-              <strong>{value}</strong>
-              <p>{copy}</p>
-            </a>
-          ))}
+        <div className="ol-live-control-grid">
+          <article className="ol-live-collections-card" aria-label="Live collections preview">
+            <div className="ol-live-card-head">
+              <div>
+                <span className="ol-eyebrow">Live collections</span>
+                <h3>Payment received.</h3>
+              </div>
+              <span className="ol-live-status-pill">Verified</span>
+            </div>
+            <div className="ol-live-payment-moment" aria-hidden="true">
+              <div className="ol-live-payment-check">✓</div>
+              <div>
+                <span>Sonali Traders</span>
+                <strong>Rs 13,334</strong>
+                <em>Invoice WEB-1048 marked paid</em>
+              </div>
+            </div>
+            <div className="ol-live-event-rail" aria-label="Payment event timeline">
+              {liveCollectionEvents.map(([time, label, value]) => (
+                <div className="ol-live-event-row" key={`${time}-${label}`}>
+                  <span>{time}</span>
+                  <strong>{label}</strong>
+                  <em>{value}</em>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="ol-daily-control-card" aria-label="Daily control preview">
+            <div className="ol-live-card-head">
+              <div>
+                <span className="ol-eyebrow">Daily control</span>
+                <h3>Start with the work that matters.</h3>
+              </div>
+              <span className="ol-live-status-pill ol-live-status-pill--neutral">Today</span>
+            </div>
+            <div className="ol-daily-control-list">
+              {actionTiles.map(([title, value, copy]) => (
+                <a className="ol-daily-control-action" href="#final-cta" key={title}>
+                  <span>{title}</span>
+                  <strong>{value}</strong>
+                  <p>{copy}</p>
+                </a>
+              ))}
+            </div>
+            <div className="ol-daily-control-checks" aria-label="Daily control snapshot">
+              {dailyControlChecks.map(([label, value]) => (
+                <span key={label}>
+                  <b>{label}</b>
+                  <em>{value}</em>
+                </span>
+              ))}
+            </div>
+          </article>
         </div>
       </section>
 
