@@ -25,6 +25,21 @@ const dailyControlChecks = [
   ['Closing', 'Ready in 3 min'],
 ] as const;
 
+const officeCapabilities = [
+  ['Team roles', 'Owner, admin, member, and viewer access stay separated.'],
+  ['Multi-company control', 'Keep separate business workspaces under one signed-in account.'],
+  ['Access review', 'See member activity, invitations, grants, and ownership changes.'],
+] as const;
+
+const trustControls = [
+  ['Secure sign-in', 'Session checks protect sensitive workspace access.'],
+  ['Role locks', 'Restricted members cannot reach protected company actions.'],
+  ['Audit history', 'Important money and access changes keep a review trail.'],
+  ['Protected uploads', 'Logos, proofs, and documents stay attached to the right record.'],
+  ['Backup review', 'Export and restore surfaces are visible without being noisy.'],
+  ['Approved automation', 'Automatic emails require approval before customer-facing sends.'],
+] as const;
+
 const storyCards = [
   {
     eyebrow: 'Collection coach',
@@ -62,15 +77,6 @@ const storyCards = [
     points: ['Daily close', 'Pending clearance', 'Next actions'],
     tone: 'closing',
   },
-] as const;
-
-const trustSignals = [
-  'Secure sign-in',
-  'Role-aware access',
-  'Audit history',
-  'Protected uploads',
-  'Backup review',
-  'Approved automation',
 ] as const;
 
 const proofSignals = [
@@ -389,32 +395,63 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="ol-landing-section ol-landing-office-section" id="office">
-        <div>
+      <section className="ol-landing-section ol-office-rebuild-section" id="office">
+        <div className="ol-office-rebuild-copy">
           <span className="ol-eyebrow">Office</span>
-          <h2>Built for team roles and multi-company work.</h2>
+          <h2>For teams that need safer control across companies.</h2>
           <p>
-            Invite-only access adds safer operations for businesses that need member roles,
-            approval trails, multiple companies, and controlled support review.
+            Office is invite-only for businesses that need member roles, multiple workspaces,
+            approval trails, and controlled support review.
           </p>
+          <Link className="ol-button-secondary" href="/login">
+            Request Office access
+          </Link>
         </div>
-        <Link className="ol-button-secondary" href="/login">
-          Request Office access
-        </Link>
+        <div className="ol-office-rebuild-panel" aria-label="Office access preview">
+          <div className="ol-office-rebuild-topline">
+            <span>Office workspace</span>
+            <strong>Rudraix Group</strong>
+            <em>4 seats available</em>
+          </div>
+          <div className="ol-office-company-stack" aria-hidden="true">
+            <span>
+              <b>Rudraix Private Limited</b>
+              <em>Owner + 2 members</em>
+            </span>
+            <span>
+              <b>Rudraix Services</b>
+              <em>Admin review enabled</em>
+            </span>
+          </div>
+          <div className="ol-office-capability-grid">
+            {officeCapabilities.map(([title, copy]) => (
+              <div key={title}>
+                <strong>{title}</strong>
+                <p>{copy}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
-      <section className="ol-landing-section ol-landing-trust-section">
-        <div className="ol-landing-section-head">
+      <section className="ol-landing-section ol-trust-rebuild-section">
+        <div className="ol-trust-rebuild-head">
           <span className="ol-eyebrow">Trust layer</span>
           <h2>Built for sensitive business records.</h2>
-          <p>Security and review controls are presented clearly, without turning the page into a settings manual.</p>
+          <p>
+            Security, access, uploads, backups, and automation controls are presented as operating
+            safeguards, not decorative labels.
+          </p>
         </div>
-        <div className="ol-trust-grid">
-          {trustSignals.map((signal) => (
-            <span key={signal}>
-              <i aria-hidden="true" />
-              {signal}
-            </span>
+        <div className="ol-trust-control-grid">
+          {trustControls.map(([title, copy]) => (
+            <article key={title}>
+              <span aria-hidden="true" />
+              <div>
+                <h3>{title}</h3>
+                <p>{copy}</p>
+              </div>
+            </article>
           ))}
         </div>
       </section>
