@@ -302,7 +302,7 @@ const printStyles = `
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: #eef3f8; color: var(--text); font-family: Inter, Arial, sans-serif; }
-  .ol-print-page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 15mm; box-shadow: 0 24px 80px rgba(15, 23, 42, .18); }
+  .ol-print-page { width: 210mm; min-height: 100vh; margin: 0 auto; background: #fff; padding: 15mm 15mm 0; box-shadow: 0 24px 80px rgba(15, 23, 42, .18); display: flex; flex-direction: column; }
   .ol-print-header { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(180px, .75fr); gap: 18px; align-items: start; border-bottom: 2px solid var(--line); padding-bottom: 16px; }
   .ol-print-brand { display: flex; gap: 13px; min-width: 0; }
   .ol-print-logo, .ol-print-logo-fallback { width: 52px; height: 52px; border-radius: 16px; flex: 0 0 auto; }
@@ -339,17 +339,17 @@ const printStyles = `
   .ol-print-image-section figure { margin: 0; display: grid; gap: 8px; }
   .ol-print-image-section img { width: 100%; max-height: 120mm; object-fit: contain; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
   .ol-print-image-section figcaption { color: var(--muted); font-size: 10px; line-height: 1.4; }
-  .ol-print-footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); margin-top: 16px; padding-top: 10px; color: var(--muted); font-size: 9px; line-height: 1.35; }
+  .ol-print-footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); margin-top: auto; padding: 10px 0 12px; color: var(--muted); font-size: 9px; line-height: 1.35; }
   .ol-print-footer span { min-width: 0; overflow-wrap: anywhere; }
   @media screen and (max-width: 900px) {
-    .ol-print-page { width: min(100%, 210mm); min-height: auto; padding: 20px; }
+    .ol-print-page { width: min(100%, 210mm); min-height: 100vh; padding: 20px 20px 0; }
     .ol-print-header, .ol-print-title-block { grid-template-columns: 1fr; display: grid; }
     .ol-print-meta { justify-items: start; text-align: left; }
     .ol-print-summary-grid { grid-template-columns: 1fr 1fr; }
     .ol-print-footer { display: grid; }
   }
   @media screen and (max-width: 560px) {
-    .ol-print-page { padding: 14px; }
+    .ol-print-page { padding: 14px 14px 0; }
     .ol-print-title-block h1 { font-size: 24px; }
     .ol-print-summary-grid { grid-template-columns: 1fr; }
     .ol-print-table,
@@ -366,7 +366,8 @@ const printStyles = `
   }
   @media print {
     body { background: #fff; }
-    .ol-print-page { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+    .ol-print-page { display: block; width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+    .ol-print-footer { margin-top: 16px; }
     .ol-print-section, .ol-print-metric, .ol-print-table tr, .ol-print-image-section figure { break-inside: avoid; page-break-inside: avoid; }
     @page { size: A4; margin: 10mm; }
   }
