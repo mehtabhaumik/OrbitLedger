@@ -5,6 +5,11 @@ import { dirname, resolve } from 'node:path';
 const projectId = 'orbit-ledger-f41c2';
 const webAppId = '1:26507257397:web:0fd74ca52a0e2ac969737c';
 const outputPath = resolve('apps/web/.env.production.local');
+const defaultProductionAuthDomain = 'orbitledger.rudraix.com';
+const productionAuthDomain =
+  process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN?.trim() ||
+  process.env.ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN?.trim() ||
+  defaultProductionAuthDomain;
 const recaptchaSiteKey =
   process.env.NEXT_PUBLIC_ORBIT_LEDGER_RECAPTCHA_V3_SITE_KEY?.trim() ||
   process.env.ORBIT_LEDGER_RECAPTCHA_V3_SITE_KEY?.trim();
@@ -61,7 +66,7 @@ const env = [
   '# Local only. Do not commit this file.',
   'NEXT_PUBLIC_ORBIT_LEDGER_ENV=production',
   `NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_API_KEY=${config.apiKey}`,
-  `NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN=${config.authDomain}`,
+  `NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN=${productionAuthDomain}`,
   `NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_PROJECT_ID=${config.projectId}`,
   `NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_STORAGE_BUCKET=${config.storageBucket}`,
   `NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_MESSAGING_SENDER_ID=${config.messagingSenderId}`,

@@ -16,6 +16,7 @@ import {
 import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
+import { isEmbeddedWebViewUserAgent } from '@/lib/auth-domain';
 import { createGoogleProvider, getWebAuth } from '@/lib/firebase';
 import {
   WEB_AUTH_ABSOLUTE_TIMEOUT_MS,
@@ -63,16 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
     let hasResolvedAuthState = false;
     const auth = getWebAuth();
-    const shouldResolveRedirect =
-      typeof window !== 'undefined' &&
-      window.sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === '1';
+    const shouldResolveRedirect = shouldResolveGoogleRedirectResult();
     if (shouldResolveRedirect) {
       void withTimeout(getRedirectResult(auth), GOOGLE_REDIRECT_RESULT_TIMEOUT_MS)
         .catch(() => undefined)
         .finally(() => {
-          if (typeof window !== 'undefined') {
-            window.sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
-          }
+          clearGoogleRedirectPending();
         });
     }
 
@@ -84,9 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
 
             hasResolvedAuthState = true;
-            if (typeof window !== 'undefined') {
-              window.sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
-            }
+            clearGoogleRedirectPending();
 
             const currentUser = auth.currentUser;
             if (currentUser) {
@@ -220,8 +215,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const auth = getWebAuth();
         const provider = createGoogleProvider();
 
+        if (shouldUseGoogleRedirectFirst()) {
+          setGoogleRedirectPending();
+          await signInWithRedirect(auth, provider);
+          return;
+        }
+
         try {
           await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+          clearGoogleRedirectPending();
           clearSessionExpiryMessage();
           setSessionExpiryMessage(null);
         } catch (error) {
@@ -229,9 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             throw error;
           }
 
-          if (typeof window !== 'undefined') {
-            window.sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, '1');
-          }
+          setGoogleRedirectPending();
           await signInWithRedirect(auth, provider);
         }
       },
@@ -292,6 +292,61 @@ function clearSessionExpiryMessage() {
   window.sessionStorage.removeItem(AUTH_SESSION_EXPIRED_MESSAGE_KEY);
 }
 
+function setGoogleRedirectPending() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, '1');
+  window.localStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, '1');
+}
+
+function clearGoogleRedirectPending() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+  window.localStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+}
+
+function hasGoogleRedirectPending() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return (
+    window.sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === '1' ||
+    window.localStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === '1'
+  );
+}
+
+function shouldResolveGoogleRedirectResult() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  if (hasGoogleRedirectPending()) {
+    return true;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.has('apiKey') ||
+    params.has('authType') ||
+    params.has('firebaseError') ||
+    params.has('providerId')
+  );
+}
+
+function shouldUseGoogleRedirectFirst() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return isEmbeddedWebViewUserAgent(window.navigator.userAgent);
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
   if (typeof window === 'undefined') {
     return promise;
@@ -318,6 +373,7 @@ function shouldFallbackToGoogleRedirect(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
 
   return (
+    shouldUseGoogleRedirectFirst() ||
     message.includes('auth/popup-blocked') ||
     message.includes('auth/cancelled-popup-request') ||
     message.includes('auth/operation-not-supported-in-this-environment')

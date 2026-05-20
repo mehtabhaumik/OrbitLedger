@@ -15,6 +15,8 @@ import {
 } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
+import { resolveOrbitLedgerAuthDomain } from './auth-domain';
+
 declare global {
   interface Window {
     FIREBASE_APPCHECK_DEBUG_TOKEN?: string;
@@ -34,16 +36,21 @@ const defaultDevelopmentConfig = {
 const appEnvironment = process.env.NEXT_PUBLIC_ORBIT_LEDGER_ENV || 'development';
 const isProductionEnvironment = appEnvironment === 'production';
 
+const configuredAuthDomain = resolveFirebaseEnv(
+  process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN,
+  'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN',
+  defaultDevelopmentConfig.authDomain
+);
+
 const firebaseConfig = {
   apiKey: resolveFirebaseEnv(
     process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_API_KEY,
     'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_API_KEY',
     defaultDevelopmentConfig.apiKey
   ),
-  authDomain: resolveFirebaseEnv(
-    process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN,
-    'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN',
-    defaultDevelopmentConfig.authDomain
+  authDomain: resolveOrbitLedgerAuthDomain(
+    configuredAuthDomain,
+    typeof window === 'undefined' ? undefined : window.location.hostname
   ),
   projectId: resolveFirebaseEnv(
     process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_PROJECT_ID,

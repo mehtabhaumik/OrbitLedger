@@ -11,6 +11,11 @@ const requiredWebEnvironment = [
 ];
 
 const expectedProjectId = 'orbit-ledger-f41c2';
+const allowedAuthDomains = new Set([
+  'orbit-ledger-f41c2.firebaseapp.com',
+  'orbitledger.rudraix.com',
+  'orbitledger.bhaumikmehta.com',
+]);
 const errors = [];
 
 for (const key of requiredWebEnvironment) {
@@ -32,9 +37,11 @@ if (
 
 if (
   process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN &&
-  !process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN.endsWith('.firebaseapp.com')
+  !allowedAuthDomains.has(process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN.trim())
 ) {
-  errors.push('NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN must be a Firebase Auth domain.');
+  errors.push(
+    'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN must be an Orbit Ledger custom domain or the Firebase app domain.'
+  );
 }
 
 if (
