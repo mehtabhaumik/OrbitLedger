@@ -25,6 +25,16 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
       return;
     }
 
+    let hasReloadedForServiceWorkerUpdate = false;
+    function handleServiceWorkerControllerChange() {
+      if (hasReloadedForServiceWorkerUpdate) {
+        return;
+      }
+
+      hasReloadedForServiceWorkerUpdate = true;
+      window.location.reload();
+    }
+
     if (process.env.NODE_ENV !== 'production' && 'serviceWorker' in navigator) {
       void navigator.serviceWorker.getRegistrations().then((registrations) => {
         registrations.forEach((registration) => {
@@ -35,8 +45,18 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
     }
 
     if ('serviceWorker' in navigator) {
-      void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+      navigator.serviceWorker.addEventListener('controllerchange', handleServiceWorkerControllerChange);
+      void navigator.serviceWorker
+        .register('/sw.js')
+        .then((registration) => registration.update())
+        .catch(() => undefined);
     }
+
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('controllerchange', handleServiceWorkerControllerChange);
+      }
+    };
   }, [isPublicMarketingRoute]);
 
   if (isPublicPreviewRoute) {
