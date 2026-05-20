@@ -904,92 +904,94 @@ function OwnerClosingRitualDialog({
           </button>
         </div>
 
-        <div className="ol-closing-cash-band">
-          <div>
-            <div className="ol-panel-title">Cash check</div>
-            <p className="ol-panel-copy">Count today’s cash and compare it with recorded payments.</p>
-          </div>
-          <label className="ol-field">
-            <span className="ol-field-label">Cash counted</span>
-            <input
-              className="ol-input"
-              inputMode="decimal"
-              placeholder={formatCurrency(0, currency)}
-              value={countedCashInput}
-              onChange={(event) => onCountedCashChange(event.target.value)}
-            />
-          </label>
-        </div>
-
-        <div className="ol-closing-check-grid">
-          {reviewSteps.map((step) => (
-            <label className="ol-closing-check" data-tone={step.tone} key={step.id}>
+        <div className="ol-dialog-list">
+          <div className="ol-closing-cash-band">
+            <div>
+              <div className="ol-panel-title">Cash check</div>
+              <p className="ol-panel-copy">Count today’s cash and compare it with recorded payments.</p>
+            </div>
+            <label className="ol-field">
+              <span className="ol-field-label">Cash counted</span>
               <input
-                checked={checks[step.id]}
-                type="checkbox"
-                onChange={(event) => onToggleCheck(step.id, event.target.checked)}
+                className="ol-input"
+                inputMode="decimal"
+                placeholder={formatCurrency(0, currency)}
+                value={countedCashInput}
+                onChange={(event) => onCountedCashChange(event.target.value)}
               />
-              <span>
-                <strong>{step.title}</strong>
-                <small>{step.prompt}</small>
-                <em>{step.helper}</em>
-              </span>
             </label>
-          ))}
-        </div>
+          </div>
 
-        <div className="ol-split-grid">
-          <article className="ol-form-band">
-            <div className="ol-form-band-title">Items to review</div>
-            <div className="ol-list" style={{ marginTop: 12 }}>
-              {ritual.flags.map((flag) => (
-                <Link className="ol-list-item ol-list-action" href={getClosingHref(flag.target)} key={flag.id}>
-                  <div className="ol-list-icon" data-tone={flag.tone}>{getClosingIcon(flag.target)}</div>
-                  <div className="ol-list-copy">
-                    <div className="ol-list-title">{flag.title}</div>
-                    <div className="ol-list-text">{flag.message}</div>
-                    <span className="ol-action-link">{flag.actionLabel}</span>
+          <div className="ol-closing-check-grid">
+            {reviewSteps.map((step) => (
+              <label className="ol-closing-check" data-tone={step.tone} key={step.id}>
+                <input
+                  checked={checks[step.id]}
+                  type="checkbox"
+                  onChange={(event) => onToggleCheck(step.id, event.target.checked)}
+                />
+                <span>
+                  <strong>{step.title}</strong>
+                  <small>{step.prompt}</small>
+                  <em>{step.helper}</em>
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <div className="ol-split-grid">
+            <article className="ol-form-band">
+              <div className="ol-form-band-title">Items to review</div>
+              <div className="ol-list" style={{ marginTop: 12 }}>
+                {ritual.flags.map((flag) => (
+                  <Link className="ol-list-item ol-list-action" href={getClosingHref(flag.target)} key={flag.id}>
+                    <div className="ol-list-icon" data-tone={flag.tone}>{getClosingIcon(flag.target)}</div>
+                    <div className="ol-list-copy">
+                      <div className="ol-list-title">{flag.title}</div>
+                      <div className="ol-list-text">{flag.message}</div>
+                      <span className="ol-action-link">{flag.actionLabel}</span>
+                    </div>
+                  </Link>
+                ))}
+                {!ritual.flags.length ? (
+                  <div className="ol-list-item">
+                    <div className="ol-list-icon" data-tone="success">✓</div>
+                    <div className="ol-list-copy">
+                      <div className="ol-list-title">No review item waiting</div>
+                      <div className="ol-list-text">Today can be closed after the checks are confirmed.</div>
+                    </div>
                   </div>
-                </Link>
-              ))}
-              {!ritual.flags.length ? (
-                <div className="ol-list-item">
-                  <div className="ol-list-icon" data-tone="success">✓</div>
-                  <div className="ol-list-copy">
-                    <div className="ol-list-title">No review item waiting</div>
-                    <div className="ol-list-text">Today can be closed after the checks are confirmed.</div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </article>
+                ) : null}
+              </div>
+            </article>
 
-          <article className="ol-form-band">
-            <div className="ol-form-band-title">Tomorrow actions</div>
-            <div className="ol-list" style={{ marginTop: 12 }}>
-              {ritual.tomorrowActions.map((action) => (
-                <Link className="ol-list-item ol-list-action" href={getClosingHref(action.target)} key={action.id}>
-                  <div className="ol-list-icon" data-tone={action.tone}>{getClosingIcon(action.target)}</div>
-                  <div className="ol-list-copy">
-                    <div className="ol-list-title">{action.title}</div>
-                    <div className="ol-list-text">{action.message}</div>
-                    <span className="ol-action-link">Open</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </article>
-        </div>
+            <article className="ol-form-band">
+              <div className="ol-form-band-title">Tomorrow actions</div>
+              <div className="ol-list" style={{ marginTop: 12 }}>
+                {ritual.tomorrowActions.map((action) => (
+                  <Link className="ol-list-item ol-list-action" href={getClosingHref(action.target)} key={action.id}>
+                    <div className="ol-list-icon" data-tone={action.tone}>{getClosingIcon(action.target)}</div>
+                    <div className="ol-list-copy">
+                      <div className="ol-list-title">{action.title}</div>
+                      <div className="ol-list-text">{action.message}</div>
+                      <span className="ol-action-link">Open</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </article>
+          </div>
 
-        {savedAt ? <div className="ol-message ol-message--success">Closing saved for today.</div> : null}
+          {savedAt ? <div className="ol-message ol-message--success">Closing saved for today.</div> : null}
 
-        <div className="ol-actions">
-          <button className="ol-button" disabled={!canSave} type="button" onClick={onSave}>
-            Save closing
-          </button>
-          <button className="ol-button-secondary" type="button" onClick={onClose}>
-            Keep reviewing
-          </button>
+          <div className="ol-actions ol-dialog-actions">
+            <button className="ol-button" disabled={!canSave} type="button" onClick={onSave}>
+              Save closing
+            </button>
+            <button className="ol-button-secondary" type="button" onClick={onClose}>
+              Keep reviewing
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1032,44 +1034,46 @@ function MistakeRecoveryDialog({
           </button>
         </div>
 
-        <div className="ol-recovery-dialog-grid">
-          <article className="ol-form-band">
-            <div className="ol-form-band-title">Suggested fixes</div>
-            <div className="ol-list" style={{ marginTop: 12 }}>
-              {(actions.length ? actions : buildRecoveryEmptyCards()).map((action) => (
-                <Link
-                  className="ol-list-item ol-list-action"
-                  href={getRecoveryHref(action.target)}
-                  key={action.id}
-                  onClick={onClose}
-                >
-                  <div className="ol-list-icon" data-tone={action.tone}>{getRecoveryIcon(action.target)}</div>
-                  <div className="ol-list-copy">
-                    <div className="ol-list-title">{action.title}</div>
-                    <div className="ol-list-text">{action.message}</div>
-                    <div className="ol-recovery-meta-row">
-                      <span>{formatRecoveryRisk(action.risk)}</span>
-                      {action.requiresReason ? <span>Reason required</span> : null}
-                      {action.preservesHistory ? <span>History kept</span> : null}
+        <div className="ol-dialog-list">
+          <div className="ol-recovery-dialog-grid">
+            <article className="ol-form-band">
+              <div className="ol-form-band-title">Suggested fixes</div>
+              <div className="ol-list" style={{ marginTop: 12 }}>
+                {(actions.length ? actions : buildRecoveryEmptyCards()).map((action) => (
+                  <Link
+                    className="ol-list-item ol-list-action"
+                    href={getRecoveryHref(action.target)}
+                    key={action.id}
+                    onClick={onClose}
+                  >
+                    <div className="ol-list-icon" data-tone={action.tone}>{getRecoveryIcon(action.target)}</div>
+                    <div className="ol-list-copy">
+                      <div className="ol-list-title">{action.title}</div>
+                      <div className="ol-list-text">{action.message}</div>
+                      <div className="ol-recovery-meta-row">
+                        <span>{formatRecoveryRisk(action.risk)}</span>
+                        {action.requiresReason ? <span>Reason required</span> : null}
+                        {action.preservesHistory ? <span>History kept</span> : null}
+                      </div>
+                      <span className="ol-action-link">{action.primaryAction}</span>
                     </div>
-                    <span className="ol-action-link">{action.primaryAction}</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </article>
+                  </Link>
+                ))}
+              </div>
+            </article>
 
-          <article className="ol-form-band">
-            <div className="ol-form-band-title">Recovery rules</div>
-            <div className="ol-recovery-guardrails">
-              {guardrails.slice(0, 6).map((guardrail) => (
-                <div className="ol-recovery-guardrail" key={guardrail}>
-                  <span>✓</span>
-                  <p>{guardrail}</p>
-                </div>
-              ))}
-            </div>
-          </article>
+            <article className="ol-form-band">
+              <div className="ol-form-band-title">Recovery rules</div>
+              <div className="ol-recovery-guardrails">
+                {guardrails.slice(0, 6).map((guardrail) => (
+                  <div className="ol-recovery-guardrail" key={guardrail}>
+                    <span>✓</span>
+                    <p>{guardrail}</p>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </div>
         </div>
       </div>
     </div>

@@ -1434,6 +1434,10 @@ a:focus-visible {
   margin-top: 4px;
 }
 
+.ol-dialog-list > :where(.ol-closing-cash-band, .ol-closing-check-grid, .ol-split-grid, .ol-recovery-dialog-grid) + :where(.ol-closing-cash-band, .ol-closing-check-grid, .ol-split-grid, .ol-recovery-dialog-grid, .ol-message, .ol-actions) {
+  margin-top: 6px;
+}
+
 .ol-panel {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 252, 255, 0.94) 100%);
 }
@@ -2673,7 +2677,11 @@ a:focus-visible {
 }
 
 .ol-closing-dialog {
-  width: min(980px, 100%);
+  width: min(1040px, 100%);
+}
+
+.ol-closing-dialog .ol-dialog-list {
+  gap: 14px;
 }
 
 .ol-closing-cash-band {
@@ -2698,7 +2706,7 @@ a:focus-visible {
   grid-template-columns: 22px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
-  min-height: 112px;
+  min-height: 104px;
   padding: 15px;
   border: 1px solid rgba(204, 216, 235, 0.84);
   border-radius: 16px;
@@ -2853,8 +2861,9 @@ a:focus-visible {
 
 .ol-dialog-card {
   width: min(880px, 100%);
-  max-height: min(760px, calc(100vh - 44px));
+  max-height: min(860px, calc(100vh - 44px));
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 16px;
   overflow: hidden;
   border: 1px solid rgba(211, 220, 234, 0.92);
@@ -2868,14 +2877,37 @@ a:focus-visible {
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
+  min-width: 0;
   padding: 20px 20px 0;
+}
+
+.ol-dialog-header > div {
+  min-width: 0;
 }
 
 .ol-dialog-list {
   display: grid;
   gap: 10px;
+  min-height: 0;
   overflow: auto;
-  padding: 0 20px 20px;
+  overscroll-behavior: contain;
+  padding: 0 20px max(24px, env(safe-area-inset-bottom));
+  scroll-padding-bottom: 24px;
+}
+
+.ol-dialog-list > * {
+  min-width: 0;
+}
+
+.ol-dialog-actions {
+  margin-top: 0;
+  padding-top: 4px;
+}
+
+@supports (height: 100dvh) {
+  .ol-dialog-card {
+    max-height: min(860px, calc(100dvh - 44px));
+  }
 }
 
 .ol-dialog-customer {
@@ -4000,6 +4032,7 @@ a:focus-visible {
 .ol-form-band {
   display: grid;
   gap: 14px;
+  min-width: 0;
   padding: 18px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
@@ -4017,6 +4050,11 @@ a:focus-visible {
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
+  min-width: 0;
+}
+
+.ol-form-band-header > div {
+  min-width: 0;
 }
 
 .ol-form-band-title {
@@ -4256,10 +4294,12 @@ a:focus-visible {
 }
 
 .ol-field-label {
+  display: block;
   color: #293449;
   font-size: 11.5px;
   font-weight: 760;
   letter-spacing: 0.01em;
+  line-height: 1.35;
 }
 
 .ol-field-help {
@@ -8669,6 +8709,12 @@ a:focus-visible {
     border-radius: 16px;
   }
 
+  @supports (height: 100dvh) {
+    .ol-dialog-card {
+      max-height: calc(100dvh - 24px);
+    }
+  }
+
   .ol-dialog-header {
     flex-direction: column;
     padding: 16px 16px 0;
@@ -8679,7 +8725,8 @@ a:focus-visible {
   }
 
   .ol-dialog-list {
-    padding: 0 16px 16px;
+    gap: 12px;
+    padding: 0 16px max(20px, env(safe-area-inset-bottom));
   }
 
   .ol-dialog-customer {
@@ -8718,6 +8765,18 @@ a:focus-visible {
   .ol-form-band-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .ol-dialog-actions {
+    align-items: stretch;
+    flex-direction: column;
+    padding-top: 4px;
+  }
+
+  .ol-dialog-actions .ol-button,
+  .ol-dialog-actions .ol-button-secondary,
+  .ol-dialog-actions .ol-button-ghost {
+    width: 100%;
   }
 
   .ol-form-band-actions .ol-button,
