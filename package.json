@@ -42,6 +42,7 @@
     "smoke:live-app-check": "node scripts/smoke-live-app-check.mjs",
     "verify:app-check-readiness": "node scripts/verify-app-check-readiness.mjs",
     "qa:browser-responsive": "node scripts/browser-responsive-qa.mjs",
+    "qa:landing-ledger-freeze": "node scripts/landing-ledger-freeze-qa.mjs",
     "qa:seed-web-workspace": "node scripts/seed-web-qa-workspace.mjs",
     "qa:web-browser-smoke": "node scripts/web-browser-smoke.mjs",
     "qa:web-browser-smoke:seeded": "node scripts/web-browser-smoke.mjs --authenticated",
