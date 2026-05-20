@@ -65,19 +65,60 @@ export default function LandingPage() {
 
   return (
     <main className="ol-landing-page">
+      <div className="ol-enterprise-ledger-bg" aria-hidden="true">
+        <div className="ol-ledger-bg-sheet ol-ledger-bg-sheet--primary">
+          {[
+            ['20 May', 'Invoice created', 'Sonali Traders', 'Rs 13,334', 'Ready'],
+            ['20 May', 'Payment received', 'Northline Repair', 'Rs 5,000', 'Verified'],
+            ['21 May', 'Reminder scheduled', 'Aarav Stores', 'Rs 8,334', 'Follow-up'],
+            ['21 May', 'Balance updated', 'PromptPay Studio', 'Rs 0', 'Closed'],
+            ['22 May', 'Monthly invoice', 'Urban Supply Co.', 'Rs 22,774', 'Approved'],
+          ].map(([date, event, customer, amount, status]) => (
+            <span key={`${date}-${event}-${customer}`}>
+              <b>{date}</b>
+              <em>{event}</em>
+              <strong>{customer}</strong>
+              <i>{amount}</i>
+              <small>{status}</small>
+            </span>
+          ))}
+        </div>
+        <div className="ol-ledger-bg-sheet ol-ledger-bg-sheet--secondary">
+          {[
+            ['Invoice', 'Payment link', 'Captured', 'Ledger updated'],
+            ['Customer', 'Promise kept', 'Health improved', 'Day closed'],
+            ['Audit', 'Version saved', 'Email sent', 'Receipt ready'],
+          ].map((row) => (
+            <span key={row.join('-')}>
+              {row.map((item) => (
+                <em key={item}>{item}</em>
+              ))}
+            </span>
+          ))}
+        </div>
+      </div>
       <LandingSessionGate />
       <LandingNav appCtaHref={appCtaHref} />
 
       <section className="ol-landing-hero" aria-labelledby="landing-hero-title">
-        <div className="ol-landing-hero-glow" aria-hidden="true" />
+        <div className="ol-landing-hero-ledger" aria-hidden="true">
+          <span>Invoice</span>
+          <i />
+          <span>Reminder</span>
+          <i />
+          <span>Payment received</span>
+          <i />
+          <span>Ledger updated</span>
+          <i />
+          <span>Day closed</span>
+        </div>
         <div className="ol-landing-hero-copy">
-          <span className="ol-eyebrow">Small business command center</span>
+          <span className="ol-eyebrow">Receivables command center</span>
           <h1 id="landing-hero-title">
-            Know who owes you. Collect faster. Close every day with confidence.
+            The calm command center for receivables, invoices, and payments.
           </h1>
           <p>
-            Orbit Ledger brings customers, invoices, payments, reminders, and daily review into one
-            calm web workspace.
+            Orbit Ledger helps business owners know what is owed, what changed, and what needs action today.
           </p>
           <div className="ol-landing-hero-actions">
             <Link className="ol-button" href={appCtaHref}>
