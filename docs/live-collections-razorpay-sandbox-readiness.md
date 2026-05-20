@@ -215,6 +215,37 @@ After the secret-mode audit and before any live-pilot decision, use the Phase 15
 
 This gate is intentionally server-state driven. Browser checkout success is not an input and cannot move the phase forward by itself.
 
+Run the operator gate locally:
+
+```sh
+npm run live-collections:phase-gate
+```
+
+Use explicit evidence flags only after the named smoke/proof step has passed:
+
+```sh
+npm run live-collections:phase-gate -- \
+  --signed-webhook-smoke-passed \
+  --checkout-smoke-passed \
+  --signed-capture-smoke-passed \
+  --proof-file=artifacts/razorpay-sandbox-payment-proof.json
+```
+
+After the manual Razorpay test payment, duplicate webhook replay, and refund proof are verified:
+
+```sh
+npm run live-collections:phase-gate -- \
+  --signed-webhook-smoke-passed \
+  --checkout-smoke-passed \
+  --signed-capture-smoke-passed \
+  --manual-payment-verified \
+  --duplicate-webhook-verified \
+  --refund-verified \
+  --proof-file=artifacts/razorpay-sandbox-payment-proof.json
+```
+
+The command reads server-side secret readiness and proof metadata without printing secret values.
+
 ## Live Pilot Guardrails
 
 - Keep the pilot limited to one internal/test business first.

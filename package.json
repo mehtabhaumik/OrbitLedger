@@ -34,6 +34,7 @@
     "smoke:razorpay-controlled-sandbox": "node scripts/razorpay-controlled-sandbox-run.mjs",
     "proof:razorpay-sandbox-payment": "node scripts/razorpay-sandbox-payment-proof.mjs",
     "live-collections:razorpay-sandbox-payment": "node scripts/razorpay-sandbox-payment-run.mjs",
+    "live-collections:phase-gate": "node scripts/live-collections-phase-gate.mjs",
     "audit:razorpay-secret-mode": "node scripts/razorpay-secret-mode-audit.mjs",
     "prepare:web-production-env": "node scripts/prepare-web-production-env.mjs",
     "verify:web-production-env": "node scripts/verify-web-production-env.mjs",
