@@ -20,7 +20,7 @@ import type {
   WorkspaceInvoiceDetail,
   WorkspaceTransaction,
 } from './workspace-data';
-import { formatPrintDateTime } from './print-system';
+import { formatPrintDateTime, type PrintPreparedBy } from './print-system';
 import { formatWorkspaceDocumentAddress } from './workspace-address';
 import { buildCsv, downloadTextFile } from './workspace-power';
 import {
@@ -66,6 +66,8 @@ type BuildInvoiceDocumentInput = {
   workspace: OrbitWorkspaceSummary;
   invoice: WorkspaceInvoiceDetail;
   customer: WorkspaceCustomer | null;
+  preparedBy?: PrintPreparedBy | null;
+  generatedAt?: Date | string;
   subscription?: WebSubscriptionStatus;
   templateKey?: string | null;
   proTheme?: WebProBrandTheme | null;
@@ -88,6 +90,8 @@ type BuildStatementDocumentInput = {
   workspace: OrbitWorkspaceSummary;
   customer: WorkspaceCustomer;
   transactions: WorkspaceTransaction[];
+  preparedBy?: PrintPreparedBy | null;
+  generatedAt?: Date | string;
   dateFrom?: string;
   dateTo?: string;
   subscription?: WebSubscriptionStatus;
@@ -167,6 +171,12 @@ type StatementDocumentData = {
 };
 
 type JsPdfDocument = InstanceType<typeof import('jspdf').jsPDF>;
+
+type DocumentPdfFooterDetails = {
+  left: string;
+  center: string;
+  right: string;
+};
 
 const invoiceTemplates: WebDocumentTemplate[] = [
   invoiceTemplate('IN_CLEAN_BASIC_FREE', 'IN', 'free', 'Clean Basic', 'Simple everyday invoice for quick service and trading work with clear totals and no heavy formatting.', 'modern_minimal', 'india_gst', 'GST', 'GSTIN', 'en-IN', [
@@ -397,6 +407,7 @@ export function getWebTemplateAccessError(
 }
 
 export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
+  const generatedAt = input.generatedAt ?? new Date();
   const subscription = input.subscription ?? getDefaultWebSubscriptionStatus();
   const access = resolveWebFeatureAccess(subscription, 'advanced_pdf_styling');
   const template = getWebDocumentTemplate(input.workspace, 'invoice', input.templateKey, subscription.isPro);
@@ -556,9 +567,10 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
         ${taxBreakdownList(taxBreakdown)}
         <p>${escapeHtml(pack.compliance.disclaimer)}</p>
       </section>
-      ${documentFooter(pdfStyle, input.workspace, 'Prepared with custom invoice branding')}
+      ${documentFooter(pdfStyle, input.workspace, 'Prepared with custom invoice branding', generatedAt)}
     `,
   });
+  const pdfFooterText = documentPdfFooterText(pdfStyle, input.workspace);
   return {
     kind: 'invoice' as const,
     html,
@@ -570,11 +582,19 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
     invoiceData,
     paymentLink,
     manualPaymentInstructions: input.manualPaymentInstructions ?? [],
-    pdfFooterText: documentPdfFooterText(pdfStyle, input.workspace),
+    pdfFooterText,
+    pdfFooter: buildDocumentPdfFooterDetails({
+      footerText: pdfFooterText,
+      workspace: input.workspace,
+      preparedBy: input.preparedBy,
+      generatedAt,
+      context: `${input.invoice.invoiceNumber} · ${countryCode}`,
+    }),
   };
 }
 
 export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
+  const generatedAt = input.generatedAt ?? new Date();
   const subscription = input.subscription ?? getDefaultWebSubscriptionStatus();
   const template = getWebDocumentTemplate(input.workspace, 'statement', input.templateKey, subscription.isPro);
   const pdfStyle = template.tier === 'pro' && subscription.isPro ? 'advanced' : 'basic';
@@ -707,9 +727,10 @@ export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
         <p>Customer statements summarize ledger dues and payments. Invoice tax totals are handled in invoice documents and reports.</p>
         <p>Please review this statement and contact us if anything looks incorrect.</p>
       </section>
-      ${documentFooter(pdfStyle, input.workspace, 'Prepared with custom document branding')}
+      ${documentFooter(pdfStyle, input.workspace, 'Prepared with custom document branding', generatedAt)}
     `,
   });
+  const pdfFooterText = documentPdfFooterText(pdfStyle, input.workspace);
   return {
     kind: 'statement' as const,
     html,
@@ -718,7 +739,14 @@ export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
     pdfStyle,
     subscription,
     statementData,
-    pdfFooterText: documentPdfFooterText(pdfStyle, input.workspace),
+    pdfFooterText,
+    pdfFooter: buildDocumentPdfFooterDetails({
+      footerText: pdfFooterText,
+      workspace: input.workspace,
+      preparedBy: input.preparedBy,
+      generatedAt,
+      context: `${from} to ${to}`,
+    }),
   };
 }
 
@@ -759,6 +787,7 @@ export async function downloadInvoicePdf(document: WebInvoiceDocument) {
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 40;
+  const footerReserve = 64;
   const data = document.invoiceData;
   let y = margin;
 
@@ -776,7 +805,7 @@ export async function downloadInvoicePdf(document: WebInvoiceDocument) {
   };
 
   const ensureSpace = (height: number) => {
-    if (y + height <= pageHeight - margin - 34) {
+    if (y + height <= pageHeight - margin - footerReserve) {
       return;
     }
     addPdfFooter(pdf, document);
@@ -983,6 +1012,7 @@ export async function downloadStatementPdf(document: WebStatementDocument) {
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 40;
+  const footerReserve = 64;
   const data = document.statementData;
   let y = margin;
 
@@ -1000,12 +1030,10 @@ export async function downloadStatementPdf(document: WebStatementDocument) {
   };
 
   const ensureSpace = (height: number) => {
-    if (y + height <= pageHeight - margin - 34) {
+    if (y + height <= pageHeight - margin - footerReserve) {
       return;
     }
-    if (document.pdfFooterText) {
-      addDocumentFooter(pdf, document.pdfFooterText, `${data.from} to ${data.to}`);
-    }
+    addDocumentFooter(pdf, document.pdfFooter);
     pdf.addPage();
     y = margin;
   };
@@ -1087,9 +1115,7 @@ export async function downloadStatementPdf(document: WebStatementDocument) {
     addText('No transactions in this statement period.', margin + 8, y + 18, { size: 9 });
   }
 
-  if (document.pdfFooterText) {
-    addDocumentFooter(pdf, document.pdfFooterText, `${data.from} to ${data.to}`);
-  }
+  addDocumentFooter(pdf, document.pdfFooter);
   pdf.save(document.fileName);
 }
 
@@ -1181,7 +1207,7 @@ export async function downloadStatementBatchPdf(documents: WebStatementDocument[
     const visibleRows = data.rows.slice(-12);
     for (const row of visibleRows) {
       const rowHeight = Math.max(30, (pdf.splitTextToSize(row.description, columns[1].width - 12) as string[]).length * 11 + 12);
-      if (y + rowHeight > pageHeight - margin - 46) {
+      if (y + rowHeight > pageHeight - margin - 70) {
         break;
       }
       pdf.setDrawColor(228, 236, 246);
@@ -1211,9 +1237,7 @@ export async function downloadStatementBatchPdf(documents: WebStatementDocument[
       addText(`${data.rows.length - visibleRows.length} older entries are summarized above. Open the single customer statement for full activity.`, margin + 8, y + 18, { size: 9 });
     }
 
-    if (document.pdfFooterText) {
-      addDocumentFooter(pdf, document.pdfFooterText, data.customerName);
-    }
+    addDocumentFooter(pdf, document.pdfFooter);
   });
 
   pdf.save(`Customer_Statements_${today()}.pdf`);
@@ -1466,21 +1490,26 @@ function proFooter(message: string) {
   return `<section class="brand-footer"><span>Created with Orbit Ledger</span><span>${escapeHtml(message)}</span></section>`;
 }
 
-function freeFooter(workspace?: OrbitWorkspaceSummary) {
-  const generatedAt = workspace ? formatPrintDateTime(new Date(), workspace.countryCode) : formatPrintDateTime(new Date(), 'IN');
-  return `<section class="brand-footer brand-footer--free"><span>Created with Orbit Ledger</span><span>${escapeHtml(generatedAt)}</span></section>`;
+function freeFooter(workspace?: OrbitWorkspaceSummary, generatedAt: Date | string = new Date()) {
+  const generatedAtText = workspace ? formatPrintDateTime(generatedAt, workspace.countryCode) : formatPrintDateTime(generatedAt, 'IN');
+  return `<section class="brand-footer brand-footer--free"><span>Created with Orbit Ledger</span><span>${escapeHtml(generatedAtText)}</span></section>`;
 }
 
-function documentFooter(pdfStyle: 'basic' | 'advanced', workspace: OrbitWorkspaceSummary, proMessage: string) {
+function documentFooter(
+  pdfStyle: 'basic' | 'advanced',
+  workspace: OrbitWorkspaceSummary,
+  proMessage: string,
+  generatedAt: Date | string = new Date()
+) {
   const preference = (workspace as WatermarkWorkspace).documentFooterPreference ?? 'auto';
   if (pdfStyle !== 'advanced') {
-    return freeFooter(workspace);
+    return freeFooter(workspace, generatedAt);
   }
   if (preference === 'hide_when_pro') {
     return '';
   }
   if (preference === 'always_show') {
-    return freeFooter(workspace);
+    return freeFooter(workspace, generatedAt);
   }
   return proFooter(proMessage);
 }
@@ -1499,6 +1528,54 @@ function documentPdfFooterText(pdfStyle: 'basic' | 'advanced', workspace: OrbitW
   return 'Prepared with Orbit Ledger Pro';
 }
 
+function buildDocumentPdfFooterDetails(input: {
+  footerText: string;
+  workspace: OrbitWorkspaceSummary;
+  preparedBy?: PrintPreparedBy | null;
+  generatedAt: Date | string;
+  context: string;
+}): DocumentPdfFooterDetails | null {
+  if (!input.footerText) {
+    return null;
+  }
+
+  return {
+    left: input.footerText,
+    center: compactDocumentFooterParts([
+      input.workspace.businessName,
+      buildPdfPreparedByLine(input.preparedBy),
+    ]).join(' | '),
+    right: compactDocumentFooterParts([
+      input.context,
+      formatPrintDateTime(input.generatedAt, input.workspace.countryCode),
+    ]).join(' · '),
+  };
+}
+
+function buildPdfPreparedByLine(preparedBy?: PrintPreparedBy | null): string {
+  if (!preparedBy) {
+    return '';
+  }
+  const name = preparedBy.name?.trim();
+  const email = preparedBy.email?.trim();
+  const role = preparedBy.role?.trim();
+  const roleText = role ? `, ${role}` : '';
+  if (name && email) {
+    return `Prepared by ${name}${roleText} (${email})`;
+  }
+  if (name) {
+    return `Prepared by ${name}${roleText}`;
+  }
+  if (email) {
+    return `Prepared by ${email}`;
+  }
+  return '';
+}
+
+function compactDocumentFooterParts(parts: Array<string | null | undefined>): string[] {
+  return parts.map((part) => part?.trim()).filter((part): part is string => Boolean(part));
+}
+
 function addSummaryLine(
   pdf: JsPdfDocument,
   label: string,
@@ -1515,28 +1592,42 @@ function addSummaryLine(
 }
 
 function addPdfFooter(pdf: JsPdfDocument, document: WebInvoiceDocument) {
-  if (!document.pdfFooterText) {
-    return;
-  }
-  addDocumentFooter(
-    pdf,
-    document.pdfFooterText,
-    `${document.invoiceData.invoiceNumber} · ${document.invoiceData.countryCode}`
-  );
+  addDocumentFooter(pdf, document.pdfFooter);
 }
 
-function addDocumentFooter(pdf: JsPdfDocument, footerText: string, rightText: string) {
+function addDocumentFooter(pdf: JsPdfDocument, footer: DocumentPdfFooterDetails | null) {
+  if (!footer) {
+    return;
+  }
+
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
+  const leftX = 40;
+  const rightX = pageWidth - 40;
+  const centerX = pageWidth / 2;
+  const centerWidth = Math.max(120, pageWidth - 310);
+
   pdf.setDrawColor(214, 226, 242);
-  pdf.line(40, pageHeight - 36, pageWidth - 40, pageHeight - 36);
+  pdf.line(leftX, pageHeight - 46, rightX, pageHeight - 46);
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(8);
+  pdf.setFontSize(7.5);
   pdf.setTextColor(70, 84, 103);
-  pdf.text(footerText, 40, pageHeight - 20);
+  pdf.text(fitPdfText(pdf, footer.left, 130), leftX, pageHeight - 27);
   pdf.setFont('helvetica', 'normal');
-  pdf.text(rightText, pageWidth - 40, pageHeight - 20, { align: 'right' });
+  pdf.text(fitPdfText(pdf, footer.center, centerWidth), centerX, pageHeight - 27, { align: 'center' });
+  pdf.text(fitPdfText(pdf, footer.right, 170), rightX, pageHeight - 27, { align: 'right' });
   pdf.setTextColor(24, 35, 31);
+}
+
+function fitPdfText(pdf: JsPdfDocument, value: string, maxWidth: number): string {
+  if (pdf.getTextWidth(value) <= maxWidth) {
+    return value;
+  }
+  let next = value.trim();
+  while (next.length > 12 && pdf.getTextWidth(`${next}...`) > maxWidth) {
+    next = next.slice(0, -4).trimEnd();
+  }
+  return `${next}...`;
 }
 
 function proThemeStyle(theme: WebProBrandTheme | null, watermarkOpacity?: number | null) {

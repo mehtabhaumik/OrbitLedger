@@ -63,9 +63,13 @@ describe('premium print system', () => {
     expect(html).toContain('Prepared by Bhaumik Mehta (owner@example.com)');
     expect(html).toContain('Created with Orbit Ledger');
     expect(html).toContain('Print copy');
+    expect(html).toContain('<div class="ol-print-body">');
+    expect(html).toContain('.ol-print-body { display: block; margin-bottom: 18mm; }');
+    expect(html).toContain('.ol-print-footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); margin-top: auto;');
     expect(html).toContain('box-shadow: 0 0 0 .35px var(--line), inset 0 0 0 .35px var(--line);');
     expect(html).not.toContain('.ol-print-page { width: 210mm; min-height: 297mm;');
     expect(html).toContain('html,\n    body { background: #fff !important; }');
+    expect(html).toContain('.ol-print-page { display: flex; width: auto; min-height: calc(297mm - 20mm);');
   });
 
   it('protects rows and images from broken print output', () => {

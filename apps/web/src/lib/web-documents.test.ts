@@ -366,6 +366,27 @@ describe('web document parity', () => {
     expect(document.html).toContain('--pro-accent:#7653D9');
     expect(document.html).not.toContain('Created with Orbit Ledger</span><span>Prepared with custom invoice branding');
     expect(document.pdfFooterText).toBe('');
+    expect(document.pdfFooter).toBeNull();
+  });
+
+  it('adds business, prepared-by, context, and timestamp metadata to invoice PDF footers', () => {
+    const document = buildInvoiceWebDocument({
+      workspace,
+      invoice: makeInvoice(),
+      customer,
+      preparedBy: {
+        name: 'Asha Owner',
+        email: 'asha@example.com',
+        role: 'Owner',
+      },
+      generatedAt: new Date('2026-05-20T10:30:00+05:30'),
+    });
+
+    expect(document.pdfFooter).toBeTruthy();
+    expect(document.pdfFooter?.left).toBe('Generated using Orbit Ledger');
+    expect(document.pdfFooter?.center).toBe('Asha Traders | Prepared by Asha Owner, Owner (asha@example.com)');
+    expect(document.pdfFooter?.right).toContain('INV-100 · IN');
+    expect(document.pdfFooter?.right).toContain('2026');
   });
 
   it('uses the Pro line color for template borders and dividers', () => {

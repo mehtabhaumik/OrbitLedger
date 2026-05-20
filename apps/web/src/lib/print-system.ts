@@ -103,7 +103,9 @@ export function buildOrbitPrintDocument(input: PrintDocumentInput): string {
       <div class="ol-print-stamp">Print copy</div>
     </section>
 
-    ${input.sections.map(renderPrintSection).join('\n')}
+    <div class="ol-print-body">
+      ${input.sections.map(renderPrintSection).join('\n')}
+    </div>
 
     <footer class="ol-print-footer">
       <span>Created with Orbit Ledger</span>
@@ -303,6 +305,7 @@ const printStyles = `
   * { box-sizing: border-box; }
   html, body { margin: 0; background: #eef3f8; color: var(--text); font-family: Inter, Arial, sans-serif; }
   .ol-print-page { width: 210mm; min-height: 100vh; margin: 0 auto; background: #fff; padding: 15mm 15mm 0; box-shadow: 0 24px 80px rgba(15, 23, 42, .18); display: flex; flex-direction: column; }
+  .ol-print-body { display: block; margin-bottom: 18mm; }
   .ol-print-header { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(180px, .75fr); gap: 18px; align-items: start; border-bottom: 2px solid var(--line); padding-bottom: 16px; }
   .ol-print-brand { display: flex; gap: 13px; min-width: 0; }
   .ol-print-logo, .ol-print-logo-fallback { width: 52px; height: 52px; border-radius: 16px; flex: 0 0 auto; }
@@ -367,8 +370,9 @@ const printStyles = `
   @media print {
     html,
     body { background: #fff !important; }
-    .ol-print-page { display: block; width: auto; min-height: auto; margin: 0; padding: 0; background: #fff !important; box-shadow: none; }
-    .ol-print-footer { margin-top: 16px; }
+    .ol-print-page { display: flex; width: auto; min-height: calc(297mm - 20mm); margin: 0; padding: 0; background: #fff !important; box-shadow: none; }
+    .ol-print-body { display: block; margin-bottom: 16mm; }
+    .ol-print-footer { margin-top: auto; }
     .ol-print-section, .ol-print-metric, .ol-print-table tr, .ol-print-image-section figure { break-inside: avoid; page-break-inside: avoid; }
     @page { size: A4; margin: 10mm; }
   }

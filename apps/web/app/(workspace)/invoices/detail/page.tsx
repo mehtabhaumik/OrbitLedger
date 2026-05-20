@@ -80,6 +80,7 @@ import {
 } from '@/lib/live-collections-receipts';
 import { uploadPaymentInstrumentImage } from '@/lib/workspace-storage';
 import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
+import { useAuth } from '@/providers/auth-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -136,6 +137,7 @@ export default function InvoiceEditorPage() {
 function InvoiceEditorContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
   const invoiceId = searchParams.get('invoiceId') ?? '';
   const versionId = searchParams.get('versionId') ?? '';
   const { activeWorkspace } = useWorkspace();
@@ -470,6 +472,11 @@ function InvoiceEditorContent() {
       workspace: activeWorkspace,
       invoice: documentInvoice,
       customer: documentCustomer,
+      preparedBy: {
+        name: user?.displayName ?? null,
+        email: user?.email ?? null,
+        role: officeAccess.roleLabel ?? null,
+      },
       subscription,
       templateKey: selectedTemplate?.key,
       urgentPaymentRequired,
@@ -489,7 +496,7 @@ function InvoiceEditorContent() {
       paymentModeLine: previewPaymentDocumentModeLine,
       paymentStatusLine: previewPaymentDocumentStatusLine,
     });
-  }, [activeWorkspace, customerId, documentInstrumentAttachment, dueDate, includeInstrumentInDocument, includePaymentLinkInDocument, invoice, invoiceNumber, invoicePaymentLink, isReadOnlyVersion, issueDate, items, notes, paymentDetails, paymentLinkAccess.allowed, paymentLinkDetails, paymentProofAccess.allowed, previewPaidAmount, previewPaymentDocumentModeLine, previewPaymentDocumentStatusLine, previewPaymentStatus, previewPaymentStatusReason, selectedCustomer, selectedTemplate?.key, subscription, total, urgentPaymentRequired]);
+  }, [activeWorkspace, customerId, documentInstrumentAttachment, dueDate, includeInstrumentInDocument, includePaymentLinkInDocument, invoice, invoiceNumber, invoicePaymentLink, isReadOnlyVersion, issueDate, items, notes, officeAccess.roleLabel, paymentDetails, paymentLinkAccess.allowed, paymentLinkDetails, paymentProofAccess.allowed, previewPaidAmount, previewPaymentDocumentModeLine, previewPaymentDocumentStatusLine, previewPaymentStatus, previewPaymentStatusReason, selectedCustomer, selectedTemplate?.key, subscription, total, urgentPaymentRequired, user?.displayName, user?.email]);
 
   function selectedTemplateAccessError() {
     return activeWorkspace
