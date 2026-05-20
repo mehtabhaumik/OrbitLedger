@@ -614,6 +614,9 @@ export {
 export {
   buildLiveCollectionsSandboxReadiness,
 } from './liveCollectionsSandboxReadiness';
+export {
+  buildLiveCollectionsPhase15Gate,
+} from './liveCollectionsPhaseGate';
 export type {
   LiveCollectionsGuardrailName,
   LivePaymentAllocationInput,
@@ -634,6 +637,14 @@ export type {
   LiveCollectionsSandboxReadinessStatus,
   LiveCollectionsSandboxReadinessStep,
 } from './liveCollectionsSandboxReadiness';
+export type {
+  LiveCollectionsCredentialMode,
+  LiveCollectionsPhase15Gate,
+  LiveCollectionsPhase15GateInput,
+  LiveCollectionsPhase15Status,
+  LiveCollectionsPhaseCredentialAudit,
+  LiveCollectionsPhaseProofState,
+} from './liveCollectionsPhaseGate';
 export type {
   InvoiceDocumentState,
   InvoiceLifecycleInput,

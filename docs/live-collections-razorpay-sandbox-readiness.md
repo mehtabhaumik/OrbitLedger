@@ -189,6 +189,32 @@ The proof command checks:
 - payment-applied audit exists,
 - follow-up automation update exists.
 
+## Phase 15 Gate
+
+After the secret-mode audit and before any live-pilot decision, use the Phase 15 gate in `@orbit-ledger/core` to classify the current operator state:
+
+1. `blocked_missing_test_credentials`
+   - Razorpay test credentials or the Firestore admin token are not ready.
+   - Do not prepare a checkout proof.
+
+2. `blocked_readiness_incomplete`
+   - Credentials are ready, but signed webhook, checkout, or capture smoke is incomplete.
+   - Do not prepare a checkout proof.
+
+3. `ready_to_prepare_payment_proof`
+   - Credentials and smoke checks are ready.
+   - Prepare a kept Razorpay test checkout and proof file.
+
+4. `waiting_for_manual_test_payment`
+   - Checkout proof exists, but captured-payment, duplicate-webhook, or refund proof is incomplete.
+   - Do not start live-pilot review.
+
+5. `ready_for_live_pilot_review`
+   - Captured payment, duplicate webhook, refund, audit, allocation, receipt, and notification proof are complete.
+   - Live pilot still requires explicit operator approval and monitoring.
+
+This gate is intentionally server-state driven. Browser checkout success is not an input and cannot move the phase forward by itself.
+
 ## Live Pilot Guardrails
 
 - Keep the pilot limited to one internal/test business first.
