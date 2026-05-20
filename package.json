@@ -46,6 +46,7 @@
     "qa:web-browser-smoke": "node scripts/web-browser-smoke.mjs",
     "qa:web-browser-smoke:seeded": "node scripts/web-browser-smoke.mjs --authenticated",
     "qa:web-browser-smoke:seeded:refresh": "npm run qa:seed-web-workspace && node scripts/web-browser-smoke.mjs --authenticated",
+    "qa:print-sample-pack": "npx -y tsx scripts/generate-print-sample-pack.ts",
     "typecheck": "npm run typecheck --workspace @orbit-ledger/contracts && npm run typecheck --workspace @orbit-ledger/core && npm run typecheck --workspace @orbit-ledger/ui && npm run typecheck --workspace @orbit-ledger/sync && npm run typecheck --workspace @orbit-ledger/mobile && npm run typecheck --workspace @orbit-ledger/web && npm run typecheck --workspace @orbit-ledger/functions",
     "test": "vitest run apps packages",
     "test:rules": "vitest run firebase/*.rules.test.ts firebase/rules.test.ts --fileParallelism=false",
