@@ -14,6 +14,8 @@ const templates = [
     templateKey: 'IN_GST_STANDARD_FREE',
     layout: 'tax',
     footer: 'CGST + SGST ready',
+    description: 'A tax-ready India invoice with clear taxable value, CGST, SGST, and total columns.',
+    highlights: ['GST columns', 'Taxable value', 'Free footer'],
   },
   {
     name: 'Clean Basic',
@@ -22,6 +24,8 @@ const templates = [
     templateKey: 'IN_CLEAN_BASIC_FREE',
     layout: 'basic',
     footer: 'Generated using Orbit Ledger',
+    description: 'A simple invoice for service businesses that need a direct, readable document.',
+    highlights: ['Readable rows', 'Status stamp', 'Fast sharing'],
   },
   {
     name: 'Service Invoice',
@@ -30,6 +34,8 @@ const templates = [
     templateKey: 'IN_SIMPLE_SERVICE_FREE',
     layout: 'service',
     footer: 'Service notes included',
+    description: 'A service-first layout with scope notes and terms visible before the customer pays.',
+    highlights: ['Service notes', 'Terms block', 'Clean sections'],
   },
   {
     name: 'Professional Letterhead',
@@ -38,6 +44,8 @@ const templates = [
     templateKey: 'IN_GST_LETTERHEAD_PRO',
     layout: 'letterhead',
     footer: 'Logo, color, and signature',
+    description: 'A formal letterhead style with business branding, signature area, and stronger hierarchy.',
+    highlights: ['Logo area', 'Signature line', 'Premium header'],
   },
   {
     name: 'Payment-focused',
@@ -46,6 +54,8 @@ const templates = [
     templateKey: 'IN_PAYMENT_FOCUSED_PRO',
     layout: 'payment',
     footer: 'Payment link and QR area',
+    description: 'A payment-led invoice that makes the amount due and payment instructions impossible to miss.',
+    highlights: ['Amount due block', 'Payment link', 'Follow-up ready'],
   },
   {
     name: 'Branded Premium',
@@ -54,6 +64,8 @@ const templates = [
     templateKey: 'IN_BRANDED_ADVANCED_PRO',
     layout: 'premium',
     footer: 'Watermark and premium brand polish',
+    description: 'A branded premium document with watermark styling, custom color, and polished totals.',
+    highlights: ['Watermark', 'Brand color', 'Premium total'],
   },
 ] as const;
 
@@ -107,64 +119,93 @@ export function LandingTemplateShowcase() {
   }
 
   return (
-    <>
-      <div className="ol-template-stage" aria-label="Invoice template showcase">
-        <div className="ol-template-viewport" aria-live="polite">
-          {templates.map((template, index) => {
-            const demoData = templateDemoData[index] ?? templateDemoData[0];
-            return (
-              <Link
-                aria-hidden={index !== activeIndex}
-                aria-label={`Open ${template.name} sample preview`}
-                className={`ol-template-preview ol-template-preview--${template.tone} ol-template-preview--layout-${template.layout}${index === activeIndex ? ' is-active' : ''}`}
-                href={templatePreviewHref(template.templateKey)}
+    <div className="ol-template-stage" aria-label="Invoice template showcase">
+      <div className="ol-template-gallery-shell">
+        <div className="ol-template-gallery-preview-card">
+          <div className="ol-template-gallery-toolbar">
+            <div>
+              <span className="ol-eyebrow">Template gallery</span>
+              <strong>{activeTemplate.name}</strong>
+            </div>
+            <span className={`ol-template-plan-badge ol-template-plan-badge--${activeTemplate.plan.toLowerCase()}`}>
+              {activeTemplate.plan}
+            </span>
+          </div>
+          <div className="ol-template-viewport" aria-live="polite">
+            {templates.map((template, index) => {
+              const demoData = templateDemoData[index] ?? templateDemoData[0];
+              return (
+                <Link
+                  aria-hidden={index !== activeIndex}
+                  aria-label={`Open ${template.name} sample preview`}
+                  className={`ol-template-preview ol-template-preview--${template.tone} ol-template-preview--layout-${template.layout}${index === activeIndex ? ' is-active' : ''}`}
+                  href={templatePreviewHref(template.templateKey)}
+                  key={template.name}
+                  rel="noopener noreferrer"
+                  tabIndex={index === activeIndex ? 0 : -1}
+                  target="_blank"
+                >
+                  <TemplatePreviewSheet
+                    footer={template.footer}
+                    layout={template.layout}
+                    name={template.name}
+                    plan={template.plan}
+                    demoData={demoData}
+                  />
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        <aside className="ol-template-gallery-aside" aria-label="Template details">
+          <div className="ol-template-gallery-copy">
+            <span className="ol-eyebrow">{activeTemplate.plan === 'Pro' ? 'Premium document' : 'Included template'}</span>
+            <h3>{activeTemplate.name}</h3>
+            <p>{activeTemplate.description}</p>
+            <div className="ol-template-gallery-highlights">
+              {activeTemplate.highlights.map((highlight) => (
+                <span key={highlight}>{highlight}</span>
+              ))}
+            </div>
+          </div>
+          <div
+            className="ol-template-tabs"
+            role="group"
+            aria-label="Invoice template selector"
+            data-paused={isManualPause ? 'true' : 'false'}
+          >
+            {templates.map((template, index) => (
+              <button
+                aria-pressed={index === activeIndex}
+                aria-label={`Show ${template.name} template preview`}
+                className="ol-template-tab"
+                data-tone={template.tone}
                 key={template.name}
-                rel="noopener noreferrer"
-                tabIndex={index === activeIndex ? 0 : -1}
-                target="_blank"
+                onClick={() => selectTemplate(index)}
+                type="button"
               >
-                <TemplatePreviewSheet
-                  footer={template.footer}
-                  layout={template.layout}
-                  name={template.name}
-                  plan={template.plan}
-                  demoData={demoData}
-                />
-              </Link>
-            );
-          })}
-        </div>
-        <div
-          className="ol-template-tabs"
-          role="group"
-          aria-label="Invoice template selector"
-          data-paused={isManualPause ? 'true' : 'false'}
-        >
-          {templates.map((template, index) => (
-            <button
-              aria-pressed={index === activeIndex}
-              aria-label={`Show ${template.name} template preview`}
-              className="ol-template-tab"
-              key={template.name}
-              onClick={() => selectTemplate(index)}
-              type="button"
-            >
-              <span>{template.plan}</span>
-              {template.name}
-            </button>
-          ))}
-        </div>
+                <span>{template.plan}</span>
+                <strong>{template.name}</strong>
+                <small>{template.footer}</small>
+              </button>
+            ))}
+          </div>
+          <Link
+            aria-label={`Open the ${activeTemplate.name} template preview in a new tab`}
+            className="ol-button-secondary ol-landing-inline-cta"
+            href={templatePreviewHref(activeTemplate.templateKey)}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            View {activeTemplate.name} preview
+          </Link>
+          <p className="ol-template-gallery-note">
+            Preview uses sample data only. Printing remains disabled in this public demo tab.
+          </p>
+        </aside>
       </div>
-      <Link
-        aria-label={`Open the ${activeTemplate.name} template preview in a new tab`}
-        className="ol-button-secondary ol-landing-inline-cta"
-        href={templatePreviewHref(activeTemplate.templateKey)}
-        rel="noopener noreferrer"
-        target="_blank"
-      >
-        View {activeTemplate.name} preview
-      </Link>
-    </>
+    </div>
   );
 }
 
@@ -185,7 +226,7 @@ function TemplatePreviewSheet({
   const rows = demoData.invoice.items.slice(0, 3);
 
   return (
-    <>
+    <div className="ol-template-sheet-inner">
       <div className="ol-template-ribbon">{plan}</div>
       <div className="ol-template-watermark">SAMPLE</div>
       <div className="ol-template-header">
@@ -214,7 +255,7 @@ function TemplatePreviewSheet({
         <span>{footer}</span>
         <span>{formatInr(demoData.invoice.totalAmount)}</span>
       </div>
-    </>
+    </div>
   );
 }
 
