@@ -484,6 +484,7 @@ a:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
 }
 
 .ol-chip {
@@ -498,6 +499,9 @@ a:focus-visible {
   font-size: 10.5px;
   font-weight: 800;
   line-height: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -753,7 +757,11 @@ a:focus-visible {
   border-radius: 10px;
   font-size: 14px;
   font-weight: 760;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
   border: 1px solid transparent;
+  cursor: pointer;
   transition:
     transform 140ms ease,
     box-shadow 140ms ease,
@@ -3690,6 +3698,7 @@ a:focus-visible {
   display: grid;
   gap: 18px;
   min-height: 100vh;
+  overflow-x: hidden;
   padding: 20px;
 }
 
@@ -3702,7 +3711,12 @@ a:focus-visible {
   display: flex;
   gap: 16px;
   justify-content: space-between;
+  min-width: 0;
   padding: 16px 18px;
+}
+
+.ol-template-preview-toolbar > * {
+  min-width: 0;
 }
 
 .ol-template-preview-full-frame {
@@ -3715,15 +3729,26 @@ a:focus-visible {
 }
 
 .ol-template-preview-controls {
-  align-items: end;
+  align-items: start;
   background: rgba(255, 255, 255, 0.88);
   border: 1px solid var(--border);
   border-radius: 18px;
   box-shadow: 0 18px 44px rgba(34, 68, 120, 0.08);
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(300px, 1.25fr) repeat(4, minmax(118px, 0.22fr)) minmax(190px, 0.5fr) minmax(220px, 0.58fr) minmax(180px, 0.45fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 148px), 1fr));
+  max-width: 100%;
+  min-width: 0;
   padding: 16px 18px;
+  width: 100%;
+}
+
+.ol-template-preview-controls > * {
+  min-width: 0;
+}
+
+.ol-template-preview-controls > div:first-child {
+  grid-column: span 2;
 }
 
 .ol-template-preview-controls strong {
@@ -3767,7 +3792,9 @@ a:focus-visible {
   border-radius: 12px;
   color: var(--text);
   display: flex;
+  gap: 8px;
   min-height: 44px;
+  min-width: 0;
   padding: 0 12px;
 }
 
@@ -4360,6 +4387,8 @@ a:focus-visible {
   font-size: 13px;
   font-weight: 750;
   line-height: 1.45;
+  min-width: 0;
+  overflow: hidden;
   pointer-events: auto;
 }
 
@@ -4372,6 +4401,12 @@ a:focus-visible {
 .ol-toast-copy strong {
   font-size: 12px;
   letter-spacing: 0.02em;
+}
+
+.ol-toast-copy span,
+.ol-toast-copy strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .ol-toast-action {
@@ -4456,6 +4491,14 @@ a:focus-visible {
   color: var(--text);
   cursor: pointer;
   text-align: left;
+}
+
+.ol-live-feed,
+.ol-live-feed-trigger,
+.ol-live-feed-panel,
+.ol-live-feed-item,
+.ol-live-feed-item-copy {
+  min-width: 0;
 }
 
 .ol-live-feed-trigger > span:nth-child(2) {
@@ -4651,6 +4694,12 @@ a:focus-visible {
   text-align: center;
 }
 
+.ol-paid-confirmation-card,
+.ol-paid-confirmation-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .ol-paid-confirmation-mark {
   position: relative;
   width: 104px;
@@ -4696,6 +4745,7 @@ a:focus-visible {
   color: var(--text);
   font-size: clamp(28px, 4vw, 38px);
   line-height: 1.05;
+  overflow-wrap: anywhere;
 }
 
 .ol-paid-confirmation-amount {
@@ -4703,6 +4753,7 @@ a:focus-visible {
   font-size: clamp(34px, 7vw, 52px);
   font-weight: 950;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 
 .ol-paid-confirmation-copy p:not(.ol-paid-confirmation-eyebrow) {
@@ -6843,6 +6894,12 @@ a:focus-visible {
 }
 
 .ol-landing-links a {
+  align-items: center;
+  border-radius: 12px;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 8px;
   transition:
     color 160ms ease,
     transform 160ms ease;
@@ -10542,6 +10599,10 @@ a:focus-visible {
     grid-template-columns: 1fr;
     align-items: stretch;
     padding: 16px;
+  }
+
+  .ol-template-preview-controls > div:first-child {
+    grid-column: 1 / -1;
   }
 
   .ol-preview-watermark-upload-row {

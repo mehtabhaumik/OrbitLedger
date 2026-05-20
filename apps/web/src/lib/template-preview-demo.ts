@@ -162,6 +162,19 @@ export function protectTemplatePreviewHtml(html: string) {
     <style>
       .sample-preview-ribbon{position:fixed;z-index:9999;top:18px;left:50%;transform:translateX(-50%);background:#172033;color:#fff;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:10px 18px;font:800 12px/1.2 Inter,Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;box-shadow:0 16px 36px rgba(15,23,42,.22)}
       .sample-preview-watermark{position:fixed;inset:0;z-index:9998;pointer-events:none;display:grid;place-items:center;color:rgba(47,99,183,.12);font:900 76px/1 Inter,Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;transform:rotate(-18deg)}
+      @media screen and (max-width: 860px){
+        html,body{overflow-x:hidden}
+        body{background:#edf2f7}
+        .page{width:calc(100vw - 24px)!important;min-height:auto!important;margin:0 auto!important;padding:24px 18px!important;box-shadow:0 18px 44px rgba(20,32,51,.14)!important}
+        .document-header,.template-key-in_branded_advanced_pro .document-header{display:grid!important;grid-template-columns:1fr!important;gap:14px!important;border-radius:18px!important;padding:18px!important}
+        .brand-row{min-width:0}.business-copy,.statement-title{min-width:0;text-align:left!important;justify-items:start!important}
+        .business-copy h1,.statement-title strong{font-size:clamp(20px,6vw,28px)!important;overflow-wrap:anywhere}
+        .business-copy p,.statement-title span,.panel p,.payment-link-block p,.payment-link-block a{overflow-wrap:anywhere}
+        .identity-grid,.summary-signature,.instrument-proof{grid-template-columns:1fr!important}
+        .instrument-proof{align-items:start}.instrument-proof img,.instrument-proof-file{max-height:180px}
+        .table-section{overflow:hidden}table{display:block;max-width:100%;overflow-x:auto;white-space:nowrap}
+        .brand-footer{display:grid;gap:8px}.sample-preview-ribbon{position:sticky;top:10px;left:auto;transform:none;width:max-content;max-width:calc(100vw - 32px);margin:0 auto 12px;text-align:center}.sample-preview-watermark{font-size:48px}
+      }
       @media print{
         body>*{display:none!important}
         body::before{content:"Sample preview only. Printing is disabled.";display:grid!important;place-items:center;min-height:100vh;color:#172033;font:800 22px/1.4 Arial,sans-serif;text-align:center;padding:32px}
