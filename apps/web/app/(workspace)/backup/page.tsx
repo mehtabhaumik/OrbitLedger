@@ -10,6 +10,7 @@ import {
   summarizeWorkspaceBackup,
   type WebWorkspaceBackup,
 } from '@/lib/workspace-backup';
+import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
 import { useAuth } from '@/providers/auth-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -171,6 +172,68 @@ export default function BackupPage() {
     }
   }
 
+  function printBackupSummary() {
+    if (!activeWorkspace) {
+      return;
+    }
+    if (!officeAccess.can('export_backup')) {
+      showToast(officeAccess.getLockedMessage('export_backup'), 'info');
+      return;
+    }
+
+    try {
+      openOrbitPrintDocument({
+        title: 'Backup and Export Summary',
+        subtitle: 'Workspace backup status and restore review.',
+        workspace: activeWorkspace,
+        preparedBy: printPreparedByFromUser(user),
+        classification: 'Data protection record',
+        sections: [
+          {
+            type: 'summary',
+            title: 'Protection status',
+            metrics: [
+              { label: 'Status', value: lastProtectedAt ? 'Protected' : 'No backup yet' },
+              { label: 'Last protected', value: lastProtectedAt ? new Date(lastProtectedAt).toLocaleString() : 'Not saved yet' },
+              { label: 'Included', value: 'Core records' },
+              { label: 'Preview loaded', value: backupSummary ? 'Yes' : 'No' },
+            ],
+          },
+          {
+            type: 'table',
+            title: 'Backup preview',
+            columns: [
+              { key: 'record', label: 'Record' },
+              { key: 'count', label: 'Count', align: 'right' },
+            ],
+            rows: backupSummary
+              ? [
+                  { record: 'Customers', count: backupSummary.counts.customers },
+                  { record: 'Transactions', count: backupSummary.counts.transactions },
+                  { record: 'Products', count: backupSummary.counts.products },
+                  { record: 'Invoices', count: backupSummary.counts.invoices },
+                  { record: 'Invoice items', count: backupSummary.counts.invoice_items },
+                  { record: 'Payment reversals', count: backupSummary.counts.payment_reversals },
+                ]
+              : [],
+            emptyText: 'No backup file is loaded for preview.',
+          },
+          {
+            type: 'notes',
+            title: 'Restore safety',
+            lines: [
+              'Restoring replaces the current business data after review.',
+              'Orbit Ledger prepares a rollback copy before applying a restore.',
+              selectedFileName ? `Selected file: ${selectedFileName}` : 'No file selected.',
+            ],
+          },
+        ],
+      });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Print view could not open.', 'danger');
+    }
+  }
+
   return (
     <AppShell title="Backup" subtitle="Save a copy of this business or restore a reviewed backup.">
       <section className="ol-panel">
@@ -202,6 +265,11 @@ export default function BackupPage() {
             helper="Browser lock settings and files outside this workspace."
             value="Local-only items"
           />
+        </div>
+        <div className="ol-actions" style={{ marginTop: 16 }}>
+          <button className="ol-button-secondary" type="button" disabled={!officeAccess.can('export_backup')} onClick={printBackupSummary}>
+            Print backup summary
+          </button>
         </div>
       </section>
 

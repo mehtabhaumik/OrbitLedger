@@ -20,6 +20,7 @@ import type {
   WorkspaceInvoiceDetail,
   WorkspaceTransaction,
 } from './workspace-data';
+import { formatPrintDateTime } from './print-system';
 import { formatWorkspaceDocumentAddress } from './workspace-address';
 import { buildCsv, downloadTextFile } from './workspace-power';
 import {
@@ -729,7 +730,7 @@ export function openPrintableDocument(html: string) {
   const target = window.open(blobUrl, '_blank', 'width=960,height=720');
   if (!target) {
     URL.revokeObjectURL(blobUrl);
-    throw new Error('Allow popups to view or save this PDF.');
+    throw new Error('Allow popups to open the print preview.');
   }
   try {
     let didPrint = false;
@@ -748,7 +749,7 @@ export function openPrintableDocument(html: string) {
   } catch {
     target.close();
     URL.revokeObjectURL(blobUrl);
-    throw new Error('Invoice preview could not open. Try downloading the document instead.');
+    throw new Error('Print preview could not open. Try downloading the document instead.');
   }
 }
 
@@ -1462,23 +1463,24 @@ function taxBreakdownList(rows: Array<{ label: string; amount: string }>) {
 }
 
 function proFooter(message: string) {
-  return `<section class="brand-footer"><span>Orbit Ledger Pro</span><span>${escapeHtml(message)}</span></section>`;
+  return `<section class="brand-footer"><span>Created with Orbit Ledger</span><span>${escapeHtml(message)}</span></section>`;
 }
 
-function freeFooter() {
-  return '<section class="brand-footer brand-footer--free"><span>Generated using Orbit Ledger</span><span>Clear records for serious small businesses</span></section>';
+function freeFooter(workspace?: OrbitWorkspaceSummary) {
+  const generatedAt = workspace ? formatPrintDateTime(new Date(), workspace.countryCode) : formatPrintDateTime(new Date(), 'IN');
+  return `<section class="brand-footer brand-footer--free"><span>Created with Orbit Ledger</span><span>${escapeHtml(generatedAt)}</span></section>`;
 }
 
 function documentFooter(pdfStyle: 'basic' | 'advanced', workspace: OrbitWorkspaceSummary, proMessage: string) {
   const preference = (workspace as WatermarkWorkspace).documentFooterPreference ?? 'auto';
   if (pdfStyle !== 'advanced') {
-    return freeFooter();
+    return freeFooter(workspace);
   }
   if (preference === 'hide_when_pro') {
     return '';
   }
   if (preference === 'always_show') {
-    return freeFooter();
+    return freeFooter(workspace);
   }
   return proFooter(proMessage);
 }
@@ -1835,5 +1837,5 @@ const pdfStyles = `
   .style-advanced .summary-line{border-bottom-color:var(--pro-line)}.style-advanced .signature-line{background:var(--pro-line)}
   .brand-footer{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid var(--pro-line);font-size:10px;font-weight:800;color:var(--pro-accent)}
   .brand-footer--free{border:1px solid #dce6f2;border-radius:999px;padding:9px 12px;background:#f7faff;color:#516173}
-  @media print{body{background:#fff}.page{width:auto;min-height:auto;margin:0;box-shadow:none;padding:12mm}@page{size:A4;margin:10mm}}
+  @media print{body{background:#fff}.page{width:auto;min-height:auto;margin:0;box-shadow:none;padding:12mm}.panel,.summary-card,.signature-card,.tax-note,.payment-link-block,.instrument-proof,tr{break-inside:avoid;page-break-inside:avoid}img{max-width:100%;object-fit:contain}@page{size:A4;margin:10mm}}
 `;

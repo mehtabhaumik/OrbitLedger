@@ -76,6 +76,8 @@ import {
   pickSelectedRows,
   type TransactionTypeFilter,
 } from '@/lib/workspace-power';
+import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
+import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
@@ -124,6 +126,7 @@ function CustomerDetailContent() {
   const searchParams = useSearchParams();
   const customerId = searchParams.get('customerId') ?? '';
   const { activeWorkspace } = useWorkspace();
+  const { user } = useAuth();
   const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
   const officeAccess = useOfficeAccess();
@@ -686,6 +689,93 @@ function CustomerDetailContent() {
     }
   }
 
+  function printCustomerProfile() {
+    if (!activeWorkspace || !customer) {
+      return;
+    }
+    if (!customerExportAccess.allowed) {
+      showToast(customerExportAccess.message ?? 'Customer profile exports are not included in your plan.', 'info');
+      return;
+    }
+    if (!officeAccess.can('export_documents')) {
+      showToast(officeAccess.getLockedMessage('export_documents'), 'info');
+      return;
+    }
+
+    const printRows = selectedTransactions.length ? selectedTransactions : filteredTransactions;
+    try {
+      openOrbitPrintDocument({
+        title: 'Customer Profile',
+        subtitle: `${customer.name} account profile and ledger summary.`,
+        workspace: activeWorkspace,
+        preparedBy: printPreparedByFromUser(user),
+        classification: 'Customer record',
+        sections: [
+          {
+            type: 'summary',
+            title: 'Customer summary',
+            metrics: [
+              { label: 'Balance', value: formatCurrency(customer.balance, currency) },
+              { label: 'Total credit', value: formatCurrency(totals.credits, currency) },
+              { label: 'Total paid', value: formatCurrency(totals.payments, currency) },
+              { label: 'Health', value: customer.health.label, helper: `${customer.health.score}/100` },
+            ],
+          },
+          {
+            type: 'table',
+            title: 'Profile details',
+            columns: [
+              { key: 'field', label: 'Field' },
+              { key: 'value', label: 'Value' },
+            ],
+            rows: [
+              { field: 'Display name', value: customer.name },
+              { field: 'Legal name', value: customer.legalName ?? '-' },
+              { field: 'Contact person', value: customer.contactPerson ?? '-' },
+              { field: 'Phone', value: customer.phone ?? '-' },
+              { field: 'WhatsApp', value: customer.whatsapp ?? '-' },
+              { field: 'Email', value: customer.email ?? '-' },
+              { field: 'Billing address', value: customer.billingAddress ?? customer.address ?? '-' },
+              { field: 'Shipping address', value: customer.shippingAddress ?? '-' },
+              { field: 'Location', value: [customer.city, customer.town, customer.stateCode, customer.postalCode, customer.countryCode].filter(Boolean).join(', ') || '-' },
+              { field: 'Tax IDs', value: [customer.gstin, customer.pan, customer.taxNumber, customer.registrationNumber].filter(Boolean).join(' | ') || '-' },
+              { field: 'Tags', value: customer.tags.join(', ') || '-' },
+            ],
+          },
+          {
+            type: 'table',
+            title: 'Customer ledger',
+            columns: [
+              { key: 'date', label: 'Date' },
+              { key: 'type', label: 'Type' },
+              { key: 'payment', label: 'Payment' },
+              { key: 'note', label: 'Note' },
+              { key: 'amount', label: 'Amount', align: 'right' },
+            ],
+            rows: printRows.map((transaction) => ({
+              date: transaction.effectiveDate,
+              type: transaction.type === 'payment' ? 'Payment' : 'Credit',
+              payment:
+                transaction.type === 'payment'
+                  ? `${summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails)} - ${summarizePaymentClearance(transaction.paymentClearanceStatus, transaction.paymentDetails)}`
+                  : '-',
+              note: transaction.note ?? '',
+              amount: formatCurrency(transaction.amount, currency),
+            })),
+            emptyText: 'No ledger entries match this view.',
+          },
+          {
+            type: 'notes',
+            title: 'Notes',
+            lines: [customer.notes, customer.health.helper],
+          },
+        ],
+      });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Print view could not open.', 'danger');
+    }
+  }
+
   return (
     <AppShell title="Customer Detail" subtitle="Activity, balance, and follow-up context.">
       <div className="ol-actions ol-actions--sticky">
@@ -703,6 +793,9 @@ function CustomerDetailContent() {
         </button>
         <button className="ol-button-secondary" type="button" disabled={!customer || !customerExportAccess.allowed || !officeAccess.can('export_documents')} onClick={exportCustomerProfileCsv}>
           Export customer CSV
+        </button>
+        <button className="ol-button-secondary" type="button" disabled={!customer || !customerExportAccess.allowed || !officeAccess.can('export_documents')} onClick={printCustomerProfile}>
+          Print profile
         </button>
       </div>
 

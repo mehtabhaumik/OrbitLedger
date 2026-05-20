@@ -19,6 +19,7 @@ import { getWebFirebaseProjectId } from '@/lib/firebase';
 import { buildWebLiveCollectionsSetupStatus } from '@/lib/live-collections-setup-status';
 import { getWebPaymentProviderPlan } from '@/lib/payment-provider-mode';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
+import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
 import {
   applyWorkspaceProviderEventToInvoice,
   listWorkspaceCustomers,
@@ -35,6 +36,7 @@ import {
   type WorkspacePaymentProviderEvent,
   type WorkspaceTransaction,
 } from '@/lib/workspace-data';
+import { useAuth } from '@/providers/auth-provider';
 import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
@@ -46,6 +48,7 @@ type ManualPaymentFilter = 'needs_action' | 'pending' | 'bounced' | 'all';
 
 export default function PaymentsPage() {
   const { activeWorkspace } = useWorkspace();
+  const { user } = useAuth();
   const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
   const { confirm } = useConfirmDialog();
@@ -410,6 +413,93 @@ export default function PaymentsPage() {
     showToast('Follow-up message copied.', 'success');
   }
 
+  function printPaymentsReview() {
+    if (!activeWorkspace) {
+      return;
+    }
+    if (!officeAccess.can('export_reports')) {
+      showToast(officeAccess.getLockedMessage('export_reports'), 'info');
+      return;
+    }
+
+    try {
+      openOrbitPrintDocument({
+        title: 'Payment Review',
+        subtitle: 'Payment activity, manual clearance queue, and online event review.',
+        workspace: activeWorkspace,
+        preparedBy: printPreparedByFromUser(user),
+        classification: 'Payment record',
+        sections: [
+          {
+            type: 'summary',
+            title: 'Payment summary',
+            metrics: [
+              { label: 'Activity', value: stats.total },
+              { label: 'Applied', value: stats.applied },
+              { label: 'Manual review', value: stats.manualReview },
+              { label: 'Pending', value: stats.pendingManual },
+            ],
+          },
+          {
+            type: 'table',
+            title: 'Payment activity timeline',
+            columns: [
+              { key: 'time', label: 'Time' },
+              { key: 'event', label: 'Event' },
+              { key: 'detail', label: 'Detail' },
+              { key: 'amount', label: 'Amount', align: 'right' },
+            ],
+            rows: paymentActivity.map((item) => ({
+              time: formatDateTime(item.at),
+              event: item.title,
+              detail: item.detail,
+              amount: formatCurrency(item.amount, item.currency),
+            })),
+            emptyText: 'No payment activity has been recorded yet.',
+          },
+          {
+            type: 'table',
+            title: 'Manual payment review',
+            columns: [
+              { key: 'customer', label: 'Customer' },
+              { key: 'payment', label: 'Payment' },
+              { key: 'status', label: 'Status' },
+              { key: 'invoice', label: 'Invoice' },
+              { key: 'amount', label: 'Amount', align: 'right' },
+            ],
+            rows: manualReviewItems.map((payment) => ({
+              customer: payment.customerName,
+              payment: summarizePaymentMode(payment.paymentMode, payment.paymentDetails),
+              status: getPaymentClearanceStatusLabel(payment.paymentClearanceStatus),
+              invoice: payment.invoiceNumber ?? 'Ledger only',
+              amount: formatCurrency(payment.amount, activeWorkspace.currency),
+            })),
+            emptyText: 'No manual payments need follow-up right now.',
+          },
+          {
+            type: 'table',
+            title: 'Online payment events',
+            columns: [
+              { key: 'status', label: 'Status' },
+              { key: 'payment', label: 'Payment' },
+              { key: 'reference', label: 'Reference' },
+              { key: 'amount', label: 'Amount', align: 'right' },
+            ],
+            rows: reviewEvents.map((event) => ({
+              status: event.reversed ? 'Reversed' : event.applied ? 'Applied' : formatEventStatus(event),
+              payment: providerLabel(event.source),
+              reference: event.reference ?? event.providerPaymentId ?? 'No reference',
+              amount: formatCurrency(event.amount, event.currency),
+            })),
+            emptyText: 'No online payment events in this view.',
+          },
+        ],
+      });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Print view could not open.', 'danger');
+    }
+  }
+
   return (
     <AppShell title="Payments" subtitle="Review collections, verify payment status, and keep invoice balances accurate.">
       <section className="ol-metric-grid" style={{ order: 1 }}>
@@ -511,6 +601,9 @@ export default function PaymentsPage() {
             </p>
           </div>
           <span className="ol-chip ol-chip--premium">Audit trail</span>
+          <button className="ol-button-secondary" type="button" disabled={!officeAccess.can('export_reports')} onClick={printPaymentsReview}>
+            Print review
+          </button>
         </div>
         <div className="ol-list">
           {paymentActivity.map((item) => (

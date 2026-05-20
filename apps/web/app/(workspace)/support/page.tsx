@@ -17,6 +17,8 @@ import {
   revokeWebSupportDiagnosticConsent,
   type WebSupportCaseCustomerStatus,
 } from '@/lib/support-consent';
+import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
+import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
@@ -61,6 +63,7 @@ const supportKinds: Array<{
 
 export default function SupportPage() {
   const { activeWorkspace } = useWorkspace();
+  const { user } = useAuth();
   const { showToast } = useToast();
   const [kind, setKind] = useState<FounderSafeSupportKind>('general_feedback');
   const [message, setMessage] = useState('');
@@ -205,6 +208,74 @@ export default function SupportPage() {
     }
   }
 
+  function printSupportSummary() {
+    if (!activeWorkspace) {
+      showToast('Select a workspace before printing support details.', 'info');
+      return;
+    }
+
+    try {
+      openOrbitPrintDocument({
+        title: 'Support Case Summary',
+        subtitle: 'Reviewed support request, safe diagnostic summary, and customer-facing case status.',
+        workspace: activeWorkspace,
+        preparedBy: printPreparedByFromUser(user),
+        classification: 'Support record',
+        sections: [
+          {
+            type: 'summary',
+            title: 'Support request',
+            metrics: [
+              { label: 'Type', value: supportKinds.find((option) => option.value === kind)?.label ?? kind },
+              { label: 'Diagnostics', value: includeDiagnostics ? 'Included after review' : 'Not included' },
+              { label: 'Privacy reviewed', value: privacyReviewed ? 'Yes' : 'No' },
+              { label: 'Saved consent', value: savedConsent ? 'Active' : 'Not saved' },
+            ],
+          },
+          {
+            type: 'notes',
+            title: 'Reviewed message',
+            lines: [draft.sanitizedMessage || 'No support message added yet.'],
+          },
+          {
+            type: 'table',
+            title: 'Safe diagnostic summary',
+            columns: [
+              { key: 'field', label: 'Field' },
+              { key: 'value', label: 'Value' },
+            ],
+            rows: includeDiagnostics
+              ? Object.entries(diagnosticSummary.safeFields).map(([field, value]) => ({
+                  field: formatDiagnosticLabel(field),
+                  value: Array.isArray(value) ? value.join(', ') : String(value),
+                }))
+              : [],
+            emptyText: 'Diagnostics are not included.',
+          },
+          {
+            type: 'table',
+            title: 'Support cases',
+            columns: [
+              { key: 'case', label: 'Case' },
+              { key: 'status', label: 'Status' },
+              { key: 'updated', label: 'Updated' },
+              { key: 'message', label: 'Message' },
+            ],
+            rows: supportCases.map((supportCase) => ({
+              case: supportCase.supportCaseId,
+              status: supportCase.label,
+              updated: supportCase.updatedAt ?? 'Not saved',
+              message: supportCase.followUp,
+            })),
+            emptyText: 'No support case status is linked yet.',
+          },
+        ],
+      });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Print view could not open.', 'danger');
+    }
+  }
+
   return (
     <AppShell title="Support" subtitle="Get help, send feedback, and review what is shared before anything leaves Orbit Ledger.">
       <section className="ol-panel-dark">
@@ -315,6 +386,9 @@ export default function SupportPage() {
               <span className="ol-panel-copy" style={{ alignSelf: 'center' }}>
                 Your email app opens with the reviewed request.
               </span>
+              <button className="ol-button-secondary" type="button" onClick={printSupportSummary}>
+                Print summary
+              </button>
             </div>
           </div>
         </article>

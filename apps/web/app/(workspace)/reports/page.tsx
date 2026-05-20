@@ -44,6 +44,8 @@ import {
 import { buildProductReorderSuggestions } from '@/lib/workspace-products';
 import { buildCsv, downloadTextFile, makeExportFileName } from '@/lib/workspace-power';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
+import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
+import { useAuth } from '@/providers/auth-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -59,6 +61,7 @@ type ReportActionDialog =
 
 export default function ReportsPage() {
   const { dashboardSnapshot, activeWorkspace } = useWorkspace();
+  const { user } = useAuth();
   const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
   const officeAccess = useOfficeAccess();
@@ -322,6 +325,84 @@ export default function ReportsPage() {
     downloadTextFile(makeExportFileName([activeWorkspace.businessName, 'tax-summary', month]), csv);
   }
 
+  function printBusinessReport() {
+    if (!activeWorkspace || !dashboardSnapshot) {
+      return;
+    }
+    if (!auditReportAccess.allowed) {
+      showToast(auditReportAccess.message ?? 'Audit-ready reports are not included in your plan.', 'info');
+      return;
+    }
+    if (!officeAccess.can('export_reports')) {
+      showToast(officeAccess.getLockedMessage('export_reports'), 'info');
+      return;
+    }
+
+    try {
+      openOrbitPrintDocument({
+        title: 'Business Health Snapshot',
+        subtitle: `Business review for ${month}.`,
+        workspace: activeWorkspace,
+        preparedBy: printPreparedByFromUser(user),
+        classification: 'Business report',
+        sections: [
+          {
+            type: 'summary',
+            title: 'Workspace summary',
+            metrics: [
+              { label: 'Receivable', value: formatCurrency(dashboardSnapshot.receivableTotal, currency) },
+              { label: 'Payments', value: formatCurrency(dashboardSnapshot.recentPayments, currency) },
+              { label: 'Customers', value: dashboardSnapshot.customerCount },
+              { label: 'Invoices', value: dashboardSnapshot.invoiceCount },
+            ],
+          },
+          {
+            type: 'summary',
+            title: 'Business health',
+            metrics: [
+              { label: 'Score', value: `${sharedBusinessHealth.score}/100`, helper: sharedBusinessHealth.label },
+              { label: 'Risk customers', value: customers.filter((customer) => ['needs_follow_up', 'high_risk'].includes(customer.health.rank)).length },
+              { label: 'Unpaid invoices', value: unpaidInvoices.length },
+              { label: 'Pending payments', value: pendingPaymentReviews.length },
+            ],
+          },
+          {
+            type: 'table',
+            title: 'Daily closing summary',
+            columns: [
+              { key: 'metric', label: 'Metric' },
+              { key: 'value', label: 'Value', align: 'right' },
+              { key: 'helper', label: 'Context' },
+            ],
+            rows: dailyClosing.metrics.map((metric) => ({
+              metric: metric.label,
+              value: String(metric.value),
+              helper: metric.tone,
+            })),
+          },
+          {
+            type: 'table',
+            title: 'Tax and compliance summary',
+            columns: [
+              { key: 'metric', label: 'Metric' },
+              { key: 'value', label: 'Value', align: 'right' },
+            ],
+            rows: [
+              { metric: 'Month', value: month },
+              { metric: 'Invoices', value: complianceSummary.invoiceCount },
+              { metric: 'Taxable sales', value: formatCurrency(complianceSummary.subtotal, currency) },
+              { metric: 'Tax amount', value: formatCurrency(complianceSummary.taxAmount, currency) },
+              { metric: 'Invoice total', value: formatCurrency(complianceSummary.total, currency) },
+              { metric: 'Outstanding', value: formatCurrency(complianceSummary.outstanding, currency) },
+            ],
+          },
+        ],
+      });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Print view could not open.', 'danger');
+    }
+  }
+
   return (
     <AppShell title="Reports" subtitle="Business summaries with calm, readable signal instead of dashboard noise.">
       <div className="ol-actions ol-actions--sticky">
@@ -330,6 +411,9 @@ export default function ReportsPage() {
         </button>
         <button className="ol-button-secondary" type="button" onClick={exportReportJson} disabled={!dashboardSnapshot || !auditReportAccess.allowed || !officeAccess.can('export_reports')}>
           Save full copy
+        </button>
+        <button className="ol-button-secondary" type="button" onClick={printBusinessReport} disabled={!dashboardSnapshot || !auditReportAccess.allowed || !officeAccess.can('export_reports')}>
+          Print report
         </button>
       </div>
       {!auditReportAccess.allowed ? (

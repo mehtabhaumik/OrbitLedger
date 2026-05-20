@@ -40,12 +40,15 @@ import {
   sumTransactionAmounts,
   type TransactionTypeFilter,
 } from '@/lib/workspace-power';
+import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
+import { useAuth } from '@/providers/auth-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function TransactionsPage() {
   const { activeWorkspace } = useWorkspace();
+  const { user } = useAuth();
   const { showToast } = useToast();
   const officeAccess = useOfficeAccess();
   const [transactions, setTransactions] = useState<WorkspaceTransaction[]>([]);
@@ -418,6 +421,65 @@ export default function TransactionsPage() {
     );
   }
 
+  function printTransactions() {
+    if (!activeWorkspace) {
+      return;
+    }
+    if (!officeAccess.can('export_reports')) {
+      showToast(officeAccess.getLockedMessage('export_reports'), 'info');
+      return;
+    }
+
+    const printRows = selectedTransactions.length ? selectedTransactions : filteredTransactions;
+    try {
+      openOrbitPrintDocument({
+        title: 'Transaction Detail',
+        subtitle: `${printRows.length} transaction${printRows.length === 1 ? '' : 's'} from ${selectedTransactions.length ? 'selected rows' : 'the current view'}.`,
+        workspace: activeWorkspace,
+        preparedBy: printPreparedByFromUser(user),
+        classification: 'Ledger record',
+        sections: [
+          {
+            type: 'summary',
+            title: 'Transaction summary',
+            metrics: [
+              { label: 'Credits', value: formatCurrency(transactionSummary.credits, activeWorkspace.currency) },
+              { label: 'Payments', value: formatCurrency(transactionSummary.payments, activeWorkspace.currency) },
+              { label: 'Net movement', value: formatCurrency(transactionSummary.credits - transactionSummary.payments, activeWorkspace.currency) },
+              { label: 'Rows', value: printRows.length },
+            ],
+          },
+          {
+            type: 'table',
+            title: 'Ledger entries',
+            columns: [
+              { key: 'date', label: 'Date' },
+              { key: 'type', label: 'Type' },
+              { key: 'customer', label: 'Customer' },
+              { key: 'payment', label: 'Payment' },
+              { key: 'note', label: 'Note' },
+              { key: 'amount', label: 'Amount', align: 'right' },
+            ],
+            rows: printRows.map((transaction) => ({
+              date: transaction.effectiveDate,
+              type: transaction.type === 'payment' ? 'Payment' : 'Credit',
+              customer: transaction.customerName,
+              payment:
+                transaction.type === 'payment'
+                  ? `${summarizePaymentMode(transaction.paymentMode, transaction.paymentDetails)} - ${summarizePaymentClearance(transaction.paymentClearanceStatus, transaction.paymentDetails)}`
+                  : '-',
+              note: transaction.note ?? '',
+              amount: formatCurrency(transaction.amount, activeWorkspace.currency),
+            })),
+            emptyText: 'No transactions match this view.',
+          },
+        ],
+      });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Print view could not open.', 'danger');
+    }
+  }
+
   return (
     <AppShell title="Transactions" subtitle="Record payments and credit entries with the same ledger behavior everywhere.">
       <section className="ol-panel-dark" style={{ order: 3 }}>
@@ -763,6 +825,9 @@ export default function TransactionsPage() {
             </button>
             <button className="ol-button" type="button" disabled={!filteredTransactions.length || !officeAccess.can('export_reports')} onClick={exportTransactions}>
               Export {selectedTransactionIds.size ? 'selected' : 'view'}
+            </button>
+            <button className="ol-button-secondary" type="button" disabled={!filteredTransactions.length || !officeAccess.can('export_reports')} onClick={printTransactions}>
+              Print {selectedTransactionIds.size ? 'selected' : 'view'}
             </button>
           </div>
         </div>

@@ -188,7 +188,7 @@ describe('web document parity', () => {
     expect(document.csvFileName).toBe('City_Mart_INV-100_2026-05-01_3_IN.csv');
     expect(document.html).toContain('Tax Invoice');
     expect(document.html).toContain('Amount in words:</strong> One thousand one hundred eighty only');
-    expect(document.html).toContain('Generated using Orbit Ledger');
+    expect(document.html).toContain('Created with Orbit Ledger');
     expect(document.html).toContain('GST');
     expect(document.html).toContain('CGST');
     expect(document.html).toContain('SGST');
@@ -364,7 +364,7 @@ describe('web document parity', () => {
 
     expect(document.fileName).toBe('INV-100_City_Mart_2026-05-01.pdf');
     expect(document.html).toContain('--pro-accent:#7653D9');
-    expect(document.html).not.toContain('Orbit Ledger Pro</span><span>Prepared with custom invoice branding');
+    expect(document.html).not.toContain('Created with Orbit Ledger</span><span>Prepared with custom invoice branding');
     expect(document.pdfFooterText).toBe('');
   });
 
@@ -432,6 +432,6 @@ describe('web document parity', () => {
     });
     expect(document.pdfStyle).toBe('advanced');
     expect(document.fileName).toContain('Statement_2026-05-01_to_2026-05-02.pdf');
-    expect(document.html).toContain('Orbit Ledger Pro');
+    expect(document.html).toContain('Created with Orbit Ledger');
   });
 });

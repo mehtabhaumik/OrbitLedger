@@ -29,6 +29,7 @@ import {
   type WebOfficeAuditFilter,
   type WebOfficeTeamSnapshot,
 } from '@/lib/office-team';
+import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
 import { useAuth } from '@/providers/auth-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -326,6 +327,97 @@ export default function TeamPage() {
     }
   }
 
+  function printOfficeAudit() {
+    if (!activeWorkspace || !snapshot) {
+      return;
+    }
+    if (!snapshot.access.isActiveMember) {
+      showToast('Your role cannot print Office audit records.', 'info');
+      return;
+    }
+
+    try {
+      openOrbitPrintDocument({
+        title: 'Office Member Access Audit',
+        subtitle: 'Team members, invitations, ownership transfer activity, and access events.',
+        workspace: activeWorkspace,
+        preparedBy: printPreparedByFromUser(user),
+        classification: 'Office audit record',
+        sections: [
+          {
+            type: 'summary',
+            title: 'Office access summary',
+            metrics: [
+              { label: 'Members', value: snapshot.members.length },
+              { label: 'Active members', value: snapshot.members.filter((member) => member.status === 'active').length },
+              { label: 'Invitations', value: snapshot.invitations.length },
+              { label: 'Audit events', value: snapshot.auditItems.length },
+            ],
+          },
+          {
+            type: 'table',
+            title: 'Members',
+            columns: [
+              { key: 'member', label: 'Member' },
+              { key: 'role', label: 'Role' },
+              { key: 'status', label: 'Status' },
+              { key: 'lastActive', label: 'Last active' },
+              { key: 'access', label: 'Access summary' },
+            ],
+            rows: snapshot.members.map((member) => {
+              const identity = getWebOfficeMemberIdentity(member);
+              const presence = getWebOfficeMemberPresence(member);
+              return {
+                member: `${identity.primary}${identity.secondary ? ` (${identity.secondary})` : ''}`,
+                role: getOfficeRoleDefinition(member.role).label,
+                status: member.status,
+                lastActive: presence.label,
+                access: getOfficeMembershipPreview(member.role),
+              };
+            }),
+            emptyText: 'No Office members are saved.',
+          },
+          {
+            type: 'table',
+            title: 'Invitations',
+            columns: [
+              { key: 'email', label: 'Email' },
+              { key: 'role', label: 'Role' },
+              { key: 'status', label: 'Status' },
+              { key: 'sent', label: 'Delivery' },
+            ],
+            rows: snapshot.invitations.map((invitation) => ({
+              email: invitation.email,
+              role: getOfficeRoleDefinition(invitation.role).label,
+              status: getWebOfficeInvitationDisplayStatus(invitation),
+              sent: invitation.deliveryStatus ?? 'Not sent',
+            })),
+            emptyText: 'No invitations are saved.',
+          },
+          {
+            type: 'table',
+            title: 'Access event timeline',
+            columns: [
+              { key: 'time', label: 'Time' },
+              { key: 'event', label: 'Event' },
+              { key: 'detail', label: 'Detail' },
+              { key: 'category', label: 'Category' },
+            ],
+            rows: auditTimeline.map((event) => ({
+              time: event.createdAt,
+              event: event.title,
+              detail: event.description,
+              category: event.category,
+            })),
+            emptyText: 'No access events match this view.',
+          },
+        ],
+      });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Print view could not open.', 'danger');
+    }
+  }
+
   const access = snapshot?.access;
   const isLocked = Boolean(snapshot && !access?.officeAllowed);
   const auditTimeline = useMemo(
@@ -372,6 +464,9 @@ export default function TeamPage() {
             </span>
             <button className="ol-button-secondary" disabled={isLoading} type="button" onClick={() => void refreshTeam()}>
               {isLoading ? 'Refreshing' : 'Refresh'}
+            </button>
+            <button className="ol-button-secondary" disabled={!snapshot || !snapshot.access.isActiveMember} type="button" onClick={printOfficeAudit}>
+              Print audit
             </button>
           </div>
         </div>

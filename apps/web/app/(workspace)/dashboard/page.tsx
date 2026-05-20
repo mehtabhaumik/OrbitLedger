@@ -33,6 +33,7 @@ import { AppShell } from '@/components/app-shell';
 import { DashboardCharts, type DashboardChartInsight } from '@/components/dashboard-charts';
 import { WorkspaceStatusCards } from '@/components/workspace-status-cards';
 import { buildDashboardAnalytics } from '@/lib/dashboard-analytics';
+import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
 import {
   buildLivePaymentLinkStatus,
   formatLivePaymentLinkStatusTime,
@@ -52,6 +53,8 @@ import {
   type WorkspaceTransaction,
 } from '@/lib/workspace-data';
 import { buildProductReorderSuggestions, summarizeWorkspaceProducts } from '@/lib/workspace-products';
+import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 type DashboardDialog = 'collections' | 'invoices' | 'inventory' | 'payments' | 'closing' | 'recovery' | null;
@@ -85,6 +88,8 @@ const DEFAULT_CLOSING_CHECKS: ClosingCheckState = {
 
 export default function DashboardPage() {
   const { activeWorkspace, dashboardSnapshot } = useWorkspace();
+  const { user } = useAuth();
+  const { showToast } = useToast();
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
   const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
   const [manualPayments, setManualPayments] = useState<WorkspaceManualPaymentReviewItem[]>([]);
@@ -408,6 +413,82 @@ export default function DashboardPage() {
     });
   }
 
+  function printClosingSummary() {
+    if (!activeWorkspace) {
+      return;
+    }
+
+    try {
+      openOrbitPrintDocument({
+        title: 'Daily Closing Summary',
+        subtitle: `Closing review for ${today}.`,
+        workspace: activeWorkspace,
+        preparedBy: printPreparedByFromUser(user),
+        classification: 'Closing record',
+        sections: [
+          {
+            type: 'summary',
+            title: 'Closing status',
+            metrics: [
+              { label: 'Checks completed', value: `${closingRitual.completion.completed}/${closingRitual.completion.total - 1}` },
+              { label: 'Expected cash', value: formatCurrency(expectedCash, currency) },
+              { label: 'Counted cash', value: countedCash === null ? 'Not entered' : formatCurrency(countedCash, currency) },
+              { label: 'Saved', value: closingSavedAt ? 'Yes' : 'No' },
+            ],
+          },
+          {
+            type: 'table',
+            title: 'Review checks',
+            columns: [
+              { key: 'check', label: 'Check' },
+              { key: 'status', label: 'Status' },
+              { key: 'prompt', label: 'Prompt' },
+              { key: 'helper', label: 'Context' },
+            ],
+            rows: closingRitual.steps
+              .filter((step) => isClosingCheckStep(step.id))
+              .map((step) => ({
+                check: step.title,
+                status: checksLabel(closingChecks[step.id as Exclude<OwnerClosingRitualStepId, 'review'>]),
+                prompt: step.prompt,
+                helper: step.helper,
+              })),
+          },
+          {
+            type: 'table',
+            title: 'Items to review',
+            columns: [
+              { key: 'item', label: 'Item' },
+              { key: 'message', label: 'Message' },
+              { key: 'action', label: 'Action' },
+            ],
+            rows: closingRitual.flags.map((flag) => ({
+              item: flag.title,
+              message: flag.message,
+              action: flag.actionLabel,
+            })),
+            emptyText: 'No review item waiting.',
+          },
+          {
+            type: 'table',
+            title: 'Tomorrow actions',
+            columns: [
+              { key: 'action', label: 'Action' },
+              { key: 'message', label: 'Message' },
+            ],
+            rows: closingRitual.tomorrowActions.map((action) => ({
+              action: action.title,
+              message: action.message,
+            })),
+            emptyText: 'No action is waiting for tomorrow.',
+          },
+        ],
+      });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Print view could not open.', 'danger');
+    }
+  }
+
   return (
     <AppShell title="Home" subtitle="Today’s priorities, collections, and business health.">
       <section className="ol-panel-dark ol-action-center-hero">
@@ -718,6 +799,7 @@ export default function DashboardPage() {
         isOpen={activeDialog === 'closing'}
         onClose={() => setActiveDialog(null)}
         onCountedCashChange={updateCountedCash}
+        onPrint={printClosingSummary}
         onSave={saveClosingReview}
         onToggleCheck={updateClosingCheck}
         ritual={closingRitual}
@@ -858,6 +940,7 @@ function OwnerClosingRitualDialog({
   isOpen,
   onClose,
   onCountedCashChange,
+  onPrint,
   onSave,
   onToggleCheck,
   ritual,
@@ -869,6 +952,7 @@ function OwnerClosingRitualDialog({
   isOpen: boolean;
   onClose(): void;
   onCountedCashChange(value: string): void;
+  onPrint(): void;
   onSave(): void;
   onToggleCheck(step: Exclude<OwnerClosingRitualStepId, 'review'>, checked: boolean): void;
   ritual: OwnerClosingRitualOutput;
@@ -987,6 +1071,9 @@ function OwnerClosingRitualDialog({
           <div className="ol-actions ol-dialog-actions">
             <button className="ol-button" disabled={!canSave} type="button" onClick={onSave}>
               Save closing
+            </button>
+            <button className="ol-button-secondary" type="button" onClick={onPrint}>
+              Print summary
             </button>
             <button className="ol-button-secondary" type="button" onClick={onClose}>
               Keep reviewing
@@ -1168,6 +1255,10 @@ function getDialogForTarget(target: DailyActionCenterActionTarget): DashboardDia
 
 function isClosingCheckStep(step: OwnerClosingRitualStepId): step is Exclude<OwnerClosingRitualStepId, 'review'> {
   return step !== 'review';
+}
+
+function checksLabel(value: boolean) {
+  return value ? 'Confirmed' : 'Needs review';
 }
 
 function getHrefForTarget(target: DailyActionCenterActionTarget) {

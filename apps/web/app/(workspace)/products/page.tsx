@@ -15,6 +15,8 @@ import {
   summarizeWorkspaceProducts,
 } from '@/lib/workspace-products';
 import { downloadTextFile, makeExportFileName } from '@/lib/workspace-power';
+import { formatPrintCurrency, openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
+import { useAuth } from '@/providers/auth-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -37,6 +39,7 @@ const emptyForm: ProductFormState = {
 
 export default function ProductsPage() {
   const { activeWorkspace } = useWorkspace();
+  const { user } = useAuth();
   const { showToast } = useToast();
   const officeAccess = useOfficeAccess();
   const [products, setProducts] = useState<WorkspaceProduct[]>([]);
@@ -142,6 +145,62 @@ export default function ProductsPage() {
     );
   }
 
+  function printInventory() {
+    if (!activeWorkspace) {
+      return;
+    }
+    if (!officeAccess.can('export_reports')) {
+      showToast(officeAccess.getLockedMessage('export_reports'), 'info');
+      return;
+    }
+
+    try {
+      openOrbitPrintDocument({
+        title: 'Product and Inventory List',
+        subtitle: `${filteredProducts.length} product${filteredProducts.length === 1 ? '' : 's'} in the current view.`,
+        workspace: activeWorkspace,
+        preparedBy: printPreparedByFromUser(user),
+        classification: 'Inventory record',
+        sections: [
+          {
+            type: 'summary',
+            title: 'Inventory summary',
+            metrics: [
+              { label: 'Products', value: summary.productCount },
+              { label: 'Low stock', value: summary.lowStockCount },
+              { label: 'Stock units', value: formatQuantity(summary.totalStockUnits) },
+              { label: 'Inventory value', value: formatPrintCurrency(summary.inventoryValue, currency, activeWorkspace.countryCode) },
+            ],
+          },
+          {
+            type: 'table',
+            title: 'Stock review',
+            columns: [
+              { key: 'product', label: 'Product' },
+              { key: 'stock', label: 'Stock', align: 'right' },
+              { key: 'price', label: 'Price', align: 'right' },
+              { key: 'status', label: 'Status' },
+              { key: 'suggested', label: 'Suggested reorder', align: 'right' },
+            ],
+            rows: filteredProducts.map((product) => {
+              const suggestion = suggestions.find((item) => item.product.id === product.id);
+              return {
+                product: product.name,
+                stock: `${formatQuantity(product.stockQuantity)} ${product.unit}`,
+                price: formatPrintCurrency(product.price, currency, activeWorkspace.countryCode),
+                status: suggestion?.urgencyLabel ?? 'Healthy',
+                suggested: suggestion ? `${formatQuantity(suggestion.suggestedReorderQuantity)} ${product.unit}` : '-',
+              };
+            }),
+            emptyText: 'No products match this view.',
+          },
+        ],
+      });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Print view could not open.', 'danger');
+    }
+  }
+
   return (
     <AppShell title="Products" subtitle="Track stock, invoice-ready items, and reorder risk from web.">
       <section className="ol-metric-grid">
@@ -189,6 +248,9 @@ export default function ProductsPage() {
               </button>
               <button className="ol-button-secondary" type="button" onClick={exportProducts} disabled={!filteredProducts.length || !officeAccess.can('export_reports')}>
                 Export products
+              </button>
+              <button className="ol-button-secondary" type="button" onClick={printInventory} disabled={!filteredProducts.length || !officeAccess.can('export_reports')}>
+                Print inventory
               </button>
             </div>
           </div>
