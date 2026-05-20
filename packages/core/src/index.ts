@@ -616,6 +616,7 @@ export {
 } from './liveCollectionsSandboxReadiness';
 export {
   buildLiveCollectionsPhase15Gate,
+  buildLiveCollectionsPhaseStatusCard,
 } from './liveCollectionsPhaseGate';
 export type {
   LiveCollectionsGuardrailName,
@@ -644,6 +645,8 @@ export type {
   LiveCollectionsPhase15Status,
   LiveCollectionsPhaseCredentialAudit,
   LiveCollectionsPhaseProofState,
+  LiveCollectionsPhaseStatusCard,
+  LiveCollectionsPhaseStatusTone,
 } from './liveCollectionsPhaseGate';
 export type {
   InvoiceDocumentState,

@@ -41,6 +41,23 @@ export type LiveCollectionsPhase15Gate = {
   operatorActions: string[];
 };
 
+export type LiveCollectionsPhaseStatusTone = 'blocked' | 'warning' | 'ready' | 'success';
+
+export type LiveCollectionsPhaseStatusCard = {
+  id: 'online_collections';
+  status: LiveCollectionsPhase15Status;
+  tone: LiveCollectionsPhaseStatusTone;
+  badge: string;
+  title: string;
+  message: string;
+  primaryActionLabel: string;
+  secondaryActionLabel?: string;
+  detailItems: string[];
+  safeForCustomerUi: true;
+  exposesSecrets: false;
+  allowsPaymentMutation: false;
+};
+
 export function buildLiveCollectionsPhase15Gate(input: LiveCollectionsPhase15GateInput): LiveCollectionsPhase15Gate {
   const credentialBlockers = getCredentialBlockers(input.credentialAudit);
   if (credentialBlockers.length > 0) {
@@ -132,6 +149,97 @@ export function buildLiveCollectionsPhase15Gate(input: LiveCollectionsPhase15Gat
       'Open live pilot only after explicit approval.',
     ],
   };
+}
+
+export function buildLiveCollectionsPhaseStatusCard(
+  gate: LiveCollectionsPhase15Gate
+): LiveCollectionsPhaseStatusCard {
+  const base = {
+    id: 'online_collections' as const,
+    status: gate.status,
+    safeForCustomerUi: true as const,
+    exposesSecrets: false as const,
+    allowsPaymentMutation: false as const,
+  };
+
+  switch (gate.status) {
+    case 'blocked_missing_test_credentials':
+      return {
+        ...base,
+        tone: 'blocked',
+        badge: 'Setup required',
+        title: 'Online collections are not ready',
+        message:
+          'Online payment links stay off until server-side test setup is complete. Manual UPI and bank details remain available.',
+        primaryActionLabel: 'Review setup',
+        secondaryActionLabel: 'Use manual payment details',
+        detailItems: [
+          'No customer-facing online payment link should be created yet.',
+          'Manual UPI and bank instructions can still appear on invoices and emails.',
+          'Payment status still updates only from verified backend records.',
+        ],
+      };
+    case 'blocked_readiness_incomplete':
+      return {
+        ...base,
+        tone: 'warning',
+        badge: 'Checks pending',
+        title: 'Online collections checks are incomplete',
+        message: 'Run backend smoke checks before preparing a payment link proof.',
+        primaryActionLabel: 'Review checks',
+        secondaryActionLabel: 'Keep manual payments active',
+        detailItems: [
+          'Signed webhook, checkout, and capture checks must pass first.',
+          'Do not send signed provider traffic until the checks are complete.',
+          'Invoice paid status remains allocation-derived.',
+        ],
+      };
+    case 'ready_to_prepare_payment_proof':
+      return {
+        ...base,
+        tone: 'ready',
+        badge: 'Ready for test',
+        title: 'Ready to prepare a test payment link',
+        message: 'Create a kept test checkout and verify backend reconciliation before any customer-facing rollout.',
+        primaryActionLabel: 'Prepare test proof',
+        secondaryActionLabel: 'View runbook',
+        detailItems: [
+          'Use a test checkout only.',
+          'Confirm webhook delivery before relying on live notifications.',
+          'The browser success screen is not payment authority.',
+        ],
+      };
+    case 'waiting_for_manual_test_payment':
+      return {
+        ...base,
+        tone: 'warning',
+        badge: 'Proof pending',
+        title: 'Waiting for payment proof',
+        message: 'Verify captured payment, duplicate event handling, and refund reversal before live pilot review.',
+        primaryActionLabel: 'Verify proof',
+        secondaryActionLabel: 'Review audit trail',
+        detailItems: [
+          'Captured payment must reconcile to invoice allocation.',
+          'Duplicate webhook replay must not create duplicate money records.',
+          'Refund proof must recalculate the invoice balance.',
+        ],
+      };
+    case 'ready_for_live_pilot_review':
+      return {
+        ...base,
+        tone: gate.canProceedToLivePilot ? 'success' : 'ready',
+        badge: gate.canProceedToLivePilot ? 'Pilot review ready' : 'Review required',
+        title: 'Ready for controlled pilot review',
+        message: 'Sandbox proof is complete. Live pilot still requires explicit approval and active monitoring.',
+        primaryActionLabel: 'Review pilot checklist',
+        secondaryActionLabel: 'View monitoring plan',
+        detailItems: [
+          'Start with a controlled internal business first.',
+          'Keep rollback and support paths staffed.',
+          'Continue storing every automated payment update in audit history.',
+        ],
+      };
+  }
 }
 
 function getCredentialBlockers(audit: LiveCollectionsPhaseCredentialAudit): string[] {

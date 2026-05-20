@@ -246,6 +246,39 @@ npm run live-collections:phase-gate -- \
 
 The command reads server-side secret readiness and proof metadata without printing secret values.
 
+## Phase 17 UI-Safe Status Card
+
+Use `buildLiveCollectionsPhaseStatusCard` from `@orbit-ledger/core` when a web, admin, or future mobile surface needs to display the Live Collections readiness state.
+
+This presenter is intentionally separate from the operator gate:
+
+- it does not expose secret names,
+- it does not allow payment mutation,
+- it keeps manual UPI/bank instructions separate from online payment links,
+- it says payment status remains backend and allocation-derived,
+- it does not treat browser checkout success as payment authority.
+
+Allowed customer/admin-facing states:
+
+1. `Setup required`
+   - Online payment links stay off.
+   - Manual UPI and bank details remain available.
+
+2. `Checks pending`
+   - Backend smoke checks are incomplete.
+   - Do not prepare a payment link proof.
+
+3. `Ready for test`
+   - A kept test checkout can be prepared.
+   - Backend reconciliation must still be verified.
+
+4. `Proof pending`
+   - Captured payment, duplicate webhook, and refund proof are not all complete.
+
+5. `Pilot review ready`
+   - Sandbox proof is complete.
+   - Live pilot still requires explicit approval and active monitoring.
+
 ## Live Pilot Guardrails
 
 - Keep the pilot limited to one internal/test business first.
