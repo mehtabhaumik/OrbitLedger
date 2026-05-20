@@ -319,11 +319,11 @@ const printStyles = `
   .ol-print-title-block h1 { margin: 0; font-size: 28px; line-height: 1.05; letter-spacing: -0.01em; }
   .ol-print-title-block p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; max-width: 128mm; }
   .ol-print-stamp { flex: 0 0 auto; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; font-size: 10px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
-  .ol-print-section { border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-top: 12px; break-inside: avoid; page-break-inside: avoid; }
+  .ol-print-section { border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 0 0 .35px var(--line), inset 0 0 0 .35px var(--line); padding: 12px; margin-top: 12px; break-inside: avoid; page-break-inside: avoid; }
   .ol-print-section h2 { margin: 0 0 10px; font-size: 15px; line-height: 1.2; }
   .ol-print-section-description { margin: -3px 0 10px; color: var(--muted); font-size: 11px; line-height: 1.45; max-width: 170mm; overflow-wrap: anywhere; }
   .ol-print-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-  .ol-print-metric { background: var(--soft); border: 1px solid #e5edf6; border-radius: 10px; padding: 10px; min-width: 0; break-inside: avoid; }
+  .ol-print-metric { background: var(--soft); border: 1px solid #e5edf6; border-radius: 10px; box-shadow: 0 0 0 .35px #e5edf6, inset 0 0 0 .35px #e5edf6; padding: 10px; min-width: 0; break-inside: avoid; }
   .ol-print-metric span { display: block; color: #7a8798; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
   .ol-print-metric strong { display: block; margin-top: 7px; font-size: 18px; line-height: 1.15; overflow-wrap: anywhere; }
   .ol-print-metric small { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.35; }
@@ -337,7 +337,7 @@ const printStyles = `
   .ol-print-notes { display: grid; gap: 7px; }
   .ol-print-notes p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
   .ol-print-image-section figure { margin: 0; display: grid; gap: 8px; }
-  .ol-print-image-section img { width: 100%; max-height: 120mm; object-fit: contain; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+  .ol-print-image-section img { width: 100%; max-height: 120mm; object-fit: contain; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 0 0 .35px var(--line), inset 0 0 0 .35px var(--line); background: #fff; }
   .ol-print-image-section figcaption { color: var(--muted); font-size: 10px; line-height: 1.4; }
   .ol-print-footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); margin-top: auto; padding: 10px 0 12px; color: var(--muted); font-size: 9px; line-height: 1.35; }
   .ol-print-footer span { min-width: 0; overflow-wrap: anywhere; }
@@ -357,7 +357,7 @@ const printStyles = `
     .ol-print-table tr,
     .ol-print-table td { display: block; width: 100%; }
     .ol-print-table thead { display: none; }
-    .ol-print-table tr { border: 1px solid #e2eaf4; border-radius: 12px; padding: 8px; margin-top: 8px; background: #fff; }
+    .ol-print-table tr { border: 1px solid #e2eaf4; border-radius: 12px; box-shadow: 0 0 0 .35px #e2eaf4, inset 0 0 0 .35px #e2eaf4; padding: 8px; margin-top: 8px; background: #fff; }
     .ol-print-table td { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #edf2f7; padding: 7px 0; text-align: right; }
     .ol-print-table td:last-child { border-bottom: 0; }
     .ol-print-table td::before { content: attr(data-label); flex: 0 0 42%; color: #66758a; font-size: 9px; font-weight: 900; letter-spacing: .06em; text-align: left; text-transform: uppercase; }

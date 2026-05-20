@@ -63,6 +63,7 @@ describe('premium print system', () => {
     expect(html).toContain('Prepared by Bhaumik Mehta (owner@example.com)');
     expect(html).toContain('Created with Orbit Ledger');
     expect(html).toContain('Print copy');
+    expect(html).toContain('box-shadow: 0 0 0 .35px var(--line), inset 0 0 0 .35px var(--line);');
     expect(html).not.toContain('.ol-print-page { width: 210mm; min-height: 297mm;');
     expect(html).toContain('html,\n    body { background: #fff !important; }');
   });
