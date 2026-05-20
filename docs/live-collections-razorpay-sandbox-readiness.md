@@ -46,6 +46,14 @@ RAZORPAY_KEY_SECRET
 RAZORPAY_WEBHOOK_SECRET
 ```
 
+Before preparing a real sandbox payment proof, audit the stored secret mode. This command reads Firebase Secret Manager values through `gcloud`, verifies that the Razorpay key id is a test key, checks that the server secrets are usable, confirms local `gcloud` can provide an admin access token for controlled setup/cleanup, and does not print secret values.
+
+```sh
+npm run audit:razorpay-secret-mode
+```
+
+If this command reports that `RAZORPAY_KEY_ID` is not `rzp_test_...`, do not run the payment proof. Replace the Firebase Secret Manager values with real Razorpay test credentials first.
+
 ## Commands
 
 Store test credentials only when real Razorpay test values are available:
