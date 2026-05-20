@@ -16,6 +16,7 @@ import {
 
 import { AppShell } from '@/components/app-shell';
 import { getWebFirebaseProjectId } from '@/lib/firebase';
+import { buildWebLiveCollectionsSetupStatus } from '@/lib/live-collections-setup-status';
 import { getWebPaymentProviderPlan } from '@/lib/payment-provider-mode';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
 import {
@@ -63,6 +64,7 @@ export default function PaymentsPage() {
   const [busyManualPaymentId, setBusyManualPaymentId] = useState<string | null>(null);
   const projectId = getWebFirebaseProjectId();
   const providerPlan = getWebPaymentProviderPlan();
+  const liveCollectionsSetupStatus = buildWebLiveCollectionsSetupStatus(providerPlan);
   const paymentReversalAccess = resolveWebFeatureAccess(subscription, 'payment_reversals');
   const webhookUrl = `https://asia-south1-${projectId}.cloudfunctions.net/providerWebhook`;
   const [paymentPageUrl, setPaymentPageUrl] = useState(`https://${projectId}.web.app/pay`);
@@ -434,6 +436,17 @@ export default function PaymentsPage() {
           <Review label="Online checkout" value={providerPlan.canCreateOnlineCheckout ? 'Available' : 'Not connected'} />
           <Review label="Region" value="Asia South" />
           <Review label="Payment page" value={paymentPageUrl} />
+        </div>
+        <div className="ol-live-collections-setup-card" data-tone={liveCollectionsSetupStatus.tone} style={{ marginTop: 16 }}>
+          <div>
+            <strong>{liveCollectionsSetupStatus.title}</strong>
+            <span>{liveCollectionsSetupStatus.message}</span>
+          </div>
+          <ul>
+            {liveCollectionsSetupStatus.detailItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
         </div>
         <div className="ol-message" style={{ marginTop: 16 }}>
           <strong>{providerReadiness.label}</strong> · {providerReadiness.launchMessage}

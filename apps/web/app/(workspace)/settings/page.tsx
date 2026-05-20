@@ -42,6 +42,8 @@ import {
   summarizePaymentInstructionChanges,
   validateManualPaymentSettings,
 } from '@/lib/payment-settings-hardening';
+import { buildWebLiveCollectionsSetupStatus } from '@/lib/live-collections-setup-status';
+import { getWebPaymentProviderPlan } from '@/lib/payment-provider-mode';
 import { DEFAULT_NOTIFICATION_REMINDER_PREFERENCES } from '@/lib/notification-preferences';
 import {
   deleteWorkspaceStorageFile,
@@ -442,6 +444,8 @@ export default function SettingsPage() {
   }
 
   const workspace = activeWorkspace;
+  const paymentProviderPlan = getWebPaymentProviderPlan();
+  const liveCollectionsSetupStatus = buildWebLiveCollectionsSetupStatus(paymentProviderPlan);
   const paymentTemplate = getManualPaymentInstructionTemplate(workspace.countryCode);
   const invoiceTemplates = getWebDocumentTemplates(workspace, 'invoice');
   const statementTemplates = getWebDocumentTemplates(workspace, 'statement');
@@ -1737,6 +1741,40 @@ export default function SettingsPage() {
         <div className="ol-form-band" style={{ marginTop: 18 }}>
           <div className="ol-form-band-header">
             <div>
+              <div className="ol-form-band-title">Online collections</div>
+              <p className="ol-form-band-copy">
+                Online payment links are separate from manual UPI and bank instructions.
+              </p>
+            </div>
+            <span className={`ol-chip ${getLiveCollectionsStatusChipClass(liveCollectionsSetupStatus.tone)}`}>
+              {liveCollectionsSetupStatus.badge}
+            </span>
+          </div>
+          <div className="ol-live-collections-setup-card" data-tone={liveCollectionsSetupStatus.tone}>
+            <div>
+              <strong>{liveCollectionsSetupStatus.title}</strong>
+              <span>{liveCollectionsSetupStatus.message}</span>
+            </div>
+            <ul>
+              {liveCollectionsSetupStatus.detailItems.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="ol-actions ol-actions--compact">
+            <Link className="ol-button-secondary" href="/payments">
+              {liveCollectionsSetupStatus.primaryActionLabel}
+            </Link>
+            {liveCollectionsSetupStatus.secondaryActionLabel ? (
+              <Link className="ol-button-ghost" href="/transactions">
+                {liveCollectionsSetupStatus.secondaryActionLabel}
+              </Link>
+            ) : null}
+          </div>
+        </div>
+        <div className="ol-form-band" style={{ marginTop: 18 }}>
+          <div className="ol-form-band-header">
+            <div>
               <div className="ol-form-band-title">{paymentTemplate.title}</div>
               <p className="ol-form-band-copy">{paymentTemplate.helper} These details appear on invoices and payment messages.</p>
             </div>
@@ -2094,6 +2132,16 @@ function getUserSettingsSaveChipClass(state: UserSettingsSaveState) {
     return 'ol-chip--success';
   }
   return '';
+}
+
+function getLiveCollectionsStatusChipClass(tone: 'blocked' | 'warning' | 'ready' | 'success') {
+  if (tone === 'success') {
+    return 'ol-chip--success';
+  }
+  if (tone === 'blocked' || tone === 'warning') {
+    return 'ol-chip--warning';
+  }
+  return 'ol-chip--tax';
 }
 
 function SettingsPreviewCard({ copy, title }: { title: string; copy: string }) {
