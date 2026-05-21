@@ -152,7 +152,13 @@ service cloud.firestore {
         collectionName != 'live_payment_notifications' &&
         collectionName != 'support_cases' &&
         collectionName != 'support_case_email_requests' &&
-        collectionName != 'support_diagnostic_consents';
+        collectionName != 'support_diagnostic_consents' &&
+        collectionName != 'support_tickets' &&
+        collectionName != 'support_messages' &&
+        collectionName != 'support_assignments' &&
+        collectionName != 'support_events' &&
+        collectionName != 'support_queues' &&
+        collectionName != 'support_notification_preferences';
     }
 
     function validSettingsAuditDocument(workspaceId) {
@@ -443,6 +449,30 @@ service cloud.firestore {
       match /support_case_email_requests/{requestId} {
         allow read: if ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin', 'accountant']);
         allow create, update, delete: if false;
+      }
+
+      match /support_tickets/{ticketId} {
+        allow read, create, update, delete: if false;
+      }
+
+      match /support_messages/{messageId} {
+        allow read, create, update, delete: if false;
+      }
+
+      match /support_assignments/{assignmentId} {
+        allow read, create, update, delete: if false;
+      }
+
+      match /support_events/{eventId} {
+        allow read, create, update, delete: if false;
+      }
+
+      match /support_queues/{queueId} {
+        allow read, create, update, delete: if false;
+      }
+
+      match /support_notification_preferences/{preferenceId} {
+        allow read, create, update, delete: if false;
       }
 
       match /{document=**}/support_diagnostic_consents/{consentId} {

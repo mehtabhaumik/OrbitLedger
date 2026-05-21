@@ -459,6 +459,24 @@ describe('Firestore workspace rules', () => {
     await assertFails(owner.collection('workspaces').doc('workspace-1').collection('support_case_email_requests').doc('email-1').set({
       delivery_status: 'pending_provider_connection',
     }));
+    await assertFails(owner.collection('workspaces').doc('workspace-1').collection('support_tickets').doc('ticket-1').set({
+      status: 'opened',
+    }));
+    await assertFails(owner.collection('workspaces').doc('workspace-1').collection('support_messages').doc('message-1').set({
+      kind: 'customer_message',
+    }));
+    await assertFails(owner.collection('workspaces').doc('workspace-1').collection('support_assignments').doc('assignment-1').set({
+      assigned_role: 'support_admin',
+    }));
+    await assertFails(owner.collection('workspaces').doc('workspace-1').collection('support_events').doc('event-1').set({
+      kind: 'ticket_created',
+    }));
+    await assertFails(owner.collection('workspaces').doc('workspace-1').collection('support_queues').doc('queue-1').set({
+      label: 'General',
+    }));
+    await assertFails(owner.collection('workspaces').doc('workspace-1').collection('support_notification_preferences').doc('preference-1').set({
+      mute_all: false,
+    }));
     await assertFails(owner.collection('workspaces').doc('workspace-1').collection('live_payment_events').doc('event-1').set({
       processing_status: 'pending_reconciliation',
     }));
@@ -485,6 +503,12 @@ describe('Firestore workspace rules', () => {
       await workspace.collection('support_diagnostic_consents').doc('consent-1').set({ status: 'active' });
       await workspace.collection('support_cases').doc('case-1').set({ status: 'open' });
       await workspace.collection('support_case_email_requests').doc('email-1').set({ delivery_status: 'pending_provider_connection' });
+      await workspace.collection('support_tickets').doc('ticket-1').set({ status: 'opened' });
+      await workspace.collection('support_messages').doc('message-1').set({ kind: 'customer_message' });
+      await workspace.collection('support_assignments').doc('assignment-1').set({ assigned_role: 'support_admin' });
+      await workspace.collection('support_events').doc('event-1').set({ kind: 'ticket_created' });
+      await workspace.collection('support_queues').doc('queue-1').set({ label: 'General' });
+      await workspace.collection('support_notification_preferences').doc('preference-1').set({ mute_all: false });
       await workspace.collection('live_payment_events').doc('event-1').set({ processing_status: 'reconciled' });
       await workspace.collection('live_payment_event_raw').doc('event-1').set({ raw_payload: { secret: true } });
       await workspace.collection('live_payment_audit').doc('audit-1').set({ action: 'payment_applied' });
@@ -512,6 +536,18 @@ describe('Firestore workspace rules', () => {
     await assertFails(staff.collection('support_diagnostic_consents').doc('consent-1').get());
     await assertFails(staff.collection('support_cases').doc('case-1').get());
     await assertFails(staff.collection('support_case_email_requests').doc('email-1').get());
+    await assertFails(owner.collection('support_tickets').doc('ticket-1').get());
+    await assertFails(accountant.collection('support_tickets').doc('ticket-1').get());
+    await assertFails(owner.collection('support_messages').doc('message-1').get());
+    await assertFails(accountant.collection('support_messages').doc('message-1').get());
+    await assertFails(owner.collection('support_assignments').doc('assignment-1').get());
+    await assertFails(accountant.collection('support_assignments').doc('assignment-1').get());
+    await assertFails(owner.collection('support_events').doc('event-1').get());
+    await assertFails(accountant.collection('support_events').doc('event-1').get());
+    await assertFails(owner.collection('support_queues').doc('queue-1').get());
+    await assertFails(accountant.collection('support_queues').doc('queue-1').get());
+    await assertFails(owner.collection('support_notification_preferences').doc('preference-1').get());
+    await assertFails(accountant.collection('support_notification_preferences').doc('preference-1').get());
     await assertSucceeds(staff.collection('live_payment_events').doc('event-1').get());
     await assertSucceeds(staff.collection('live_payment_notifications').doc('notification-1').get());
     await assertFails(staff.collection('live_payment_event_raw').doc('event-1').get());
