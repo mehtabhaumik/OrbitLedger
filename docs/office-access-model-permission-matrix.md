@@ -1858,3 +1858,30 @@ Office should not accept new feature expansion until the controlled invite launc
 Recommended next action:
 
 Commit, push, deploy rules/functions/web when the owner is ready for a launch candidate.
+
+## Platform Admin Phase 4: Admin Account Management UI
+
+Platform Admin now has a Super Admin-only account management surface.
+
+### Included
+
+- Admin registry list with role, status, source, last active, created/updated metadata, and emergency allowlist marker.
+- Add admin by email through a trusted server function.
+- Change admin role through a trusted server function.
+- Suspend, reactivate, and revoke registry admins.
+- Required reason for every admin access change.
+- High-impact warning for Super Admin and revoke actions.
+- Emergency allowlist accounts remain protected as break-glass Super Admin access.
+- Registry and custom-claim updates are performed server-side.
+- Every admin account action writes to `platform_admin_audit`.
+
+### Boundaries
+
+- The browser can show the management UI only after server authorization.
+- UI allowlists are convenience only and are not trusted for authorization.
+- Registry-only and custom-claim admins are supported through server checks.
+- Super Admin can manage registry admins, but cannot remove the fixed emergency allowlist recovery path from the UI.
+
+### Next Phase
+
+`PLATFORM ADMIN PHASE 5: Admin Audit Trail`

@@ -28,7 +28,12 @@ const PLATFORM_ADMIN_ROLE_SOURCES = ['allowlist', 'registry', 'custom_claim'] as
 type PlatformAdminRole = (typeof PLATFORM_ADMIN_ROLES)[number];
 type PlatformAdminStatus = (typeof PLATFORM_ADMIN_STATUSES)[number];
 type PlatformAdminRoleSource = (typeof PLATFORM_ADMIN_ROLE_SOURCES)[number];
-type PlatformAdminFunctionPermission = 'view_registry' | 'review_office_access' | 'review_support_cases';
+type PlatformAdminFunctionPermission =
+  | 'view_registry'
+  | 'manage_admin_accounts'
+  | 'review_office_access'
+  | 'review_support_cases';
+type PlatformAdminAccountAction = 'create' | 'change_role' | 'suspend' | 'reactivate' | 'revoke';
 type VerifiedRequestUser = { uid: string; email: string | null; claims: Record<string, unknown> };
 
 type PlatformAdminRegistryData = {
@@ -3698,7 +3703,40 @@ export const getPlatformAdminSnapshot = onRequest(
         };
       });
 
+      const authUserByUid = new Map(authResult.users.map((authUser) => [authUser.uid, authUser]));
       const metrics = buildPlatformAdminMetrics(users);
+      const admins = Array.from(platformAdminByUid.values())
+        .sort((left, right) => {
+          const leftUpdated = left.updated_at ?? left.created_at ?? '';
+          const rightUpdated = right.updated_at ?? right.created_at ?? '';
+          return rightUpdated.localeCompare(leftUpdated);
+        })
+        .map((adminRecord) => ({
+          uid: adminRecord.uid,
+          email: adminRecord.email,
+          displayName: adminRecord.display_name,
+          role: adminRecord.role,
+          status: adminRecord.status,
+          roleSource: adminRecord.role_source,
+          customClaimsReady: adminRecord.custom_claims_ready,
+          customClaimsPlatformAdmin: adminRecord.custom_claims_platform_admin,
+          customClaimsRole: adminRecord.custom_claims_role,
+          createdByUid: adminRecord.created_by_uid,
+          createdByEmail: adminRecord.created_by_email,
+          createdAt: adminRecord.created_at,
+          updatedByUid: adminRecord.updated_by_uid,
+          updatedByEmail: adminRecord.updated_by_email,
+          updatedAt: adminRecord.updated_at,
+          suspendedByUid: adminRecord.suspended_by_uid,
+          suspendedByEmail: adminRecord.suspended_by_email,
+          suspendedAt: adminRecord.suspended_at,
+          revokedByUid: adminRecord.revoked_by_uid,
+          revokedByEmail: adminRecord.revoked_by_email,
+          revokedAt: adminRecord.revoked_at,
+          reason: adminRecord.reason,
+          isEmergencyAllowlist: isAuthorizedInternalAdminEmail(adminRecord.email),
+          lastSignInAt: authUserByUid.get(adminRecord.uid)?.metadata.lastSignInTime ?? null,
+        }));
       registryBatch.set(db.collection('platform_admin_audit').doc(normalizeId(`registry_sync_${Date.now()}_${adminUser.uid}`)), {
         action: 'registry_snapshot_generated',
         actor_uid: adminUser.uid,
@@ -3732,11 +3770,202 @@ export const getPlatformAdminSnapshot = onRequest(
           customClaimsRole: actorRegistry.custom_claims_role,
         },
         metrics,
+        admins,
         users,
       });
     } catch (error) {
       logger.error('Platform admin snapshot failed', error);
       response.status(500).json({ ok: false, error: 'platform_admin_snapshot_failed' });
+    }
+  }
+);
+
+export const managePlatformAdminAccount = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 5,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'manage_admin_accounts')) {
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const action = normalizePlatformAdminAccountAction(clean(stringValue(body?.action)));
+    const role = normalizePlatformAdminRole(clean(stringValue(body?.role)));
+    const targetUid = clean(stringValue(body?.targetUid));
+    const targetEmail = normalizeEmailAddress(clean(stringValue(body?.targetEmail)));
+    const displayName = clean(stringValue(body?.displayName));
+    const reason = clean(stringValue(body?.reason));
+
+    if (!action) {
+      response.status(400).json({ ok: false, error: 'admin_action_required' });
+      return;
+    }
+    if (!reason || reason.length < 10) {
+      response.status(400).json({ ok: false, error: 'admin_reason_required' });
+      return;
+    }
+    if ((action === 'create' || action === 'change_role' || action === 'reactivate') && !role) {
+      response.status(400).json({ ok: false, error: 'admin_role_required' });
+      return;
+    }
+    if (!targetUid && !targetEmail) {
+      response.status(400).json({ ok: false, error: 'admin_target_required' });
+      return;
+    }
+    if (targetEmail && !isValidEmailAddress(targetEmail)) {
+      response.status(400).json({ ok: false, error: 'admin_email_invalid' });
+      return;
+    }
+
+    try {
+      const now = new Date().toISOString();
+      let targetUser: admin.auth.UserRecord | null = null;
+
+      if (targetUid) {
+        targetUser = await admin
+          .auth()
+          .getUser(targetUid)
+          .catch((error: unknown) => {
+            if (isFirebaseAuthUserNotFound(error)) {
+              return null;
+            }
+            throw error;
+          });
+      }
+      if (!targetUser && targetEmail) {
+        targetUser = await admin
+          .auth()
+          .getUserByEmail(targetEmail)
+          .catch((error: unknown) => {
+            if (isFirebaseAuthUserNotFound(error)) {
+              return null;
+            }
+            throw error;
+          });
+      }
+      if (!targetUser && action === 'create' && targetEmail) {
+        targetUser = await admin.auth().createUser({
+          email: targetEmail,
+          displayName: displayName ?? undefined,
+          emailVerified: false,
+          disabled: false,
+        });
+      }
+      if (!targetUser) {
+        response.status(404).json({ ok: false, error: 'admin_target_not_found' });
+        return;
+      }
+
+      const targetUserEmail = normalizeEmailAddress(targetUser.email ?? targetEmail);
+      const targetIsEmergencyAllowlist = isAuthorizedInternalAdminEmail(targetUserEmail);
+      if (targetUser.uid === adminUser.uid && (action === 'suspend' || action === 'revoke')) {
+        response.status(409).json({ ok: false, error: 'cannot_change_own_admin_status' });
+        return;
+      }
+      if (targetIsEmergencyAllowlist && (action === 'change_role' || action === 'suspend' || action === 'revoke')) {
+        response.status(409).json({ ok: false, error: 'emergency_admin_protected' });
+        return;
+      }
+
+      const targetRef = db.collection('platform_admins').doc(targetUser.uid);
+      const existingSnapshot = await targetRef.get();
+      const existing = existingSnapshot.exists
+        ? normalizePlatformAdminRegistryData(existingSnapshot.id, existingSnapshot.data() ?? {})
+        : null;
+
+      const previousRecord = existing ? { ...existing } : null;
+      const nextRole = role ?? existing?.role ?? 'read_only_admin';
+      const nextStatus: PlatformAdminStatus =
+        action === 'suspend' ? 'suspended' : action === 'revoke' ? 'revoked' : 'active';
+      const nextRoleSource: PlatformAdminRoleSource = targetIsEmergencyAllowlist ? 'allowlist' : 'registry';
+      const baseRecord: PlatformAdminRegistryData = {
+        uid: targetUser.uid,
+        email: targetUserEmail,
+        display_name: displayName ?? targetUser.displayName ?? existing?.display_name ?? null,
+        role: nextRole,
+        status: nextStatus,
+        role_source: nextRoleSource,
+        custom_claims_ready: nextStatus === 'active',
+        custom_claims_platform_admin: nextStatus === 'active',
+        custom_claims_role: nextStatus === 'active' ? nextRole : null,
+        created_by_uid: existing?.created_by_uid ?? adminUser.uid,
+        created_by_email: existing?.created_by_email ?? adminUser.email ?? null,
+        created_at: existing?.created_at ?? now,
+        updated_by_uid: adminUser.uid,
+        updated_by_email: adminUser.email ?? null,
+        updated_at: now,
+        suspended_by_uid: action === 'suspend' ? adminUser.uid : existing?.suspended_by_uid ?? null,
+        suspended_by_email: action === 'suspend' ? adminUser.email ?? null : existing?.suspended_by_email ?? null,
+        suspended_at: action === 'suspend' ? now : nextStatus === 'active' ? null : existing?.suspended_at ?? null,
+        revoked_by_uid: action === 'revoke' ? adminUser.uid : existing?.revoked_by_uid ?? null,
+        revoked_by_email: action === 'revoke' ? adminUser.email ?? null : existing?.revoked_by_email ?? null,
+        revoked_at: action === 'revoke' ? now : nextStatus === 'active' ? null : existing?.revoked_at ?? null,
+        reason,
+      };
+
+      const existingClaims = asRecord(targetUser.customClaims) ?? {};
+      const nextClaims = { ...existingClaims };
+      if (nextStatus === 'active') {
+        nextClaims.platform_admin = true;
+        nextClaims.platform_admin_role = nextRole;
+      } else {
+        delete nextClaims.platform_admin;
+        delete nextClaims.platform_admin_role;
+      }
+
+      await Promise.all([
+        targetRef.set(baseRecord, { merge: true }),
+        admin.auth().setCustomUserClaims(targetUser.uid, nextClaims),
+        db.collection('platform_admin_audit').doc(normalizeId(`platform_admin_${action}_${targetUser.uid}_${Date.now()}`)).set({
+          action: `platform_admin_${action}`,
+          actor_uid: adminUser.uid,
+          actor_email: adminUser.email ?? null,
+          actor_role: adminAccess.role,
+          target_uid: targetUser.uid,
+          target_email: targetUserEmail,
+          target_role: baseRecord.role,
+          target_status: baseRecord.status,
+          target_role_source: baseRecord.role_source,
+          previous_values: previousRecord,
+          new_values: baseRecord,
+          reason,
+          risk_level: action === 'revoke' || baseRecord.role === 'super_admin' ? 'high' : 'medium',
+          created_at: now,
+        }),
+      ]);
+
+      response.json({
+        ok: true,
+        admin: {
+          uid: baseRecord.uid,
+          email: baseRecord.email,
+          displayName: baseRecord.display_name,
+          role: baseRecord.role,
+          status: baseRecord.status,
+          roleSource: baseRecord.role_source,
+          customClaimsReady: nextStatus === 'active',
+          updatedAt: now,
+        },
+      });
+    } catch (error) {
+      logger.error('managePlatformAdminAccount failed', { action, targetUid, targetEmail, error });
+      response.status(500).json({ ok: false, error: 'admin_account_update_failed' });
     }
   }
 );
@@ -7547,6 +7776,10 @@ function canPlatformAdminUseFunction(
     return true;
   }
 
+  if (permission === 'manage_admin_accounts') {
+    return false;
+  }
+
   if (permission === 'view_registry') {
     return ['admin', 'finance_admin', 'support_admin', 'read_only_admin'].includes(access.role);
   }
@@ -7562,6 +7795,19 @@ function canPlatformAdminUseFunction(
   return false;
 }
 
+function normalizePlatformAdminAccountAction(value: string | null): PlatformAdminAccountAction | null {
+  if (
+    value === 'create' ||
+    value === 'change_role' ||
+    value === 'suspend' ||
+    value === 'reactivate' ||
+    value === 'revoke'
+  ) {
+    return value;
+  }
+  return null;
+}
+
 function normalizePlatformAdminRole(value: string | null): PlatformAdminRole | null {
   return PLATFORM_ADMIN_ROLES.includes(value as PlatformAdminRole) ? (value as PlatformAdminRole) : null;
 }
@@ -7574,6 +7820,16 @@ function normalizePlatformAdminRoleSource(value: string | null): PlatformAdminRo
   return PLATFORM_ADMIN_ROLE_SOURCES.includes(value as PlatformAdminRoleSource)
     ? (value as PlatformAdminRoleSource)
     : null;
+}
+
+function normalizeEmailAddress(value: string | null): string | null {
+  const email = clean(value)?.toLowerCase() ?? null;
+  return email;
+}
+
+function isFirebaseAuthUserNotFound(error: unknown): boolean {
+  const code = asRecord(error)?.code;
+  return code === 'auth/user-not-found';
 }
 
 function normalizePlatformAdminRegistryData(

@@ -39,6 +39,35 @@ export type WebPlatformAdminAccess = {
   customClaimsRole: PlatformAdminRole | null;
 };
 
+export type WebPlatformAdminRegistryRecord = {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  role: PlatformAdminRole;
+  status: PlatformAdminStatus;
+  roleSource: PlatformAdminRoleSource;
+  customClaimsReady: boolean;
+  customClaimsPlatformAdmin: boolean;
+  customClaimsRole: PlatformAdminRole | null;
+  createdByUid: string | null;
+  createdByEmail: string | null;
+  createdAt: string | null;
+  updatedByUid: string | null;
+  updatedByEmail: string | null;
+  updatedAt: string | null;
+  suspendedByUid: string | null;
+  suspendedByEmail: string | null;
+  suspendedAt: string | null;
+  revokedByUid: string | null;
+  revokedByEmail: string | null;
+  revokedAt: string | null;
+  reason: string | null;
+  isEmergencyAllowlist: boolean;
+  lastSignInAt: string | null;
+};
+
+export type WebPlatformAdminAccountAction = 'create' | 'change_role' | 'suspend' | 'reactivate' | 'revoke';
+
 export type WebPlatformAdminMetrics = {
   userCount: number;
   disabledCount: number;
@@ -59,6 +88,7 @@ export type WebPlatformAdminSnapshot = {
   hasMore: boolean;
   adminAccess: WebPlatformAdminAccess | null;
   metrics: WebPlatformAdminMetrics;
+  admins: WebPlatformAdminRegistryRecord[];
   users: WebPlatformAdminUser[];
 };
 
@@ -163,13 +193,58 @@ export async function loadWebPlatformAdminSnapshot(input: {
     hasMore: result.hasMore,
     adminAccess: result.adminAccess ?? null,
     metrics: result.metrics,
+    admins: result.admins ?? [],
     users: result.users,
   };
+}
+
+export async function manageWebPlatformAdminAccount(input: {
+  action: WebPlatformAdminAccountAction;
+  targetEmail?: string | null;
+  targetUid?: string | null;
+  role?: PlatformAdminRole | null;
+  displayName?: string | null;
+  reason: string;
+}): Promise<void> {
+  const user = getWebAuth().currentUser;
+  if (!user) {
+    throw new Error('Sign in again before changing platform admin access.');
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(getPlatformAdminAccountUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+  const result = (await response.json().catch(() => ({
+    ok: false,
+    error: 'admin_account_update_failed',
+  }))) as
+    | {
+        ok: true;
+      }
+    | {
+        ok: false;
+        error: string;
+      };
+
+  if (!result.ok) {
+    throw new Error(platformAdminAccountErrorMessage(result.error));
+  }
 }
 
 function getPlatformAdminSnapshotUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/getPlatformAdminSnapshot`;
+}
+
+function getPlatformAdminAccountUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/managePlatformAdminAccount`;
 }
 
 function platformAdminErrorMessage(error: string): string {
@@ -180,4 +255,29 @@ function platformAdminErrorMessage(error: string): string {
     return 'Platform admin request method is not supported.';
   }
   return 'Platform admin registry could not be loaded.';
+}
+
+function platformAdminAccountErrorMessage(error: string): string {
+  if (error === 'admin_reason_required') {
+    return 'Add a clear reason with at least 10 characters before changing admin access.';
+  }
+  if (error === 'admin_role_required') {
+    return 'Choose an admin role before saving this change.';
+  }
+  if (error === 'admin_email_invalid') {
+    return 'Enter a valid admin email address.';
+  }
+  if (error === 'admin_target_not_found') {
+    return 'No Firebase Auth user was found for that admin target.';
+  }
+  if (error === 'cannot_change_own_admin_status') {
+    return 'You cannot suspend or revoke your own platform admin access.';
+  }
+  if (error === 'emergency_admin_protected') {
+    return 'Emergency Super Admin allowlist accounts cannot be revoked or downgraded from the UI.';
+  }
+  if (error === 'internal_admin_required') {
+    return 'Only a Super Admin can manage platform admin accounts.';
+  }
+  return 'Platform admin access could not be updated.';
 }

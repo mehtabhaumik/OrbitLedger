@@ -652,6 +652,19 @@ a:focus-visible {
   max-width: 280px;
 }
 
+.ol-form-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ol-form-field > span {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
 .ol-select,
 .ol-input,
 .ol-textarea {
@@ -750,7 +763,7 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 38px;
+  min-height: 40px;
   width: fit-content;
   max-width: 100%;
   padding: 0 14px;
@@ -3179,6 +3192,75 @@ a:focus-visible {
   overflow: hidden;
 }
 
+.ol-platform-admin-management {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.85fr);
+  gap: 18px;
+  padding: 18px;
+}
+
+.ol-platform-admin-admin-list {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ol-platform-admin-admin-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) minmax(180px, 0.8fr) minmax(220px, 1fr) minmax(190px, auto);
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid rgba(191, 205, 225, 0.72);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.ol-platform-admin-admin-form {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid rgba(191, 205, 225, 0.78);
+  border-radius: 20px;
+  background: rgba(248, 251, 255, 0.94);
+}
+
+.ol-platform-admin-admin-form h2 {
+  margin: 10px 0 6px;
+  color: var(--text);
+  font-size: clamp(22px, 2.5vw, 30px);
+  line-height: 1.05;
+}
+
+.ol-platform-admin-admin-form p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.ol-platform-admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ol-platform-admin-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ol-platform-admin-row-actions .ol-button-secondary,
+.ol-platform-admin-row-actions .ol-button-ghost {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
 .ol-platform-admin-table-head,
 .ol-platform-admin-pagination {
   padding: 18px;
@@ -3309,6 +3391,12 @@ a:focus-visible {
   padding: clamp(24px, 5vw, 56px);
 }
 
+.ol-platform-admin-empty-compact {
+  padding: 22px;
+  border: 1px dashed rgba(191, 205, 225, 0.86);
+  border-radius: 18px;
+}
+
 .ol-platform-admin-empty .ol-loading-orbit {
   justify-self: center;
 }
@@ -3324,6 +3412,11 @@ a:focus-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .ol-platform-admin-management,
+  .ol-platform-admin-admin-row {
+    grid-template-columns: 1fr;
+  }
+
   .ol-platform-admin-user-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3337,6 +3430,7 @@ a:focus-visible {
   .ol-platform-admin-hero,
   .ol-platform-admin-status,
   .ol-platform-admin-metrics,
+  .ol-platform-admin-form-grid,
   .ol-platform-admin-user-row {
     grid-template-columns: 1fr;
   }
@@ -3346,13 +3440,16 @@ a:focus-visible {
   }
 
   .ol-platform-admin-hero-actions,
-  .ol-platform-admin-pagination {
+  .ol-platform-admin-pagination,
+  .ol-platform-admin-row-actions {
     justify-content: stretch;
   }
 
   .ol-platform-admin-hero-actions .ol-button,
   .ol-platform-admin-hero-actions .ol-button-secondary,
-  .ol-platform-admin-pagination .ol-button-secondary {
+  .ol-platform-admin-pagination .ol-button-secondary,
+  .ol-platform-admin-row-actions .ol-button-secondary,
+  .ol-platform-admin-row-actions .ol-button-ghost {
     width: 100%;
   }
 
@@ -4704,7 +4801,19 @@ a:focus-visible {
   color: #a43850;
 }
 
+.ol-message[data-tone="danger"] {
+  border-color: rgba(223, 150, 161, 0.86);
+  background: linear-gradient(180deg, rgba(255, 245, 247, 0.96) 0%, rgba(255, 239, 242, 0.95) 100%);
+  color: #a43850;
+}
+
 .ol-message--warning {
+  border-color: rgba(236, 202, 142, 0.86);
+  background: linear-gradient(180deg, rgba(255, 250, 237, 0.96) 0%, rgba(255, 246, 224, 0.95) 100%);
+  color: #8a6214;
+}
+
+.ol-message[data-tone="warning"] {
   border-color: rgba(236, 202, 142, 0.86);
   background: linear-gradient(180deg, rgba(255, 250, 237, 0.96) 0%, rgba(255, 246, 224, 0.95) 100%);
   color: #8a6214;
@@ -4713,6 +4822,12 @@ a:focus-visible {
 .ol-message--success {
   border-color: rgba(177, 226, 209, 0.88);
   background: linear-gradient(180deg, rgba(234, 250, 244, 0.96) 0%, rgba(244, 253, 248, 0.94) 100%);
+}
+
+.ol-message[data-tone="success"] {
+  border-color: rgba(177, 226, 209, 0.88);
+  background: linear-gradient(180deg, rgba(234, 250, 244, 0.96) 0%, rgba(244, 253, 248, 0.94) 100%);
+  color: var(--success);
 }
 
 .ol-card-mini {
