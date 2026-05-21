@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildWebPlatformAdminMetrics,
+  buildWebPlatformAdminSaasHealthCharts,
   filterWebPlatformAdminAuditRecords,
   filterWebPlatformAdminOffers,
   filterWebPlatformAdminUsers,
   formatPlatformAdminDate,
+  type WebPlatformAdminAuditRecord,
+  type WebPlatformAdminOffer,
+  type WebPlatformAdminSnapshot,
   type WebPlatformAdminUser,
 } from './platform-admin';
 import {
@@ -113,6 +117,202 @@ describe('platform admin registry helpers', () => {
       activePlatformAdminCount: 1,
       emergencyAllowlistAdminCount: 1,
     });
+  });
+
+  it('builds SaaS health chart datasets from users, offers, admins, and audit records', () => {
+    const users: WebPlatformAdminUser[] = [
+      baseUser,
+      {
+        ...baseUser,
+        uid: 'user_2',
+        email: 'viewer@example.com',
+        emailVerified: false,
+        providerIds: ['password'],
+        createdAt: '2026-04-15T12:00:00.000Z',
+        ownedWorkspaceCount: 0,
+        officeWorkspaceCount: 1,
+        workspaceNames: [],
+        officeRoles: ['viewer'],
+      },
+      {
+        ...baseUser,
+        uid: 'user_3',
+        email: 'disabled@example.com',
+        disabled: true,
+        createdAt: '2026-03-01T12:00:00.000Z',
+        ownedWorkspaceCount: 0,
+        officeWorkspaceCount: 0,
+        workspaceNames: [],
+        status: 'disabled',
+      },
+      {
+        ...baseUser,
+        uid: 'user_4',
+        email: 'new@example.com',
+        createdAt: '2026-05-01T12:00:00.000Z',
+        ownedWorkspaceCount: 0,
+        officeWorkspaceCount: 0,
+        workspaceNames: [],
+        platformAdminRole: 'super_admin',
+        platformAdminStatus: 'active',
+        platformAdminRoleSource: 'allowlist',
+        status: 'no_workspace',
+      },
+    ];
+    const offers: WebPlatformAdminOffer[] = [
+      {
+        id: 'offer_1',
+        label: 'Launch Offer',
+        title: 'Launch pricing',
+        publicBannerMessage: 'Launch pricing is available.',
+        internalNote: null,
+        scope: 'sitewide',
+        discountType: 'percentage',
+        discountValue: 20,
+        currency: null,
+        targetEmails: [],
+        targetUids: [],
+        targetWorkspaceIds: [],
+        targetPlanIds: [],
+        targetCountries: [],
+        startAt: null,
+        expiresAt: null,
+        status: 'active',
+        lifetimeConfirmed: false,
+        createdAt: null,
+        createdByUid: null,
+        createdByEmail: null,
+        updatedAt: null,
+        updatedByUid: null,
+        updatedByEmail: null,
+        lastReason: null,
+      },
+      {
+        id: 'offer_2',
+        label: 'Future Offer',
+        title: 'Future pricing',
+        publicBannerMessage: 'Future pricing is scheduled.',
+        internalNote: null,
+        scope: 'selected_users',
+        discountType: 'amount',
+        discountValue: 5000,
+        currency: 'INR',
+        targetEmails: ['owner@example.com'],
+        targetUids: [],
+        targetWorkspaceIds: [],
+        targetPlanIds: [],
+        targetCountries: [],
+        startAt: null,
+        expiresAt: null,
+        status: 'scheduled',
+        lifetimeConfirmed: false,
+        createdAt: null,
+        createdByUid: null,
+        createdByEmail: null,
+        updatedAt: null,
+        updatedByUid: null,
+        updatedByEmail: null,
+        lastReason: null,
+      },
+    ];
+    const auditRecords: WebPlatformAdminAuditRecord[] = [
+      {
+        id: 'audit_1',
+        action: 'platform_admin_offer_create',
+        actorUid: 'admin_1',
+        actorEmail: 'admin@example.com',
+        actorRole: 'super_admin',
+        targetUid: null,
+        targetEmail: null,
+        targetRole: null,
+        targetStatus: null,
+        workspaceId: null,
+        supportCaseId: null,
+        severity: 'high',
+        reason: 'Launch offer created',
+        timestamp: '2026-05-21T12:00:00.000Z',
+        affectedSummary: 'Offer created',
+      },
+      {
+        id: 'audit_2',
+        action: 'registry_snapshot_generated',
+        actorUid: 'admin_1',
+        actorEmail: 'admin@example.com',
+        actorRole: 'super_admin',
+        targetUid: null,
+        targetEmail: null,
+        targetRole: null,
+        targetStatus: null,
+        workspaceId: null,
+        supportCaseId: null,
+        severity: 'low',
+        reason: null,
+        timestamp: '2026-05-21T12:05:00.000Z',
+        affectedSummary: 'Snapshot generated',
+      },
+    ];
+    const snapshot: WebPlatformAdminSnapshot = {
+      generatedAt: '2026-05-21T12:00:00.000Z',
+      nextPageToken: null,
+      hasMore: false,
+      adminAccess: null,
+      metrics: buildWebPlatformAdminMetrics(users),
+      admins: [
+        {
+          uid: 'admin_1',
+          email: 'admin@example.com',
+          displayName: 'Admin User',
+          role: 'super_admin',
+          status: 'active',
+          roleSource: 'allowlist',
+          customClaimsReady: false,
+          customClaimsPlatformAdmin: false,
+          customClaimsRole: null,
+          createdByUid: null,
+          createdByEmail: null,
+          createdAt: null,
+          updatedByUid: null,
+          updatedByEmail: null,
+          updatedAt: null,
+          suspendedByUid: null,
+          suspendedByEmail: null,
+          suspendedAt: null,
+          revokedByUid: null,
+          revokedByEmail: null,
+          revokedAt: null,
+          reason: null,
+          isEmergencyAllowlist: true,
+          lastSignInAt: null,
+        },
+      ],
+      offers,
+      users,
+    };
+
+    const charts = buildWebPlatformAdminSaasHealthCharts(snapshot, auditRecords);
+
+    expect(charts.newUsersTrend).toHaveLength(6);
+    expect(charts.newUsersTrend.at(-1)).toEqual({ label: 'May', value: 2 });
+    expect(charts.userStatusMix).toEqual([
+      { label: 'Active', value: 2 },
+      { label: 'No workspace', value: 1 },
+      { label: 'Disabled', value: 1 },
+    ]);
+    expect(charts.workspaceAdoption).toEqual([
+      { label: 'Workspace owners', value: 1 },
+      { label: 'Office members', value: 1 },
+      { label: 'No workspace', value: 1 },
+    ]);
+    expect(charts.offerStatusMix.slice(0, 2)).toEqual([
+      { label: 'active', value: 1 },
+      { label: 'scheduled', value: 1 },
+    ]);
+    expect(charts.auditSeverityMix).toEqual([
+      { label: 'high', value: 1 },
+      { label: 'medium', value: 0 },
+      { label: 'low', value: 1 },
+    ]);
+    expect(charts.adminRoleMix.at(0)).toEqual({ label: 'super admin', value: 1 });
   });
 
   it('filters by email, uid, workspace, provider, and role', () => {

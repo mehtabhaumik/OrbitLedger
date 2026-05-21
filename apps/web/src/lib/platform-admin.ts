@@ -188,6 +188,20 @@ export type WebPlatformAdminSnapshot = {
   users: WebPlatformAdminUser[];
 };
 
+export type WebPlatformAdminChartDatum = {
+  label: string;
+  value: number;
+};
+
+export type WebPlatformAdminSaasHealthCharts = {
+  newUsersTrend: WebPlatformAdminChartDatum[];
+  userStatusMix: WebPlatformAdminChartDatum[];
+  workspaceAdoption: WebPlatformAdminChartDatum[];
+  offerStatusMix: WebPlatformAdminChartDatum[];
+  auditSeverityMix: WebPlatformAdminChartDatum[];
+  adminRoleMix: WebPlatformAdminChartDatum[];
+};
+
 export function buildWebPlatformAdminMetrics(users: WebPlatformAdminUser[]): WebPlatformAdminMetrics {
   return {
     userCount: users.length,
@@ -204,6 +218,114 @@ export function buildWebPlatformAdminMetrics(users: WebPlatformAdminUser[]): Web
     activePlatformAdminCount: users.filter((user) => user.platformAdminStatus === 'active').length,
     emergencyAllowlistAdminCount: users.filter((user) => user.platformAdminRoleSource === 'allowlist').length,
   };
+}
+
+export function buildWebPlatformAdminSaasHealthCharts(
+  snapshot: WebPlatformAdminSnapshot,
+  auditRecords: WebPlatformAdminAuditRecord[]
+): WebPlatformAdminSaasHealthCharts {
+  return {
+    newUsersTrend: buildMonthlyUserTrend(snapshot.users, snapshot.generatedAt),
+    userStatusMix: [
+      {
+        label: 'Active',
+        value: snapshot.users.filter((user) => !user.disabled && user.status === 'active').length,
+      },
+      {
+        label: 'No workspace',
+        value: snapshot.users.filter((user) => !user.disabled && user.status === 'no_workspace').length,
+      },
+      {
+        label: 'Disabled',
+        value: snapshot.users.filter((user) => user.disabled || user.status === 'disabled').length,
+      },
+    ],
+    workspaceAdoption: [
+      {
+        label: 'Workspace owners',
+        value: snapshot.users.filter((user) => user.ownedWorkspaceCount > 0).length,
+      },
+      {
+        label: 'Office members',
+        value: snapshot.users.filter((user) => user.officeWorkspaceCount > 0).length,
+      },
+      {
+        label: 'No workspace',
+        value: snapshot.users.filter(
+          (user) => !user.disabled && user.ownedWorkspaceCount === 0 && user.officeWorkspaceCount === 0
+        ).length,
+      },
+    ],
+    offerStatusMix: countByLabels(snapshot.offers, ['active', 'scheduled', 'expired', 'deactivated', 'removed'], (offer) => offer.status),
+    auditSeverityMix: countByLabels(auditRecords, ['high', 'medium', 'low'], (record) => record.severity),
+    adminRoleMix: countByLabels(
+      snapshot.admins,
+      ['super_admin', 'admin', 'finance_admin', 'support_admin', 'read_only_admin'],
+      (admin) => admin.role
+    ),
+  };
+}
+
+function buildMonthlyUserTrend(users: WebPlatformAdminUser[], generatedAt: string): WebPlatformAdminChartDatum[] {
+  const endDate = parseDate(generatedAt) ?? new Date();
+  const monthKeys: string[] = [];
+  for (let index = 5; index >= 0; index -= 1) {
+    const month = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth() - index, 1));
+    monthKeys.push(monthKey(month));
+  }
+  const counts = new Map(monthKeys.map((key) => [key, 0]));
+
+  for (const user of users) {
+    const createdAt = parseDate(user.createdAt);
+    if (!createdAt) {
+      continue;
+    }
+    const key = monthKey(createdAt);
+    if (counts.has(key)) {
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+
+  return monthKeys.map((key) => ({
+    label: formatMonthLabel(key),
+    value: counts.get(key) ?? 0,
+  }));
+}
+
+function countByLabels<T>(items: T[], labels: string[], getLabel: (item: T) => string | null | undefined): WebPlatformAdminChartDatum[] {
+  const counts = new Map(labels.map((label) => [label, 0]));
+  for (const item of items) {
+    const label = getLabel(item);
+    if (label && counts.has(label)) {
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+  }
+  return labels.map((label) => ({
+    label: label.replaceAll('_', ' '),
+    value: counts.get(label) ?? 0,
+  }));
+}
+
+function parseDate(value: string | null): Date | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function monthKey(value: Date): string {
+  const year = value.getUTCFullYear();
+  const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+function formatMonthLabel(key: string): string {
+  const [year, month] = key.split('-').map(Number);
+  if (!year || !month) {
+    return key;
+  }
+  return new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(new Date(Date.UTC(year, month - 1, 1)));
 }
 
 export function filterWebPlatformAdminUsers(users: WebPlatformAdminUser[], searchTerm: string): WebPlatformAdminUser[] {

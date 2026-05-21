@@ -3055,6 +3055,12 @@ a:focus-visible {
 .ol-platform-admin-page {
   min-height: 100vh;
   padding: clamp(18px, 3vw, 40px);
+  --ol-admin-chart-0: #386fde;
+  --ol-admin-chart-1: #1b8f72;
+  --ol-admin-chart-2: #a86b12;
+  --ol-admin-chart-3: #a83c52;
+  --ol-admin-chart-4: #6d52c8;
+  --ol-admin-chart-5: #0f7f9d;
   background:
     linear-gradient(180deg, rgba(246, 249, 253, 0.96) 0%, rgba(238, 244, 251, 0.94) 100%),
     var(--background);
@@ -3308,6 +3314,256 @@ a:focus-visible {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
+}
+
+.ol-platform-admin-chart-suite {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid rgba(191, 205, 225, 0.78);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(246, 249, 254, 0.88) 100%),
+    #ffffff;
+}
+
+.ol-platform-admin-chart-head h2 {
+  font-size: clamp(24px, 3vw, 34px);
+}
+
+.ol-platform-admin-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ol-platform-admin-chart-card {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 272px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(191, 205, 225, 0.76);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14px 30px rgba(36, 54, 82, 0.05);
+}
+
+.ol-platform-admin-chart-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.ol-platform-admin-chart-title strong {
+  display: block;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.22;
+}
+
+.ol-platform-admin-chart-title span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.ol-platform-admin-chart-title a {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid rgba(191, 205, 225, 0.82);
+  border-radius: 999px;
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 950;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ol-platform-admin-chart-title a:hover,
+.ol-platform-admin-chart-title a:focus-visible {
+  border-color: rgba(56, 111, 222, 0.62);
+  background: rgba(56, 111, 222, 0.08);
+  outline: none;
+}
+
+.ol-platform-admin-trend-chart {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 9px;
+  align-items: end;
+  min-height: 164px;
+  padding: 12px 0 0;
+}
+
+.ol-platform-admin-trend-column {
+  display: grid;
+  grid-template-rows: minmax(92px, 1fr) auto auto;
+  gap: 7px;
+  min-width: 0;
+  align-items: end;
+  text-align: center;
+}
+
+.ol-platform-admin-trend-column span {
+  display: block;
+  width: 100%;
+  min-height: 8px;
+  border-radius: 10px 10px 4px 4px;
+  background: linear-gradient(180deg, var(--ol-admin-chart-0) 0%, rgba(56, 111, 222, 0.5) 100%);
+}
+
+.ol-platform-admin-trend-column strong {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.ol-platform-admin-trend-column em {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.ol-platform-admin-donut-wrap {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.ol-platform-admin-donut {
+  display: grid;
+  width: 128px;
+  height: 128px;
+  place-items: center;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(31, 45, 66, 0.08);
+}
+
+.ol-platform-admin-donut span {
+  display: grid;
+  width: 76px;
+  height: 76px;
+  place-items: center;
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 26px;
+  font-weight: 950;
+  box-shadow: 0 8px 20px rgba(36, 54, 82, 0.1);
+}
+
+.ol-platform-admin-stacked-chart {
+  display: grid;
+  gap: 14px;
+}
+
+.ol-platform-admin-stacked-track {
+  display: flex;
+  overflow: hidden;
+  min-height: 36px;
+  border: 1px solid rgba(191, 205, 225, 0.72);
+  border-radius: 999px;
+  background: rgba(238, 244, 251, 0.9);
+}
+
+.ol-platform-admin-stacked-track span {
+  min-width: 4px;
+}
+
+.ol-platform-admin-horizontal-bars {
+  display: grid;
+  gap: 12px;
+}
+
+.ol-platform-admin-horizontal-row {
+  display: grid;
+  gap: 6px;
+}
+
+.ol-platform-admin-horizontal-row div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ol-platform-admin-horizontal-row span,
+.ol-platform-admin-chart-legend span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.ol-platform-admin-horizontal-row strong,
+.ol-platform-admin-chart-legend strong {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ol-platform-admin-horizontal-row i {
+  display: block;
+  overflow: hidden;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(238, 244, 251, 0.96);
+}
+
+.ol-platform-admin-horizontal-row b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.ol-platform-admin-chart-legend {
+  display: grid;
+  gap: 8px;
+}
+
+.ol-platform-admin-chart-legend span {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.ol-platform-admin-chart-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+[data-chart-tone='0'] {
+  background: var(--ol-admin-chart-0);
+}
+
+[data-chart-tone='1'] {
+  background: var(--ol-admin-chart-1);
+}
+
+[data-chart-tone='2'] {
+  background: var(--ol-admin-chart-2);
+}
+
+[data-chart-tone='3'] {
+  background: var(--ol-admin-chart-3);
+}
+
+[data-chart-tone='4'] {
+  background: var(--ol-admin-chart-4);
+}
+
+[data-chart-tone='5'] {
+  background: var(--ol-admin-chart-5);
 }
 
 .ol-platform-admin-area-card {
@@ -3729,6 +3985,12 @@ a:focus-visible {
   color: var(--danger);
 }
 
+.ol-platform-admin-status-pill[data-tone="premium"] {
+  border-color: rgba(178, 194, 247, 0.92);
+  background: rgba(239, 244, 255, 0.94);
+  color: var(--primary-strong);
+}
+
 .ol-platform-admin-empty {
   display: grid;
   justify-items: start;
@@ -3775,6 +4037,7 @@ a:focus-visible {
   }
 
   .ol-platform-admin-dashboard-grid,
+  .ol-platform-admin-chart-grid,
   .ol-platform-admin-operations-map {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3826,6 +4089,7 @@ a:focus-visible {
   .ol-platform-admin-status,
   .ol-platform-admin-metrics,
   .ol-platform-admin-dashboard-grid,
+  .ol-platform-admin-chart-grid,
   .ol-platform-admin-health-list,
   .ol-platform-admin-operations-map,
   .ol-platform-admin-form-grid,
@@ -3867,6 +4131,33 @@ a:focus-visible {
 
   .ol-platform-admin-metric {
     min-height: 104px;
+  }
+
+  .ol-platform-admin-chart-suite,
+  .ol-platform-admin-chart-card {
+    padding: 14px;
+  }
+
+  .ol-platform-admin-chart-title,
+  .ol-platform-admin-donut-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .ol-platform-admin-chart-title {
+    display: grid;
+  }
+
+  .ol-platform-admin-chart-title a {
+    width: 100%;
+    text-align: center;
+  }
+
+  .ol-platform-admin-donut {
+    justify-self: center;
+  }
+
+  .ol-platform-admin-trend-chart {
+    gap: 6px;
   }
 
   .ol-platform-admin-user-row {

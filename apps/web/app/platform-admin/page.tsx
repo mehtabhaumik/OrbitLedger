@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getPlatformAdminRoleDefinition, PLATFORM_ADMIN_ROLES, type PlatformAdminRole } from '@orbit-ledger/core';
 
 import {
+  buildWebPlatformAdminSaasHealthCharts,
   filterWebPlatformAdminAuditRecords,
   filterWebPlatformAdminOffers,
   filterWebPlatformAdminUsers,
@@ -18,6 +19,7 @@ import {
   type WebPlatformAdminAccountAction,
   type WebPlatformAdminAuditFilters,
   type WebPlatformAdminAuditRecord,
+  type WebPlatformAdminChartDatum,
   type WebPlatformAdminOffer,
   type WebPlatformAdminOfferAction,
   type WebPlatformAdminOfferDiscountType,
@@ -122,6 +124,7 @@ const DEFAULT_AUDIT_FILTERS: WebPlatformAdminAuditFilters = {
 
 const PLATFORM_ADMIN_NAV_ITEMS = [
   { href: '#overview', label: 'Overview' },
+  { href: '#saas-health', label: 'SaaS Health' },
   { href: '#users', label: 'Users' },
   { href: '#admins', label: 'Admins' },
   { href: '#offers', label: 'Billing & Offers' },
@@ -210,6 +213,10 @@ export default function PlatformAdminPage() {
     canControlUsers,
     visibleAuditRecords.length > 0,
   ].filter(Boolean).length;
+  const saasHealthCharts = useMemo(
+    () => (snapshot ? buildWebPlatformAdminSaasHealthCharts(snapshot, auditTrail) : null),
+    [auditTrail, snapshot]
+  );
 
   useEffect(() => {
     if (isAuthLoading || !user) {
@@ -651,6 +658,65 @@ export default function PlatformAdminPage() {
                   </div>
                 </section>
               </div>
+
+              {saasHealthCharts ? (
+                <section className="ol-platform-admin-chart-suite" id="saas-health" aria-label="SaaS health metrics">
+                  <div className="ol-platform-admin-section-head ol-platform-admin-chart-head">
+                    <div>
+                      <p className="ol-chip">SaaS health</p>
+                      <h2>Growth, adoption, and risk signals</h2>
+                      <p>Compact charts for user growth, activation, offer exposure, admin role mix, and audit severity.</p>
+                    </div>
+                    <span className="ol-platform-admin-status-pill" data-tone="premium">
+                      {snapshot?.users.length ?? 0} user record(s) loaded
+                    </span>
+                  </div>
+                  <div className="ol-platform-admin-chart-grid">
+                    <AdminTrendChart
+                      title="New users"
+                      subtitle="Last six months"
+                      data={saasHealthCharts.newUsersTrend}
+                      actionLabel="Open users"
+                      actionHref="#users"
+                    />
+                    <AdminDonutChart
+                      title="User status"
+                      subtitle="Active, not onboarded, disabled"
+                      data={saasHealthCharts.userStatusMix}
+                      actionLabel="Review users"
+                      actionHref="#users"
+                    />
+                    <AdminStackedChart
+                      title="Workspace adoption"
+                      subtitle="Workspace and Office activation"
+                      data={saasHealthCharts.workspaceAdoption}
+                      actionLabel="Open Office"
+                      actionHref="#office"
+                    />
+                    <AdminStackedChart
+                      title="Offer status"
+                      subtitle="Pricing exposure by lifecycle"
+                      data={saasHealthCharts.offerStatusMix}
+                      actionLabel="Open offers"
+                      actionHref="#offers"
+                    />
+                    <AdminHorizontalBars
+                      title="Audit severity"
+                      subtitle="Loaded audit events"
+                      data={saasHealthCharts.auditSeverityMix}
+                      actionLabel="Open audit"
+                      actionHref="#audit"
+                    />
+                    <AdminHorizontalBars
+                      title="Admin roles"
+                      subtitle="Registry role distribution"
+                      data={saasHealthCharts.adminRoleMix}
+                      actionLabel="Open admins"
+                      actionHref="#admins"
+                    />
+                  </div>
+                </section>
+              ) : null}
 
               <section className="ol-platform-admin-operations-map" aria-label="Platform admin work areas">
                 <AdminAreaCard id="office" title="Office" value={`${snapshot?.metrics.officeMemberCount ?? 0} active member(s)`} detail="Team access and multi-company operations." />
@@ -1463,6 +1529,192 @@ function MetricCard({
       <strong>{value.toLocaleString('en-IN')}</strong>
     </article>
   );
+}
+
+function AdminTrendChart({
+  title,
+  subtitle,
+  data,
+  actionLabel,
+  actionHref,
+}: {
+  title: string;
+  subtitle: string;
+  data: WebPlatformAdminChartDatum[];
+  actionLabel: string;
+  actionHref: string;
+}) {
+  const maxValue = Math.max(1, ...data.map((item) => item.value));
+  return (
+    <article className="ol-platform-admin-chart-card">
+      <ChartCardHeader title={title} subtitle={subtitle} actionLabel={actionLabel} actionHref={actionHref} />
+      <div className="ol-platform-admin-trend-chart" role="img" aria-label={`${title}: ${chartSummary(data)}`}>
+        {data.map((item) => (
+          <div key={item.label} className="ol-platform-admin-trend-column">
+            <span style={{ height: `${Math.max(8, (item.value / maxValue) * 100)}%` }} />
+            <strong>{item.value.toLocaleString('en-IN')}</strong>
+            <em>{item.label}</em>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function AdminDonutChart({
+  title,
+  subtitle,
+  data,
+  actionLabel,
+  actionHref,
+}: {
+  title: string;
+  subtitle: string;
+  data: WebPlatformAdminChartDatum[];
+  actionLabel: string;
+  actionHref: string;
+}) {
+  const total = sumChartData(data);
+  const gradient = buildDonutGradient(data);
+  return (
+    <article className="ol-platform-admin-chart-card">
+      <ChartCardHeader title={title} subtitle={subtitle} actionLabel={actionLabel} actionHref={actionHref} />
+      <div className="ol-platform-admin-donut-wrap">
+        <div className="ol-platform-admin-donut" style={{ background: gradient }} aria-hidden="true">
+          <span>{total.toLocaleString('en-IN')}</span>
+        </div>
+        <ChartLegend data={data} />
+      </div>
+    </article>
+  );
+}
+
+function AdminStackedChart({
+  title,
+  subtitle,
+  data,
+  actionLabel,
+  actionHref,
+}: {
+  title: string;
+  subtitle: string;
+  data: WebPlatformAdminChartDatum[];
+  actionLabel: string;
+  actionHref: string;
+}) {
+  const total = Math.max(1, sumChartData(data));
+  return (
+    <article className="ol-platform-admin-chart-card">
+      <ChartCardHeader title={title} subtitle={subtitle} actionLabel={actionLabel} actionHref={actionHref} />
+      <div className="ol-platform-admin-stacked-chart" role="img" aria-label={`${title}: ${chartSummary(data)}`}>
+        <div className="ol-platform-admin-stacked-track">
+          {data.map((item, index) => (
+            <span
+              key={item.label}
+              data-chart-tone={index % 6}
+              style={{ flexBasis: `${(item.value / total) * 100}%` }}
+              title={`${item.label}: ${item.value}`}
+            />
+          ))}
+        </div>
+        <ChartLegend data={data} />
+      </div>
+    </article>
+  );
+}
+
+function AdminHorizontalBars({
+  title,
+  subtitle,
+  data,
+  actionLabel,
+  actionHref,
+}: {
+  title: string;
+  subtitle: string;
+  data: WebPlatformAdminChartDatum[];
+  actionLabel: string;
+  actionHref: string;
+}) {
+  const maxValue = Math.max(1, ...data.map((item) => item.value));
+  return (
+    <article className="ol-platform-admin-chart-card">
+      <ChartCardHeader title={title} subtitle={subtitle} actionLabel={actionLabel} actionHref={actionHref} />
+      <div className="ol-platform-admin-horizontal-bars" role="img" aria-label={`${title}: ${chartSummary(data)}`}>
+        {data.map((item, index) => (
+          <div key={item.label} className="ol-platform-admin-horizontal-row">
+            <div>
+              <span>{item.label}</span>
+              <strong>{item.value.toLocaleString('en-IN')}</strong>
+            </div>
+            <i>
+              <b data-chart-tone={index % 6} style={{ width: `${Math.max(4, (item.value / maxValue) * 100)}%` }} />
+            </i>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function ChartCardHeader({
+  title,
+  subtitle,
+  actionLabel,
+  actionHref,
+}: {
+  title: string;
+  subtitle: string;
+  actionLabel: string;
+  actionHref: string;
+}) {
+  return (
+    <div className="ol-platform-admin-chart-title">
+      <div>
+        <strong>{title}</strong>
+        <span>{subtitle}</span>
+      </div>
+      <a href={actionHref}>{actionLabel}</a>
+    </div>
+  );
+}
+
+function ChartLegend({ data }: { data: WebPlatformAdminChartDatum[] }) {
+  return (
+    <div className="ol-platform-admin-chart-legend">
+      {data.map((item, index) => (
+        <span key={item.label}>
+          <i data-chart-tone={index % 6} />
+          {item.label}
+          <strong>{item.value.toLocaleString('en-IN')}</strong>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function sumChartData(data: WebPlatformAdminChartDatum[]) {
+  return data.reduce((total, item) => total + item.value, 0);
+}
+
+function chartSummary(data: WebPlatformAdminChartDatum[]) {
+  return data.map((item) => `${item.label} ${item.value}`).join(', ');
+}
+
+function buildDonutGradient(data: WebPlatformAdminChartDatum[]) {
+  const total = sumChartData(data);
+  if (!total) {
+    return 'conic-gradient(rgba(191, 205, 225, 0.52) 0deg 360deg)';
+  }
+  let cursor = 0;
+  const stops = data.map((item, index) => {
+    const next = cursor + (item.value / total) * 360;
+    const color = `var(--ol-admin-chart-${index % 6})`;
+    const segment = `${color} ${cursor}deg ${next}deg`;
+    cursor = next;
+    return segment;
+  });
+  return `conic-gradient(${stops.join(', ')})`;
 }
 
 function StatusSignal({

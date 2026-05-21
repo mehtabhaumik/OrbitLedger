@@ -1990,7 +1990,7 @@ Platform Admin now opens as a cleaner control center instead of a long registry-
 - Operational signals for users under review, suspended users, active offers, and scheduled offers.
 - Work-area cards for Office, Support, Live Collections, Reports, and Settings so sidebar navigation lands on visible, non-dead surfaces.
 - Existing Admin accounts, Offers, Audit, User control, and Users functionality remains intact.
-- Mobile/tablet layout collapses to a single-column admin workspace with horizontally scrollable navigation.
+- Mobile/tablet layout collapses to a single-column admin workspace with responsive navigation.
 
 ### Boundaries
 
@@ -2001,3 +2001,30 @@ Platform Admin now opens as a cleaner control center instead of a long registry-
 ### Next Phase
 
 `PLATFORM ADMIN PHASE 9: Admin Charts + SaaS Health Metrics`
+
+## Platform Admin Phase 9: Admin Charts + SaaS Health Metrics
+
+Platform Admin now includes visual SaaS health monitoring inside the control center.
+
+### Included
+
+- Chart-ready admin health dataset builder for user growth, user status, workspace adoption, offer status, audit severity, and admin role mix.
+- New `SaaS Health` sidebar anchor.
+- Six-month new-user trend chart.
+- User status chart for active, no-workspace, and disabled users.
+- Workspace adoption chart for workspace owners, Office members, and users without workspace.
+- Offer status chart for active, scheduled, expired, deactivated, and removed offers.
+- Audit severity chart for high, medium, and low events.
+- Admin role distribution chart for Super Admin, Admin, Finance Admin, Support Admin, and Read-only Admin.
+- Chart cards include direct review links to the relevant admin sections.
+- Mobile/tablet chart layout collapses cleanly to single-column without horizontal overflow.
+
+### Boundaries
+
+- Charts use server-returned Platform Admin snapshot and audit data; the browser still cannot read protected admin collections directly.
+- Charts are operational summaries, not billing ledgers or revenue recognition.
+- This phase does not add new admin actions or mutate platform records.
+
+### Next Phase
+
+`PLATFORM ADMIN PHASE 10: Admin Reports + Print/Download`
