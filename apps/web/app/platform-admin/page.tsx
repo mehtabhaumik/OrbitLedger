@@ -120,6 +120,19 @@ const DEFAULT_AUDIT_FILTERS: WebPlatformAdminAuditFilters = {
   toDate: '',
 };
 
+const PLATFORM_ADMIN_NAV_ITEMS = [
+  { href: '#overview', label: 'Overview' },
+  { href: '#users', label: 'Users' },
+  { href: '#admins', label: 'Admins' },
+  { href: '#offers', label: 'Billing & Offers' },
+  { href: '#office', label: 'Office' },
+  { href: '#support', label: 'Support' },
+  { href: '#live-collections', label: 'Live Collections' },
+  { href: '#reports', label: 'Reports' },
+  { href: '#audit', label: 'Audit' },
+  { href: '#settings', label: 'Settings' },
+] as const;
+
 export default function PlatformAdminPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const [snapshot, setSnapshot] = useState<WebPlatformAdminSnapshot | null>(null);
@@ -171,6 +184,32 @@ export default function PlatformAdminPage() {
     !userControlForm.targetUid.trim() ||
     userControlForm.reason.trim().length < 10 ||
     (userControlNeedsMessage && userControlForm.message.trim().length < 10);
+  const activeOfferCount = useMemo(
+    () => (snapshot?.offers ?? []).filter((offer) => offer.status === 'active').length,
+    [snapshot?.offers]
+  );
+  const scheduledOfferCount = useMemo(
+    () => (snapshot?.offers ?? []).filter((offer) => offer.status === 'scheduled').length,
+    [snapshot?.offers]
+  );
+  const highSeverityAuditCount = useMemo(
+    () => auditTrail.filter((record) => record.severity === 'high').length,
+    [auditTrail]
+  );
+  const underReviewUserCount = useMemo(
+    () => (snapshot?.users ?? []).filter((userRecord) => userRecord.platformUserRiskStatus === 'under_review').length,
+    [snapshot?.users]
+  );
+  const suspendedUserCount = useMemo(
+    () => (snapshot?.users ?? []).filter((userRecord) => userRecord.disabled || userRecord.platformUserStatus === 'suspended').length,
+    [snapshot?.users]
+  );
+  const quickActionCount = [
+    isSuperAdmin,
+    canManageOffers,
+    canControlUsers,
+    visibleAuditRecords.length > 0,
+  ].filter(Boolean).length;
 
   useEffect(() => {
     if (isAuthLoading || !user) {
@@ -227,10 +266,31 @@ export default function PlatformAdminPage() {
     await refresh(snapshot.nextPageToken);
   }
 
+  function scrollToAdminSection(sectionId: string) {
+    window.setTimeout(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  }
+
   function openCreateAdminForm() {
     setAdminActionError(null);
     setAdminActionMessage(null);
     setAdminForm(DEFAULT_ADMIN_FORM);
+  }
+
+  function openCreateAdminFromOverview() {
+    openCreateAdminForm();
+    scrollToAdminSection('admins');
+  }
+
+  function focusUserSearchFromOverview() {
+    scrollToAdminSection('users');
+    window.setTimeout(() => document.getElementById('platform-admin-search')?.focus(), 160);
+  }
+
+  function reviewWarningsFromOverview() {
+    setSearch('under_review');
+    scrollToAdminSection('user-controls');
   }
 
   function openManageAdminForm(admin: WebPlatformAdminRegistryRecord, action: WebPlatformAdminAccountAction = 'change_role') {
@@ -345,6 +405,11 @@ export default function PlatformAdminPage() {
     setOfferError(null);
     setOfferMessage(null);
     setOfferForm(DEFAULT_OFFER_FORM);
+  }
+
+  function openCreateOfferFromOverview() {
+    openCreateOfferForm();
+    scrollToAdminSection('offers');
   }
 
   async function handleOfferSubmit(event: FormEvent<HTMLFormElement>) {
@@ -503,60 +568,144 @@ export default function PlatformAdminPage() {
           </div>
         ) : null}
 
-        <section className="ol-platform-admin-metrics" aria-label="Platform user metrics">
-          <MetricCard label="Registered users" value={snapshot?.metrics.userCount ?? 0} />
-          <MetricCard label="Verified emails" value={snapshot?.metrics.verifiedEmailCount ?? 0} />
-          <MetricCard label="Workspace owners" value={snapshot?.metrics.workspaceOwnerCount ?? 0} />
-          <MetricCard label="Platform admins" value={snapshot?.metrics.activePlatformAdminCount ?? 0} tone="premium" />
-          <MetricCard label="No workspace" value={snapshot?.metrics.usersWithoutWorkspaceCount ?? 0} tone="warning" />
-          <MetricCard label="Disabled users" value={snapshot?.metrics.disabledCount ?? 0} tone="danger" />
-        </section>
+        <div className="ol-platform-admin-layout">
+          <aside className="ol-platform-admin-sidebar" aria-label="Platform admin navigation">
+            <div>
+              <span className="ol-platform-admin-sidebar-label">Admin navigation</span>
+              <strong>Control center</strong>
+            </div>
+            <nav>
+              {PLATFORM_ADMIN_NAV_ITEMS.map((item) => (
+                <a key={item.href} href={item.href}>
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          </aside>
 
-        <section className="ol-panel ol-platform-admin-control-panel">
-          <div className="ol-platform-admin-status">
-            <div>
-              <span className="ol-muted">Role</span>
-              <strong>
-                {snapshot?.adminAccess
-                  ? `${getPlatformAdminRoleDefinition(snapshot.adminAccess.role).label} · ${snapshot.adminAccess.roleSource}`
-                  : 'Emergency allowlist'}
-              </strong>
-            </div>
-            <div>
-              <span className="ol-muted">Claims readiness</span>
-              <strong>{snapshot?.adminAccess?.customClaimsReady ? 'Custom claims active' : 'Allowlist fallback'}</strong>
-            </div>
-            <div>
-              <span className="ol-muted">Admin account</span>
-              <strong>{user.email}</strong>
-            </div>
-            <div>
-              <span className="ol-muted">Generated</span>
-              <strong>{formatPlatformAdminDate(snapshot?.generatedAt)}</strong>
-            </div>
-            <div>
-              <span className="ol-muted">Page state</span>
-              <strong>{snapshot?.hasMore ? 'More users available' : 'Current page loaded'}</strong>
-            </div>
-          </div>
-          <div className="ol-platform-admin-search">
-            <label className="ol-field-label" htmlFor="platform-admin-search">
-              Search users
-            </label>
-            <input
-              id="platform-admin-search"
-              className="ol-input"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Email, name, uid, workspace, or role"
-            />
-          </div>
-          <p className="ol-panel-copy">
-            This registry never shows passwords, provider secrets, payment secrets, or customer ledger data.
-          </p>
-        </section>
+          <div className="ol-platform-admin-workspace">
+            <section className="ol-platform-admin-overview" id="overview">
+              <div className="ol-platform-admin-section-head">
+                <div>
+                  <p className="ol-chip">Overview</p>
+                  <h2>Platform operations</h2>
+                  <p>Users, admins, offers, access signals, and audit readiness in one review surface.</p>
+                </div>
+                <span className="ol-platform-admin-status-pill" data-tone={highSeverityAuditCount ? 'danger' : 'success'}>
+                  {highSeverityAuditCount ? `${highSeverityAuditCount} high-risk audit item(s)` : 'No high-risk audit items loaded'}
+                </span>
+              </div>
 
-        <section className="ol-platform-admin-table-card">
+              <section className="ol-platform-admin-metrics" aria-label="Platform user metrics">
+                <MetricCard label="Registered users" value={snapshot?.metrics.userCount ?? 0} />
+                <MetricCard label="Verified emails" value={snapshot?.metrics.verifiedEmailCount ?? 0} />
+                <MetricCard label="Workspace owners" value={snapshot?.metrics.workspaceOwnerCount ?? 0} />
+                <MetricCard label="Platform admins" value={snapshot?.metrics.activePlatformAdminCount ?? 0} tone="premium" />
+                <MetricCard label="No workspace" value={snapshot?.metrics.usersWithoutWorkspaceCount ?? 0} tone="warning" />
+                <MetricCard label="Disabled users" value={snapshot?.metrics.disabledCount ?? 0} tone="danger" />
+              </section>
+
+              <div className="ol-platform-admin-dashboard-grid">
+                <section className="ol-platform-admin-quick-actions" aria-label="Platform admin quick actions">
+                  <div>
+                    <span className="ol-platform-admin-sidebar-label">Quick actions</span>
+                    <strong>{quickActionCount} available for your role</strong>
+                  </div>
+                  <div className="ol-platform-admin-quick-action-list">
+                    {isSuperAdmin ? (
+                      <button className="ol-button-secondary" type="button" onClick={openCreateAdminFromOverview}>
+                        Add admin
+                      </button>
+                    ) : null}
+                    <button className="ol-button-secondary" type="button" onClick={focusUserSearchFromOverview}>
+                      Search user
+                    </button>
+                    {canManageOffers ? (
+                      <button className="ol-button-secondary" type="button" onClick={openCreateOfferFromOverview}>
+                        Create offer
+                      </button>
+                    ) : null}
+                    {canControlUsers ? (
+                      <button className="ol-button-secondary" type="button" onClick={reviewWarningsFromOverview}>
+                        Review warnings
+                      </button>
+                    ) : null}
+                    <button
+                      className="ol-button-secondary"
+                      type="button"
+                      onClick={downloadAuditCsv}
+                      disabled={!visibleAuditRecords.length}
+                    >
+                      Export report
+                    </button>
+                  </div>
+                </section>
+
+                <section className="ol-platform-admin-health-card">
+                  <span className="ol-platform-admin-sidebar-label">Signals</span>
+                  <div className="ol-platform-admin-health-list">
+                    <StatusSignal label="Users under review" value={underReviewUserCount} tone={underReviewUserCount ? 'warning' : 'success'} />
+                    <StatusSignal label="Suspended users" value={suspendedUserCount} tone={suspendedUserCount ? 'danger' : 'success'} />
+                    <StatusSignal label="Active offers" value={activeOfferCount} tone={activeOfferCount ? 'premium' : 'default'} />
+                    <StatusSignal label="Scheduled offers" value={scheduledOfferCount} tone={scheduledOfferCount ? 'warning' : 'default'} />
+                  </div>
+                </section>
+              </div>
+
+              <section className="ol-platform-admin-operations-map" aria-label="Platform admin work areas">
+                <AdminAreaCard id="office" title="Office" value={`${snapshot?.metrics.officeMemberCount ?? 0} active member(s)`} detail="Team access and multi-company operations." />
+                <AdminAreaCard id="support" title="Support" value="Consent-bound" detail="Support review stays separate from user-led workspace control." />
+                <AdminAreaCard id="live-collections" title="Live Collections" value="Payment events" detail="Razorpay-linked payment updates and review signals." />
+                <AdminAreaCard id="reports" title="Reports" value="Print-ready" detail="Admin reports export from audit and registry data." />
+                <AdminAreaCard id="settings" title="Settings" value={snapshot?.adminAccess?.customClaimsReady ? 'Claims active' : 'Allowlist fallback'} detail="Admin session, permissions, and sensitive controls." />
+              </section>
+            </section>
+
+            <section className="ol-panel ol-platform-admin-control-panel">
+              <div className="ol-platform-admin-status">
+                <div>
+                  <span className="ol-muted">Role</span>
+                  <strong>
+                    {snapshot?.adminAccess
+                      ? `${getPlatformAdminRoleDefinition(snapshot.adminAccess.role).label} · ${snapshot.adminAccess.roleSource}`
+                      : 'Emergency allowlist'}
+                  </strong>
+                </div>
+                <div>
+                  <span className="ol-muted">Claims readiness</span>
+                  <strong>{snapshot?.adminAccess?.customClaimsReady ? 'Custom claims active' : 'Allowlist fallback'}</strong>
+                </div>
+                <div>
+                  <span className="ol-muted">Admin account</span>
+                  <strong>{user.email}</strong>
+                </div>
+                <div>
+                  <span className="ol-muted">Generated</span>
+                  <strong>{formatPlatformAdminDate(snapshot?.generatedAt)}</strong>
+                </div>
+                <div>
+                  <span className="ol-muted">Page state</span>
+                  <strong>{snapshot?.hasMore ? 'More users available' : 'Current page loaded'}</strong>
+                </div>
+              </div>
+              <div className="ol-platform-admin-search">
+                <label className="ol-field-label" htmlFor="platform-admin-search">
+                  Search users
+                </label>
+                <input
+                  id="platform-admin-search"
+                  className="ol-input"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Email, name, uid, workspace, or role"
+                />
+              </div>
+              <p className="ol-panel-copy">
+                This registry never shows passwords, provider secrets, payment secrets, or customer ledger data.
+              </p>
+            </section>
+
+        <section className="ol-platform-admin-table-card" id="admins">
           <div className="ol-platform-admin-table-head">
             <div>
               <strong>Admin accounts</strong>
@@ -709,7 +858,7 @@ export default function PlatformAdminPage() {
           </div>
         </section>
 
-        <section className="ol-platform-admin-table-card">
+        <section className="ol-platform-admin-table-card" id="offers">
           <div className="ol-platform-admin-table-head">
             <div>
               <strong>Offers</strong>
@@ -982,7 +1131,7 @@ export default function PlatformAdminPage() {
           </div>
         </section>
 
-        <section className="ol-platform-admin-table-card ol-platform-admin-audit-card">
+        <section className="ol-platform-admin-table-card ol-platform-admin-audit-card" id="audit">
           <div className="ol-platform-admin-table-head">
             <div>
               <strong>Admin audit trail</strong>
@@ -1116,7 +1265,7 @@ export default function PlatformAdminPage() {
         </section>
 
         {canControlUsers ? (
-          <section className="ol-platform-admin-table-card">
+          <section className="ol-platform-admin-table-card" id="user-controls">
             <div className="ol-platform-admin-table-head">
               <div>
                 <strong>User control actions</strong>
@@ -1253,7 +1402,7 @@ export default function PlatformAdminPage() {
           </section>
         ) : null}
 
-        <section className="ol-platform-admin-table-card">
+        <section className="ol-platform-admin-table-card" id="users">
           <div className="ol-platform-admin-table-head">
             <strong>Users</strong>
             <span>{users.length} shown</span>
@@ -1292,6 +1441,8 @@ export default function PlatformAdminPage() {
             </button>
           </div>
         </section>
+          </div>
+        </div>
       </section>
     </main>
   );
@@ -1310,6 +1461,33 @@ function MetricCard({
     <article className="ol-platform-admin-metric" data-tone={tone}>
       <span>{label}</span>
       <strong>{value.toLocaleString('en-IN')}</strong>
+    </article>
+  );
+}
+
+function StatusSignal({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string;
+  value: number;
+  tone?: 'default' | 'success' | 'warning' | 'danger' | 'premium';
+}) {
+  return (
+    <div className="ol-platform-admin-status-signal" data-tone={tone}>
+      <span>{label}</span>
+      <strong>{value.toLocaleString('en-IN')}</strong>
+    </div>
+  );
+}
+
+function AdminAreaCard({ id, title, value, detail }: { id: string; title: string; value: string; detail: string }) {
+  return (
+    <article className="ol-platform-admin-area-card" id={id}>
+      <span>{title}</span>
+      <strong>{value}</strong>
+      <p>{detail}</p>
     </article>
   );
 }

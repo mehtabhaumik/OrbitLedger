@@ -1977,3 +1977,27 @@ Platform Admin now has server-owned promotional offer controls for launch, seaso
 ### Next Phase
 
 `PLATFORM ADMIN PHASE 8: Admin Dashboard Redesign`
+
+## Platform Admin Phase 8: Admin Dashboard Redesign
+
+Platform Admin now opens as a cleaner control center instead of a long registry-first page.
+
+### Included
+
+- Sticky sidebar navigation for Overview, Users, Admins, Billing & Offers, Office, Support, Live Collections, Reports, Audit, and Settings.
+- Overview section with high-level platform metrics.
+- Quick actions for adding admins, searching users, creating offers, reviewing warnings, and exporting audit reports when the current role permits them.
+- Operational signals for users under review, suspended users, active offers, and scheduled offers.
+- Work-area cards for Office, Support, Live Collections, Reports, and Settings so sidebar navigation lands on visible, non-dead surfaces.
+- Existing Admin accounts, Offers, Audit, User control, and Users functionality remains intact.
+- Mobile/tablet layout collapses to a single-column admin workspace with horizontally scrollable navigation.
+
+### Boundaries
+
+- This phase does not add new charting; charts remain Phase 9.
+- This phase does not weaken server authorization. The sidebar and quick actions are UI entry points only.
+- Unimplemented operational areas are surfaced as review cards, not fake working tools.
+
+### Next Phase
+
+`PLATFORM ADMIN PHASE 9: Admin Charts + SaaS Health Metrics`
