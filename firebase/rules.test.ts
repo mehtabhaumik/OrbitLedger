@@ -80,6 +80,31 @@ describe('Firestore workspace rules', () => {
     );
   });
 
+  it('keeps platform admin registry server-owned', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().collection('platform_admins').doc('admin-1').set({
+        uid: 'admin-1',
+        email: 'admin@example.com',
+        role: 'super_admin',
+        status: 'active',
+        role_source: 'allowlist',
+      });
+      await context.firestore().collection('platform_users').doc('user-1').set({
+        uid: 'user-1',
+        email: 'user@example.com',
+      });
+      await context.firestore().collection('platform_admin_audit').doc('audit-1').set({
+        action: 'registry_snapshot_generated',
+      });
+    });
+
+    const user = testEnv.authenticatedContext('user-1').firestore();
+    await assertFails(user.collection('platform_admins').doc('admin-1').get());
+    await assertFails(user.collection('platform_admins').doc('user-1').set({ role: 'super_admin' }));
+    await assertFails(user.collection('platform_users').doc('user-1').get());
+    await assertFails(user.collection('platform_admin_audit').doc('audit-1').get());
+  });
+
   it('allows only the owning user to access workspace records', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await context.firestore().collection('workspaces').doc('workspace-1').set({

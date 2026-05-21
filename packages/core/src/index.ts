@@ -690,6 +690,29 @@ export type {
 } from './officeAccess';
 
 export {
+  canPlatformAdminGrantRole,
+  canPlatformAdminRole,
+  getPlatformAdminRoleDefinition,
+  isPlatformAdminRecordActive,
+  isPlatformAdminRole,
+  isPlatformAdminRoleSource,
+  isPlatformAdminStatus,
+  PLATFORM_ADMIN_PERMISSIONS,
+  PLATFORM_ADMIN_ROLE_DEFINITIONS,
+  PLATFORM_ADMIN_ROLE_SOURCES,
+  PLATFORM_ADMIN_ROLES,
+  PLATFORM_ADMIN_STATUSES,
+} from './platformAdmin';
+export type {
+  PlatformAdminPermission,
+  PlatformAdminRegistryRecord,
+  PlatformAdminRole,
+  PlatformAdminRoleDefinition,
+  PlatformAdminRoleSource,
+  PlatformAdminStatus,
+} from './platformAdmin';
+
+export {
   canOfficeActorChangeMemberRole,
   canOfficeActorInviteRole,
   canOfficeActorRemoveMember,

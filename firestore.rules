@@ -335,6 +335,10 @@ service cloud.firestore {
       allow read, create, update, delete: if false;
     }
 
+    match /platform_admins/{adminId} {
+      allow read, create, update, delete: if false;
+    }
+
     match /platform_admin_audit/{auditId} {
       allow read, create, update, delete: if false;
     }

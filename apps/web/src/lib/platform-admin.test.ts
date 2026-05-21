@@ -28,6 +28,11 @@ const baseUser: WebPlatformAdminUser = {
   workspaceCountries: ['IN'],
   officeRoles: [],
   latestWorkspaceUpdatedAt: '2026-05-21T12:00:00.000Z',
+  platformAdminRole: null,
+  platformAdminStatus: null,
+  platformAdminRoleSource: null,
+  platformAdminCustomClaimsReady: false,
+  platformAdminCustomClaimsRole: null,
   status: 'active',
 };
 
@@ -76,6 +81,11 @@ describe('platform admin registry helpers', () => {
         ownedWorkspaceCount: 0,
         officeWorkspaceCount: 0,
         workspaceNames: [],
+        platformAdminRole: 'super_admin',
+        platformAdminStatus: 'active',
+        platformAdminRoleSource: 'allowlist',
+        platformAdminCustomClaimsReady: false,
+        platformAdminCustomClaimsRole: null,
         status: 'no_workspace',
       },
     ];
@@ -89,6 +99,9 @@ describe('platform admin registry helpers', () => {
       workspaceOwnerCount: 1,
       officeMemberCount: 1,
       usersWithoutWorkspaceCount: 1,
+      platformAdminCount: 1,
+      activePlatformAdminCount: 1,
+      emergencyAllowlistAdminCount: 1,
     });
   });
 
@@ -107,6 +120,7 @@ describe('platform admin registry helpers', () => {
     expect(filterWebPlatformAdminUsers(users, 'rudraix')).toHaveLength(1);
     expect(filterWebPlatformAdminUsers(users, 'accountant_2')).toHaveLength(1);
     expect(filterWebPlatformAdminUsers(users, 'google.com')).toHaveLength(2);
+    expect(filterWebPlatformAdminUsers([{ ...baseUser, platformAdminRole: 'finance_admin' }], 'finance_admin')).toHaveLength(1);
     expect(filterWebPlatformAdminUsers(users, 'missing')).toHaveLength(0);
   });
 

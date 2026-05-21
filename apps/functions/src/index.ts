@@ -21,6 +21,41 @@ const ORBIT_LEDGER_EMERGENCY_ADMIN_EMAILS = [
   'mehtabhaumik.2007@gmail.com',
 ] as const;
 
+const PLATFORM_ADMIN_ROLES = ['super_admin', 'admin', 'finance_admin', 'support_admin', 'read_only_admin'] as const;
+const PLATFORM_ADMIN_STATUSES = ['active', 'suspended', 'revoked'] as const;
+const PLATFORM_ADMIN_ROLE_SOURCES = ['allowlist', 'registry', 'custom_claim'] as const;
+
+type PlatformAdminRole = (typeof PLATFORM_ADMIN_ROLES)[number];
+type PlatformAdminStatus = (typeof PLATFORM_ADMIN_STATUSES)[number];
+type PlatformAdminRoleSource = (typeof PLATFORM_ADMIN_ROLE_SOURCES)[number];
+type PlatformAdminFunctionPermission = 'view_registry' | 'review_office_access' | 'review_support_cases';
+type VerifiedRequestUser = { uid: string; email: string | null; claims: Record<string, unknown> };
+
+type PlatformAdminRegistryData = {
+  uid: string;
+  email: string | null;
+  display_name: string | null;
+  role: PlatformAdminRole;
+  status: PlatformAdminStatus;
+  role_source: PlatformAdminRoleSource;
+  custom_claims_ready: boolean;
+  custom_claims_platform_admin: boolean;
+  custom_claims_role: PlatformAdminRole | null;
+  created_by_uid: string | null;
+  created_by_email: string | null;
+  created_at: string | null;
+  updated_by_uid: string | null;
+  updated_by_email: string | null;
+  updated_at: string | null;
+  suspended_by_uid: string | null;
+  suspended_by_email: string | null;
+  suspended_at: string | null;
+  revoked_by_uid: string | null;
+  revoked_by_email: string | null;
+  revoked_at: string | null;
+  reason: string | null;
+};
+
 type ProviderSource = 'upi' | 'payment_page' | 'bank_transfer' | 'card' | 'wallet' | 'other';
 type ProviderPaymentStatus = 'succeeded' | 'pending' | 'failed' | 'refunded';
 
@@ -3285,7 +3320,8 @@ export const resolveOfficeAccessRequest = onRequest(
     }
 
     const adminUser = await verifyRequestUser(request);
-    if (!adminUser || !isAuthorizedInternalAdminEmail(adminUser.email)) {
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_office_access')) {
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
@@ -3511,7 +3547,8 @@ export const getPlatformAdminSnapshot = onRequest(
     }
 
     const adminUser = await verifyRequestUser(request);
-    if (!adminUser || !isAuthorizedInternalAdminEmail(adminUser.email)) {
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'view_registry')) {
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
@@ -3522,11 +3559,20 @@ export const getPlatformAdminSnapshot = onRequest(
     const generatedAt = new Date().toISOString();
 
     try {
-      const [authResult, workspaceSnapshot, memberSnapshot] = await Promise.all([
+      const [authResult, workspaceSnapshot, memberSnapshot, platformAdminSnapshot] = await Promise.all([
         admin.auth().listUsers(requestedLimit, pageToken ?? undefined),
         db.collection('workspaces').limit(3000).get(),
         db.collectionGroup('office_members').where('status', '==', 'active').limit(3000).get(),
+        db.collection('platform_admins').limit(1000).get(),
       ]);
+
+      const platformAdminByUid = new Map<string, PlatformAdminRegistryData>();
+      for (const adminDoc of platformAdminSnapshot.docs) {
+        const registryRecord = normalizePlatformAdminRegistryData(adminDoc.id, adminDoc.data());
+        if (registryRecord) {
+          platformAdminByUid.set(adminDoc.id, registryRecord);
+        }
+      }
 
       const workspaceByOwner = new Map<
         string,
@@ -3584,7 +3630,11 @@ export const getPlatformAdminSnapshot = onRequest(
         officeMembershipByUser.set(uid, current);
       }
 
+      const actorRegistry = adminAccess;
+      platformAdminByUid.set(adminUser.uid, actorRegistry);
+
       const registryBatch = db.batch();
+      registryBatch.set(db.collection('platform_admins').doc(adminUser.uid), actorRegistry, { merge: true });
       const users = authResult.users.map((authUser) => {
         const workspaceSummary = workspaceByOwner.get(authUser.uid) ?? {
           count: 0,
@@ -3594,6 +3644,9 @@ export const getPlatformAdminSnapshot = onRequest(
         };
         const officeSummary = officeMembershipByUser.get(authUser.uid) ?? { count: 0, roles: [] };
         const providerIds = authUser.providerData.map((provider) => provider.providerId).filter(Boolean).sort();
+        const customClaims = asRecord(authUser.customClaims) ?? {};
+        const customClaimsRole = normalizePlatformAdminRole(stringValue(customClaims.platform_admin_role));
+        const registryAdmin = platformAdminByUid.get(authUser.uid);
         const status = authUser.disabled ? 'disabled' : workspaceSummary.count > 0 || officeSummary.count > 0 ? 'active' : 'no_workspace';
         const registryRecord = {
           uid: authUser.uid,
@@ -3610,6 +3663,11 @@ export const getPlatformAdminSnapshot = onRequest(
           workspace_countries: workspaceSummary.countries,
           office_roles: officeSummary.roles,
           latest_workspace_updated_at: workspaceSummary.latestUpdatedAt,
+          platform_admin_role: registryAdmin?.role ?? customClaimsRole,
+          platform_admin_status: registryAdmin?.status ?? null,
+          platform_admin_role_source: registryAdmin?.role_source ?? (customClaimsRole ? 'custom_claim' : null),
+          platform_admin_custom_claims_ready: Boolean(customClaims.platform_admin === true),
+          platform_admin_custom_claims_role: customClaimsRole,
           status,
           synced_at: generatedAt,
           synced_by_uid: adminUser.uid,
@@ -3631,6 +3689,11 @@ export const getPlatformAdminSnapshot = onRequest(
           workspaceCountries: workspaceSummary.countries,
           officeRoles: officeSummary.roles,
           latestWorkspaceUpdatedAt: workspaceSummary.latestUpdatedAt,
+          platformAdminRole: registryAdmin?.role ?? customClaimsRole,
+          platformAdminStatus: registryAdmin?.status ?? null,
+          platformAdminRoleSource: registryAdmin?.role_source ?? (customClaimsRole ? 'custom_claim' : null),
+          platformAdminCustomClaimsReady: Boolean(customClaims.platform_admin === true),
+          platformAdminCustomClaimsRole: customClaimsRole,
           status,
         };
       });
@@ -3642,6 +3705,9 @@ export const getPlatformAdminSnapshot = onRequest(
         actor_email: adminUser.email ?? null,
         generated_at: generatedAt,
         user_count: metrics.userCount,
+        platform_admin_count: platformAdminByUid.size,
+        actor_role: actorRegistry.role,
+        actor_role_source: actorRegistry.role_source,
         disabled_count: metrics.disabledCount,
         verified_email_count: metrics.verifiedEmailCount,
         workspace_owner_count: metrics.workspaceOwnerCount,
@@ -3655,6 +3721,16 @@ export const getPlatformAdminSnapshot = onRequest(
         generatedAt,
         nextPageToken: authResult.pageToken ?? null,
         hasMore: Boolean(authResult.pageToken),
+        adminAccess: {
+          uid: adminUser.uid,
+          email: adminUser.email ?? null,
+          role: actorRegistry.role,
+          status: actorRegistry.status,
+          roleSource: actorRegistry.role_source,
+          customClaimsReady: actorRegistry.custom_claims_ready,
+          customClaimsPlatformAdmin: actorRegistry.custom_claims_platform_admin,
+          customClaimsRole: actorRegistry.custom_claims_role,
+        },
         metrics,
         users,
       });
@@ -3683,7 +3759,8 @@ export const recordOfficeSupportReview = onRequest(
     }
 
     const adminUser = await verifyRequestUser(request);
-    if (!adminUser || !isAuthorizedInternalAdminEmail(adminUser.email)) {
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_support_cases')) {
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
@@ -3754,7 +3831,8 @@ export const recordSupportCaseAdminAction = onRequest(
     }
 
     const adminUser = await verifyRequestUser(request);
-    if (!adminUser || !isAuthorizedInternalAdminEmail(adminUser.email)) {
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_support_cases')) {
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
@@ -3870,7 +3948,8 @@ export const queueSupportCaseFollowUpEmail = onRequest(
     }
 
     const adminUser = await verifyRequestUser(request);
-    if (!adminUser || !isAuthorizedInternalAdminEmail(adminUser.email)) {
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_support_cases')) {
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
@@ -7404,6 +7483,171 @@ function isAuthorizedInternalAdminEmail(email: string | null): boolean {
   return allowlist.includes(email.trim().toLowerCase());
 }
 
+async function resolvePlatformAdminAccess(user: VerifiedRequestUser): Promise<PlatformAdminRegistryData | null> {
+  const existingSnapshot = await db.collection('platform_admins').doc(user.uid).get();
+  const existing = existingSnapshot.exists
+    ? normalizePlatformAdminRegistryData(existingSnapshot.id, existingSnapshot.data() ?? {})
+    : null;
+
+  if (isAuthorizedInternalAdminEmail(user.email)) {
+    return buildAllowlistPlatformAdminRegistryData({
+      uid: user.uid,
+      email: user.email,
+      displayName: clean(stringValue(user.claims.name)) ?? null,
+      existing,
+      customClaims: user.claims,
+      now: new Date().toISOString(),
+    });
+  }
+
+  const customClaimRole = normalizePlatformAdminRole(stringValue(user.claims.platform_admin_role));
+  if (user.claims.platform_admin === true && customClaimRole) {
+    return {
+      uid: user.uid,
+      email: user.email,
+      display_name: clean(stringValue(user.claims.name)) ?? existing?.display_name ?? null,
+      role: customClaimRole,
+      status: 'active',
+      role_source: 'custom_claim',
+      custom_claims_ready: true,
+      custom_claims_platform_admin: true,
+      custom_claims_role: customClaimRole,
+      created_by_uid: existing?.created_by_uid ?? null,
+      created_by_email: existing?.created_by_email ?? null,
+      created_at: existing?.created_at ?? null,
+      updated_by_uid: existing?.updated_by_uid ?? null,
+      updated_by_email: existing?.updated_by_email ?? null,
+      updated_at: existing?.updated_at ?? null,
+      suspended_by_uid: existing?.suspended_by_uid ?? null,
+      suspended_by_email: existing?.suspended_by_email ?? null,
+      suspended_at: existing?.suspended_at ?? null,
+      revoked_by_uid: existing?.revoked_by_uid ?? null,
+      revoked_by_email: existing?.revoked_by_email ?? null,
+      revoked_at: existing?.revoked_at ?? null,
+      reason: existing?.reason ?? 'Firebase custom claim platform admin access.',
+    };
+  }
+
+  if (existing?.status === 'active') {
+    return existing;
+  }
+
+  return null;
+}
+
+function canPlatformAdminUseFunction(
+  access: PlatformAdminRegistryData,
+  permission: PlatformAdminFunctionPermission
+): boolean {
+  if (access.status !== 'active') {
+    return false;
+  }
+
+  if (access.role === 'super_admin') {
+    return true;
+  }
+
+  if (permission === 'view_registry') {
+    return ['admin', 'finance_admin', 'support_admin', 'read_only_admin'].includes(access.role);
+  }
+
+  if (permission === 'review_office_access') {
+    return access.role === 'admin';
+  }
+
+  if (permission === 'review_support_cases') {
+    return access.role === 'admin' || access.role === 'support_admin';
+  }
+
+  return false;
+}
+
+function normalizePlatformAdminRole(value: string | null): PlatformAdminRole | null {
+  return PLATFORM_ADMIN_ROLES.includes(value as PlatformAdminRole) ? (value as PlatformAdminRole) : null;
+}
+
+function normalizePlatformAdminStatus(value: string | null): PlatformAdminStatus | null {
+  return PLATFORM_ADMIN_STATUSES.includes(value as PlatformAdminStatus) ? (value as PlatformAdminStatus) : null;
+}
+
+function normalizePlatformAdminRoleSource(value: string | null): PlatformAdminRoleSource | null {
+  return PLATFORM_ADMIN_ROLE_SOURCES.includes(value as PlatformAdminRoleSource)
+    ? (value as PlatformAdminRoleSource)
+    : null;
+}
+
+function normalizePlatformAdminRegistryData(
+  uid: string,
+  data: FirebaseFirestore.DocumentData
+): PlatformAdminRegistryData | null {
+  const role = normalizePlatformAdminRole(stringValue(data.role));
+  const status = normalizePlatformAdminStatus(stringValue(data.status));
+  const roleSource = normalizePlatformAdminRoleSource(stringValue(data.role_source));
+  if (!role || !status || !roleSource) {
+    return null;
+  }
+
+  return {
+    uid: clean(stringValue(data.uid)) ?? uid,
+    email: clean(stringValue(data.email)),
+    display_name: clean(stringValue(data.display_name)),
+    role,
+    status,
+    role_source: roleSource,
+    custom_claims_ready: data.custom_claims_ready === true,
+    custom_claims_platform_admin: data.custom_claims_platform_admin === true,
+    custom_claims_role: normalizePlatformAdminRole(stringValue(data.custom_claims_role)),
+    created_by_uid: clean(stringValue(data.created_by_uid)),
+    created_by_email: clean(stringValue(data.created_by_email)),
+    created_at: clean(stringValue(data.created_at)),
+    updated_by_uid: clean(stringValue(data.updated_by_uid)),
+    updated_by_email: clean(stringValue(data.updated_by_email)),
+    updated_at: clean(stringValue(data.updated_at)),
+    suspended_by_uid: clean(stringValue(data.suspended_by_uid)),
+    suspended_by_email: clean(stringValue(data.suspended_by_email)),
+    suspended_at: clean(stringValue(data.suspended_at)),
+    revoked_by_uid: clean(stringValue(data.revoked_by_uid)),
+    revoked_by_email: clean(stringValue(data.revoked_by_email)),
+    revoked_at: clean(stringValue(data.revoked_at)),
+    reason: clean(stringValue(data.reason)),
+  };
+}
+
+function buildAllowlistPlatformAdminRegistryData(input: {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  existing: PlatformAdminRegistryData | null;
+  customClaims: Record<string, unknown>;
+  now: string;
+}): PlatformAdminRegistryData {
+  const customClaimsRole = normalizePlatformAdminRole(stringValue(input.customClaims.platform_admin_role));
+  return {
+    uid: input.uid,
+    email: input.email,
+    display_name: input.displayName ?? input.existing?.display_name ?? null,
+    role: 'super_admin',
+    status: 'active',
+    role_source: 'allowlist',
+    custom_claims_ready: input.customClaims.platform_admin === true,
+    custom_claims_platform_admin: input.customClaims.platform_admin === true,
+    custom_claims_role: customClaimsRole,
+    created_by_uid: input.existing?.created_by_uid ?? input.uid,
+    created_by_email: input.existing?.created_by_email ?? input.email,
+    created_at: input.existing?.created_at ?? input.now,
+    updated_by_uid: input.uid,
+    updated_by_email: input.email,
+    updated_at: input.now,
+    suspended_by_uid: null,
+    suspended_by_email: null,
+    suspended_at: null,
+    revoked_by_uid: null,
+    revoked_by_email: null,
+    revoked_at: null,
+    reason: input.existing?.reason ?? 'Emergency allowlist Super Admin access.',
+  };
+}
+
 function buildPlatformAdminMetrics(
   users: Array<{
     disabled: boolean;
@@ -7411,6 +7655,9 @@ function buildPlatformAdminMetrics(
     ownedWorkspaceCount: number;
     officeWorkspaceCount: number;
     providerIds: string[];
+    platformAdminRole?: PlatformAdminRole | null;
+    platformAdminStatus?: PlatformAdminStatus | null;
+    platformAdminRoleSource?: PlatformAdminRoleSource | null;
   }>
 ) {
   return {
@@ -7424,6 +7671,9 @@ function buildPlatformAdminMetrics(
     usersWithoutWorkspaceCount: users.filter(
       (user) => !user.disabled && user.ownedWorkspaceCount === 0 && user.officeWorkspaceCount === 0
     ).length,
+    platformAdminCount: users.filter((user) => Boolean(user.platformAdminRole)).length,
+    activePlatformAdminCount: users.filter((user) => user.platformAdminStatus === 'active').length,
+    emergencyAllowlistAdminCount: users.filter((user) => user.platformAdminRoleSource === 'allowlist').length,
   };
 }
 
@@ -9127,7 +9377,9 @@ function metadataValue(metadata: Record<string, string>, ...keys: string[]): str
   return null;
 }
 
-async function verifyRequestUser(request: { header(name: string): string | undefined }): Promise<{ uid: string; email: string | null } | null> {
+async function verifyRequestUser(
+  request: { header(name: string): string | undefined }
+): Promise<{ uid: string; email: string | null; claims: Record<string, unknown> } | null> {
   const authorization = request.header('authorization') ?? '';
   if (!authorization.toLowerCase().startsWith('bearer ')) {
     return null;
@@ -9139,6 +9391,7 @@ async function verifyRequestUser(request: { header(name: string): string | undef
     return {
       uid: decodedToken.uid,
       email: typeof decodedToken.email === 'string' ? decodedToken.email : null,
+      claims: decodedToken as Record<string, unknown>,
     };
   } catch {
     return null;

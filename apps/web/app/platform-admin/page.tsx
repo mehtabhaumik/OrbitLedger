@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { getPlatformAdminRoleDefinition } from '@orbit-ledger/core';
 
 import {
   filterWebPlatformAdminUsers,
@@ -147,12 +148,25 @@ export default function PlatformAdminPage() {
           <MetricCard label="Registered users" value={snapshot?.metrics.userCount ?? 0} />
           <MetricCard label="Verified emails" value={snapshot?.metrics.verifiedEmailCount ?? 0} />
           <MetricCard label="Workspace owners" value={snapshot?.metrics.workspaceOwnerCount ?? 0} />
+          <MetricCard label="Platform admins" value={snapshot?.metrics.activePlatformAdminCount ?? 0} tone="premium" />
           <MetricCard label="No workspace" value={snapshot?.metrics.usersWithoutWorkspaceCount ?? 0} tone="warning" />
           <MetricCard label="Disabled users" value={snapshot?.metrics.disabledCount ?? 0} tone="danger" />
         </section>
 
         <section className="ol-panel ol-platform-admin-control-panel">
           <div className="ol-platform-admin-status">
+            <div>
+              <span className="ol-muted">Role</span>
+              <strong>
+                {snapshot?.adminAccess
+                  ? `${getPlatformAdminRoleDefinition(snapshot.adminAccess.role).label} · ${snapshot.adminAccess.roleSource}`
+                  : 'Emergency allowlist'}
+              </strong>
+            </div>
+            <div>
+              <span className="ol-muted">Claims readiness</span>
+              <strong>{snapshot?.adminAccess?.customClaimsReady ? 'Custom claims active' : 'Allowlist fallback'}</strong>
+            </div>
             <div>
               <span className="ol-muted">Admin account</span>
               <strong>{user.email}</strong>
@@ -221,7 +235,15 @@ export default function PlatformAdminPage() {
   );
 }
 
-function MetricCard({ label, value, tone = 'default' }: { label: string; value: number; tone?: 'default' | 'warning' | 'danger' }) {
+function MetricCard({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string;
+  value: number;
+  tone?: 'default' | 'warning' | 'danger' | 'premium';
+}) {
   return (
     <article className="ol-platform-admin-metric" data-tone={tone}>
       <span>{label}</span>
@@ -255,6 +277,11 @@ function UserRow({ user }: { user: WebPlatformAdminUser }) {
       </div>
       <div className="ol-platform-admin-user-meta">
         <StatusPill user={user} />
+        {user.platformAdminRole ? (
+          <span>
+            {getPlatformAdminRoleDefinition(user.platformAdminRole).label} · {user.platformAdminRoleSource ?? 'registry'}
+          </span>
+        ) : null}
         <span>{user.providerIds.length ? user.providerIds.join(', ') : 'No provider'}</span>
       </div>
       <div className="ol-platform-admin-user-meta">

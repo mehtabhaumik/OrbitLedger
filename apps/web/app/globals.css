@@ -3098,7 +3098,7 @@ a:focus-visible {
 
 .ol-platform-admin-metrics {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -3136,6 +3136,10 @@ a:focus-visible {
 
 .ol-platform-admin-metric[data-tone="danger"] strong {
   color: var(--danger);
+}
+
+.ol-platform-admin-metric[data-tone="premium"] strong {
+  color: #265bb8;
 }
 
 .ol-platform-admin-control-panel {

@@ -1,3 +1,5 @@
+import type { PlatformAdminRole, PlatformAdminRoleSource, PlatformAdminStatus } from '@orbit-ledger/core';
+
 import { getWebAuth, getWebFirebaseProjectId } from './firebase';
 export { isWebPlatformAdminAllowed } from './platform-admin-access';
 
@@ -18,7 +20,23 @@ export type WebPlatformAdminUser = {
   workspaceCountries: string[];
   officeRoles: string[];
   latestWorkspaceUpdatedAt: string | null;
+  platformAdminRole: PlatformAdminRole | null;
+  platformAdminStatus: PlatformAdminStatus | null;
+  platformAdminRoleSource: PlatformAdminRoleSource | null;
+  platformAdminCustomClaimsReady: boolean;
+  platformAdminCustomClaimsRole: PlatformAdminRole | null;
   status: WebPlatformAdminUserStatus;
+};
+
+export type WebPlatformAdminAccess = {
+  uid: string;
+  email: string | null;
+  role: PlatformAdminRole;
+  status: PlatformAdminStatus;
+  roleSource: PlatformAdminRoleSource;
+  customClaimsReady: boolean;
+  customClaimsPlatformAdmin: boolean;
+  customClaimsRole: PlatformAdminRole | null;
 };
 
 export type WebPlatformAdminMetrics = {
@@ -30,12 +48,16 @@ export type WebPlatformAdminMetrics = {
   workspaceOwnerCount: number;
   officeMemberCount: number;
   usersWithoutWorkspaceCount: number;
+  platformAdminCount: number;
+  activePlatformAdminCount: number;
+  emergencyAllowlistAdminCount: number;
 };
 
 export type WebPlatformAdminSnapshot = {
   generatedAt: string;
   nextPageToken: string | null;
   hasMore: boolean;
+  adminAccess: WebPlatformAdminAccess | null;
   metrics: WebPlatformAdminMetrics;
   users: WebPlatformAdminUser[];
 };
@@ -52,6 +74,9 @@ export function buildWebPlatformAdminMetrics(users: WebPlatformAdminUser[]): Web
     usersWithoutWorkspaceCount: users.filter(
       (user) => !user.disabled && user.ownedWorkspaceCount === 0 && user.officeWorkspaceCount === 0
     ).length,
+    platformAdminCount: users.filter((user) => Boolean(user.platformAdminRole)).length,
+    activePlatformAdminCount: users.filter((user) => user.platformAdminStatus === 'active').length,
+    emergencyAllowlistAdminCount: users.filter((user) => user.platformAdminRoleSource === 'allowlist').length,
   };
 }
 
@@ -69,6 +94,9 @@ export function filterWebPlatformAdminUsers(users: WebPlatformAdminUser[], searc
       ...user.providerIds,
       ...user.workspaceNames,
       ...user.officeRoles,
+      user.platformAdminRole ?? '',
+      user.platformAdminStatus ?? '',
+      user.platformAdminRoleSource ?? '',
     ]
       .join(' ')
       .toLowerCase()
@@ -133,6 +161,7 @@ export async function loadWebPlatformAdminSnapshot(input: {
     generatedAt: result.generatedAt,
     nextPageToken: result.nextPageToken,
     hasMore: result.hasMore,
+    adminAccess: result.adminAccess ?? null,
     metrics: result.metrics,
     users: result.users,
   };

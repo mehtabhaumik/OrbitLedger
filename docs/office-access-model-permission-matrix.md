@@ -443,6 +443,39 @@ Recommended next keyword:
 
 `EXECUTE OFFICE PHASE 5: Trusted Grant Actions + Server Audit Writes`
 
+## Platform Admin Phase 3 Registry Readiness
+
+Platform admin access now has two layers:
+
+- emergency allowlist for break-glass Super Admin recovery,
+- server-owned `platform_admins/{uid}` registry for role-managed admin accounts.
+
+The approved platform admin roles are:
+
+- `super_admin`
+- `admin`
+- `finance_admin`
+- `support_admin`
+- `read_only_admin`
+
+Admin identity is email-based through Firebase Auth. The registry tracks the signed-in Firebase `uid`, email, optional display name, role, status, role source, custom-claims readiness, audit creator/updater fields, revoke/suspend fields, and reason.
+
+Role source can be:
+
+- `allowlist`
+- `registry`
+- `custom_claim`
+
+The emergency allowlist remains a recovery path and is not fully revocable from the UI. Registry records are server-owned; Firestore rules block direct browser read/write access to `platform_admins`, `platform_users`, and `platform_admin_audit`.
+
+The custom-claims path is prepared through registry fields:
+
+- `custom_claims_ready`
+- `custom_claims_platform_admin`
+- `custom_claims_role`
+
+Custom claims are not yet the primary authorization source. The next admin phases should add trusted server actions for creating/updating admin accounts and, later, setting Firebase Auth custom claims.
+
 ## Phase 5 Trusted Grant Actions And Server Audit Writes
 
 The hidden Office operations UI now calls a trusted Cloud Function:
