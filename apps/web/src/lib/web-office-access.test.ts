@@ -19,6 +19,21 @@ describe('web office access guards', () => {
     expect(getWebOfficeRouteAccess('/settings', state).allowed).toBe(true);
   });
 
+  it('lets platform admins test all workspace routes and sensitive actions', () => {
+    const state = buildWebOfficeAccessState({ member: null, fallbackToOwner: false, platformAdmin: true });
+
+    expect(state).toMatchObject({
+      source: 'platform_admin',
+      roleLabel: 'Admin access',
+      canAccessWorkspace: true,
+      isPlatformAdmin: true,
+    });
+    expect(getWebOfficeRouteAccess('/market', state).allowed).toBe(true);
+    expect(getWebOfficeRouteAccess('/team', state).allowed).toBe(true);
+    expect(canUseWebOfficePermission(state, 'manage_billing_entitlement')).toBe(true);
+    expect(canUseWebOfficePermission(state, 'restore_backup')).toBe(true);
+  });
+
   it('allows viewers to view invoices but blocks sensitive routes', () => {
     const state = buildWebOfficeAccessState({ member: member('viewer'), fallbackToOwner: true });
 

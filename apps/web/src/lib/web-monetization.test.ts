@@ -7,6 +7,7 @@ import {
   getWebFeatureRequiredPlanLabel,
   getWebPaidPlanCatalogForCountry,
   getWebPaidSubscriptionStatus,
+  getWebPlatformAdminSubscriptionStatus,
   getWebPurchaseStatusCopy,
   WEB_OFFICE_INVITATION_SUBJECT,
   buildWebOfficeInvitationMailto,
@@ -96,6 +97,29 @@ describe('web monetization feature gates', () => {
       allowed: true,
       requiredTier: 'office',
     });
+  });
+
+  it('gives platform admins every tier feature without changing normal user gates', () => {
+    const admin = getWebPlatformAdminSubscriptionStatus('2026-05-21T00:00:00.000Z');
+    const free = getDefaultWebSubscriptionStatus();
+
+    expect(admin).toMatchObject({
+      tier: 'office',
+      tierLabel: 'Office',
+      isPro: true,
+      source: 'platform_admin',
+      validUntil: null,
+    });
+    expect(resolveWebFeatureAccess(admin, 'multi_user_workspace')).toMatchObject({
+      allowed: true,
+      requiredTier: 'office',
+    });
+    expect(resolveWebFeatureAccess(admin, 'recurring_auto_email')).toMatchObject({
+      allowed: true,
+      requiredTier: 'pro',
+    });
+    expect(getWebFeaturePlanChip(admin, 'multi_user_workspace')).toBe('Admin access');
+    expect(getWebFeaturePlanChip(free, 'multi_user_workspace')).toBe('Requires Office');
   });
 
   it('separates one-owner multi-company access from Office team access', () => {
@@ -331,6 +355,11 @@ describe('web monetization feature gates', () => {
       tone: 'free',
       chip: 'Free',
     });
+    expect(getWebPurchaseStatusCopy(getWebPlatformAdminSubscriptionStatus(), null, false)).toMatchObject({
+      tone: 'active',
+      title: 'Admin access active',
+      chip: 'Admin access',
+    });
   });
 
   it('allows new paid checkout and higher-tier upgrades only', () => {
@@ -351,6 +380,15 @@ describe('web monetization feature gates', () => {
       canStartCheckout: false,
       canQueueRenewalChange: true,
       buttonLabel: 'Change at renewal',
+    });
+  });
+
+  it('does not send platform admins into checkout for tier testing', () => {
+    expect(resolveWebPlanChangeRule(getWebPlatformAdminSubscriptionStatus(), 'office_yearly')).toMatchObject({
+      kind: 'current_plan',
+      canStartCheckout: false,
+      canQueueRenewalChange: false,
+      buttonLabel: 'Admin access',
     });
   });
 

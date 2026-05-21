@@ -10,7 +10,7 @@ import {
   type OfficeWorkspaceRole,
 } from '@orbit-ledger/core';
 
-export type WebOfficeAccessSource = 'member' | 'owner_fallback' | 'inactive_member' | 'unavailable';
+export type WebOfficeAccessSource = 'platform_admin' | 'member' | 'owner_fallback' | 'inactive_member' | 'unavailable';
 
 export type WebOfficeAccessState = {
   role: OfficeWorkspaceRole | null;
@@ -19,6 +19,7 @@ export type WebOfficeAccessState = {
   source: WebOfficeAccessSource;
   canAccessWorkspace: boolean;
   message: string;
+  isPlatformAdmin: boolean;
 };
 
 export type WebOfficeRouteAccess = {
@@ -108,7 +109,20 @@ export const WEB_OFFICE_SENSITIVE_ACTIONS = [
 export function buildWebOfficeAccessState(input: {
   member: OfficeMembershipRecord | null;
   fallbackToOwner: boolean;
+  platformAdmin?: boolean;
 }): WebOfficeAccessState {
+  if (input.platformAdmin) {
+    return {
+      role: 'owner',
+      roleLabel: 'Admin access',
+      member: null,
+      source: 'platform_admin',
+      canAccessWorkspace: true,
+      message: 'Platform admin access is active for this workspace.',
+      isPlatformAdmin: true,
+    };
+  }
+
   if (input.member) {
     const canAccessWorkspace = canOfficeMemberAccessWorkspace(input.member);
     const roleLabel = getOfficeRoleDefinition(input.member.role).label;
@@ -121,6 +135,7 @@ export function buildWebOfficeAccessState(input: {
       message: canAccessWorkspace
         ? `You are signed in as ${roleLabel}.`
         : 'Your Office access is not active for this workspace.',
+      isPlatformAdmin: false,
     };
   }
 
@@ -132,6 +147,7 @@ export function buildWebOfficeAccessState(input: {
       source: 'owner_fallback',
       canAccessWorkspace: true,
       message: 'You have owner access for this workspace.',
+      isPlatformAdmin: false,
     };
   }
 
@@ -142,10 +158,15 @@ export function buildWebOfficeAccessState(input: {
     source: 'unavailable',
     canAccessWorkspace: false,
     message: 'Office access could not be confirmed for this workspace.',
+    isPlatformAdmin: false,
   };
 }
 
 export function canUseWebOfficePermission(state: WebOfficeAccessState, permission: OfficePermission) {
+  if (state.isPlatformAdmin) {
+    return true;
+  }
+
   if (!state.canAccessWorkspace || !state.role) {
     return false;
   }

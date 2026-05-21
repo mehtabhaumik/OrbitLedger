@@ -24,7 +24,8 @@ export type WebSubscriptionSource =
   | 'purchase_cache'
   | 'restore_cache'
   | 'server_entitlement'
-  | 'development';
+  | 'development'
+  | 'platform_admin';
 
 export type WebSubscriptionFeature =
   | 'business_setup'
@@ -500,6 +501,20 @@ export function getDefaultWebSubscriptionStatus(): WebSubscriptionStatus {
   });
 }
 
+export function getWebPlatformAdminSubscriptionStatus(
+  updatedAt: string | null = new Date().toISOString()
+): WebSubscriptionStatus {
+  return hydrateWebSubscriptionStatus({
+    version: WEB_SUBSCRIPTION_STATUS_VERSION,
+    tier: 'office',
+    planId: null,
+    productId: null,
+    source: 'platform_admin',
+    updatedAt,
+    validUntil: null,
+  });
+}
+
 export function getWebPaidSubscriptionStatus(
   planId: OrbitLedgerPaidPlanId,
   options: { source?: WebSubscriptionSource; validUntil?: string | null; updatedAt?: string | null } = {}
@@ -525,6 +540,7 @@ export function resolveWebFeatureAccess(status: WebSubscriptionStatus, feature: 
   const requiredTier = webFeatureRequiredTier[feature];
   const officeOnlyFeatures: WebSubscriptionFeature[] = ['multi_user_workspace', 'accountant_exports', 'priority_support'];
   const allowed =
+    status.source === 'platform_admin' ||
     (WEB_BETA_FREE_ONLY && !officeOnlyFeatures.includes(feature)) ||
     requiredTier === 'free' ||
     isOrbitLedgerTierAtLeast(status.tier, requiredTier);
@@ -633,6 +649,9 @@ export function buildWebOfficeInvitationMailto(input: WebOfficeInvitationInput):
 
 export function getWebFeaturePlanChip(status: WebSubscriptionStatus, feature: WebSubscriptionFeature): string {
   const access = resolveWebFeatureAccess(status, feature);
+  if (status.source === 'platform_admin') {
+    return 'Admin access';
+  }
   if (WEB_BETA_FREE_ONLY && access.allowed) {
     return 'Included during beta';
   }
@@ -644,6 +663,15 @@ export function getWebPurchaseStatusCopy(
   checkoutIntent: WebCheckoutIntent | null,
   isChecking: boolean
 ): WebPurchaseStatusCopy {
+  if (status.source === 'platform_admin') {
+    return {
+      tone: 'active',
+      title: 'Admin access active',
+      message: 'This account can test all Orbit Ledger tiers and features. Normal user billing rules are unchanged.',
+      chip: 'Admin access',
+    };
+  }
+
   if (isChecking) {
     return {
       tone: 'checking',
@@ -707,6 +735,18 @@ export function resolveWebPlanChangeRule(
   const targetPlan = getOrbitLedgerPaidPlan(targetPlanId);
   const currentPlan = status.planId ? getOrbitLedgerPaidPlan(status.planId) : null;
   const targetTierLabel = getOrbitLedgerPlanDefinition(targetPlan.tier).label;
+
+  if (status.source === 'platform_admin') {
+    return {
+      kind: 'current_plan',
+      canStartCheckout: false,
+      canQueueRenewalChange: false,
+      buttonLabel: 'Admin access',
+      helper: 'Platform admin accounts can test this tier without checkout. Normal user pricing remains enforced.',
+      chip: 'Admin access',
+      tone: 'success',
+    };
+  }
 
   if (checkoutIntent?.status === 'pending') {
     return {
@@ -1110,7 +1150,8 @@ function isWebSubscriptionSource(value: unknown): value is WebSubscriptionSource
     value === 'purchase_cache' ||
     value === 'restore_cache' ||
     value === 'server_entitlement' ||
-    value === 'development'
+    value === 'development' ||
+    value === 'platform_admin'
   );
 }
 

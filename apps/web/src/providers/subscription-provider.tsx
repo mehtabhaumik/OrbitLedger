@@ -15,6 +15,7 @@ import {
   createWebStoredSubscriptionStatus,
   createWebSubscriptionStorageKey,
   getDefaultWebSubscriptionStatus,
+  getWebPlatformAdminSubscriptionStatus,
   hydrateWebSubscriptionStatus,
   failWebCheckoutIntent,
   parseWebCheckoutIntent,
@@ -28,6 +29,7 @@ import {
   type WebSubscriptionStatus,
   type WebStoredSubscriptionStatus,
 } from '@/lib/web-monetization';
+import { isWebPlatformAdminAllowed } from '@/lib/platform-admin-access';
 import { loadServerSubscriptionEntitlement } from '@/lib/subscription-entitlements';
 import { useAuth } from './auth-provider';
 import { useWorkspace } from './workspace-provider';
@@ -57,8 +59,16 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const storageKey = user ? createWebSubscriptionStorageKey(user.uid, activeWorkspace?.workspaceId) : null;
   const checkoutStorageKey = user ? createWebCheckoutIntentStorageKey(user.uid, activeWorkspace?.workspaceId) : null;
+  const isPlatformAdmin = isWebPlatformAdminAllowed(user?.email);
+
+  function readAdminStatus() {
+    return getWebPlatformAdminSubscriptionStatus();
+  }
 
   function readStatus() {
+    if (isPlatformAdmin) {
+      return readAdminStatus();
+    }
     if (WEB_BETA_FREE_ONLY) {
       return getDefaultWebSubscriptionStatus();
     }
@@ -70,6 +80,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }
 
   function writeStatus(nextStatus: WebStoredSubscriptionStatus) {
+    if (isPlatformAdmin) {
+      const adminStatus = readAdminStatus();
+      setStatus(adminStatus);
+      return adminStatus;
+    }
     if (WEB_BETA_FREE_ONLY) {
       const freeStatus = getDefaultWebSubscriptionStatus();
       setStatus(freeStatus);
@@ -84,6 +99,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }
 
   function readCheckoutIntent() {
+    if (isPlatformAdmin) {
+      return null;
+    }
     if (WEB_BETA_FREE_ONLY) {
       return null;
     }
@@ -94,6 +112,13 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }
 
   function writeCheckoutIntent(nextIntent: WebCheckoutIntent | null) {
+    if (isPlatformAdmin) {
+      if (checkoutStorageKey && typeof window !== 'undefined') {
+        window.localStorage.removeItem(checkoutStorageKey);
+      }
+      setCheckoutIntent(null);
+      return null;
+    }
     if (WEB_BETA_FREE_ONLY) {
       if (checkoutStorageKey && typeof window !== 'undefined') {
         window.localStorage.removeItem(checkoutStorageKey);
@@ -117,8 +142,16 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const cachedStatus = readStatus();
     setStatus(cachedStatus);
     setCheckoutIntent(readCheckoutIntent());
-    setIsLoading(Boolean(user?.uid && activeWorkspace?.workspaceId));
+    setIsLoading(Boolean(!isPlatformAdmin && user?.uid && activeWorkspace?.workspaceId));
     async function recoverServerEntitlement() {
+      if (isPlatformAdmin) {
+        if (isActive) {
+          setStatus(readAdminStatus());
+          setCheckoutIntent(null);
+          setIsLoading(false);
+        }
+        return;
+      }
       if (!user?.uid || !activeWorkspace?.workspaceId) {
         if (isActive) {
           setIsLoading(false);
@@ -144,7 +177,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       isActive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey, user?.uid, activeWorkspace?.workspaceId]);
+  }, [storageKey, user?.uid, user?.email, activeWorkspace?.workspaceId, isPlatformAdmin]);
 
   const value = useMemo<SubscriptionContextValue>(
     () => ({
@@ -152,6 +185,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       checkoutIntent,
       isLoading,
       startCheckout(planId, countryCode = activeWorkspace?.countryCode) {
+        if (isPlatformAdmin) {
+          return createWebCheckoutIntent(planId, new Date(), countryCode);
+        }
         return writeCheckoutIntent(createWebCheckoutIntent(planId, new Date(), countryCode))!;
       },
       attachCheckoutProvider(intentId, input) {
@@ -209,6 +245,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         return refreshed;
       },
       async recoverFromServer() {
+        if (isPlatformAdmin) {
+          const adminStatus = readAdminStatus();
+          setStatus(adminStatus);
+          setCheckoutIntent(null);
+          return adminStatus;
+        }
         if (WEB_BETA_FREE_ONLY) {
           setStatus(getDefaultWebSubscriptionStatus());
           setCheckoutIntent(null);
@@ -230,7 +272,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [checkoutIntent, isLoading, status, storageKey, checkoutStorageKey, activeWorkspace?.countryCode]
+    [checkoutIntent, isLoading, status, storageKey, checkoutStorageKey, activeWorkspace?.countryCode, isPlatformAdmin]
   );
 
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;

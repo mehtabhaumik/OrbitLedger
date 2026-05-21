@@ -414,7 +414,12 @@ The web source lives in:
 
 ### Access Boundary
 
-The page checks `NEXT_PUBLIC_ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS` for a comma-separated allowlist. In production, if this allowlist is empty or the signed-in email is not listed, the page shows a restricted state.
+The page checks a two-layer admin allowlist:
+
+- fixed emergency Super Admin emails in code for break-glass recovery,
+- `NEXT_PUBLIC_ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS` for additional UI visibility.
+
+In production, the UI allowlist is only a display convenience. The server allowlist remains the real authorization boundary for internal admin actions.
 
 This is not the final security boundary for writes. All grant writes remain server-controlled and blocked by Firestore rules. The UI only reads the current workspace queue and previews allowed actions.
 
@@ -478,11 +483,11 @@ Grant action writes:
 
 Firestore rules still block browser writes to the Office request, admin queue, and access audit collections. The browser can request an action, but only the trusted function can write the grant.
 
-The production Functions environment must set:
+The production Functions environment can extend the fixed emergency Super Admin list with:
 
 `ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS`
 
-Use comma-separated internal admin emails. Do not rely on the browser allowlist as the final write boundary.
+Use comma-separated internal admin emails. Do not rely on the browser allowlist as the final write boundary. The fixed emergency Super Admin emails stay available as a recovery path and cannot be fully revoked from the UI.
 
 ## Next Build Boundary
 

@@ -6,6 +6,12 @@ import {
   formatPlatformAdminDate,
   type WebPlatformAdminUser,
 } from './platform-admin';
+import {
+  getWebPlatformAdminEmailAllowlist,
+  isWebPlatformAdminAllowed,
+  normalizePlatformAdminEmail,
+  ORBIT_LEDGER_EMERGENCY_ADMIN_EMAILS,
+} from './platform-admin-access';
 
 const baseUser: WebPlatformAdminUser = {
   uid: 'user_1',
@@ -26,6 +32,18 @@ const baseUser: WebPlatformAdminUser = {
 };
 
 describe('platform admin registry helpers', () => {
+  it('keeps emergency Super Admin emails available without relying on UI config', () => {
+    expect(ORBIT_LEDGER_EMERGENCY_ADMIN_EMAILS).toEqual([
+      'bvmehta1980@gmail.com',
+      'ui.bhaumik@gmail.com',
+      'mehtabhaumik.2007@gmail.com',
+    ]);
+    expect(getWebPlatformAdminEmailAllowlist('extra-admin@example.com')).toContain('extra-admin@example.com');
+    expect(isWebPlatformAdminAllowed(' BVMEHTA1980@gmail.com ')).toBe(true);
+    expect(isWebPlatformAdminAllowed('normal@example.com')).toBe(false);
+    expect(normalizePlatformAdminEmail(' UI.BHAUMIK@gmail.com ')).toBe('ui.bhaumik@gmail.com');
+  });
+
   it('summarizes registered users without counting disabled accounts as missing workspace', () => {
     const users: WebPlatformAdminUser[] = [
       baseUser,

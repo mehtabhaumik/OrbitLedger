@@ -7,6 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 
 import { getWebFirestore } from '@/lib/firebase';
 import { parseWebOfficeMember, updateWebOfficeMemberPresence } from '@/lib/office-team';
+import { isWebPlatformAdminAllowed } from '@/lib/platform-admin-access';
 import {
   buildWebOfficeAccessState,
   canUseWebOfficePermission,
@@ -33,6 +34,7 @@ const OfficeAccessContext = createContext<OfficeAccessContextValue | null>(null)
 export function OfficeAccessProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { activeWorkspace } = useWorkspace();
+  const isPlatformAdmin = isWebPlatformAdminAllowed(user?.email);
   const [state, setState] = useState<WebOfficeAccessState>(fallbackOfficeAccess);
   const [isLoading, setIsLoading] = useState(false);
   const presenceInFlight = useRef(false);
@@ -41,7 +43,15 @@ export function OfficeAccessProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
 
     if (!user || !activeWorkspace) {
-      setState(fallbackOfficeAccess);
+      setState(buildWebOfficeAccessState({ member: null, fallbackToOwner: false, platformAdmin: isPlatformAdmin }));
+      setIsLoading(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    if (isPlatformAdmin) {
+      setState(buildWebOfficeAccessState({ member: null, fallbackToOwner: false, platformAdmin: true }));
       setIsLoading(false);
       return () => {
         isMounted = false;
@@ -74,7 +84,7 @@ export function OfficeAccessProvider({ children }: { children: ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [activeWorkspace?.workspaceId, user?.uid]);
+  }, [activeWorkspace?.workspaceId, user?.uid, user?.email, isPlatformAdmin]);
 
   useEffect(() => {
     if (

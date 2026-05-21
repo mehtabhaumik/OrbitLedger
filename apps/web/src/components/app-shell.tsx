@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '@/providers/auth-provider';
+import { useWebSubscription } from '@/providers/subscription-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 const navItems: Array<{ href: Route; label: string }> = [
@@ -38,6 +39,7 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOutUser } = useAuth();
+  const { status: subscriptionStatus } = useWebSubscription();
   const { activeWorkspace, workspaces, selectWorkspace } = useWorkspace();
   const [isOnline, setIsOnline] = useState(true);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -176,6 +178,9 @@ export function AppShell({
                   </option>
                 ))}
               </select>
+            ) : null}
+            {subscriptionStatus.source === 'platform_admin' ? (
+              <span className="ol-chip ol-chip--premium">Admin access</span>
             ) : null}
             <span className="ol-account-chip" title={visibleAccountLabel}>
               <span className="ol-account-avatar">{accountInitial}</span>

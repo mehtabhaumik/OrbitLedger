@@ -15,6 +15,12 @@ const razorpayKeySecret = defineSecret('RAZORPAY_KEY_SECRET');
 const razorpayWebhookSecret = defineSecret('RAZORPAY_WEBHOOK_SECRET');
 const resendApiKey = defineSecret('RESEND_API_KEY');
 
+const ORBIT_LEDGER_EMERGENCY_ADMIN_EMAILS = [
+  'bvmehta1980@gmail.com',
+  'ui.bhaumik@gmail.com',
+  'mehtabhaumik.2007@gmail.com',
+] as const;
+
 type ProviderSource = 'upi' | 'payment_page' | 'bank_transfer' | 'card' | 'wallet' | 'other';
 type ProviderPaymentStatus = 'succeeded' | 'pending' | 'failed' | 'refunded';
 
@@ -7387,10 +7393,11 @@ function isAuthorizedMonetizationWebhook(request: { header(name: string): string
 }
 
 function isAuthorizedInternalAdminEmail(email: string | null): boolean {
-  const allowlist = (process.env.ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS ?? '')
+  const configuredAllowlist = (process.env.ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS ?? '')
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
+  const allowlist = Array.from(new Set([...ORBIT_LEDGER_EMERGENCY_ADMIN_EMAILS, ...configuredAllowlist]));
   if (!email || !allowlist.length) {
     return process.env.FUNCTIONS_EMULATOR === 'true';
   }

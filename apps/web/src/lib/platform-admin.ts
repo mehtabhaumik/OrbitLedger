@@ -1,4 +1,5 @@
 import { getWebAuth, getWebFirebaseProjectId } from './firebase';
+export { isWebPlatformAdminAllowed } from './platform-admin-access';
 
 export type WebPlatformAdminUserStatus = 'active' | 'disabled' | 'no_workspace';
 
@@ -38,14 +39,6 @@ export type WebPlatformAdminSnapshot = {
   metrics: WebPlatformAdminMetrics;
   users: WebPlatformAdminUser[];
 };
-
-export function isWebPlatformAdminAllowed(email: string | null | undefined): boolean {
-  const allowlist = parseInternalAdminEmailAllowlist();
-  if (!allowlist.length) {
-    return process.env.NODE_ENV !== 'production';
-  }
-  return Boolean(email && allowlist.includes(email.trim().toLowerCase()));
-}
 
 export function buildWebPlatformAdminMetrics(users: WebPlatformAdminUser[]): WebPlatformAdminMetrics {
   return {
@@ -143,13 +136,6 @@ export async function loadWebPlatformAdminSnapshot(input: {
     metrics: result.metrics,
     users: result.users,
   };
-}
-
-function parseInternalAdminEmailAllowlist(): string[] {
-  return (process.env.NEXT_PUBLIC_ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS ?? '')
-    .split(',')
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
 }
 
 function getPlatformAdminSnapshotUrl() {
