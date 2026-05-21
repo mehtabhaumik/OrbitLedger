@@ -17,6 +17,7 @@ export default function robots(): MetadataRoute.Robots {
         '/market',
         '/office-operations',
         '/payments',
+        '/platform-admin',
         '/products',
         '/reports',
         '/settings',

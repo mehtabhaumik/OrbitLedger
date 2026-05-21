@@ -18,6 +18,7 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isLandingRoute = pathname === '/';
   const isPublicPreviewRoute = pathname === '/template-preview';
+  const isPlatformAdminRoute = pathname?.startsWith('/platform-admin');
   const isPublicMarketingRoute = isLandingRoute || isPublicPreviewRoute;
 
   useEffect(() => {
@@ -65,6 +66,14 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
 
   if (isLandingRoute) {
     return <AuthProvider>{children}</AuthProvider>;
+  }
+
+  if (isPlatformAdminRoute) {
+    return (
+      <AuthProvider>
+        <ToastProvider>{children}</ToastProvider>
+      </AuthProvider>
+    );
   }
 
   return (

@@ -331,7 +331,15 @@ service cloud.firestore {
         resource.data.status == 'active';
     }
 
-      match /workspaces/{workspaceId} {
+    match /platform_users/{userId} {
+      allow read, create, update, delete: if false;
+    }
+
+    match /platform_admin_audit/{auditId} {
+      allow read, create, update, delete: if false;
+    }
+
+    match /workspaces/{workspaceId} {
       allow create: if createsOwnWorkspace();
       allow read: if signedIn() && canReadWorkspaceDocument(workspaceId);
       allow update: if keepsWorkspaceOwner(workspaceId) || canAdvanceInvoiceNumberSequence(workspaceId);

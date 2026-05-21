@@ -3039,6 +3039,332 @@ a:focus-visible {
   border-bottom: none;
 }
 
+.ol-platform-admin-page {
+  min-height: 100vh;
+  padding: clamp(18px, 3vw, 40px);
+  background:
+    linear-gradient(180deg, rgba(246, 249, 253, 0.96) 0%, rgba(238, 244, 251, 0.94) 100%),
+    var(--background);
+}
+
+.ol-platform-admin-shell {
+  width: min(1480px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.ol-platform-admin-hero,
+.ol-platform-admin-table-card {
+  border: 1px solid rgba(191, 205, 225, 0.86);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 251, 254, 0.94) 100%);
+  box-shadow: 0 22px 46px rgba(36, 54, 82, 0.08);
+}
+
+.ol-platform-admin-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  padding: clamp(22px, 4vw, 40px);
+}
+
+.ol-platform-admin-hero h1,
+.ol-platform-admin-empty h1 {
+  margin: 14px 0 10px;
+  color: var(--text);
+  font-size: clamp(32px, 5vw, 62px);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+}
+
+.ol-platform-admin-hero p,
+.ol-platform-admin-empty p {
+  max-width: 780px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: clamp(16px, 2vw, 20px);
+  line-height: 1.55;
+}
+
+.ol-platform-admin-hero-actions,
+.ol-platform-admin-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.ol-platform-admin-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ol-platform-admin-metric {
+  min-height: 126px;
+  padding: 18px;
+  border: 1px solid rgba(191, 205, 225, 0.82);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 32px rgba(36, 54, 82, 0.06);
+}
+
+.ol-platform-admin-metric span,
+.ol-platform-admin-status span,
+.ol-platform-admin-user-meta span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 780;
+  line-height: 1.45;
+}
+
+.ol-platform-admin-metric strong {
+  display: block;
+  margin-top: 16px;
+  color: var(--text);
+  font-size: clamp(30px, 4vw, 46px);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.ol-platform-admin-metric[data-tone="warning"] strong {
+  color: var(--warning-strong);
+}
+
+.ol-platform-admin-metric[data-tone="danger"] strong {
+  color: var(--danger);
+}
+
+.ol-platform-admin-control-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.ol-platform-admin-status {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ol-platform-admin-status > div {
+  min-height: 88px;
+  padding: 16px;
+  border: 1px solid rgba(191, 205, 225, 0.78);
+  border-radius: 16px;
+  background: rgba(248, 251, 255, 0.86);
+}
+
+.ol-platform-admin-status strong {
+  display: block;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.ol-platform-admin-search {
+  display: grid;
+  gap: 8px;
+}
+
+.ol-platform-admin-table-card {
+  overflow: hidden;
+}
+
+.ol-platform-admin-table-head,
+.ol-platform-admin-pagination {
+  padding: 18px;
+  border-bottom: 1px solid rgba(191, 205, 225, 0.78);
+}
+
+.ol-platform-admin-table-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.ol-platform-admin-table-head strong {
+  font-size: 18px;
+}
+
+.ol-platform-admin-table-head span {
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
+.ol-platform-admin-user-list {
+  display: grid;
+}
+
+.ol-platform-admin-user-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.6fr) minmax(180px, 0.9fr) minmax(210px, 1fr) minmax(240px, 1.2fr);
+  gap: 18px;
+  align-items: center;
+  padding: 18px;
+  border-bottom: 1px solid rgba(191, 205, 225, 0.66);
+}
+
+.ol-platform-admin-user-row:last-child {
+  border-bottom: none;
+}
+
+.ol-platform-admin-user-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.ol-platform-admin-avatar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(56, 111, 222, 0.11);
+  color: var(--primary-strong);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.ol-platform-admin-user-main strong {
+  display: block;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.ol-platform-admin-user-main span,
+.ol-platform-admin-user-main code {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.ol-platform-admin-user-main code {
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
+}
+
+.ol-platform-admin-user-meta {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ol-platform-admin-status-pill {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(191, 205, 225, 0.8);
+  background: rgba(247, 250, 255, 0.92);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ol-platform-admin-status-pill[data-tone="success"] {
+  border-color: rgba(177, 226, 209, 0.92);
+  background: rgba(238, 250, 246, 0.9);
+  color: var(--success);
+}
+
+.ol-platform-admin-status-pill[data-tone="warning"] {
+  border-color: rgba(238, 211, 152, 0.9);
+  background: rgba(255, 248, 235, 0.94);
+  color: var(--warning-strong);
+}
+
+.ol-platform-admin-status-pill[data-tone="danger"] {
+  border-color: rgba(244, 185, 188, 0.92);
+  background: rgba(255, 242, 243, 0.94);
+  color: var(--danger);
+}
+
+.ol-platform-admin-empty {
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+  padding: clamp(24px, 5vw, 56px);
+}
+
+.ol-platform-admin-empty .ol-loading-orbit {
+  justify-self: center;
+}
+
+.ol-platform-admin-pagination {
+  justify-content: flex-end;
+  border-top: 1px solid rgba(191, 205, 225, 0.78);
+  border-bottom: none;
+}
+
+@media (max-width: 1180px) {
+  .ol-platform-admin-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ol-platform-admin-user-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .ol-platform-admin-page {
+    padding: 12px;
+  }
+
+  .ol-platform-admin-hero,
+  .ol-platform-admin-status,
+  .ol-platform-admin-metrics,
+  .ol-platform-admin-user-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ol-platform-admin-hero {
+    display: grid;
+  }
+
+  .ol-platform-admin-hero-actions,
+  .ol-platform-admin-pagination {
+    justify-content: stretch;
+  }
+
+  .ol-platform-admin-hero-actions .ol-button,
+  .ol-platform-admin-hero-actions .ol-button-secondary,
+  .ol-platform-admin-pagination .ol-button-secondary {
+    width: 100%;
+  }
+
+  .ol-platform-admin-metrics {
+    gap: 10px;
+  }
+
+  .ol-platform-admin-metric {
+    min-height: 104px;
+  }
+
+  .ol-platform-admin-user-row {
+    gap: 14px;
+  }
+}
+
 .ol-link-button {
   display: block;
   width: fit-content;

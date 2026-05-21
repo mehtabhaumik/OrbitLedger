@@ -3487,6 +3487,178 @@ export const resolveOfficeAccessRequest = onRequest(
   }
 );
 
+export const getPlatformAdminSnapshot = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 5,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    if (!adminUser || !isAuthorizedInternalAdminEmail(adminUser.email)) {
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const requestedLimit = Math.max(50, Math.min(450, Math.floor(numberValue(body?.limit, 450))));
+    const pageToken = clean(stringValue(body?.pageToken));
+    const generatedAt = new Date().toISOString();
+
+    try {
+      const [authResult, workspaceSnapshot, memberSnapshot] = await Promise.all([
+        admin.auth().listUsers(requestedLimit, pageToken ?? undefined),
+        db.collection('workspaces').limit(3000).get(),
+        db.collectionGroup('office_members').where('status', '==', 'active').limit(3000).get(),
+      ]);
+
+      const workspaceByOwner = new Map<
+        string,
+        {
+          count: number;
+          names: string[];
+          countries: string[];
+          latestUpdatedAt: string | null;
+        }
+      >();
+
+      for (const workspaceDoc of workspaceSnapshot.docs) {
+        const data = workspaceDoc.data();
+        const ownerUid = clean(stringValue(data.owner_uid));
+        if (!ownerUid) {
+          continue;
+        }
+        const current =
+          workspaceByOwner.get(ownerUid) ??
+          {
+            count: 0,
+            names: [],
+            countries: [],
+            latestUpdatedAt: null,
+          };
+        current.count += 1;
+        const businessName =
+          clean(stringValue(data.business_name)) ??
+          clean(stringValue(data.legal_business_name)) ??
+          clean(stringValue(data.owner_name));
+        if (businessName && current.names.length < 4) {
+          current.names.push(businessName);
+        }
+        const country = clean(stringValue(data.country_code)) ?? clean(stringValue(data.country));
+        if (country && !current.countries.includes(country)) {
+          current.countries.push(country);
+        }
+        const updatedAt = clean(stringValue(data.updated_at)) ?? clean(stringValue(data.created_at));
+        if (updatedAt && (!current.latestUpdatedAt || updatedAt > current.latestUpdatedAt)) {
+          current.latestUpdatedAt = updatedAt;
+        }
+        workspaceByOwner.set(ownerUid, current);
+      }
+
+      const officeMembershipByUser = new Map<string, { count: number; roles: string[] }>();
+      for (const memberDoc of memberSnapshot.docs) {
+        const data = memberDoc.data();
+        const uid = clean(stringValue(data.uid)) ?? memberDoc.id;
+        const current = officeMembershipByUser.get(uid) ?? { count: 0, roles: [] };
+        current.count += 1;
+        const role = clean(stringValue(data.role));
+        if (role && !current.roles.includes(role)) {
+          current.roles.push(role);
+        }
+        officeMembershipByUser.set(uid, current);
+      }
+
+      const registryBatch = db.batch();
+      const users = authResult.users.map((authUser) => {
+        const workspaceSummary = workspaceByOwner.get(authUser.uid) ?? {
+          count: 0,
+          names: [],
+          countries: [],
+          latestUpdatedAt: null,
+        };
+        const officeSummary = officeMembershipByUser.get(authUser.uid) ?? { count: 0, roles: [] };
+        const providerIds = authUser.providerData.map((provider) => provider.providerId).filter(Boolean).sort();
+        const status = authUser.disabled ? 'disabled' : workspaceSummary.count > 0 || officeSummary.count > 0 ? 'active' : 'no_workspace';
+        const registryRecord = {
+          uid: authUser.uid,
+          email: authUser.email ?? null,
+          display_name: authUser.displayName ?? null,
+          email_verified: authUser.emailVerified,
+          disabled: authUser.disabled,
+          provider_ids: providerIds,
+          created_at: authUser.metadata.creationTime ?? null,
+          last_sign_in_at: authUser.metadata.lastSignInTime ?? null,
+          owned_workspace_count: workspaceSummary.count,
+          office_workspace_count: officeSummary.count,
+          workspace_names: workspaceSummary.names,
+          workspace_countries: workspaceSummary.countries,
+          office_roles: officeSummary.roles,
+          latest_workspace_updated_at: workspaceSummary.latestUpdatedAt,
+          status,
+          synced_at: generatedAt,
+          synced_by_uid: adminUser.uid,
+          synced_by_email: adminUser.email ?? null,
+        };
+        registryBatch.set(db.collection('platform_users').doc(authUser.uid), registryRecord, { merge: true });
+        return {
+          uid: authUser.uid,
+          email: authUser.email ?? null,
+          displayName: authUser.displayName ?? null,
+          emailVerified: authUser.emailVerified,
+          disabled: authUser.disabled,
+          providerIds,
+          createdAt: authUser.metadata.creationTime ?? null,
+          lastSignInAt: authUser.metadata.lastSignInTime ?? null,
+          ownedWorkspaceCount: workspaceSummary.count,
+          officeWorkspaceCount: officeSummary.count,
+          workspaceNames: workspaceSummary.names,
+          workspaceCountries: workspaceSummary.countries,
+          officeRoles: officeSummary.roles,
+          latestWorkspaceUpdatedAt: workspaceSummary.latestUpdatedAt,
+          status,
+        };
+      });
+
+      const metrics = buildPlatformAdminMetrics(users);
+      registryBatch.set(db.collection('platform_admin_audit').doc(normalizeId(`registry_sync_${Date.now()}_${adminUser.uid}`)), {
+        action: 'registry_snapshot_generated',
+        actor_uid: adminUser.uid,
+        actor_email: adminUser.email ?? null,
+        generated_at: generatedAt,
+        user_count: metrics.userCount,
+        disabled_count: metrics.disabledCount,
+        verified_email_count: metrics.verifiedEmailCount,
+        workspace_owner_count: metrics.workspaceOwnerCount,
+        users_without_workspace_count: metrics.usersWithoutWorkspaceCount,
+        has_more: Boolean(authResult.pageToken),
+      });
+      await registryBatch.commit();
+
+      response.json({
+        ok: true,
+        generatedAt,
+        nextPageToken: authResult.pageToken ?? null,
+        hasMore: Boolean(authResult.pageToken),
+        metrics,
+        users,
+      });
+    } catch (error) {
+      logger.error('Platform admin snapshot failed', error);
+      response.status(500).json({ ok: false, error: 'platform_admin_snapshot_failed' });
+    }
+  }
+);
+
 export const recordOfficeSupportReview = onRequest(
   {
     region: 'asia-south1',
@@ -7223,6 +7395,29 @@ function isAuthorizedInternalAdminEmail(email: string | null): boolean {
     return process.env.FUNCTIONS_EMULATOR === 'true';
   }
   return allowlist.includes(email.trim().toLowerCase());
+}
+
+function buildPlatformAdminMetrics(
+  users: Array<{
+    disabled: boolean;
+    emailVerified: boolean;
+    ownedWorkspaceCount: number;
+    officeWorkspaceCount: number;
+    providerIds: string[];
+  }>
+) {
+  return {
+    userCount: users.length,
+    disabledCount: users.filter((user) => user.disabled).length,
+    verifiedEmailCount: users.filter((user) => user.emailVerified).length,
+    googleUserCount: users.filter((user) => user.providerIds.includes('google.com')).length,
+    passwordUserCount: users.filter((user) => user.providerIds.includes('password')).length,
+    workspaceOwnerCount: users.filter((user) => user.ownedWorkspaceCount > 0).length,
+    officeMemberCount: users.filter((user) => user.officeWorkspaceCount > 0).length,
+    usersWithoutWorkspaceCount: users.filter(
+      (user) => !user.disabled && user.ownedWorkspaceCount === 0 && user.officeWorkspaceCount === 0
+    ).length,
+  };
 }
 
 function getExpectedWebhookSecret(): string {
