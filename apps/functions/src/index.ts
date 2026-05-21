@@ -31,6 +31,7 @@ type PlatformAdminRoleSource = (typeof PLATFORM_ADMIN_ROLE_SOURCES)[number];
 type PlatformAdminFunctionPermission =
   | 'view_registry'
   | 'manage_admin_accounts'
+  | 'view_audit_trail'
   | 'review_office_access'
   | 'review_support_cases';
 type PlatformAdminAccountAction = 'create' | 'change_role' | 'suspend' | 'reactivate' | 'revoke';
@@ -3970,6 +3971,106 @@ export const managePlatformAdminAccount = onRequest(
   }
 );
 
+export const getPlatformAdminAuditTrail = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 5,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'view_audit_trail')) {
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const requestedLimit = Math.max(25, Math.min(250, Math.floor(numberValue(body?.limit, 100))));
+    const actionFilter = clean(stringValue(body?.action))?.toLowerCase() ?? null;
+    const actorFilter = clean(stringValue(body?.actor))?.toLowerCase() ?? null;
+    const targetFilter = clean(stringValue(body?.target))?.toLowerCase() ?? null;
+    const severityFilter = clean(stringValue(body?.severity))?.toLowerCase() ?? null;
+    const fromDate = parseAuditFilterDate(clean(stringValue(body?.fromDate)), 'start');
+    const toDate = parseAuditFilterDate(clean(stringValue(body?.toDate)), 'end');
+
+    try {
+      const snapshot = await db.collection('platform_admin_audit').limit(600).get();
+      const records = snapshot.docs
+        .map((doc) => normalizePlatformAdminAuditRecord(doc.id, doc.data()))
+        .filter((record) => {
+          const searchActor = `${record.actorUid ?? ''} ${record.actorEmail ?? ''} ${record.actorRole ?? ''}`.toLowerCase();
+          const searchTarget = `${record.targetUid ?? ''} ${record.targetEmail ?? ''} ${record.workspaceId ?? ''} ${
+            record.supportCaseId ?? ''
+          }`.toLowerCase();
+          const timestamp = record.timestamp ? Date.parse(record.timestamp) : Number.NaN;
+          if (actionFilter && !record.action.toLowerCase().includes(actionFilter)) {
+            return false;
+          }
+          if (actorFilter && !searchActor.includes(actorFilter)) {
+            return false;
+          }
+          if (targetFilter && !searchTarget.includes(targetFilter)) {
+            return false;
+          }
+          if (severityFilter && record.severity !== severityFilter) {
+            return false;
+          }
+          if (fromDate && (!Number.isFinite(timestamp) || timestamp < fromDate.getTime())) {
+            return false;
+          }
+          if (toDate && (!Number.isFinite(timestamp) || timestamp > toDate.getTime())) {
+            return false;
+          }
+          return true;
+        })
+        .sort((left, right) => {
+          const leftTime = left.timestamp ? Date.parse(left.timestamp) : 0;
+          const rightTime = right.timestamp ? Date.parse(right.timestamp) : 0;
+          return rightTime - leftTime;
+        })
+        .slice(0, requestedLimit);
+
+      await db.collection('platform_admin_audit').doc(normalizeId(`audit_view_${adminUser.uid}_${Date.now()}`)).set({
+        action: 'platform_admin_audit_viewed',
+        actor_uid: adminUser.uid,
+        actor_email: adminUser.email ?? null,
+        actor_role: adminAccess.role,
+        filters: {
+          action: actionFilter,
+          actor: actorFilter,
+          target: targetFilter,
+          severity: severityFilter,
+          from_date: clean(stringValue(body?.fromDate)),
+          to_date: clean(stringValue(body?.toDate)),
+        },
+        result_count: records.length,
+        risk_level: 'low',
+        created_at: new Date().toISOString(),
+      });
+
+      response.json({
+        ok: true,
+        generatedAt: new Date().toISOString(),
+        records,
+      });
+    } catch (error) {
+      logger.error('Platform admin audit trail failed', error);
+      response.status(500).json({ ok: false, error: 'platform_admin_audit_failed' });
+    }
+  }
+);
+
 export const recordOfficeSupportReview = onRequest(
   {
     region: 'asia-south1',
@@ -7780,6 +7881,10 @@ function canPlatformAdminUseFunction(
     return false;
   }
 
+  if (permission === 'view_audit_trail') {
+    return ['admin', 'finance_admin', 'support_admin', 'read_only_admin'].includes(access.role);
+  }
+
   if (permission === 'view_registry') {
     return ['admin', 'finance_admin', 'support_admin', 'read_only_admin'].includes(access.role);
   }
@@ -7825,6 +7930,85 @@ function normalizePlatformAdminRoleSource(value: string | null): PlatformAdminRo
 function normalizeEmailAddress(value: string | null): string | null {
   const email = clean(value)?.toLowerCase() ?? null;
   return email;
+}
+
+function parseAuditFilterDate(value: string | null, boundary: 'start' | 'end'): Date | null {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  if (boundary === 'start') {
+    date.setHours(0, 0, 0, 0);
+  } else {
+    date.setHours(23, 59, 59, 999);
+  }
+  return date;
+}
+
+function normalizePlatformAdminAuditRecord(id: string, data: FirebaseFirestore.DocumentData) {
+  const action = clean(stringValue(data.action)) ?? 'unknown_action';
+  const timestamp =
+    clean(stringValue(data.created_at)) ??
+    clean(stringValue(data.generated_at)) ??
+    clean(stringValue(data.updated_at)) ??
+    clean(stringValue(data.resolved_at)) ??
+    clean(stringValue(data.reviewed_at)) ??
+    null;
+  const severity =
+    clean(stringValue(data.risk_level)) ??
+    clean(stringValue(data.severity)) ??
+    inferPlatformAdminAuditSeverity(action);
+  const targetUid =
+    clean(stringValue(data.target_uid)) ??
+    clean(stringValue(data.user_uid)) ??
+    clean(stringValue(data.member_uid)) ??
+    clean(stringValue(data.uid));
+  const targetEmail =
+    clean(stringValue(data.target_email)) ??
+    clean(stringValue(data.user_email)) ??
+    clean(stringValue(data.member_email)) ??
+    clean(stringValue(data.email));
+  const workspaceId = clean(stringValue(data.workspace_id));
+  const supportCaseId = clean(stringValue(data.support_case_id));
+  const affected = [
+    targetEmail ? `User ${targetEmail}` : null,
+    targetUid && !targetEmail ? `UID ${targetUid}` : null,
+    workspaceId ? `Workspace ${workspaceId}` : null,
+    supportCaseId ? `Support case ${supportCaseId}` : null,
+    clean(stringValue(data.target_role)) ? `Role ${clean(stringValue(data.target_role))}` : null,
+    clean(stringValue(data.target_status)) ? `Status ${clean(stringValue(data.target_status))}` : null,
+  ].filter(Boolean);
+
+  return {
+    id,
+    action,
+    actorUid: clean(stringValue(data.actor_uid)),
+    actorEmail: clean(stringValue(data.actor_email)),
+    actorRole: clean(stringValue(data.actor_role)),
+    targetUid,
+    targetEmail,
+    targetRole: clean(stringValue(data.target_role)),
+    targetStatus: clean(stringValue(data.target_status)),
+    workspaceId,
+    supportCaseId,
+    severity,
+    reason: clean(stringValue(data.reason)),
+    timestamp,
+    affectedSummary: affected.length ? affected.join(' · ') : 'Platform record',
+  };
+}
+
+function inferPlatformAdminAuditSeverity(action: string): string {
+  if (action.includes('revoke') || action.includes('suspend') || action.includes('pricing')) {
+    return 'high';
+  }
+  if (action.includes('warning') || action.includes('role') || action.includes('grant')) {
+    return 'medium';
+  }
+  return 'low';
 }
 
 function isFirebaseAuthUserNotFound(error: unknown): boolean {

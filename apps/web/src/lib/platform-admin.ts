@@ -68,6 +68,38 @@ export type WebPlatformAdminRegistryRecord = {
 
 export type WebPlatformAdminAccountAction = 'create' | 'change_role' | 'suspend' | 'reactivate' | 'revoke';
 
+export type WebPlatformAdminAuditRecord = {
+  id: string;
+  action: string;
+  actorUid: string | null;
+  actorEmail: string | null;
+  actorRole: string | null;
+  targetUid: string | null;
+  targetEmail: string | null;
+  targetRole: string | null;
+  targetStatus: string | null;
+  workspaceId: string | null;
+  supportCaseId: string | null;
+  severity: string;
+  reason: string | null;
+  timestamp: string | null;
+  affectedSummary: string;
+};
+
+export type WebPlatformAdminAuditFilters = {
+  action: string;
+  actor: string;
+  target: string;
+  severity: string;
+  fromDate: string;
+  toDate: string;
+};
+
+export type WebPlatformAdminAuditTrail = {
+  generatedAt: string;
+  records: WebPlatformAdminAuditRecord[];
+};
+
 export type WebPlatformAdminMetrics = {
   userCount: number;
   disabledCount: number;
@@ -127,6 +159,37 @@ export function filterWebPlatformAdminUsers(users: WebPlatformAdminUser[], searc
       user.platformAdminRole ?? '',
       user.platformAdminStatus ?? '',
       user.platformAdminRoleSource ?? '',
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(search)
+  );
+}
+
+export function filterWebPlatformAdminAuditRecords(
+  records: WebPlatformAdminAuditRecord[],
+  searchTerm: string
+): WebPlatformAdminAuditRecord[] {
+  const search = searchTerm.trim().toLowerCase();
+  if (!search) {
+    return records;
+  }
+  return records.filter((record) =>
+    [
+      record.id,
+      record.action,
+      record.actorUid ?? '',
+      record.actorEmail ?? '',
+      record.actorRole ?? '',
+      record.targetUid ?? '',
+      record.targetEmail ?? '',
+      record.targetRole ?? '',
+      record.targetStatus ?? '',
+      record.workspaceId ?? '',
+      record.supportCaseId ?? '',
+      record.severity,
+      record.reason ?? '',
+      record.affectedSummary,
     ]
       .join(' ')
       .toLowerCase()
@@ -237,6 +300,53 @@ export async function manageWebPlatformAdminAccount(input: {
   }
 }
 
+export async function loadWebPlatformAdminAuditTrail(input: Partial<WebPlatformAdminAuditFilters> & {
+  limit?: number;
+} = {}): Promise<WebPlatformAdminAuditTrail> {
+  const user = getWebAuth().currentUser;
+  if (!user) {
+    throw new Error('Sign in again before opening the platform admin audit trail.');
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(getPlatformAdminAuditTrailUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      limit: input.limit ?? 100,
+      action: input.action ?? '',
+      actor: input.actor ?? '',
+      target: input.target ?? '',
+      severity: input.severity ?? '',
+      fromDate: input.fromDate ?? '',
+      toDate: input.toDate ?? '',
+    }),
+  });
+  const result = (await response.json().catch(() => ({
+    ok: false,
+    error: 'platform_admin_audit_failed',
+  }))) as
+    | ({
+        ok: true;
+      } & WebPlatformAdminAuditTrail)
+    | {
+        ok: false;
+        error: string;
+      };
+
+  if (!result.ok) {
+    throw new Error(platformAdminAuditErrorMessage(result.error));
+  }
+
+  return {
+    generatedAt: result.generatedAt,
+    records: result.records ?? [],
+  };
+}
+
 function getPlatformAdminSnapshotUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/getPlatformAdminSnapshot`;
@@ -245,6 +355,11 @@ function getPlatformAdminSnapshotUrl() {
 function getPlatformAdminAccountUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/managePlatformAdminAccount`;
+}
+
+function getPlatformAdminAuditTrailUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/getPlatformAdminAuditTrail`;
 }
 
 function platformAdminErrorMessage(error: string): string {
@@ -280,4 +395,14 @@ function platformAdminAccountErrorMessage(error: string): string {
     return 'Only a Super Admin can manage platform admin accounts.';
   }
   return 'Platform admin access could not be updated.';
+}
+
+function platformAdminAuditErrorMessage(error: string): string {
+  if (error === 'internal_admin_required') {
+    return 'This account is not enabled to view the platform admin audit trail.';
+  }
+  if (error === 'method_not_allowed') {
+    return 'Platform admin audit request method is not supported.';
+  }
+  return 'Platform admin audit trail could not be loaded.';
 }

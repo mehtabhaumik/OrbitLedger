@@ -1885,3 +1885,29 @@ Platform Admin now has a Super Admin-only account management surface.
 ### Next Phase
 
 `PLATFORM ADMIN PHASE 5: Admin Audit Trail`
+
+## Platform Admin Phase 5: Admin Audit Trail
+
+Platform Admin now includes a server-backed audit trail viewer.
+
+### Included
+
+- Trusted `getPlatformAdminAuditTrail` function for audit access.
+- Audit filters for action, actor, target, severity, and date range.
+- Local search across loaded audit records.
+- Audit rows show timestamp, action, severity, actor, affected record, reason, and audit id.
+- CSV download for filtered audit records.
+- Print-safe audit report generated from the filtered audit records.
+- Audit trail access itself writes an audit record.
+- Client Firestore access remains blocked for `platform_admin_audit`; the browser never reads audit collections directly.
+
+### Audit Boundary
+
+- Super Admin, Admin, Finance Admin, Support Admin, and Read-only Admin can view audit records through server authorization.
+- Only Super Admin can mutate admin accounts.
+- Audit records are not editable or deletable from the client.
+- Audit output does not include secrets, passwords, payment provider secrets, or customer ledger data.
+
+### Next Phase
+
+`PLATFORM ADMIN PHASE 6: User Control Actions`

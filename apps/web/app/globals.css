@@ -3241,6 +3241,60 @@ a:focus-visible {
   line-height: 1.5;
 }
 
+.ol-platform-admin-audit-filters {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+  padding: 18px;
+  border-bottom: 1px solid rgba(191, 205, 225, 0.78);
+}
+
+.ol-platform-admin-audit-search {
+  grid-column: span 2;
+}
+
+.ol-platform-admin-audit-filter-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.ol-platform-admin-audit-message {
+  margin: 18px 18px 0;
+}
+
+.ol-platform-admin-audit-list {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.ol-platform-admin-audit-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.75fr) minmax(220px, 1fr) minmax(260px, 1.2fr) minmax(260px, 1.25fr);
+  gap: 14px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid rgba(191, 205, 225, 0.72);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.ol-platform-admin-audit-row strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.ol-platform-admin-audit-row code {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+}
+
 .ol-platform-admin-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3413,8 +3467,14 @@ a:focus-visible {
   }
 
   .ol-platform-admin-management,
+  .ol-platform-admin-audit-filters,
+  .ol-platform-admin-audit-row,
   .ol-platform-admin-admin-row {
     grid-template-columns: 1fr;
+  }
+
+  .ol-platform-admin-audit-search {
+    grid-column: auto;
   }
 
   .ol-platform-admin-user-row {
@@ -3441,6 +3501,7 @@ a:focus-visible {
 
   .ol-platform-admin-hero-actions,
   .ol-platform-admin-pagination,
+  .ol-platform-admin-audit-filter-actions,
   .ol-platform-admin-row-actions {
     justify-content: stretch;
   }
@@ -3449,7 +3510,9 @@ a:focus-visible {
   .ol-platform-admin-hero-actions .ol-button-secondary,
   .ol-platform-admin-pagination .ol-button-secondary,
   .ol-platform-admin-row-actions .ol-button-secondary,
-  .ol-platform-admin-row-actions .ol-button-ghost {
+  .ol-platform-admin-row-actions .ol-button-ghost,
+  .ol-platform-admin-audit-filter-actions .ol-button,
+  .ol-platform-admin-audit-filter-actions .ol-button-secondary {
     width: 100%;
   }
 

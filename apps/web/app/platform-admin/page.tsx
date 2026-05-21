@@ -6,11 +6,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { getPlatformAdminRoleDefinition, PLATFORM_ADMIN_ROLES, type PlatformAdminRole } from '@orbit-ledger/core';
 
 import {
+  filterWebPlatformAdminAuditRecords,
   filterWebPlatformAdminUsers,
   formatPlatformAdminDate,
+  loadWebPlatformAdminAuditTrail,
   loadWebPlatformAdminSnapshot,
   manageWebPlatformAdminAccount,
   type WebPlatformAdminAccountAction,
+  type WebPlatformAdminAuditFilters,
+  type WebPlatformAdminAuditRecord,
   type WebPlatformAdminRegistryRecord,
   type WebPlatformAdminSnapshot,
   type WebPlatformAdminUser,
@@ -35,6 +39,15 @@ const DEFAULT_ADMIN_FORM: AdminFormState = {
   reason: '',
 };
 
+const DEFAULT_AUDIT_FILTERS: WebPlatformAdminAuditFilters = {
+  action: '',
+  actor: '',
+  target: '',
+  severity: '',
+  fromDate: '',
+  toDate: '',
+};
+
 export default function PlatformAdminPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const [snapshot, setSnapshot] = useState<WebPlatformAdminSnapshot | null>(null);
@@ -46,7 +59,17 @@ export default function PlatformAdminPage() {
   const [adminActionError, setAdminActionError] = useState<string | null>(null);
   const [isSavingAdmin, setIsSavingAdmin] = useState(false);
   const [adminForm, setAdminForm] = useState<AdminFormState>(DEFAULT_ADMIN_FORM);
+  const [auditTrail, setAuditTrail] = useState<WebPlatformAdminAuditRecord[]>([]);
+  const [auditGeneratedAt, setAuditGeneratedAt] = useState<string | null>(null);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+  const [auditFilters, setAuditFilters] = useState<WebPlatformAdminAuditFilters>(DEFAULT_AUDIT_FILTERS);
+  const [auditSearch, setAuditSearch] = useState('');
   const users = useMemo(() => filterWebPlatformAdminUsers(snapshot?.users ?? [], search), [search, snapshot?.users]);
+  const visibleAuditRecords = useMemo(
+    () => filterWebPlatformAdminAuditRecords(auditTrail, auditSearch),
+    [auditSearch, auditTrail]
+  );
   const admins = snapshot?.admins ?? [];
   const isSuperAdmin = snapshot?.adminAccess?.role === 'super_admin';
 
@@ -65,11 +88,28 @@ export default function PlatformAdminPage() {
       const nextSnapshot = await loadWebPlatformAdminSnapshot({ pageToken: nextPageToken });
       setSnapshot(nextSnapshot);
       setPageToken(nextPageToken);
+      void refreshAudit(auditFilters);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Platform admin registry could not be loaded.');
       setSnapshot(null);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function refreshAudit(filters: WebPlatformAdminAuditFilters) {
+    setIsLoadingAudit(true);
+    setAuditError(null);
+    try {
+      const trail = await loadWebPlatformAdminAuditTrail({ ...filters, limit: 100 });
+      setAuditTrail(trail.records);
+      setAuditGeneratedAt(trail.generatedAt);
+    } catch (loadError) {
+      setAuditError(loadError instanceof Error ? loadError.message : 'Platform admin audit trail could not be loaded.');
+      setAuditTrail([]);
+      setAuditGeneratedAt(null);
+    } finally {
+      setIsLoadingAudit(false);
     }
   }
 
@@ -123,6 +163,7 @@ export default function PlatformAdminPage() {
       });
       setAdminActionMessage('Platform admin access was updated and recorded for audit.');
       await refresh(pageToken);
+      await refreshAudit(auditFilters);
       if (adminForm.action === 'create') {
         setAdminForm(DEFAULT_ADMIN_FORM);
       } else {
@@ -133,6 +174,42 @@ export default function PlatformAdminPage() {
     } finally {
       setIsSavingAdmin(false);
     }
+  }
+
+  function applyAuditFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void refreshAudit(auditFilters);
+  }
+
+  function resetAuditFilters() {
+    setAuditFilters(DEFAULT_AUDIT_FILTERS);
+    setAuditSearch('');
+    void refreshAudit(DEFAULT_AUDIT_FILTERS);
+  }
+
+  function downloadAuditCsv() {
+    const csv = buildAuditCsv(visibleAuditRecords);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `orbit-ledger-admin-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function printAuditReport() {
+    const popup = window.open('', '_blank', 'width=1100,height=800');
+    if (!popup) {
+      setAuditError('Browser blocked the print report. Allow pop-ups for Orbit Ledger and try again.');
+      return;
+    }
+    popup.document.write(buildAuditPrintHtml(visibleAuditRecords, user?.email ?? 'Platform admin', auditGeneratedAt));
+    popup.document.close();
+    popup.focus();
+    popup.print();
   }
 
   if (isAuthLoading) {
@@ -423,6 +500,139 @@ export default function PlatformAdminPage() {
           </div>
         </section>
 
+        <section className="ol-platform-admin-table-card ol-platform-admin-audit-card">
+          <div className="ol-platform-admin-table-head">
+            <div>
+              <strong>Admin audit trail</strong>
+              <span>
+                {visibleAuditRecords.length} shown · Generated {formatPlatformAdminDate(auditGeneratedAt)}
+              </span>
+            </div>
+            <div className="ol-platform-admin-row-actions">
+              <button
+                className="ol-button-secondary"
+                type="button"
+                onClick={downloadAuditCsv}
+                disabled={!visibleAuditRecords.length}
+              >
+                Download CSV
+              </button>
+              <button
+                className="ol-button-secondary"
+                type="button"
+                onClick={printAuditReport}
+                disabled={!visibleAuditRecords.length}
+              >
+                Print audit
+              </button>
+            </div>
+          </div>
+
+          <form className="ol-platform-admin-audit-filters" onSubmit={applyAuditFilters}>
+            <label className="ol-form-field">
+              <span>Action</span>
+              <input
+                className="ol-input"
+                value={auditFilters.action}
+                onChange={(event) => setAuditFilters((current) => ({ ...current, action: event.target.value }))}
+                placeholder="role, warning, pricing"
+              />
+            </label>
+            <label className="ol-form-field">
+              <span>Actor</span>
+              <input
+                className="ol-input"
+                value={auditFilters.actor}
+                onChange={(event) => setAuditFilters((current) => ({ ...current, actor: event.target.value }))}
+                placeholder="Admin email or UID"
+              />
+            </label>
+            <label className="ol-form-field">
+              <span>Target</span>
+              <input
+                className="ol-input"
+                value={auditFilters.target}
+                onChange={(event) => setAuditFilters((current) => ({ ...current, target: event.target.value }))}
+                placeholder="User, workspace, case"
+              />
+            </label>
+            <label className="ol-form-field">
+              <span>Severity</span>
+              <select
+                className="ol-select"
+                value={auditFilters.severity}
+                onChange={(event) => setAuditFilters((current) => ({ ...current, severity: event.target.value }))}
+              >
+                <option value="">All</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
+            <label className="ol-form-field">
+              <span>From</span>
+              <input
+                className="ol-input"
+                type="date"
+                value={auditFilters.fromDate}
+                onChange={(event) => setAuditFilters((current) => ({ ...current, fromDate: event.target.value }))}
+              />
+            </label>
+            <label className="ol-form-field">
+              <span>To</span>
+              <input
+                className="ol-input"
+                type="date"
+                value={auditFilters.toDate}
+                onChange={(event) => setAuditFilters((current) => ({ ...current, toDate: event.target.value }))}
+              />
+            </label>
+            <label className="ol-form-field ol-platform-admin-audit-search">
+              <span>Search loaded audit</span>
+              <input
+                className="ol-input"
+                value={auditSearch}
+                onChange={(event) => setAuditSearch(event.target.value)}
+                placeholder="Reason, action, target, actor"
+              />
+            </label>
+            <div className="ol-platform-admin-audit-filter-actions">
+              <button className="ol-button" type="submit" disabled={isLoadingAudit}>
+                {isLoadingAudit ? 'Loading audit...' : 'Apply filters'}
+              </button>
+              <button className="ol-button-secondary" type="button" onClick={resetAuditFilters} disabled={isLoadingAudit}>
+                Reset
+              </button>
+            </div>
+          </form>
+
+          {auditError ? (
+            <div className="ol-message ol-platform-admin-audit-message" data-tone="danger">
+              {auditError}
+            </div>
+          ) : null}
+
+          {isLoadingAudit && !auditTrail.length ? (
+            <div className="ol-platform-admin-empty">
+              <div className="ol-loading-orbit" aria-label="Loading audit trail">
+                <span>O</span>
+              </div>
+              <p>Loading audit trail.</p>
+            </div>
+          ) : visibleAuditRecords.length ? (
+            <div className="ol-platform-admin-audit-list">
+              {visibleAuditRecords.map((record) => (
+                <AuditRecordRow key={record.id} record={record} />
+              ))}
+            </div>
+          ) : (
+            <div className="ol-platform-admin-empty ol-platform-admin-empty-compact">
+              <h2>No audit records found</h2>
+              <p>Adjust the filters or refresh the audit trail.</p>
+            </div>
+          )}
+        </section>
+
         <section className="ol-platform-admin-table-card">
           <div className="ol-platform-admin-table-head">
             <strong>Users</strong>
@@ -539,6 +749,37 @@ function AdminAccountRow({
   );
 }
 
+function AuditRecordRow({ record }: { record: WebPlatformAdminAuditRecord }) {
+  const severityTone = record.severity === 'high' ? 'danger' : record.severity === 'medium' ? 'warning' : 'success';
+
+  return (
+    <article className="ol-platform-admin-audit-row">
+      <div className="ol-platform-admin-user-meta">
+        <span className="ol-platform-admin-status-pill" data-tone={severityTone}>
+          {record.severity}
+        </span>
+        <strong>{humanizeAuditAction(record.action)}</strong>
+        <span>{formatPlatformAdminDate(record.timestamp)}</span>
+      </div>
+      <div className="ol-platform-admin-user-meta">
+        <span>Actor</span>
+        <strong>{record.actorEmail ?? record.actorUid ?? 'System'}</strong>
+        <span>{record.actorRole ?? 'No role recorded'}</span>
+      </div>
+      <div className="ol-platform-admin-user-meta">
+        <span>Affected record</span>
+        <strong>{record.affectedSummary}</strong>
+        <span>{record.targetEmail ?? record.targetUid ?? record.workspaceId ?? record.supportCaseId ?? record.id}</span>
+      </div>
+      <div className="ol-platform-admin-user-meta">
+        <span>Reason</span>
+        <strong>{record.reason ?? 'No reason recorded'}</strong>
+        <code>{record.id}</code>
+      </div>
+    </article>
+  );
+}
+
 function UserRow({ user }: { user: WebPlatformAdminUser }) {
   const title = user.displayName || user.email || user.uid;
   const workspaceSummary = user.workspaceNames.length
@@ -600,4 +841,97 @@ function initials(value: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join('');
+}
+
+function humanizeAuditAction(value: string) {
+  return value
+    .replace(/^platform_admin_/, 'admin_')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function buildAuditCsv(records: WebPlatformAdminAuditRecord[]) {
+  const rows = [
+    ['Timestamp', 'Action', 'Severity', 'Actor', 'Actor role', 'Target', 'Affected', 'Reason', 'Audit ID'],
+    ...records.map((record) => [
+      formatPlatformAdminDate(record.timestamp),
+      record.action,
+      record.severity,
+      record.actorEmail ?? record.actorUid ?? 'System',
+      record.actorRole ?? '',
+      record.targetEmail ?? record.targetUid ?? record.workspaceId ?? record.supportCaseId ?? '',
+      record.affectedSummary,
+      record.reason ?? '',
+      record.id,
+    ]),
+  ];
+
+  return rows.map((row) => row.map(csvCell).join(',')).join('\n');
+}
+
+function csvCell(value: string) {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+function buildAuditPrintHtml(records: WebPlatformAdminAuditRecord[], generatedBy: string, generatedAt: string | null) {
+  const rows = records
+    .map(
+      (record) => `
+        <tr>
+          <td>${escapeHtml(formatPlatformAdminDate(record.timestamp))}</td>
+          <td>${escapeHtml(humanizeAuditAction(record.action))}</td>
+          <td>${escapeHtml(record.severity)}</td>
+          <td>${escapeHtml(record.actorEmail ?? record.actorUid ?? 'System')}</td>
+          <td>${escapeHtml(record.affectedSummary)}</td>
+          <td>${escapeHtml(record.reason ?? 'No reason recorded')}</td>
+        </tr>`
+    )
+    .join('');
+
+  return `<!doctype html>
+    <html>
+      <head>
+        <title>Orbit Ledger Platform Admin Audit</title>
+        <style>
+          @page { margin: 18mm; }
+          body { font-family: Inter, Arial, sans-serif; color: #111827; margin: 0; }
+          header { border-bottom: 2px solid #d7e2f2; padding-bottom: 14px; margin-bottom: 18px; }
+          h1 { margin: 0 0 8px; font-size: 26px; }
+          p { margin: 0; color: #607087; }
+          table { width: 100%; border-collapse: collapse; font-size: 11px; }
+          th { text-align: left; color: #607087; border-bottom: 1px solid #d7e2f2; padding: 8px; }
+          td { border-bottom: 1px solid #e4ebf5; padding: 8px; vertical-align: top; }
+          footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid #d7e2f2; color: #607087; font-size: 11px; }
+        </style>
+      </head>
+      <body>
+        <header>
+          <h1>Platform Admin Audit Trail</h1>
+          <p>Generated by ${escapeHtml(generatedBy)} · ${escapeHtml(formatPlatformAdminDate(generatedAt))}</p>
+        </header>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Action</th>
+              <th>Severity</th>
+              <th>Actor</th>
+              <th>Affected</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <footer>Created with Orbit Ledger · Internal platform admin report</footer>
+      </body>
+    </html>`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }

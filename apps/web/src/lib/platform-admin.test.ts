@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildWebPlatformAdminMetrics,
+  filterWebPlatformAdminAuditRecords,
   filterWebPlatformAdminUsers,
   formatPlatformAdminDate,
   type WebPlatformAdminUser,
@@ -128,5 +129,50 @@ describe('platform admin registry helpers', () => {
     expect(formatPlatformAdminDate(null)).toBe('Not seen yet');
     expect(formatPlatformAdminDate('not-a-date')).toBe('not-a-date');
     expect(formatPlatformAdminDate('2026-05-21T12:00:00.000Z')).toContain('2026');
+  });
+
+  it('filters admin audit records by actor, target, action, severity, and reason', () => {
+    const records = [
+      {
+        id: 'audit_1',
+        action: 'platform_admin_revoke',
+        actorUid: 'admin_1',
+        actorEmail: 'owner@example.com',
+        actorRole: 'super_admin',
+        targetUid: 'user_1',
+        targetEmail: 'target@example.com',
+        targetRole: 'support_admin',
+        targetStatus: 'revoked',
+        workspaceId: null,
+        supportCaseId: null,
+        severity: 'high',
+        reason: 'Security review',
+        timestamp: '2026-05-21T12:00:00.000Z',
+        affectedSummary: 'User target@example.com',
+      },
+      {
+        id: 'audit_2',
+        action: 'registry_snapshot_generated',
+        actorUid: 'admin_2',
+        actorEmail: 'viewer@example.com',
+        actorRole: 'read_only_admin',
+        targetUid: null,
+        targetEmail: null,
+        targetRole: null,
+        targetStatus: null,
+        workspaceId: null,
+        supportCaseId: null,
+        severity: 'low',
+        reason: null,
+        timestamp: '2026-05-21T12:05:00.000Z',
+        affectedSummary: 'Platform record',
+      },
+    ];
+
+    expect(filterWebPlatformAdminAuditRecords(records, 'revoke')).toHaveLength(1);
+    expect(filterWebPlatformAdminAuditRecords(records, 'target@example.com')).toHaveLength(1);
+    expect(filterWebPlatformAdminAuditRecords(records, 'security review')).toHaveLength(1);
+    expect(filterWebPlatformAdminAuditRecords(records, 'read_only_admin')).toHaveLength(1);
+    expect(filterWebPlatformAdminAuditRecords(records, 'missing')).toHaveLength(0);
   });
 });
