@@ -32,9 +32,17 @@ type PlatformAdminFunctionPermission =
   | 'view_registry'
   | 'manage_admin_accounts'
   | 'view_audit_trail'
+  | 'manage_user_controls'
   | 'review_office_access'
   | 'review_support_cases';
 type PlatformAdminAccountAction = 'create' | 'change_role' | 'suspend' | 'reactivate' | 'revoke';
+type PlatformAdminUserAction =
+  | 'suspend_user'
+  | 'restore_user'
+  | 'send_warning'
+  | 'add_internal_note'
+  | 'mark_under_review'
+  | 'clear_under_review';
 type VerifiedRequestUser = { uid: string; email: string | null; claims: Record<string, unknown> };
 
 type PlatformAdminRegistryData = {
@@ -3565,11 +3573,12 @@ export const getPlatformAdminSnapshot = onRequest(
     const generatedAt = new Date().toISOString();
 
     try {
-      const [authResult, workspaceSnapshot, memberSnapshot, platformAdminSnapshot] = await Promise.all([
+      const [authResult, workspaceSnapshot, memberSnapshot, platformAdminSnapshot, platformUserSnapshot] = await Promise.all([
         admin.auth().listUsers(requestedLimit, pageToken ?? undefined),
         db.collection('workspaces').limit(3000).get(),
         db.collectionGroup('office_members').where('status', '==', 'active').limit(3000).get(),
         db.collection('platform_admins').limit(1000).get(),
+        db.collection('platform_users').limit(3000).get(),
       ]);
 
       const platformAdminByUid = new Map<string, PlatformAdminRegistryData>();
@@ -3578,6 +3587,10 @@ export const getPlatformAdminSnapshot = onRequest(
         if (registryRecord) {
           platformAdminByUid.set(adminDoc.id, registryRecord);
         }
+      }
+      const platformUserByUid = new Map<string, FirebaseFirestore.DocumentData>();
+      for (const platformUserDoc of platformUserSnapshot.docs) {
+        platformUserByUid.set(platformUserDoc.id, platformUserDoc.data());
       }
 
       const workspaceByOwner = new Map<
@@ -3653,6 +3666,15 @@ export const getPlatformAdminSnapshot = onRequest(
         const customClaims = asRecord(authUser.customClaims) ?? {};
         const customClaimsRole = normalizePlatformAdminRole(stringValue(customClaims.platform_admin_role));
         const registryAdmin = platformAdminByUid.get(authUser.uid);
+        const platformUserRecord = platformUserByUid.get(authUser.uid) ?? {};
+        const platformUserStatus = clean(stringValue(platformUserRecord.platform_user_status));
+        const platformUserRiskStatus = clean(stringValue(platformUserRecord.platform_user_risk_status));
+        const platformUserWarningCount = Math.max(0, Math.floor(numberValue(platformUserRecord.warning_count, 0)));
+        const platformUserLastWarningAt = clean(stringValue(platformUserRecord.last_warning_at));
+        const platformUserLastAdminAction = clean(stringValue(platformUserRecord.last_admin_action));
+        const platformUserLastAdminReason = clean(stringValue(platformUserRecord.last_admin_reason));
+        const platformUserLastInternalNoteAt = clean(stringValue(platformUserRecord.last_internal_note_at));
+        const platformUserLastInternalNotePreview = clean(stringValue(platformUserRecord.last_internal_note_preview));
         const status = authUser.disabled ? 'disabled' : workspaceSummary.count > 0 || officeSummary.count > 0 ? 'active' : 'no_workspace';
         const registryRecord = {
           uid: authUser.uid,
@@ -3674,6 +3696,14 @@ export const getPlatformAdminSnapshot = onRequest(
           platform_admin_role_source: registryAdmin?.role_source ?? (customClaimsRole ? 'custom_claim' : null),
           platform_admin_custom_claims_ready: Boolean(customClaims.platform_admin === true),
           platform_admin_custom_claims_role: customClaimsRole,
+          platform_user_status: platformUserStatus ?? (authUser.disabled ? 'suspended' : 'active'),
+          platform_user_risk_status: platformUserRiskStatus ?? null,
+          warning_count: platformUserWarningCount,
+          last_warning_at: platformUserLastWarningAt ?? null,
+          last_admin_action: platformUserLastAdminAction ?? null,
+          last_admin_reason: platformUserLastAdminReason ?? null,
+          last_internal_note_at: platformUserLastInternalNoteAt ?? null,
+          last_internal_note_preview: platformUserLastInternalNotePreview ?? null,
           status,
           synced_at: generatedAt,
           synced_by_uid: adminUser.uid,
@@ -3700,6 +3730,14 @@ export const getPlatformAdminSnapshot = onRequest(
           platformAdminRoleSource: registryAdmin?.role_source ?? (customClaimsRole ? 'custom_claim' : null),
           platformAdminCustomClaimsReady: Boolean(customClaims.platform_admin === true),
           platformAdminCustomClaimsRole: customClaimsRole,
+          platformUserStatus: platformUserStatus ?? (authUser.disabled ? 'suspended' : 'active'),
+          platformUserRiskStatus: platformUserRiskStatus ?? null,
+          platformUserWarningCount,
+          platformUserLastWarningAt: platformUserLastWarningAt ?? null,
+          platformUserLastAdminAction: platformUserLastAdminAction ?? null,
+          platformUserLastAdminReason: platformUserLastAdminReason ?? null,
+          platformUserLastInternalNoteAt: platformUserLastInternalNoteAt ?? null,
+          platformUserLastInternalNotePreview: platformUserLastInternalNotePreview ?? null,
           status,
         };
       });
@@ -3967,6 +4005,289 @@ export const managePlatformAdminAccount = onRequest(
     } catch (error) {
       logger.error('managePlatformAdminAccount failed', { action, targetUid, targetEmail, error });
       response.status(500).json({ ok: false, error: 'admin_account_update_failed' });
+    }
+  }
+);
+
+export const managePlatformAdminUser = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 5,
+    secrets: [resendApiKey],
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'manage_user_controls')) {
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const action = normalizePlatformAdminUserAction(clean(stringValue(body?.action)));
+    const targetUid = clean(stringValue(body?.targetUid));
+    const targetEmail = normalizeEmailAddress(clean(stringValue(body?.targetEmail)));
+    const reason = clean(stringValue(body?.reason));
+    const message = clean(stringValue(body?.message));
+    const riskLabel = clean(stringValue(body?.riskLabel));
+
+    if (!action) {
+      response.status(400).json({ ok: false, error: 'user_action_required' });
+      return;
+    }
+    if (!reason || reason.length < 10) {
+      response.status(400).json({ ok: false, error: 'user_reason_required' });
+      return;
+    }
+    if (!targetUid && !targetEmail) {
+      response.status(400).json({ ok: false, error: 'user_target_required' });
+      return;
+    }
+    if (targetEmail && !isValidEmailAddress(targetEmail)) {
+      response.status(400).json({ ok: false, error: 'user_email_invalid' });
+      return;
+    }
+    if (!canPlatformAdminUseUserAction(adminAccess, action)) {
+      response.status(403).json({ ok: false, error: 'user_action_not_allowed' });
+      return;
+    }
+    if ((action === 'send_warning' || action === 'add_internal_note') && (!message || message.length < 10)) {
+      response.status(400).json({ ok: false, error: 'user_message_required' });
+      return;
+    }
+
+    try {
+      const now = new Date().toISOString();
+      let targetUser: admin.auth.UserRecord | null = null;
+
+      if (targetUid) {
+        targetUser = await admin
+          .auth()
+          .getUser(targetUid)
+          .catch((error: unknown) => {
+            if (isFirebaseAuthUserNotFound(error)) {
+              return null;
+            }
+            throw error;
+          });
+      }
+      if (!targetUser && targetEmail) {
+        targetUser = await admin
+          .auth()
+          .getUserByEmail(targetEmail)
+          .catch((error: unknown) => {
+            if (isFirebaseAuthUserNotFound(error)) {
+              return null;
+            }
+            throw error;
+          });
+      }
+      if (!targetUser) {
+        response.status(404).json({ ok: false, error: 'user_target_not_found' });
+        return;
+      }
+
+      const targetUserEmail = normalizeEmailAddress(targetUser.email ?? targetEmail);
+      const targetClaims = asRecord(targetUser.customClaims) ?? {};
+      const targetClaimsRole = normalizePlatformAdminRole(stringValue(targetClaims.platform_admin_role));
+      const targetAdminSnapshot = await db.collection('platform_admins').doc(targetUser.uid).get();
+      const targetAdminRecord = targetAdminSnapshot.exists
+        ? normalizePlatformAdminRegistryData(targetAdminSnapshot.id, targetAdminSnapshot.data() ?? {})
+        : null;
+      const targetIsPlatformAdmin =
+        isAuthorizedInternalAdminEmail(targetUserEmail) ||
+        targetAdminRecord?.status === 'active' ||
+        targetClaims.platform_admin === true ||
+        Boolean(targetClaimsRole);
+
+      if (targetUser.uid === adminUser.uid && (action === 'suspend_user' || action === 'restore_user')) {
+        response.status(409).json({ ok: false, error: 'cannot_change_own_user_status' });
+        return;
+      }
+      if (targetIsPlatformAdmin && (action === 'suspend_user' || action === 'restore_user')) {
+        response.status(409).json({ ok: false, error: 'platform_admin_user_protected' });
+        return;
+      }
+
+      const userRef = db.collection('platform_users').doc(targetUser.uid);
+      const userSnapshot = await userRef.get();
+      const previousValues = userSnapshot.exists ? userSnapshot.data() ?? {} : null;
+      const eventId = normalizeId(`platform_user_${action}_${targetUser.uid}_${Date.now()}`);
+      const auditRef = db.collection('platform_admin_audit').doc(eventId);
+      const warningRef = db.collection('platform_user_warnings').doc(eventId);
+      const userUpdates: FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData> = {
+        uid: targetUser.uid,
+        email: targetUserEmail,
+        display_name: targetUser.displayName ?? null,
+        last_admin_action: action,
+        last_admin_action_at: now,
+        last_admin_action_by_uid: adminUser.uid,
+        last_admin_action_by_email: adminUser.email ?? null,
+        last_admin_reason: reason,
+        updated_at: now,
+      };
+
+      if (action === 'suspend_user') {
+        await admin.auth().updateUser(targetUser.uid, { disabled: true });
+        userUpdates.platform_user_status = 'suspended';
+        userUpdates.suspended_by_uid = adminUser.uid;
+        userUpdates.suspended_by_email = adminUser.email ?? null;
+        userUpdates.suspended_at = now;
+      }
+      if (action === 'restore_user') {
+        await admin.auth().updateUser(targetUser.uid, { disabled: false });
+        userUpdates.platform_user_status = 'active';
+        userUpdates.restored_by_uid = adminUser.uid;
+        userUpdates.restored_by_email = adminUser.email ?? null;
+        userUpdates.restored_at = now;
+      }
+      if (action === 'send_warning') {
+        userUpdates.warning_count = admin.firestore.FieldValue.increment(1);
+        userUpdates.last_warning_at = now;
+        userUpdates.last_warning_message_preview = message?.slice(0, 180) ?? null;
+        userUpdates.last_warning_delivery_status = 'pending_delivery';
+        userUpdates.last_warning_delivery_provider_message_id = null;
+        userUpdates.last_warning_delivery_failure_reason = null;
+      }
+      if (action === 'add_internal_note') {
+        userUpdates.internal_note_count = admin.firestore.FieldValue.increment(1);
+        userUpdates.last_internal_note_at = now;
+        userUpdates.last_internal_note_preview = message?.slice(0, 180) ?? null;
+      }
+      if (action === 'mark_under_review') {
+        userUpdates.platform_user_risk_status = 'under_review';
+        userUpdates.risk_label = riskLabel ?? 'Under review';
+        userUpdates.risk_updated_by_uid = adminUser.uid;
+        userUpdates.risk_updated_by_email = adminUser.email ?? null;
+        userUpdates.risk_updated_at = now;
+      }
+      if (action === 'clear_under_review') {
+        userUpdates.platform_user_risk_status = 'clear';
+        userUpdates.risk_label = admin.firestore.FieldValue.delete();
+        userUpdates.risk_cleared_by_uid = adminUser.uid;
+        userUpdates.risk_cleared_by_email = adminUser.email ?? null;
+        userUpdates.risk_cleared_at = now;
+      }
+
+      const batch = db.batch();
+      batch.set(userRef, userUpdates, { merge: true });
+      if (action === 'send_warning') {
+        batch.set(warningRef, {
+          id: eventId,
+          target_uid: targetUser.uid,
+          target_email: targetUserEmail,
+          message,
+          reason,
+          actor_uid: adminUser.uid,
+          actor_email: adminUser.email ?? null,
+          actor_role: adminAccess.role,
+          delivery_status: 'pending_delivery',
+          delivery_provider_message_id: null,
+          delivery_failure_reason: null,
+          created_at: now,
+        });
+      }
+      if (action === 'add_internal_note') {
+        batch.set(db.collection('platform_user_notes').doc(eventId), {
+          id: eventId,
+          target_uid: targetUser.uid,
+          target_email: targetUserEmail,
+          note: message,
+          reason,
+          actor_uid: adminUser.uid,
+          actor_email: adminUser.email ?? null,
+          actor_role: adminAccess.role,
+          created_at: now,
+        });
+      }
+      batch.set(auditRef, {
+        action: `platform_user_${action}`,
+        actor_uid: adminUser.uid,
+        actor_email: adminUser.email ?? null,
+        actor_role: adminAccess.role,
+        target_uid: targetUser.uid,
+        target_email: targetUserEmail,
+        target_status:
+          action === 'suspend_user'
+            ? 'suspended'
+            : action === 'restore_user'
+              ? 'active'
+              : clean(stringValue(previousValues?.platform_user_status)) ?? (targetUser.disabled ? 'suspended' : 'active'),
+        previous_values: previousValues,
+        new_values: {
+          action,
+          reason,
+          message_preview: message?.slice(0, 180) ?? null,
+          risk_label: riskLabel ?? null,
+          delivery_status: action === 'send_warning' ? 'pending_delivery' : null,
+        },
+        reason,
+        risk_level: action === 'suspend_user' || action === 'restore_user' ? 'high' : 'medium',
+        created_at: now,
+      });
+      await batch.commit();
+
+      if (action === 'send_warning') {
+        const warningDelivery = await deliverPlatformUserWarningEmail({
+          targetEmail: targetUserEmail,
+          targetName: targetUser.displayName ?? targetUserEmail,
+          message: message ?? '',
+          actorEmail: adminUser.email ?? null,
+        });
+        await Promise.all([
+          userRef.set(
+            {
+              last_warning_delivery_status: warningDelivery.status,
+              last_warning_delivery_provider_message_id: warningDelivery.providerMessageId,
+              last_warning_delivery_failure_reason: warningDelivery.failureReason,
+              last_warning_delivery_sent_at: warningDelivery.sentAt,
+            },
+            { merge: true }
+          ),
+          warningRef.set(
+            {
+              delivery_status: warningDelivery.status,
+              delivery_provider_message_id: warningDelivery.providerMessageId,
+              delivery_failure_reason: warningDelivery.failureReason,
+              delivery_sent_at: warningDelivery.sentAt,
+            },
+            { merge: true }
+          ),
+          auditRef.set(
+            {
+              warning_delivery_status: warningDelivery.status,
+              warning_delivery_provider_message_id: warningDelivery.providerMessageId,
+              warning_delivery_failure_reason: warningDelivery.failureReason,
+              warning_delivery_sent_at: warningDelivery.sentAt,
+            },
+            { merge: true }
+          ),
+        ]);
+      }
+
+      response.json({
+        ok: true,
+        user: {
+          uid: targetUser.uid,
+          email: targetUserEmail,
+          action,
+          updatedAt: now,
+        },
+      });
+    } catch (error) {
+      logger.error('managePlatformAdminUser failed', { action, targetUid, targetEmail, error });
+      response.status(500).json({ ok: false, error: 'platform_user_update_failed' });
     }
   }
 );
@@ -7889,12 +8210,37 @@ function canPlatformAdminUseFunction(
     return ['admin', 'finance_admin', 'support_admin', 'read_only_admin'].includes(access.role);
   }
 
+  if (permission === 'manage_user_controls') {
+    return access.role === 'admin' || access.role === 'support_admin';
+  }
+
   if (permission === 'review_office_access') {
     return access.role === 'admin';
   }
 
   if (permission === 'review_support_cases') {
     return access.role === 'admin' || access.role === 'support_admin';
+  }
+
+  return false;
+}
+
+function canPlatformAdminUseUserAction(access: PlatformAdminRegistryData, action: PlatformAdminUserAction): boolean {
+  if (!canPlatformAdminUseFunction(access, 'manage_user_controls')) {
+    return false;
+  }
+
+  if (access.role === 'super_admin' || access.role === 'admin') {
+    return true;
+  }
+
+  if (access.role === 'support_admin') {
+    return (
+      action === 'send_warning' ||
+      action === 'add_internal_note' ||
+      action === 'mark_under_review' ||
+      action === 'clear_under_review'
+    );
   }
 
   return false;
@@ -7907,6 +8253,20 @@ function normalizePlatformAdminAccountAction(value: string | null): PlatformAdmi
     value === 'suspend' ||
     value === 'reactivate' ||
     value === 'revoke'
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function normalizePlatformAdminUserAction(value: string | null): PlatformAdminUserAction | null {
+  if (
+    value === 'suspend_user' ||
+    value === 'restore_user' ||
+    value === 'send_warning' ||
+    value === 'add_internal_note' ||
+    value === 'mark_under_review' ||
+    value === 'clear_under_review'
   ) {
     return value;
   }
@@ -8743,6 +9103,78 @@ async function deliverSubscriptionBillingEmailRequest(
         subject: buildBillingReceiptEmailSubject(request),
         html: buildBillingReceiptEmailHtml(request),
         text: buildBillingReceiptEmailText(request),
+    }),
+  });
+}
+
+async function deliverPlatformUserWarningEmail(input: {
+  targetEmail: string | null;
+  targetName: string | null;
+  message: string;
+  actorEmail: string | null;
+}): Promise<BillingEmailDeliveryResult> {
+  const recipientEmail = clean(input.targetEmail);
+  if (!recipientEmail || !isValidEmailAddress(recipientEmail)) {
+    return {
+      status: 'failed',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: 'recipient_required',
+    };
+  }
+
+  const apiKey = getSecretValue(resendApiKey, 'RESEND_API_KEY');
+  if (!isConfiguredCredential(apiKey)) {
+    return {
+      status: 'pending_provider_connection',
+      providerMessageId: null,
+      sentAt: null,
+      failureReason: null,
+    };
+  }
+
+  const safeName = clean(input.targetName) ?? 'there';
+  const actorLine = input.actorEmail ? `This notice was recorded by ${input.actorEmail}.` : 'This notice was recorded by Orbit Ledger.';
+  const htmlMessage = escapeHtml(input.message).replaceAll('\n', '<br>');
+  const text = `Hello ${safeName},
+
+Orbit Ledger has an account notice for you:
+
+${input.message}
+
+${actorLine}
+
+If you have questions, contact Orbit Ledger support.`;
+
+  return sendResendEmail({
+    apiKey,
+    payload: buildResendEmailPayload({
+      from: getOrbitLedgerFromAddress(),
+      to: [recipientEmail],
+      subject: 'Important Orbit Ledger account notice',
+      html: `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f6f9fd;font-family:Inter,Arial,sans-serif;color:#121826">
+    <table role="presentation" style="width:100%;border-collapse:collapse;background:#f6f9fd;padding:24px">
+      <tr>
+        <td align="center">
+          <table role="presentation" style="width:100%;max-width:640px;border-collapse:collapse;background:#ffffff;border:1px solid #d7e2f2;border-radius:22px;overflow:hidden">
+            <tr>
+              <td style="padding:28px">
+                <p style="margin:0 0 8px;color:#386fde;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">Orbit Ledger notice</p>
+                <h1 style="margin:0 0 14px;color:#121826;font-size:24px;line-height:1.2">Account notice</h1>
+                <p style="margin:0 0 18px;color:#41516a;font-size:15px;line-height:1.55">Hello ${escapeHtml(safeName)},</p>
+                <div style="margin:0 0 18px;padding:18px;border:1px solid #d7e2f2;border-radius:16px;background:#f8fbff;color:#121826;font-size:15px;line-height:1.55">${htmlMessage}</div>
+                <p style="margin:0;color:#607087;font-size:13px;line-height:1.5">${escapeHtml(actorLine)}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`,
+      text,
     }),
   });
 }

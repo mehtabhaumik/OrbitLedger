@@ -34,6 +34,14 @@ const baseUser: WebPlatformAdminUser = {
   platformAdminRoleSource: null,
   platformAdminCustomClaimsReady: false,
   platformAdminCustomClaimsRole: null,
+  platformUserStatus: 'active',
+  platformUserRiskStatus: null,
+  platformUserWarningCount: 0,
+  platformUserLastWarningAt: null,
+  platformUserLastAdminAction: null,
+  platformUserLastAdminReason: null,
+  platformUserLastInternalNoteAt: null,
+  platformUserLastInternalNotePreview: null,
   status: 'active',
 };
 
@@ -122,6 +130,19 @@ describe('platform admin registry helpers', () => {
     expect(filterWebPlatformAdminUsers(users, 'accountant_2')).toHaveLength(1);
     expect(filterWebPlatformAdminUsers(users, 'google.com')).toHaveLength(2);
     expect(filterWebPlatformAdminUsers([{ ...baseUser, platformAdminRole: 'finance_admin' }], 'finance_admin')).toHaveLength(1);
+    expect(
+      filterWebPlatformAdminUsers(
+        [
+          {
+            ...baseUser,
+            platformUserRiskStatus: 'under_review',
+            platformUserLastAdminReason: 'Repeated failed billing recovery',
+            platformUserWarningCount: 2,
+          },
+        ],
+        'billing recovery'
+      )
+    ).toHaveLength(1);
     expect(filterWebPlatformAdminUsers(users, 'missing')).toHaveLength(0);
   });
 

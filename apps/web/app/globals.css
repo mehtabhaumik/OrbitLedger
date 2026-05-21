@@ -3241,6 +3241,43 @@ a:focus-visible {
   line-height: 1.5;
 }
 
+.ol-platform-admin-user-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.85fr);
+  gap: 18px;
+  padding: 18px;
+}
+
+.ol-platform-admin-selected-user {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid rgba(191, 205, 225, 0.78);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.ol-platform-admin-selected-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ol-platform-admin-selected-summary span {
+  min-height: 52px;
+  padding: 12px;
+  border: 1px solid rgba(191, 205, 225, 0.72);
+  border-radius: 14px;
+  background: rgba(248, 251, 255, 0.86);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 780;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .ol-platform-admin-audit-filters {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -3328,13 +3365,23 @@ a:focus-visible {
   gap: 12px;
 }
 
+.ol-platform-admin-table-head > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
 .ol-platform-admin-table-head strong {
+  display: block;
   font-size: 18px;
+  line-height: 1.25;
 }
 
 .ol-platform-admin-table-head span {
+  display: block;
   color: var(--text-muted);
   font-weight: 800;
+  line-height: 1.35;
 }
 
 .ol-platform-admin-user-list {
@@ -3343,7 +3390,9 @@ a:focus-visible {
 
 .ol-platform-admin-user-row {
   display: grid;
-  grid-template-columns: minmax(280px, 1.6fr) minmax(180px, 0.9fr) minmax(210px, 1fr) minmax(240px, 1.2fr);
+  grid-template-columns:
+    minmax(280px, 1.45fr) minmax(180px, 0.85fr) minmax(210px, 0.95fr) minmax(240px, 1.1fr)
+    minmax(180px, auto);
   gap: 18px;
   align-items: center;
   padding: 18px;
@@ -3467,6 +3516,7 @@ a:focus-visible {
   }
 
   .ol-platform-admin-management,
+  .ol-platform-admin-user-control,
   .ol-platform-admin-audit-filters,
   .ol-platform-admin-audit-row,
   .ol-platform-admin-admin-row {
@@ -3480,6 +3530,10 @@ a:focus-visible {
   .ol-platform-admin-user-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .ol-platform-admin-selected-summary {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
@@ -3491,7 +3545,8 @@ a:focus-visible {
   .ol-platform-admin-status,
   .ol-platform-admin-metrics,
   .ol-platform-admin-form-grid,
-  .ol-platform-admin-user-row {
+  .ol-platform-admin-user-row,
+  .ol-platform-admin-selected-summary {
     grid-template-columns: 1fr;
   }
 

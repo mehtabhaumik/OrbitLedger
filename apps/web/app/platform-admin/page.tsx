@@ -12,12 +12,14 @@ import {
   loadWebPlatformAdminAuditTrail,
   loadWebPlatformAdminSnapshot,
   manageWebPlatformAdminAccount,
+  manageWebPlatformAdminUser,
   type WebPlatformAdminAccountAction,
   type WebPlatformAdminAuditFilters,
   type WebPlatformAdminAuditRecord,
   type WebPlatformAdminRegistryRecord,
   type WebPlatformAdminSnapshot,
   type WebPlatformAdminUser,
+  type WebPlatformAdminUserAction,
 } from '@/lib/platform-admin';
 import { useAuth } from '@/providers/auth-provider';
 
@@ -30,6 +32,16 @@ type AdminFormState = {
   reason: string;
 };
 
+type UserControlFormState = {
+  action: WebPlatformAdminUserAction;
+  targetEmail: string;
+  targetUid: string;
+  displayName: string;
+  reason: string;
+  message: string;
+  riskLabel: string;
+};
+
 const DEFAULT_ADMIN_FORM: AdminFormState = {
   action: 'create',
   targetEmail: '',
@@ -37,6 +49,16 @@ const DEFAULT_ADMIN_FORM: AdminFormState = {
   displayName: '',
   role: 'read_only_admin',
   reason: '',
+};
+
+const DEFAULT_USER_CONTROL_FORM: UserControlFormState = {
+  action: 'send_warning',
+  targetEmail: '',
+  targetUid: '',
+  displayName: '',
+  reason: '',
+  message: '',
+  riskLabel: '',
 };
 
 const DEFAULT_AUDIT_FILTERS: WebPlatformAdminAuditFilters = {
@@ -59,6 +81,11 @@ export default function PlatformAdminPage() {
   const [adminActionError, setAdminActionError] = useState<string | null>(null);
   const [isSavingAdmin, setIsSavingAdmin] = useState(false);
   const [adminForm, setAdminForm] = useState<AdminFormState>(DEFAULT_ADMIN_FORM);
+  const [userControlMessage, setUserControlMessage] = useState<string | null>(null);
+  const [userControlError, setUserControlError] = useState<string | null>(null);
+  const [isSavingUserControl, setIsSavingUserControl] = useState(false);
+  const [userControlForm, setUserControlForm] = useState<UserControlFormState>(DEFAULT_USER_CONTROL_FORM);
+  const [selectedUser, setSelectedUser] = useState<WebPlatformAdminUser | null>(null);
   const [auditTrail, setAuditTrail] = useState<WebPlatformAdminAuditRecord[]>([]);
   const [auditGeneratedAt, setAuditGeneratedAt] = useState<string | null>(null);
   const [auditError, setAuditError] = useState<string | null>(null);
@@ -72,6 +99,18 @@ export default function PlatformAdminPage() {
   );
   const admins = snapshot?.admins ?? [];
   const isSuperAdmin = snapshot?.adminAccess?.role === 'super_admin';
+  const canControlUsers =
+    snapshot?.adminAccess?.role === 'super_admin' ||
+    snapshot?.adminAccess?.role === 'admin' ||
+    snapshot?.adminAccess?.role === 'support_admin';
+  const canSuspendUsers = snapshot?.adminAccess?.role === 'super_admin' || snapshot?.adminAccess?.role === 'admin';
+  const userControlNeedsMessage =
+    userControlForm.action === 'send_warning' || userControlForm.action === 'add_internal_note';
+  const userControlSubmitDisabled =
+    isSavingUserControl ||
+    !userControlForm.targetUid.trim() ||
+    userControlForm.reason.trim().length < 10 ||
+    (userControlNeedsMessage && userControlForm.message.trim().length < 10);
 
   useEffect(() => {
     if (isAuthLoading || !user) {
@@ -173,6 +212,46 @@ export default function PlatformAdminPage() {
       setAdminActionError(submitError instanceof Error ? submitError.message : 'Platform admin access could not be updated.');
     } finally {
       setIsSavingAdmin(false);
+    }
+  }
+
+  function openManageUserForm(userRecord: WebPlatformAdminUser, action: WebPlatformAdminUserAction = 'send_warning') {
+    setUserControlError(null);
+    setUserControlMessage(null);
+    setSelectedUser(userRecord);
+    setUserControlForm({
+      action,
+      targetEmail: userRecord.email ?? '',
+      targetUid: userRecord.uid,
+      displayName: userRecord.displayName ?? userRecord.email ?? userRecord.uid,
+      reason: '',
+      message: '',
+      riskLabel: '',
+    });
+  }
+
+  async function handleUserControlSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setUserControlError(null);
+    setUserControlMessage(null);
+    setIsSavingUserControl(true);
+    try {
+      await manageWebPlatformAdminUser({
+        action: userControlForm.action,
+        targetEmail: userControlForm.targetEmail,
+        targetUid: userControlForm.targetUid,
+        reason: userControlForm.reason,
+        message: userControlForm.message,
+        riskLabel: userControlForm.riskLabel,
+      });
+      setUserControlMessage('User control action was completed and recorded for audit.');
+      await refresh(pageToken);
+      await refreshAudit(auditFilters);
+      setUserControlForm((current) => ({ ...current, reason: '', message: '', riskLabel: '' }));
+    } catch (submitError) {
+      setUserControlError(submitError instanceof Error ? submitError.message : 'Platform user control action failed.');
+    } finally {
+      setIsSavingUserControl(false);
     }
   }
 
@@ -633,6 +712,144 @@ export default function PlatformAdminPage() {
           )}
         </section>
 
+        {canControlUsers ? (
+          <section className="ol-platform-admin-table-card">
+            <div className="ol-platform-admin-table-head">
+              <div>
+                <strong>User control actions</strong>
+                <span>Warnings, notes, risk review, and account status changes</span>
+              </div>
+              <span className="ol-platform-admin-status-pill" data-tone="warning">
+                Reason required
+              </span>
+            </div>
+            <div className="ol-platform-admin-user-control">
+              <div className="ol-platform-admin-selected-user">
+                {selectedUser ? (
+                  <>
+                    <div className="ol-platform-admin-user-main">
+                      <span className="ol-platform-admin-avatar">{initials(userControlForm.displayName)}</span>
+                      <div>
+                        <strong>{userControlForm.displayName}</strong>
+                        <span>{userControlForm.targetEmail || 'No email saved'}</span>
+                        <code>{userControlForm.targetUid}</code>
+                      </div>
+                    </div>
+                    <div className="ol-platform-admin-selected-summary">
+                      <span>{selectedUser.ownedWorkspaceCount} owned workspace(s)</span>
+                      <span>{selectedUser.workspaceNames.length ? selectedUser.workspaceNames.join(', ') : 'No workspace names'}</span>
+                      <span>{selectedUser.officeWorkspaceCount} Office workspace(s)</span>
+                      <span>
+                        {selectedUser.platformUserWarningCount
+                          ? `${selectedUser.platformUserWarningCount} warning(s)`
+                          : 'No warnings recorded'}
+                      </span>
+                      <span>{selectedUser.platformUserRiskStatus ?? 'No active risk flag'}</span>
+                      {selectedUser.platformUserLastAdminReason ? (
+                        <span>Last reason: {selectedUser.platformUserLastAdminReason}</span>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <div className="ol-platform-admin-empty ol-platform-admin-empty-compact">
+                    <h2>Select a user</h2>
+                    <p>
+                      Use the action buttons in the user registry. Workspace summaries are shown here without exposing
+                      customer ledger records.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <form className="ol-platform-admin-admin-form" onSubmit={handleUserControlSubmit}>
+                <div>
+                  <p className="ol-chip">Server authorized</p>
+                  <h2>Manage selected user</h2>
+                  <p>
+                    User lifecycle actions require an audit reason. Support admins can warn, note, and flag review;
+                    suspend and restore stay with Super Admin/Admin.
+                  </p>
+                </div>
+
+                {userControlMessage ? (
+                  <div className="ol-message" data-tone="success">
+                    {userControlMessage}
+                  </div>
+                ) : null}
+                {userControlError ? (
+                  <div className="ol-message" data-tone="danger">
+                    {userControlError}
+                  </div>
+                ) : null}
+
+                <div className="ol-platform-admin-form-grid">
+                  <label className="ol-form-field">
+                    <span>Action</span>
+                    <select
+                      className="ol-select"
+                      value={userControlForm.action}
+                      onChange={(event) =>
+                        setUserControlForm((current) => ({
+                          ...current,
+                          action: event.target.value as WebPlatformAdminUserAction,
+                        }))
+                      }
+                    >
+                      {canSuspendUsers ? <option value="suspend_user">Suspend user</option> : null}
+                      {canSuspendUsers ? <option value="restore_user">Restore user</option> : null}
+                      <option value="send_warning">Send warning</option>
+                      <option value="add_internal_note">Add internal note</option>
+                      <option value="mark_under_review">Mark under review</option>
+                      <option value="clear_under_review">Clear review flag</option>
+                    </select>
+                  </label>
+                  <label className="ol-form-field">
+                    <span>Risk label</span>
+                    <input
+                      className="ol-input"
+                      value={userControlForm.riskLabel}
+                      onChange={(event) => setUserControlForm((current) => ({ ...current, riskLabel: event.target.value }))}
+                      placeholder="Billing risk, misuse review, support follow-up"
+                    />
+                  </label>
+                </div>
+
+                {userControlNeedsMessage ? (
+                  <label className="ol-form-field">
+                    <span>{userControlForm.action === 'send_warning' ? 'Warning message' : 'Internal note'}</span>
+                    <textarea
+                      className="ol-input ol-textarea"
+                      value={userControlForm.message}
+                      onChange={(event) => setUserControlForm((current) => ({ ...current, message: event.target.value }))}
+                      placeholder={
+                        userControlForm.action === 'send_warning'
+                          ? 'Example: Please update your billing contact details before the next review.'
+                          : 'Example: Customer reported onboarding confusion. Follow up after next login.'
+                      }
+                      rows={4}
+                    />
+                  </label>
+                ) : null}
+
+                <label className="ol-form-field">
+                  <span>Reason</span>
+                  <textarea
+                    className="ol-input ol-textarea"
+                    value={userControlForm.reason}
+                    onChange={(event) => setUserControlForm((current) => ({ ...current, reason: event.target.value }))}
+                    placeholder="Example: User requested account suspension during support verification."
+                    rows={4}
+                  />
+                </label>
+
+                <button className="ol-button" type="submit" disabled={userControlSubmitDisabled}>
+                  {isSavingUserControl ? 'Saving user action...' : 'Save user action'}
+                </button>
+              </form>
+            </div>
+          </section>
+        ) : null}
+
         <section className="ol-platform-admin-table-card">
           <div className="ol-platform-admin-table-head">
             <strong>Users</strong>
@@ -648,7 +865,13 @@ export default function PlatformAdminPage() {
           ) : users.length ? (
             <div className="ol-platform-admin-user-list">
               {users.map((item) => (
-                <UserRow key={item.uid} user={item} />
+                <UserRow
+                  key={item.uid}
+                  user={item}
+                  canControl={canControlUsers}
+                  canSuspend={canSuspendUsers}
+                  onManage={openManageUserForm}
+                />
               ))}
             </div>
           ) : (
@@ -780,7 +1003,17 @@ function AuditRecordRow({ record }: { record: WebPlatformAdminAuditRecord }) {
   );
 }
 
-function UserRow({ user }: { user: WebPlatformAdminUser }) {
+function UserRow({
+  user,
+  canControl,
+  canSuspend,
+  onManage,
+}: {
+  user: WebPlatformAdminUser;
+  canControl: boolean;
+  canSuspend: boolean;
+  onManage: (user: WebPlatformAdminUser, action?: WebPlatformAdminUserAction) => void;
+}) {
   const title = user.displayName || user.email || user.uid;
   const workspaceSummary = user.workspaceNames.length
     ? user.workspaceNames.join(', ')
@@ -805,6 +1038,16 @@ function UserRow({ user }: { user: WebPlatformAdminUser }) {
       </div>
       <div className="ol-platform-admin-user-meta">
         <StatusPill user={user} />
+        {user.platformUserRiskStatus === 'under_review' ? (
+          <span className="ol-platform-admin-status-pill" data-tone="warning">
+            Under review
+          </span>
+        ) : null}
+        {user.platformUserWarningCount ? (
+          <span className="ol-platform-admin-status-pill" data-tone="warning">
+            {user.platformUserWarningCount} warning{user.platformUserWarningCount === 1 ? '' : 's'}
+          </span>
+        ) : null}
         {user.platformAdminRole ? (
           <span>
             {getPlatformAdminRoleDefinition(user.platformAdminRole).label} · {user.platformAdminRoleSource ?? 'registry'}
@@ -819,7 +1062,29 @@ function UserRow({ user }: { user: WebPlatformAdminUser }) {
       <div className="ol-platform-admin-user-meta">
         <span>{workspaceSummary}</span>
         <span>{officeSummary}</span>
+        {user.platformUserLastAdminReason ? <span>Last action: {user.platformUserLastAdminReason}</span> : null}
       </div>
+      {canControl ? (
+        <div className="ol-platform-admin-row-actions">
+          <button className="ol-button-secondary" type="button" onClick={() => onManage(user, 'send_warning')}>
+            Manage
+          </button>
+          <button className="ol-button-ghost" type="button" onClick={() => onManage(user, 'add_internal_note')}>
+            Note
+          </button>
+          {canSuspend ? (
+            user.disabled ? (
+              <button className="ol-button-ghost" type="button" onClick={() => onManage(user, 'restore_user')}>
+                Restore
+              </button>
+            ) : (
+              <button className="ol-button-ghost" type="button" onClick={() => onManage(user, 'suspend_user')}>
+                Suspend
+              </button>
+            )
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
 }

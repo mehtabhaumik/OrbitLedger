@@ -96,6 +96,14 @@ describe('Firestore workspace rules', () => {
       await context.firestore().collection('platform_admin_audit').doc('audit-1').set({
         action: 'registry_snapshot_generated',
       });
+      await context.firestore().collection('platform_user_warnings').doc('warning-1').set({
+        target_uid: 'user-1',
+        message: 'Review needed',
+      });
+      await context.firestore().collection('platform_user_notes').doc('note-1').set({
+        target_uid: 'user-1',
+        note: 'Internal note',
+      });
     });
 
     const user = testEnv.authenticatedContext('user-1').firestore();
@@ -103,6 +111,8 @@ describe('Firestore workspace rules', () => {
     await assertFails(user.collection('platform_admins').doc('user-1').set({ role: 'super_admin' }));
     await assertFails(user.collection('platform_users').doc('user-1').get());
     await assertFails(user.collection('platform_admin_audit').doc('audit-1').get());
+    await assertFails(user.collection('platform_user_warnings').doc('warning-1').get());
+    await assertFails(user.collection('platform_user_notes').doc('note-1').get());
   });
 
   it('allows only the owning user to access workspace records', async () => {

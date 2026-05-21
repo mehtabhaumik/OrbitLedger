@@ -466,7 +466,7 @@ Role source can be:
 - `registry`
 - `custom_claim`
 
-The emergency allowlist remains a recovery path and is not fully revocable from the UI. Registry records are server-owned; Firestore rules block direct browser read/write access to `platform_admins`, `platform_users`, and `platform_admin_audit`.
+The emergency allowlist remains a recovery path and is not fully revocable from the UI. Registry records are server-owned; Firestore rules block direct browser read/write access to `platform_admins`, `platform_users`, `platform_user_warnings`, `platform_user_notes`, and `platform_admin_audit`.
 
 The custom-claims path is prepared through registry fields:
 
@@ -1911,3 +1911,32 @@ Platform Admin now includes a server-backed audit trail viewer.
 ### Next Phase
 
 `PLATFORM ADMIN PHASE 6: User Control Actions`
+
+## Platform Admin Phase 6: User Control Actions
+
+Platform Admin now includes server-authorized user lifecycle controls.
+
+### Included
+
+- Trusted `managePlatformAdminUser` function for user control actions.
+- Admin/Super Admin can suspend and restore non-admin users.
+- Admin/Super Admin/Support Admin can send warnings, add internal notes, mark users under review, and clear review flags.
+- Warning actions attempt Resend-backed delivery when the server secret is configured, and record delivery status either way.
+- Every user control action requires a reason.
+- Warning and internal-note actions require message text.
+- User registry rows show warning count, review state, and latest admin reason when present.
+- Selected user summary shows workspace and Office counts without exposing customer ledger records.
+- User warnings and internal notes are stored in server-owned collections.
+- User control access writes to `platform_admin_audit`.
+
+### Boundaries
+
+- Platform admin accounts are protected from normal user lifecycle suspension/restoration.
+- Support Admin cannot suspend or restore users.
+- Finance Admin and Read-only Admin cannot mutate user lifecycle controls.
+- Direct browser access to `platform_users`, `platform_user_warnings`, `platform_user_notes`, and `platform_admin_audit` remains blocked by Firestore rules.
+- No passwords, provider secrets, payment secrets, or customer ledger details are exposed in the Platform Admin user control UI.
+
+### Next Phase
+
+`PLATFORM ADMIN PHASE 7: Offers + Special Pricing Controls`

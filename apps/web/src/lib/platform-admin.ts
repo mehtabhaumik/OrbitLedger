@@ -25,6 +25,14 @@ export type WebPlatformAdminUser = {
   platformAdminRoleSource: PlatformAdminRoleSource | null;
   platformAdminCustomClaimsReady: boolean;
   platformAdminCustomClaimsRole: PlatformAdminRole | null;
+  platformUserStatus: string | null;
+  platformUserRiskStatus: string | null;
+  platformUserWarningCount: number;
+  platformUserLastWarningAt: string | null;
+  platformUserLastAdminAction: string | null;
+  platformUserLastAdminReason: string | null;
+  platformUserLastInternalNoteAt: string | null;
+  platformUserLastInternalNotePreview: string | null;
   status: WebPlatformAdminUserStatus;
 };
 
@@ -67,6 +75,13 @@ export type WebPlatformAdminRegistryRecord = {
 };
 
 export type WebPlatformAdminAccountAction = 'create' | 'change_role' | 'suspend' | 'reactivate' | 'revoke';
+export type WebPlatformAdminUserAction =
+  | 'suspend_user'
+  | 'restore_user'
+  | 'send_warning'
+  | 'add_internal_note'
+  | 'mark_under_review'
+  | 'clear_under_review';
 
 export type WebPlatformAdminAuditRecord = {
   id: string;
@@ -159,6 +174,12 @@ export function filterWebPlatformAdminUsers(users: WebPlatformAdminUser[], searc
       user.platformAdminRole ?? '',
       user.platformAdminStatus ?? '',
       user.platformAdminRoleSource ?? '',
+      user.platformUserStatus ?? '',
+      user.platformUserRiskStatus ?? '',
+      String(user.platformUserWarningCount),
+      user.platformUserLastAdminAction ?? '',
+      user.platformUserLastAdminReason ?? '',
+      user.platformUserLastInternalNotePreview ?? '',
     ]
       .join(' ')
       .toLowerCase()
@@ -300,6 +321,45 @@ export async function manageWebPlatformAdminAccount(input: {
   }
 }
 
+export async function manageWebPlatformAdminUser(input: {
+  action: WebPlatformAdminUserAction;
+  targetEmail?: string | null;
+  targetUid?: string | null;
+  reason: string;
+  message?: string | null;
+  riskLabel?: string | null;
+}): Promise<void> {
+  const user = getWebAuth().currentUser;
+  if (!user) {
+    throw new Error('Sign in again before changing platform user status.');
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(getPlatformAdminUserUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+  const result = (await response.json().catch(() => ({
+    ok: false,
+    error: 'platform_user_update_failed',
+  }))) as
+    | {
+        ok: true;
+      }
+    | {
+        ok: false;
+        error: string;
+      };
+
+  if (!result.ok) {
+    throw new Error(platformAdminUserErrorMessage(result.error));
+  }
+}
+
 export async function loadWebPlatformAdminAuditTrail(input: Partial<WebPlatformAdminAuditFilters> & {
   limit?: number;
 } = {}): Promise<WebPlatformAdminAuditTrail> {
@@ -357,6 +417,11 @@ function getPlatformAdminAccountUrl() {
   return `https://asia-south1-${projectId}.cloudfunctions.net/managePlatformAdminAccount`;
 }
 
+function getPlatformAdminUserUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/managePlatformAdminUser`;
+}
+
 function getPlatformAdminAuditTrailUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/getPlatformAdminAuditTrail`;
@@ -395,6 +460,34 @@ function platformAdminAccountErrorMessage(error: string): string {
     return 'Only a Super Admin can manage platform admin accounts.';
   }
   return 'Platform admin access could not be updated.';
+}
+
+function platformAdminUserErrorMessage(error: string): string {
+  if (error === 'user_reason_required') {
+    return 'Add a clear reason with at least 10 characters before changing this user record.';
+  }
+  if (error === 'user_message_required') {
+    return 'Add a warning or note message with at least 10 characters before saving.';
+  }
+  if (error === 'user_email_invalid') {
+    return 'Enter a valid user email address.';
+  }
+  if (error === 'user_target_not_found') {
+    return 'No Firebase Auth user was found for that target.';
+  }
+  if (error === 'user_action_not_allowed') {
+    return 'Your admin role cannot perform that user control action.';
+  }
+  if (error === 'cannot_change_own_user_status') {
+    return 'You cannot suspend or restore your own user account from this control.';
+  }
+  if (error === 'platform_admin_user_protected') {
+    return 'Platform admin accounts are protected from regular user lifecycle actions.';
+  }
+  if (error === 'internal_admin_required') {
+    return 'This account is not enabled to manage platform users.';
+  }
+  return 'Platform user control action could not be completed.';
 }
 
 function platformAdminAuditErrorMessage(error: string): string {

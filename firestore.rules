@@ -335,6 +335,14 @@ service cloud.firestore {
       allow read, create, update, delete: if false;
     }
 
+    match /platform_user_warnings/{warningId} {
+      allow read, create, update, delete: if false;
+    }
+
+    match /platform_user_notes/{noteId} {
+      allow read, create, update, delete: if false;
+    }
+
     match /platform_admins/{adminId} {
       allow read, create, update, delete: if false;
     }
