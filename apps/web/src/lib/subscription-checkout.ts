@@ -18,6 +18,10 @@ export type SubscriptionCheckoutResult = {
   reference: string | null;
   amountMinor: number | null;
   amountDisplay: string | null;
+  originalAmountMinor: number | null;
+  originalAmountDisplay: string | null;
+  offerId: string | null;
+  offerLabel: string | null;
   currency: OrbitLedgerCurrencyCode | null;
   pricingCountry: OrbitLedgerPricingCountryCode | null;
   providerPriceId: string | null;
@@ -78,6 +82,10 @@ type CreateSubscriptionCheckoutResponse =
       reference: string;
       amountMinor?: number;
       amountDisplay?: string;
+      originalAmountMinor?: number | null;
+      originalAmountDisplay?: string | null;
+      offerId?: string | null;
+      offerLabel?: string | null;
       currency?: OrbitLedgerCurrencyCode;
       pricingCountry?: OrbitLedgerPricingCountryCode;
       providerPriceId?: string;
@@ -92,6 +100,10 @@ type CreateSubscriptionCheckoutResponse =
       reference?: string | null;
       amountMinor?: number | null;
       amountDisplay?: string | null;
+      originalAmountMinor?: number | null;
+      originalAmountDisplay?: string | null;
+      offerId?: string | null;
+      offerLabel?: string | null;
       currency?: OrbitLedgerCurrencyCode | null;
       pricingCountry?: OrbitLedgerPricingCountryCode | null;
       providerPriceId?: string | null;
@@ -165,6 +177,10 @@ export async function createSubscriptionCheckout(
       reference: result.reference,
       amountMinor: result.amountMinor ?? null,
       amountDisplay: result.amountDisplay ?? null,
+      originalAmountMinor: result.originalAmountMinor ?? null,
+      originalAmountDisplay: result.originalAmountDisplay ?? null,
+      offerId: result.offerId ?? null,
+      offerLabel: result.offerLabel ?? null,
       currency: result.currency ?? null,
       pricingCountry: result.pricingCountry ?? null,
       providerPriceId: result.providerPriceId ?? null,
@@ -181,6 +197,10 @@ export async function createSubscriptionCheckout(
       reference: result.reference ?? null,
       amountMinor: result.amountMinor ?? null,
       amountDisplay: result.amountDisplay ?? null,
+      originalAmountMinor: result.originalAmountMinor ?? null,
+      originalAmountDisplay: result.originalAmountDisplay ?? null,
+      offerId: result.offerId ?? null,
+      offerLabel: result.offerLabel ?? null,
       currency: result.currency ?? null,
       pricingCountry: result.pricingCountry ?? null,
       providerPriceId: result.providerPriceId ?? null,

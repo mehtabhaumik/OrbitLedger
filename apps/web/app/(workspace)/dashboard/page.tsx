@@ -33,6 +33,11 @@ import { AppShell } from '@/components/app-shell';
 import { DashboardCharts, type DashboardChartInsight } from '@/components/dashboard-charts';
 import { WorkspaceStatusCards } from '@/components/workspace-status-cards';
 import { buildDashboardAnalytics } from '@/lib/dashboard-analytics';
+import {
+  loadEligiblePlatformOffers,
+  summarizeActivePlatformOffer,
+  type WebEligiblePlatformOffersResponse,
+} from '@/lib/platform-offers';
 import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
 import {
   buildLivePaymentLinkStatus,
@@ -102,8 +107,13 @@ export default function DashboardPage() {
   const [closingChecks, setClosingChecks] = useState<ClosingCheckState>(DEFAULT_CLOSING_CHECKS);
   const [countedCashInput, setCountedCashInput] = useState('');
   const [closingSavedAt, setClosingSavedAt] = useState<string | null>(null);
+  const [eligibleOffers, setEligibleOffers] = useState<WebEligiblePlatformOffersResponse>({
+    generatedAt: new Date().toISOString(),
+    offers: [],
+  });
   const currency = activeWorkspace?.currency ?? 'INR';
   const today = new Date().toISOString().slice(0, 10);
+  const featuredOffer = useMemo(() => summarizeActivePlatformOffer(eligibleOffers.offers), [eligibleOffers.offers]);
   const followUpCustomers = useMemo(
     () =>
       customers.filter(
@@ -325,6 +335,7 @@ export default function DashboardPage() {
       setProviderEvents([]);
       setRecurringRules([]);
       setTransactions([]);
+      setEligibleOffers({ generatedAt: new Date().toISOString(), offers: [] });
       setClosingChecks(DEFAULT_CLOSING_CHECKS);
       setCountedCashInput('');
       setClosingSavedAt(null);
@@ -358,6 +369,21 @@ export default function DashboardPage() {
         setTransactions([]);
       });
   }, [activeWorkspace, today]);
+
+  useEffect(() => {
+    if (!activeWorkspace) {
+      return;
+    }
+    let isActive = true;
+    void loadEligiblePlatformOffers({ workspaceId: activeWorkspace.workspaceId }).then((result) => {
+      if (isActive) {
+        setEligibleOffers(result);
+      }
+    });
+    return () => {
+      isActive = false;
+    };
+  }, [activeWorkspace]);
   const autoEmailWarnings = useMemo(() => buildDashboardAutoEmailWarnings(recurringRules, invoices), [invoices, recurringRules]);
   const livePaymentStatuses = useMemo(
     () => buildDashboardLivePaymentStatuses(invoices, providerEvents),
@@ -491,6 +517,19 @@ export default function DashboardPage() {
 
   return (
     <AppShell title="Home" subtitle="Today’s priorities, collections, and business health.">
+      {featuredOffer ? (
+        <section className="ol-offer-dashboard-banner">
+          <span className="ol-chip ol-chip--success">{featuredOffer.label}</span>
+          <div>
+            <strong>{featuredOffer.title}</strong>
+            <p>{featuredOffer.publicBannerMessage}</p>
+          </div>
+          <Link className="ol-button-secondary" href="/market">
+            View offer
+          </Link>
+        </section>
+      ) : null}
+
       <section className="ol-panel-dark ol-action-center-hero">
         <div className="ol-panel-header">
           <div>

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildWebPlatformAdminMetrics,
   filterWebPlatformAdminAuditRecords,
+  filterWebPlatformAdminOffers,
   filterWebPlatformAdminUsers,
   formatPlatformAdminDate,
   type WebPlatformAdminUser,
@@ -195,5 +196,71 @@ describe('platform admin registry helpers', () => {
     expect(filterWebPlatformAdminAuditRecords(records, 'security review')).toHaveLength(1);
     expect(filterWebPlatformAdminAuditRecords(records, 'read_only_admin')).toHaveLength(1);
     expect(filterWebPlatformAdminAuditRecords(records, 'missing')).toHaveLength(0);
+  });
+
+  it('filters platform offers by label, scope, targets, plan, country, and reason', () => {
+    const offers = [
+      {
+        id: 'offer_1',
+        label: 'Launch Offer',
+        title: 'Launch pricing',
+        publicBannerMessage: 'Launch pricing is available.',
+        internalNote: 'First cohort',
+        scope: 'sitewide' as const,
+        discountType: 'percentage' as const,
+        discountValue: 20,
+        currency: null,
+        targetEmails: [],
+        targetUids: [],
+        targetWorkspaceIds: [],
+        targetPlanIds: ['pro_yearly'],
+        targetCountries: ['IN'],
+        startAt: '2026-05-21T00:00:00.000Z',
+        expiresAt: '2026-06-21T00:00:00.000Z',
+        status: 'active' as const,
+        lifetimeConfirmed: false,
+        createdAt: '2026-05-21T00:00:00.000Z',
+        createdByUid: 'admin_1',
+        createdByEmail: 'admin@example.com',
+        updatedAt: '2026-05-21T00:00:00.000Z',
+        updatedByUid: 'admin_1',
+        updatedByEmail: 'admin@example.com',
+        lastReason: 'Launch conversion review',
+      },
+      {
+        id: 'offer_2',
+        label: 'Selected User Offer',
+        title: 'Private retention pricing',
+        publicBannerMessage: 'Private pricing is available.',
+        internalNote: null,
+        scope: 'selected_users' as const,
+        discountType: 'amount' as const,
+        discountValue: 5000,
+        currency: 'INR',
+        targetEmails: ['owner@example.com'],
+        targetUids: [],
+        targetWorkspaceIds: [],
+        targetPlanIds: [],
+        targetCountries: [],
+        startAt: null,
+        expiresAt: null,
+        status: 'active' as const,
+        lifetimeConfirmed: true,
+        createdAt: null,
+        createdByUid: null,
+        createdByEmail: null,
+        updatedAt: null,
+        updatedByUid: null,
+        updatedByEmail: null,
+        lastReason: 'Founder approved retention price',
+      },
+    ];
+
+    expect(filterWebPlatformAdminOffers(offers, 'launch')).toHaveLength(1);
+    expect(filterWebPlatformAdminOffers(offers, 'selected_users')).toHaveLength(1);
+    expect(filterWebPlatformAdminOffers(offers, 'owner@example.com')).toHaveLength(1);
+    expect(filterWebPlatformAdminOffers(offers, 'pro_yearly')).toHaveLength(1);
+    expect(filterWebPlatformAdminOffers(offers, 'founder approved')).toHaveLength(1);
+    expect(filterWebPlatformAdminOffers(offers, 'missing')).toHaveLength(0);
   });
 });

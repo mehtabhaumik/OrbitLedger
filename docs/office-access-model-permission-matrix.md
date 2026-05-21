@@ -466,7 +466,7 @@ Role source can be:
 - `registry`
 - `custom_claim`
 
-The emergency allowlist remains a recovery path and is not fully revocable from the UI. Registry records are server-owned; Firestore rules block direct browser read/write access to `platform_admins`, `platform_users`, `platform_user_warnings`, `platform_user_notes`, and `platform_admin_audit`.
+The emergency allowlist remains a recovery path and is not fully revocable from the UI. Registry records are server-owned; Firestore rules block direct browser read/write access to `platform_admins`, `platform_users`, `platform_user_warnings`, `platform_user_notes`, `platform_offers`, and `platform_admin_audit`.
 
 The custom-claims path is prepared through registry fields:
 
@@ -1940,3 +1940,40 @@ Platform Admin now includes server-authorized user lifecycle controls.
 ### Next Phase
 
 `PLATFORM ADMIN PHASE 7: Offers + Special Pricing Controls`
+
+## Platform Admin Phase 7: Offers + Special Pricing Controls
+
+Platform Admin now has server-owned promotional offer controls for launch, seasonal, selected-user, selected-workspace, selected-plan, and selected-country pricing.
+
+### Included
+
+- Trusted `managePlatformAdminOffer` function for creating, updating, deactivating, and removing offers.
+- Trusted `getEligiblePlatformOffers` function for user-facing eligible offer banners and plan price resolution.
+- Dedicated Platform Admin `Offers` section with search, offer list, status, scope, target summary, expiry, and edit/remove actions.
+- Offer fields for label, title, public banner copy, internal note, scope, targets, discount type, discount value, currency lock, start date, expiry date, and explicit lifetime confirmation.
+- Sitewide and selected-target offers.
+- Dashboard offer banner for eligible users.
+- Market plan cards show original price with strikethrough and the active offer price when the server resolver returns a valid discount.
+- Checkout records store applied offer metadata, original price, discounted price, and offer label.
+- Every offer change writes to `platform_admin_audit`.
+
+### Permission Boundary
+
+- Super Admin can manage all offers.
+- Finance Admin can manage pricing offers.
+- Admin, Support Admin, and Read-only Admin can view offer data through the admin snapshot but cannot mutate pricing.
+- Offer visibility and checkout pricing use server-returned offer records; direct browser access to `platform_offers` remains blocked by Firestore rules.
+
+### Safety Rules
+
+- Every offer mutation requires a reason.
+- Selected scopes require matching targets.
+- Percentage discounts must be between 1 and 90.
+- Offers require a future expiry date unless a lifetime offer is explicitly confirmed.
+- Expired offers become read-only historical records.
+- Removed offers are status-marked, not deleted from the audit history.
+- Sitewide, lifetime, fixed-price, custom-price, and large-discount changes are marked high-risk in audit.
+
+### Next Phase
+
+`PLATFORM ADMIN PHASE 8: Admin Dashboard Redesign`

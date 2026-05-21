@@ -33,6 +33,7 @@ type PlatformAdminFunctionPermission =
   | 'manage_admin_accounts'
   | 'view_audit_trail'
   | 'manage_user_controls'
+  | 'manage_offers'
   | 'review_office_access'
   | 'review_support_cases';
 type PlatformAdminAccountAction = 'create' | 'change_role' | 'suspend' | 'reactivate' | 'revoke';
@@ -43,6 +44,20 @@ type PlatformAdminUserAction =
   | 'add_internal_note'
   | 'mark_under_review'
   | 'clear_under_review';
+const PLATFORM_OFFER_SCOPES = [
+  'sitewide',
+  'selected_users',
+  'selected_workspaces',
+  'selected_plans',
+  'selected_countries',
+] as const;
+const PLATFORM_OFFER_DISCOUNT_TYPES = ['fixed_price', 'percentage', 'amount', 'custom_tier_price'] as const;
+const PLATFORM_OFFER_STATUSES = ['scheduled', 'active', 'expired', 'deactivated', 'removed'] as const;
+
+type PlatformOfferScope = (typeof PLATFORM_OFFER_SCOPES)[number];
+type PlatformOfferDiscountType = (typeof PLATFORM_OFFER_DISCOUNT_TYPES)[number];
+type PlatformOfferStatus = (typeof PLATFORM_OFFER_STATUSES)[number];
+type PlatformAdminOfferAction = 'create' | 'update' | 'deactivate' | 'remove';
 type VerifiedRequestUser = { uid: string; email: string | null; claims: Record<string, unknown> };
 
 type PlatformAdminRegistryData = {
@@ -195,6 +210,10 @@ type SubscriptionCheckoutPricing = {
   currency: MonetizationCurrencyCode;
   amountMinor: number;
   amountDisplay: string;
+  originalAmountMinor?: number | null;
+  originalAmountDisplay?: string | null;
+  offerId?: string | null;
+  offerLabel?: string | null;
   checkoutProvider: MonetizationCheckoutProvider;
   providerPriceId: string;
   providerPriceStatus: 'pending_provider_connection' | 'active';
@@ -521,6 +540,10 @@ export function buildSubscriptionBillingMetadata(input: {
     total_minor: input.pricing.amountMinor,
     amount_minor: input.pricing.amountMinor,
     amount_display: input.pricing.amountDisplay,
+    original_amount_minor: input.pricing.originalAmountMinor ?? null,
+    original_amount_display: input.pricing.originalAmountDisplay ?? null,
+    offer_id: input.pricing.offerId ?? null,
+    offer_label: input.pricing.offerLabel ?? null,
     currency: input.pricing.currency,
     pricing_country: input.pricing.pricingCountry,
     checkout_provider: input.pricing.checkoutProvider,
@@ -1759,8 +1782,11 @@ export const createSubscriptionCheckout = onRequest(
       const planChange = resolveMonetizationPlanChange(entitlementSnapshot.data()?.plan_id, planId);
       if (!planChange.canApply) {
         const now = new Date().toISOString();
-        const checkoutPricing = resolveSubscriptionCheckoutPricing(
+        const checkoutPricing = await resolveSubscriptionCheckoutPricingWithEligibleOffer(
           planId,
+          userId,
+          workspaceId,
+          workspace.workspace,
           clean(stringValue(workspace.workspace.country_code)),
           clean(stringValue(workspace.workspace.currency))
         );
@@ -1812,8 +1838,11 @@ export const createSubscriptionCheckout = onRequest(
       }
 
       const now = new Date().toISOString();
-      const checkoutPricing = resolveSubscriptionCheckoutPricing(
+      const checkoutPricing = await resolveSubscriptionCheckoutPricingWithEligibleOffer(
         planId,
+        userId,
+        workspaceId,
+        workspace.workspace,
         clean(stringValue(workspace.workspace.country_code)),
         clean(stringValue(workspace.workspace.currency))
       );
@@ -1848,6 +1877,10 @@ export const createSubscriptionCheckout = onRequest(
           checkout_provider: checkoutPricing.checkoutProvider,
           provider_price_id: checkoutPricing.providerPriceId,
           provider_price_status: checkoutPricing.providerPriceStatus,
+          original_amount_minor: checkoutPricing.originalAmountMinor ?? null,
+          original_amount_display: checkoutPricing.originalAmountDisplay ?? null,
+          offer_id: checkoutPricing.offerId ?? null,
+          offer_label: checkoutPricing.offerLabel ?? null,
           plan_change_kind: planChange.kind,
           reference,
           callback_url: callbackUrl,
@@ -1865,6 +1898,10 @@ export const createSubscriptionCheckout = onRequest(
         reference,
         amountMinor: checkoutPricing.amountMinor,
         amountDisplay: checkoutPricing.amountDisplay,
+        originalAmountMinor: checkoutPricing.originalAmountMinor ?? null,
+        originalAmountDisplay: checkoutPricing.originalAmountDisplay ?? null,
+        offerId: checkoutPricing.offerId ?? null,
+        offerLabel: checkoutPricing.offerLabel ?? null,
         currency: checkoutPricing.currency,
         pricingCountry: checkoutPricing.pricingCountry,
         providerPriceId: checkoutPricing.providerPriceId,
@@ -3573,12 +3610,20 @@ export const getPlatformAdminSnapshot = onRequest(
     const generatedAt = new Date().toISOString();
 
     try {
-      const [authResult, workspaceSnapshot, memberSnapshot, platformAdminSnapshot, platformUserSnapshot] = await Promise.all([
+      const [
+        authResult,
+        workspaceSnapshot,
+        memberSnapshot,
+        platformAdminSnapshot,
+        platformUserSnapshot,
+        platformOfferSnapshot,
+      ] = await Promise.all([
         admin.auth().listUsers(requestedLimit, pageToken ?? undefined),
         db.collection('workspaces').limit(3000).get(),
         db.collectionGroup('office_members').where('status', '==', 'active').limit(3000).get(),
         db.collection('platform_admins').limit(1000).get(),
         db.collection('platform_users').limit(3000).get(),
+        db.collection('platform_offers').limit(1000).get(),
       ]);
 
       const platformAdminByUid = new Map<string, PlatformAdminRegistryData>();
@@ -3776,6 +3821,14 @@ export const getPlatformAdminSnapshot = onRequest(
           isEmergencyAllowlist: isAuthorizedInternalAdminEmail(adminRecord.email),
           lastSignInAt: authUserByUid.get(adminRecord.uid)?.metadata.lastSignInTime ?? null,
         }));
+      const offers = platformOfferSnapshot.docs
+        .map((offerDoc) => normalizePlatformOfferRecord(offerDoc.id, offerDoc.data(), new Date(generatedAt)))
+        .filter((offer): offer is NonNullable<ReturnType<typeof normalizePlatformOfferRecord>> => Boolean(offer))
+        .sort((left, right) => {
+          const leftTime = left.updatedAt ?? left.createdAt ?? left.startAt ?? '';
+          const rightTime = right.updatedAt ?? right.createdAt ?? right.startAt ?? '';
+          return rightTime.localeCompare(leftTime);
+        });
       registryBatch.set(db.collection('platform_admin_audit').doc(normalizeId(`registry_sync_${Date.now()}_${adminUser.uid}`)), {
         action: 'registry_snapshot_generated',
         actor_uid: adminUser.uid,
@@ -3810,6 +3863,7 @@ export const getPlatformAdminSnapshot = onRequest(
         },
         metrics,
         admins,
+        offers,
         users,
       });
     } catch (error) {
@@ -4289,6 +4343,283 @@ export const managePlatformAdminUser = onRequest(
       logger.error('managePlatformAdminUser failed', { action, targetUid, targetEmail, error });
       response.status(500).json({ ok: false, error: 'platform_user_update_failed' });
     }
+  }
+);
+
+export const managePlatformAdminOffer = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 5,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'manage_offers')) {
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const action = normalizePlatformAdminOfferAction(clean(stringValue(body?.action)));
+    const offerId = clean(stringValue(body?.offerId));
+    const reason = clean(stringValue(body?.reason));
+
+    if (!action) {
+      response.status(400).json({ ok: false, error: 'offer_action_required' });
+      return;
+    }
+    if (!reason || reason.length < 10) {
+      response.status(400).json({ ok: false, error: 'offer_reason_required' });
+      return;
+    }
+    if ((action === 'update' || action === 'deactivate' || action === 'remove') && !offerId) {
+      response.status(400).json({ ok: false, error: 'offer_id_required' });
+      return;
+    }
+
+    try {
+      const nowDate = new Date();
+      const now = nowDate.toISOString();
+      const offerRef = db.collection('platform_offers').doc(
+        offerId ?? normalizeId(`offer_${clean(stringValue(body?.label)) ?? clean(stringValue(body?.title)) ?? 'custom'}_${Date.now()}`)
+      );
+      const existingSnapshot = await offerRef.get();
+      const existing = existingSnapshot.exists ? existingSnapshot.data() ?? {} : null;
+      const previousOffer = existing ? normalizePlatformOfferRecord(offerRef.id, existing, nowDate) : null;
+
+      if (action === 'update' && previousOffer?.status === 'expired') {
+        response.status(409).json({ ok: false, error: 'offer_expired_read_only' });
+        return;
+      }
+
+      const targetStatus = action === 'remove' ? 'removed' : action === 'deactivate' ? 'deactivated' : null;
+      let nextRecord: FirebaseFirestore.DocumentData;
+
+      if (targetStatus) {
+        if (!existing) {
+          response.status(404).json({ ok: false, error: 'offer_not_found' });
+          return;
+        }
+        nextRecord = {
+          status: targetStatus,
+          last_reason: reason,
+          updated_at: now,
+          updated_by_uid: adminUser.uid,
+          updated_by_email: adminUser.email ?? null,
+          ...(targetStatus === 'removed'
+            ? {
+                removed_at: now,
+                removed_by_uid: adminUser.uid,
+                removed_by_email: adminUser.email ?? null,
+              }
+            : {
+                deactivated_at: now,
+                deactivated_by_uid: adminUser.uid,
+                deactivated_by_email: adminUser.email ?? null,
+              }),
+        };
+      } else {
+        const label = clean(stringValue(body?.label));
+        const title = clean(stringValue(body?.title)) ?? label;
+        const publicBannerMessage = clean(stringValue(body?.publicBannerMessage));
+        const internalNote = clean(stringValue(body?.internalNote));
+        const scope = normalizePlatformOfferScope(clean(stringValue(body?.scope)));
+        const discountType = normalizePlatformOfferDiscountType(clean(stringValue(body?.discountType)));
+        const discountValue = Math.round(numberValue(body?.discountValue, 0));
+        const startAt = normalizeDateTimeInput(clean(stringValue(body?.startAt))) ?? now;
+        const expiresAt = normalizeDateTimeInput(clean(stringValue(body?.expiresAt)));
+        const lifetimeConfirmed = Boolean(body?.lifetimeConfirmed === true);
+        const currency = normalizeMonetizationCurrencyCode(clean(stringValue(body?.currency))) ?? null;
+        const targetEmails = normalizeStringList(body?.targetEmails).map((email) => normalizeEmailAddress(email)).filter(Boolean) as string[];
+        const targetUids = normalizeStringList(body?.targetUids).map(normalizeId).filter(Boolean);
+        const targetWorkspaceIds = normalizeStringList(body?.targetWorkspaceIds).map(normalizeId).filter(Boolean);
+        const targetPlanIds = normalizeStringList(body?.targetPlanIds).filter(isMonetizationPlanId);
+        const targetCountries = normalizeStringList(body?.targetCountries)
+          .map((country) => normalizeMonetizationPricingCountryCode(country))
+          .filter((country): country is MonetizationPricingCountryCode => Boolean(country));
+
+        if (!label || !title || !publicBannerMessage) {
+          response.status(400).json({ ok: false, error: 'offer_copy_required' });
+          return;
+        }
+        if (!scope || !discountType) {
+          response.status(400).json({ ok: false, error: 'offer_configuration_required' });
+          return;
+        }
+        if (!expiresAt && !lifetimeConfirmed) {
+          response.status(400).json({ ok: false, error: 'offer_lifetime_confirmation_required' });
+          return;
+        }
+        if (expiresAt && expiresAt <= now) {
+          response.status(400).json({ ok: false, error: 'offer_expiry_required' });
+          return;
+        }
+        if (!isValidPlatformOfferDiscount(discountType, discountValue)) {
+          response.status(400).json({ ok: false, error: 'offer_discount_invalid' });
+          return;
+        }
+        if (scope === 'selected_users' && targetEmails.length === 0 && targetUids.length === 0) {
+          response.status(400).json({ ok: false, error: 'offer_targets_required' });
+          return;
+        }
+        if (scope === 'selected_workspaces' && targetWorkspaceIds.length === 0) {
+          response.status(400).json({ ok: false, error: 'offer_targets_required' });
+          return;
+        }
+        if (scope === 'selected_plans' && targetPlanIds.length === 0) {
+          response.status(400).json({ ok: false, error: 'offer_targets_required' });
+          return;
+        }
+        if (scope === 'selected_countries' && targetCountries.length === 0) {
+          response.status(400).json({ ok: false, error: 'offer_targets_required' });
+          return;
+        }
+
+        const resolvedStatus = resolvePlatformOfferStatus(
+          {
+            status: clean(stringValue(existing?.status)) ?? 'active',
+            start_at: startAt,
+            expires_at: expiresAt,
+          },
+          nowDate
+        );
+        nextRecord = {
+          version: 1,
+          label,
+          title,
+          public_banner_message: publicBannerMessage,
+          internal_note: internalNote,
+          scope,
+          discount_type: discountType,
+          discount_value: discountValue,
+          currency,
+          target_emails: targetEmails,
+          target_uids: targetUids,
+          target_workspace_ids: targetWorkspaceIds,
+          target_plan_ids: targetPlanIds,
+          target_countries: targetCountries,
+          start_at: startAt,
+          expires_at: expiresAt,
+          lifetime_confirmed: lifetimeConfirmed && !expiresAt,
+          status: resolvedStatus,
+          last_reason: reason,
+          updated_at: now,
+          updated_by_uid: adminUser.uid,
+          updated_by_email: adminUser.email ?? null,
+          ...(existing
+            ? {}
+            : {
+                created_at: now,
+                created_by_uid: adminUser.uid,
+                created_by_email: adminUser.email ?? null,
+              }),
+        };
+      }
+
+      const nextPreview = { ...(existing ?? {}), ...nextRecord };
+      const normalizedNext = normalizePlatformOfferRecord(offerRef.id, nextPreview, nowDate);
+      const auditId = normalizeId(`platform_offer_${action}_${offerRef.id}_${Date.now()}`);
+      const riskLevel = inferPlatformOfferRiskLevel(normalizedNext, action);
+      await Promise.all([
+        offerRef.set(nextRecord, { merge: true }),
+        db.collection('platform_admin_audit').doc(auditId).set({
+          action: `platform_offer_${action}`,
+          actor_uid: adminUser.uid,
+          actor_email: adminUser.email ?? null,
+          actor_role: adminAccess.role,
+          target_uid: null,
+          target_email: null,
+          workspace_id: normalizedNext?.scope === 'selected_workspaces' ? normalizedNext.targetWorkspaceIds.join(',') : null,
+          target_status: normalizedNext?.status ?? null,
+          previous_values: previousOffer,
+          new_values: normalizedNext,
+          reason,
+          risk_level: riskLevel,
+          affected_summary: normalizedNext
+            ? `${normalizedNext.label} · ${humanizePlatformOfferScope(normalizedNext.scope)}`
+            : offerRef.id,
+          created_at: now,
+        }),
+      ]);
+
+      response.json({
+        ok: true,
+        offer: normalizePlatformOfferRecord(offerRef.id, nextPreview, nowDate),
+      });
+    } catch (error) {
+      logger.error('managePlatformAdminOffer failed', { offerId, action, error });
+      response.status(500).json({ ok: false, error: 'platform_offer_update_failed' });
+    }
+  }
+);
+
+export const getEligiblePlatformOffers = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const user = await verifyRequestUser(request);
+    if (!user) {
+      response.status(401).json({ ok: false, error: 'unauthorized' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const workspace = workspaceId ? await loadWorkspaceForUser(user.uid, workspaceId) : null;
+    if (workspace && !workspace.ok) {
+      response.status(workspace.status).json({ ok: false, error: workspace.error });
+      return;
+    }
+    const now = new Date();
+    const offersSnapshot = await db.collection('platform_offers').limit(1000).get();
+    const pricingCountry =
+      normalizeMonetizationPricingCountryCode(clean(stringValue(workspace?.workspace.country_code))) ?? 'IN';
+    const eligibleOffers = offersSnapshot.docs
+      .map((offerDoc) => normalizePlatformOfferRecord(offerDoc.id, offerDoc.data(), now))
+      .filter((offer): offer is NonNullable<ReturnType<typeof normalizePlatformOfferRecord>> => Boolean(offer))
+      .filter((offer) => offer.status === 'active')
+      .filter((offer) =>
+        isPlatformOfferEligibleForUser(offer, {
+          uid: user.uid,
+          email: user.email,
+          workspaceId: workspaceId ?? null,
+          pricingCountry,
+        })
+      )
+      .map((offer) => ({
+        ...offer,
+        planPrices: buildPlatformOfferPlanPrices(offer, pricingCountry),
+      }));
+
+    response.json({
+      ok: true,
+      generatedAt: now.toISOString(),
+      offers: eligibleOffers,
+    });
   }
 );
 
@@ -8214,6 +8545,10 @@ function canPlatformAdminUseFunction(
     return access.role === 'admin' || access.role === 'support_admin';
   }
 
+  if (permission === 'manage_offers') {
+    return access.role === 'finance_admin';
+  }
+
   if (permission === 'review_office_access') {
     return access.role === 'admin';
   }
@@ -8832,6 +9167,274 @@ function normalizeMonetizationProvider(value?: string | null): MonetizationCheck
     return normalized;
   }
   return 'manual_provider_pending';
+}
+
+function normalizePlatformAdminOfferAction(value: string | null): PlatformAdminOfferAction | null {
+  return value === 'create' || value === 'update' || value === 'deactivate' || value === 'remove' ? value : null;
+}
+
+function normalizePlatformOfferScope(value: string | null): PlatformOfferScope | null {
+  return PLATFORM_OFFER_SCOPES.includes(value as PlatformOfferScope) ? (value as PlatformOfferScope) : null;
+}
+
+function normalizePlatformOfferDiscountType(value: string | null): PlatformOfferDiscountType | null {
+  return PLATFORM_OFFER_DISCOUNT_TYPES.includes(value as PlatformOfferDiscountType)
+    ? (value as PlatformOfferDiscountType)
+    : null;
+}
+
+function normalizePlatformOfferStatus(value: string | null): PlatformOfferStatus | null {
+  return PLATFORM_OFFER_STATUSES.includes(value as PlatformOfferStatus) ? (value as PlatformOfferStatus) : null;
+}
+
+function normalizeMonetizationPricingCountryCode(value: string | null): MonetizationPricingCountryCode | null {
+  const normalized = clean(value)?.toUpperCase();
+  return normalized && Object.prototype.hasOwnProperty.call(monetizationCountryPricing, normalized)
+    ? (normalized as MonetizationPricingCountryCode)
+    : null;
+}
+
+function normalizeMonetizationCurrencyCode(value: string | null): MonetizationCurrencyCode | null {
+  const normalized = clean(value)?.toUpperCase();
+  return isMonetizationCurrencyCode(normalized) ? normalized : null;
+}
+
+function normalizeDateTimeInput(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map(stringValue).filter((item): item is string => Boolean(clean(item))).map((item) => item.trim());
+  }
+  const text = clean(stringValue(value));
+  return text
+    ? text
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+}
+
+function isValidPlatformOfferDiscount(discountType: PlatformOfferDiscountType, discountValue: number): boolean {
+  if (!Number.isFinite(discountValue) || discountValue <= 0) {
+    return false;
+  }
+  if (discountType === 'percentage') {
+    return discountValue >= 1 && discountValue <= 90;
+  }
+  return discountValue >= 1;
+}
+
+function resolvePlatformOfferStatus(data: FirebaseFirestore.DocumentData | Record<string, unknown>, now = new Date()): PlatformOfferStatus {
+  const explicit = normalizePlatformOfferStatus(clean(stringValue(data.status)));
+  if (explicit === 'removed' || explicit === 'deactivated') {
+    return explicit;
+  }
+  const expiresAt = clean(stringValue(data.expires_at));
+  if (expiresAt && new Date(expiresAt).getTime() <= now.getTime()) {
+    return 'expired';
+  }
+  const startAt = clean(stringValue(data.start_at));
+  if (startAt && new Date(startAt).getTime() > now.getTime()) {
+    return 'scheduled';
+  }
+  return 'active';
+}
+
+function normalizePlatformOfferRecord(id: string, data: FirebaseFirestore.DocumentData | Record<string, unknown>, now = new Date()) {
+  const label = clean(stringValue(data.label));
+  const title = clean(stringValue(data.title)) ?? label;
+  const publicBannerMessage = clean(stringValue(data.public_banner_message));
+  const scope = normalizePlatformOfferScope(clean(stringValue(data.scope)));
+  const discountType = normalizePlatformOfferDiscountType(clean(stringValue(data.discount_type)));
+  const discountValue = Math.round(numberValue(data.discount_value, 0));
+  if (!label || !title || !publicBannerMessage || !scope || !discountType || !isValidPlatformOfferDiscount(discountType, discountValue)) {
+    return null;
+  }
+
+  return {
+    id,
+    label,
+    title,
+    publicBannerMessage,
+    internalNote: clean(stringValue(data.internal_note)),
+    scope,
+    discountType,
+    discountValue,
+    currency: normalizeMonetizationCurrencyCode(clean(stringValue(data.currency))),
+    targetEmails: normalizeStringList(data.target_emails).map((email) => normalizeEmailAddress(email)).filter(Boolean),
+    targetUids: normalizeStringList(data.target_uids),
+    targetWorkspaceIds: normalizeStringList(data.target_workspace_ids),
+    targetPlanIds: normalizeStringList(data.target_plan_ids).filter(isMonetizationPlanId),
+    targetCountries: normalizeStringList(data.target_countries)
+      .map((country) => normalizeMonetizationPricingCountryCode(country))
+      .filter((country): country is MonetizationPricingCountryCode => Boolean(country)),
+    startAt: clean(stringValue(data.start_at)),
+    expiresAt: clean(stringValue(data.expires_at)),
+    status: resolvePlatformOfferStatus(data, now),
+    lifetimeConfirmed: data.lifetime_confirmed === true,
+    createdAt: clean(stringValue(data.created_at)),
+    createdByUid: clean(stringValue(data.created_by_uid)),
+    createdByEmail: clean(stringValue(data.created_by_email)),
+    updatedAt: clean(stringValue(data.updated_at)),
+    updatedByUid: clean(stringValue(data.updated_by_uid)),
+    updatedByEmail: clean(stringValue(data.updated_by_email)),
+    lastReason: clean(stringValue(data.last_reason)),
+  };
+}
+
+function humanizePlatformOfferScope(scope: PlatformOfferScope): string {
+  return scope.replaceAll('_', ' ');
+}
+
+function inferPlatformOfferRiskLevel(
+  offer: ReturnType<typeof normalizePlatformOfferRecord> | null,
+  action: PlatformAdminOfferAction
+): 'low' | 'medium' | 'high' {
+  if (!offer) {
+    return 'medium';
+  }
+  if (action === 'remove' || offer.scope === 'sitewide' || offer.lifetimeConfirmed || offer.discountType !== 'percentage') {
+    return 'high';
+  }
+  if (offer.discountValue >= 40 || action === 'deactivate') {
+    return 'high';
+  }
+  return 'medium';
+}
+
+function isPlatformOfferEligibleForUser(
+  offer: NonNullable<ReturnType<typeof normalizePlatformOfferRecord>>,
+  input: {
+    uid: string;
+    email: string | null;
+    workspaceId: string | null;
+    pricingCountry: MonetizationPricingCountryCode;
+  }
+): boolean {
+  if (offer.status !== 'active') {
+    return false;
+  }
+  if (offer.scope === 'sitewide') {
+    return true;
+  }
+  if (offer.scope === 'selected_users') {
+    const email = normalizeEmailAddress(input.email);
+    return offer.targetUids.includes(input.uid) || (email ? offer.targetEmails.includes(email) : false);
+  }
+  if (offer.scope === 'selected_workspaces') {
+    return Boolean(input.workspaceId && offer.targetWorkspaceIds.includes(input.workspaceId));
+  }
+  if (offer.scope === 'selected_countries') {
+    return offer.targetCountries.includes(input.pricingCountry);
+  }
+  if (offer.scope === 'selected_plans') {
+    return true;
+  }
+  return false;
+}
+
+function isPlatformOfferApplicableToPlan(
+  offer: NonNullable<ReturnType<typeof normalizePlatformOfferRecord>>,
+  planId: MonetizationPlanId
+): boolean {
+  return offer.targetPlanIds.length === 0 || offer.targetPlanIds.includes(planId);
+}
+
+function applyPlatformOfferDiscountToPricing(
+  offer: NonNullable<ReturnType<typeof normalizePlatformOfferRecord>>,
+  pricing: SubscriptionCheckoutPricing
+): SubscriptionCheckoutPricing | null {
+  if (offer.currency && offer.currency !== pricing.currency) {
+    return null;
+  }
+  let amountMinor = pricing.amountMinor;
+  if (offer.discountType === 'percentage') {
+    amountMinor = Math.round((pricing.amountMinor * (100 - offer.discountValue)) / 100);
+  } else if (offer.discountType === 'amount') {
+    amountMinor = Math.max(0, pricing.amountMinor - offer.discountValue);
+  } else {
+    amountMinor = Math.max(0, offer.discountValue);
+  }
+  if (amountMinor >= pricing.amountMinor) {
+    return null;
+  }
+  return {
+    ...pricing,
+    amountMinor,
+    amountDisplay: formatMonetizationPrice(pricing.currency, amountMinor),
+    originalAmountMinor: pricing.amountMinor,
+    originalAmountDisplay: pricing.amountDisplay,
+    offerId: offer.id,
+    offerLabel: offer.label,
+  };
+}
+
+function buildPlatformOfferPlanPrices(
+  offer: NonNullable<ReturnType<typeof normalizePlatformOfferRecord>>,
+  countryCode: MonetizationPricingCountryCode
+) {
+  return (Object.keys(monetizationPlanCatalog) as MonetizationPlanId[])
+    .filter((planId) => isPlatformOfferApplicableToPlan(offer, planId))
+    .map((planId) => {
+      const base = resolveSubscriptionCheckoutPricing(planId, countryCode);
+      const discounted = applyPlatformOfferDiscountToPricing(offer, base);
+      return discounted
+        ? {
+            planId,
+            originalAmountMinor: discounted.originalAmountMinor,
+            originalAmountDisplay: discounted.originalAmountDisplay,
+            offerAmountMinor: discounted.amountMinor,
+            offerAmountDisplay: discounted.amountDisplay,
+            currency: discounted.currency,
+          }
+        : null;
+    })
+    .filter(Boolean);
+}
+
+async function resolveSubscriptionCheckoutPricingWithEligibleOffer(
+  planId: MonetizationPlanId,
+  userId: string,
+  workspaceId: string,
+  workspace: FirebaseFirestore.DocumentData,
+  countryCode?: string | null,
+  currency?: string | null
+): Promise<SubscriptionCheckoutPricing> {
+  const base = resolveSubscriptionCheckoutPricing(planId, countryCode, currency);
+  const authUser = await admin.auth().getUser(userId).catch(() => null);
+  const now = new Date();
+  const offersSnapshot = await db.collection('platform_offers').limit(1000).get();
+  const eligibleDiscounts = offersSnapshot.docs
+    .map((offerDoc) => normalizePlatformOfferRecord(offerDoc.id, offerDoc.data(), now))
+    .filter((offer): offer is NonNullable<ReturnType<typeof normalizePlatformOfferRecord>> => Boolean(offer))
+    .filter((offer) =>
+      isPlatformOfferEligibleForUser(offer, {
+        uid: userId,
+        email: authUser?.email ?? null,
+        workspaceId,
+        pricingCountry: base.pricingCountry,
+      })
+    )
+    .filter((offer) => isPlatformOfferApplicableToPlan(offer, planId))
+    .map((offer) => applyPlatformOfferDiscountToPricing(offer, base))
+    .filter((pricing): pricing is SubscriptionCheckoutPricing => Boolean(pricing))
+    .sort((left, right) => left.amountMinor - right.amountMinor);
+
+  if (eligibleDiscounts.length) {
+    return eligibleDiscounts[0];
+  }
+
+  const countryOffer = normalizeMonetizationPricingCountryCode(clean(stringValue(workspace.country_code)));
+  if (countryOffer && countryOffer !== base.pricingCountry) {
+    return resolveSubscriptionCheckoutPricing(planId, countryOffer, currency);
+  }
+  return base;
 }
 
 function isMonetizationPlanId(value: unknown): value is MonetizationPlanId {

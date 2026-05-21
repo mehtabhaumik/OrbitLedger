@@ -48,6 +48,12 @@ import {
   type WebPurchaseOperationsSnapshot,
 } from '@/lib/subscription-operations';
 import {
+  loadEligiblePlatformOffers,
+  resolveWebPlanOffer,
+  summarizeActivePlatformOffer,
+  type WebEligiblePlatformOffersResponse,
+} from '@/lib/platform-offers';
+import {
   buildRazorpayProviderReadiness,
   type RazorpayProviderReadiness,
 } from '@/lib/razorpay-provider-readiness';
@@ -100,6 +106,10 @@ export default function MarketPage() {
   const [isSavingRenewalChange, setIsSavingRenewalChange] = useState(false);
   const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false);
   const [billingDocumentActionId, setBillingDocumentActionId] = useState<string | null>(null);
+  const [eligibleOffers, setEligibleOffers] = useState<WebEligiblePlatformOffersResponse>({
+    generatedAt: new Date().toISOString(),
+    offers: [],
+  });
   const [officeInvitationOpen, setOfficeInvitationOpen] = useState(false);
   const [officeInvitation, setOfficeInvitation] = useState({
     fullName: '',
@@ -129,6 +139,7 @@ export default function MarketPage() {
     () => getWebPaidPlanCatalogForCountry(activeWorkspace?.countryCode ?? 'IN'),
     [activeWorkspace?.countryCode]
   );
+  const featuredOffer = useMemo(() => summarizeActivePlatformOffer(eligibleOffers.offers), [eligibleOffers.offers]);
   const purchaseOperations = useMemo(
     () => buildWebPurchaseOperationsSnapshot({ checkoutIntent, purchaseReview, renewalChanges }),
     [checkoutIntent, purchaseReview, renewalChanges]
@@ -156,6 +167,22 @@ export default function MarketPage() {
   );
   const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
   const statementTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'statement') : [];
+
+  useEffect(() => {
+    if (!activeWorkspace) {
+      setEligibleOffers({ generatedAt: new Date().toISOString(), offers: [] });
+      return;
+    }
+    let isActive = true;
+    void loadEligiblePlatformOffers({ workspaceId: activeWorkspace.workspaceId }).then((result) => {
+      if (isActive) {
+        setEligibleOffers(result);
+      }
+    });
+    return () => {
+      isActive = false;
+    };
+  }, [activeWorkspace]);
 
   function openOfficeInvitationForm() {
     setOfficeInvitation({
@@ -530,6 +557,7 @@ export default function MarketPage() {
           <div className="ol-market-grid ol-market-grid--plans">
             {paidPlanCatalog.map((plan) => {
               const planChange = resolveWebPlanChangeRule(subscription, plan.id, checkoutIntent);
+              const offerResolution = resolveWebPlanOffer(plan, eligibleOffers.offers);
               const isPreparingPlan = preparingPlanId === plan.id;
               const isOfficePlan = plan.tier === 'office';
               const isPlanLocked = !planChange.canStartCheckout && !planChange.canQueueRenewalChange;
@@ -548,7 +576,14 @@ export default function MarketPage() {
                   <div className="ol-market-card-header">
                     <div>
                       <div className="ol-market-title">{plan.title}</div>
-                      <div className="ol-market-price">{plan.price}</div>
+                      {offerResolution ? (
+                        <div className="ol-market-offer-price">
+                          <span>{offerResolution.price.originalAmountDisplay}</span>
+                          <strong>{offerResolution.price.offerAmountDisplay}</strong>
+                        </div>
+                      ) : (
+                        <div className="ol-market-price">{plan.price}</div>
+                      )}
                       <div className="ol-muted">{plan.cadence}</div>
                     </div>
                     <span
@@ -571,6 +606,16 @@ export default function MarketPage() {
                           : planChange.chip}
                     </span>
                   </div>
+                  {offerResolution ? (
+                    <div className="ol-offer-inline">
+                      <strong>{offerResolution.offer.label}</strong>
+                      <span>
+                        {offerResolution.offer.expiresAt
+                          ? `Valid until ${formatPlanDate(offerResolution.offer.expiresAt)}`
+                          : 'Lifetime offer'}
+                      </span>
+                    </div>
+                  ) : null}
                   <p>{plan.helper}</p>
                   <p className="ol-muted">
                     {isOfficePlan
@@ -617,6 +662,15 @@ export default function MarketPage() {
               );
             })}
           </div>
+          {featuredOffer ? (
+            <div className="ol-offer-dashboard-banner ol-offer-dashboard-banner--market">
+              <span className="ol-chip ol-chip--success">{featuredOffer.label}</span>
+              <div>
+                <strong>{featuredOffer.title}</strong>
+                <p>{featuredOffer.publicBannerMessage}</p>
+              </div>
+            </div>
+          ) : null}
           {checkoutIntent?.status === 'pending' || checkoutIntent?.status === 'failed' ? (
             <div className="ol-message" style={{ marginTop: 18 }}>
               {checkoutIntent.status === 'pending'

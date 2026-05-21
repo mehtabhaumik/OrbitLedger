@@ -7,15 +7,21 @@ import { getPlatformAdminRoleDefinition, PLATFORM_ADMIN_ROLES, type PlatformAdmi
 
 import {
   filterWebPlatformAdminAuditRecords,
+  filterWebPlatformAdminOffers,
   filterWebPlatformAdminUsers,
   formatPlatformAdminDate,
   loadWebPlatformAdminAuditTrail,
   loadWebPlatformAdminSnapshot,
   manageWebPlatformAdminAccount,
+  manageWebPlatformAdminOffer,
   manageWebPlatformAdminUser,
   type WebPlatformAdminAccountAction,
   type WebPlatformAdminAuditFilters,
   type WebPlatformAdminAuditRecord,
+  type WebPlatformAdminOffer,
+  type WebPlatformAdminOfferAction,
+  type WebPlatformAdminOfferDiscountType,
+  type WebPlatformAdminOfferScope,
   type WebPlatformAdminRegistryRecord,
   type WebPlatformAdminSnapshot,
   type WebPlatformAdminUser,
@@ -42,6 +48,28 @@ type UserControlFormState = {
   riskLabel: string;
 };
 
+type OfferFormState = {
+  action: WebPlatformAdminOfferAction;
+  offerId: string;
+  label: string;
+  title: string;
+  publicBannerMessage: string;
+  internalNote: string;
+  scope: WebPlatformAdminOfferScope;
+  discountType: WebPlatformAdminOfferDiscountType;
+  discountValue: string;
+  currency: string;
+  targetEmails: string;
+  targetUids: string;
+  targetWorkspaceIds: string;
+  targetPlanIds: string;
+  targetCountries: string;
+  startAt: string;
+  expiresAt: string;
+  lifetimeConfirmed: boolean;
+  reason: string;
+};
+
 const DEFAULT_ADMIN_FORM: AdminFormState = {
   action: 'create',
   targetEmail: '',
@@ -59,6 +87,28 @@ const DEFAULT_USER_CONTROL_FORM: UserControlFormState = {
   reason: '',
   message: '',
   riskLabel: '',
+};
+
+const DEFAULT_OFFER_FORM: OfferFormState = {
+  action: 'create',
+  offerId: '',
+  label: '',
+  title: '',
+  publicBannerMessage: '',
+  internalNote: '',
+  scope: 'sitewide',
+  discountType: 'percentage',
+  discountValue: '10',
+  currency: '',
+  targetEmails: '',
+  targetUids: '',
+  targetWorkspaceIds: '',
+  targetPlanIds: '',
+  targetCountries: '',
+  startAt: '',
+  expiresAt: '',
+  lifetimeConfirmed: false,
+  reason: '',
 };
 
 const DEFAULT_AUDIT_FILTERS: WebPlatformAdminAuditFilters = {
@@ -92,13 +142,23 @@ export default function PlatformAdminPage() {
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
   const [auditFilters, setAuditFilters] = useState<WebPlatformAdminAuditFilters>(DEFAULT_AUDIT_FILTERS);
   const [auditSearch, setAuditSearch] = useState('');
+  const [offerSearch, setOfferSearch] = useState('');
+  const [offerMessage, setOfferMessage] = useState<string | null>(null);
+  const [offerError, setOfferError] = useState<string | null>(null);
+  const [isSavingOffer, setIsSavingOffer] = useState(false);
+  const [offerForm, setOfferForm] = useState<OfferFormState>(DEFAULT_OFFER_FORM);
   const users = useMemo(() => filterWebPlatformAdminUsers(snapshot?.users ?? [], search), [search, snapshot?.users]);
+  const visibleOffers = useMemo(
+    () => filterWebPlatformAdminOffers(snapshot?.offers ?? [], offerSearch),
+    [offerSearch, snapshot?.offers]
+  );
   const visibleAuditRecords = useMemo(
     () => filterWebPlatformAdminAuditRecords(auditTrail, auditSearch),
     [auditSearch, auditTrail]
   );
   const admins = snapshot?.admins ?? [];
   const isSuperAdmin = snapshot?.adminAccess?.role === 'super_admin';
+  const canManageOffers = isSuperAdmin || snapshot?.adminAccess?.role === 'finance_admin';
   const canControlUsers =
     snapshot?.adminAccess?.role === 'super_admin' ||
     snapshot?.adminAccess?.role === 'admin' ||
@@ -252,6 +312,76 @@ export default function PlatformAdminPage() {
       setUserControlError(submitError instanceof Error ? submitError.message : 'Platform user control action failed.');
     } finally {
       setIsSavingUserControl(false);
+    }
+  }
+
+  function openOfferForm(offer: WebPlatformAdminOffer, action: WebPlatformAdminOfferAction = 'update') {
+    setOfferError(null);
+    setOfferMessage(null);
+    setOfferForm({
+      action,
+      offerId: offer.id,
+      label: offer.label,
+      title: offer.title,
+      publicBannerMessage: offer.publicBannerMessage,
+      internalNote: offer.internalNote ?? '',
+      scope: offer.scope,
+      discountType: offer.discountType,
+      discountValue: String(offer.discountValue),
+      currency: offer.currency ?? '',
+      targetEmails: offer.targetEmails.join(', '),
+      targetUids: offer.targetUids.join(', '),
+      targetWorkspaceIds: offer.targetWorkspaceIds.join(', '),
+      targetPlanIds: offer.targetPlanIds.join(', '),
+      targetCountries: offer.targetCountries.join(', '),
+      startAt: offer.startAt ? offer.startAt.slice(0, 16) : '',
+      expiresAt: offer.expiresAt ? offer.expiresAt.slice(0, 16) : '',
+      lifetimeConfirmed: offer.lifetimeConfirmed,
+      reason: '',
+    });
+  }
+
+  function openCreateOfferForm() {
+    setOfferError(null);
+    setOfferMessage(null);
+    setOfferForm(DEFAULT_OFFER_FORM);
+  }
+
+  async function handleOfferSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setOfferError(null);
+    setOfferMessage(null);
+    setIsSavingOffer(true);
+    try {
+      await manageWebPlatformAdminOffer({
+        action: offerForm.action,
+        offerId: offerForm.offerId || null,
+        label: offerForm.label,
+        title: offerForm.title,
+        publicBannerMessage: offerForm.publicBannerMessage,
+        internalNote: offerForm.internalNote,
+        scope: offerForm.scope,
+        discountType: offerForm.discountType,
+        discountValue: Number(offerForm.discountValue),
+        currency: offerForm.currency || null,
+        targetEmails: offerForm.targetEmails,
+        targetUids: offerForm.targetUids,
+        targetWorkspaceIds: offerForm.targetWorkspaceIds,
+        targetPlanIds: offerForm.targetPlanIds,
+        targetCountries: offerForm.targetCountries,
+        startAt: offerForm.startAt || null,
+        expiresAt: offerForm.expiresAt || null,
+        lifetimeConfirmed: offerForm.lifetimeConfirmed,
+        reason: offerForm.reason,
+      });
+      setOfferMessage('Offer change was saved and recorded for audit.');
+      await refresh(pageToken);
+      await refreshAudit(auditFilters);
+      setOfferForm((current) => (current.action === 'create' ? DEFAULT_OFFER_FORM : { ...current, reason: '' }));
+    } catch (submitError) {
+      setOfferError(submitError instanceof Error ? submitError.message : 'Offer change could not be saved.');
+    } finally {
+      setIsSavingOffer(false);
     }
   }
 
@@ -573,6 +703,279 @@ export default function PlatformAdminPage() {
                   disabled={isSavingAdmin || adminForm.reason.trim().length < 10}
                 >
                   {isSavingAdmin ? 'Saving admin change...' : 'Save admin change'}
+                </button>
+              </form>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="ol-platform-admin-table-card">
+          <div className="ol-platform-admin-table-head">
+            <div>
+              <strong>Offers</strong>
+              <span>{visibleOffers.length} shown · dashboard banners and market prices use the server resolver</span>
+            </div>
+            <div className="ol-platform-admin-row-actions">
+              {canManageOffers ? (
+                <button className="ol-button-secondary" type="button" onClick={openCreateOfferForm}>
+                  Create offer
+                </button>
+              ) : (
+                <span className="ol-platform-admin-status-pill" data-tone="warning">
+                  Finance Admin or Super Admin
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="ol-platform-admin-offer-tools">
+            <label className="ol-form-field">
+              <span>Search offers</span>
+              <input
+                className="ol-input"
+                value={offerSearch}
+                onChange={(event) => setOfferSearch(event.target.value)}
+                placeholder="Label, scope, target, plan, country, reason"
+              />
+            </label>
+          </div>
+
+          <div className="ol-platform-admin-management ol-platform-admin-offer-management">
+            <div className="ol-platform-admin-admin-list">
+              {visibleOffers.length ? (
+                visibleOffers.map((offer) => (
+                  <OfferRow key={offer.id} offer={offer} canManage={canManageOffers} onManage={openOfferForm} />
+                ))
+              ) : (
+                <div className="ol-platform-admin-empty ol-platform-admin-empty-compact">
+                  <h2>No offers found</h2>
+                  <p>Create a future, sitewide, or selected-account offer from the form.</p>
+                </div>
+              )}
+            </div>
+
+            {canManageOffers ? (
+              <form className="ol-platform-admin-admin-form" onSubmit={handleOfferSubmit}>
+                <div>
+                  <p className="ol-chip">Pricing control</p>
+                  <h2>{offerForm.action === 'create' ? 'Create offer' : 'Manage offer'}</h2>
+                  <p>
+                    Dashboard banners and checkout pricing resolve from this server-owned record. Every change requires
+                    a reason and writes to the admin audit trail.
+                  </p>
+                </div>
+
+                {offerMessage ? (
+                  <div className="ol-message" data-tone="success">
+                    {offerMessage}
+                  </div>
+                ) : null}
+                {offerError ? (
+                  <div className="ol-message" data-tone="danger">
+                    {offerError}
+                  </div>
+                ) : null}
+
+                <div className="ol-platform-admin-form-grid">
+                  <label className="ol-form-field">
+                    <span>Action</span>
+                    <select
+                      className="ol-select"
+                      value={offerForm.action}
+                      onChange={(event) =>
+                        setOfferForm((current) => ({ ...current, action: event.target.value as WebPlatformAdminOfferAction }))
+                      }
+                    >
+                      <option value="create">Create</option>
+                      <option value="update">Update</option>
+                      <option value="deactivate">Deactivate</option>
+                      <option value="remove">Remove</option>
+                    </select>
+                  </label>
+                  <label className="ol-form-field">
+                    <span>Offer ID</span>
+                    <input
+                      className="ol-input"
+                      value={offerForm.offerId}
+                      onChange={(event) => setOfferForm((current) => ({ ...current, offerId: event.target.value }))}
+                      placeholder="Only needed for update/remove"
+                    />
+                  </label>
+                  <label className="ol-form-field">
+                    <span>Label</span>
+                    <input
+                      className="ol-input"
+                      value={offerForm.label}
+                      onChange={(event) => setOfferForm((current) => ({ ...current, label: event.target.value }))}
+                      placeholder="Launch Offer"
+                    />
+                  </label>
+                  <label className="ol-form-field">
+                    <span>Title</span>
+                    <input
+                      className="ol-input"
+                      value={offerForm.title}
+                      onChange={(event) => setOfferForm((current) => ({ ...current, title: event.target.value }))}
+                      placeholder="Public beta launch pricing"
+                    />
+                  </label>
+                  <label className="ol-form-field">
+                    <span>Scope</span>
+                    <select
+                      className="ol-select"
+                      value={offerForm.scope}
+                      onChange={(event) =>
+                        setOfferForm((current) => ({ ...current, scope: event.target.value as WebPlatformAdminOfferScope }))
+                      }
+                    >
+                      <option value="sitewide">Sitewide</option>
+                      <option value="selected_users">Selected users</option>
+                      <option value="selected_workspaces">Selected workspaces</option>
+                      <option value="selected_plans">Selected plans</option>
+                      <option value="selected_countries">Selected countries</option>
+                    </select>
+                  </label>
+                  <label className="ol-form-field">
+                    <span>Discount type</span>
+                    <select
+                      className="ol-select"
+                      value={offerForm.discountType}
+                      onChange={(event) =>
+                        setOfferForm((current) => ({
+                          ...current,
+                          discountType: event.target.value as WebPlatformAdminOfferDiscountType,
+                        }))
+                      }
+                    >
+                      <option value="percentage">Percentage</option>
+                      <option value="amount">Amount off, minor units</option>
+                      <option value="fixed_price">Fixed price, minor units</option>
+                      <option value="custom_tier_price">Custom tier price, minor units</option>
+                    </select>
+                  </label>
+                  <label className="ol-form-field">
+                    <span>Discount value</span>
+                    <input
+                      className="ol-input"
+                      value={offerForm.discountValue}
+                      onChange={(event) => setOfferForm((current) => ({ ...current, discountValue: event.target.value }))}
+                      inputMode="numeric"
+                      placeholder="20 or 49900"
+                    />
+                  </label>
+                  <label className="ol-form-field">
+                    <span>Currency lock</span>
+                    <input
+                      className="ol-input"
+                      value={offerForm.currency}
+                      onChange={(event) => setOfferForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
+                      placeholder="Optional: INR, USD, CAD, AUD, GBP"
+                    />
+                  </label>
+                  <label className="ol-form-field">
+                    <span>Start date</span>
+                    <input
+                      className="ol-input"
+                      value={offerForm.startAt}
+                      onChange={(event) => setOfferForm((current) => ({ ...current, startAt: event.target.value }))}
+                      type="datetime-local"
+                    />
+                  </label>
+                  <label className="ol-form-field">
+                    <span>Expiry date</span>
+                    <input
+                      className="ol-input"
+                      value={offerForm.expiresAt}
+                      onChange={(event) => setOfferForm((current) => ({ ...current, expiresAt: event.target.value }))}
+                      type="datetime-local"
+                    />
+                  </label>
+                </div>
+
+                <label className="ol-form-field">
+                  <span>Public banner message</span>
+                  <textarea
+                    className="ol-input ol-textarea"
+                    value={offerForm.publicBannerMessage}
+                    onChange={(event) =>
+                      setOfferForm((current) => ({ ...current, publicBannerMessage: event.target.value }))
+                    }
+                    placeholder="Example: Launch pricing is available for eligible workspaces until this offer expires."
+                    rows={3}
+                  />
+                </label>
+                <label className="ol-form-field">
+                  <span>Targets</span>
+                  <textarea
+                    className="ol-input ol-textarea"
+                    value={
+                      offerForm.scope === 'selected_users'
+                        ? offerForm.targetEmails
+                        : offerForm.scope === 'selected_workspaces'
+                          ? offerForm.targetWorkspaceIds
+                          : offerForm.scope === 'selected_plans'
+                            ? offerForm.targetPlanIds
+                            : offerForm.scope === 'selected_countries'
+                              ? offerForm.targetCountries
+                              : ''
+                    }
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setOfferForm((current) => ({
+                        ...current,
+                        ...(current.scope === 'selected_users'
+                          ? { targetEmails: value }
+                          : current.scope === 'selected_workspaces'
+                            ? { targetWorkspaceIds: value }
+                            : current.scope === 'selected_plans'
+                              ? { targetPlanIds: value }
+                              : current.scope === 'selected_countries'
+                                ? { targetCountries: value }
+                                : {}),
+                      }));
+                    }}
+                    placeholder="Comma-separated emails, workspace IDs, plan IDs, or country codes depending on scope"
+                    rows={3}
+                    disabled={offerForm.scope === 'sitewide'}
+                  />
+                </label>
+                <label className="ol-form-field">
+                  <span>Internal note</span>
+                  <textarea
+                    className="ol-input ol-textarea"
+                    value={offerForm.internalNote}
+                    onChange={(event) => setOfferForm((current) => ({ ...current, internalNote: event.target.value }))}
+                    placeholder="Optional finance/admin context."
+                    rows={3}
+                  />
+                </label>
+                <label className="ol-checkbox-row">
+                  <input
+                    checked={offerForm.lifetimeConfirmed}
+                    onChange={(event) =>
+                      setOfferForm((current) => ({ ...current, lifetimeConfirmed: event.target.checked }))
+                    }
+                    type="checkbox"
+                  />
+                  <span>I explicitly confirm this offer has no expiry date.</span>
+                </label>
+                <label className="ol-form-field">
+                  <span>Reason</span>
+                  <textarea
+                    className="ol-input ol-textarea"
+                    value={offerForm.reason}
+                    onChange={(event) => setOfferForm((current) => ({ ...current, reason: event.target.value }))}
+                    placeholder="Example: Creating a launch offer for first-wave beta conversion review."
+                    rows={4}
+                  />
+                </label>
+
+                <button
+                  className="ol-button"
+                  type="submit"
+                  disabled={isSavingOffer || offerForm.reason.trim().length < 10}
+                >
+                  {isSavingOffer ? 'Saving offer...' : 'Save offer change'}
                 </button>
               </form>
             ) : null}
@@ -972,6 +1375,78 @@ function AdminAccountRow({
   );
 }
 
+function OfferRow({
+  offer,
+  canManage,
+  onManage,
+}: {
+  offer: WebPlatformAdminOffer;
+  canManage: boolean;
+  onManage: (offer: WebPlatformAdminOffer, action?: WebPlatformAdminOfferAction) => void;
+}) {
+  const tone =
+    offer.status === 'active'
+      ? 'success'
+      : offer.status === 'scheduled'
+        ? 'warning'
+        : offer.status === 'expired'
+          ? 'warning'
+          : 'danger';
+  const targetSummary = summarizeOfferTargets(offer);
+  const discountSummary =
+    offer.discountType === 'percentage'
+      ? `${offer.discountValue}% off`
+      : `${offer.discountValue.toLocaleString('en-IN')} minor units`;
+
+  return (
+    <article className="ol-platform-admin-admin-row ol-platform-admin-offer-row">
+      <div className="ol-platform-admin-user-main">
+        <span className="ol-platform-admin-avatar">%</span>
+        <div>
+          <strong>{offer.label}</strong>
+          <span>{offer.title}</span>
+          <code>{offer.id}</code>
+        </div>
+      </div>
+      <div className="ol-platform-admin-user-meta">
+        <span className="ol-platform-admin-status-pill" data-tone={tone}>
+          {offer.status}
+        </span>
+        <span>{offer.scope.replaceAll('_', ' ')}</span>
+        <span>{targetSummary}</span>
+      </div>
+      <div className="ol-platform-admin-user-meta">
+        <span>{discountSummary}</span>
+        <span>
+          {offer.expiresAt
+            ? `Expires ${formatPlatformAdminDate(offer.expiresAt)}`
+            : offer.lifetimeConfirmed
+              ? 'Lifetime confirmed'
+              : 'No expiry saved'}
+        </span>
+        <span>Updated {formatPlatformAdminDate(offer.updatedAt)}</span>
+      </div>
+      {canManage ? (
+        <div className="ol-platform-admin-row-actions">
+          <button className="ol-button-secondary" type="button" onClick={() => onManage(offer, 'update')}>
+            Edit
+          </button>
+          {offer.status === 'active' || offer.status === 'scheduled' ? (
+            <button className="ol-button-ghost" type="button" onClick={() => onManage(offer, 'deactivate')}>
+              Deactivate
+            </button>
+          ) : null}
+          {offer.status !== 'expired' && offer.status !== 'removed' ? (
+            <button className="ol-button-ghost" type="button" onClick={() => onManage(offer, 'remove')}>
+              Remove
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
 function AuditRecordRow({ record }: { record: WebPlatformAdminAuditRecord }) {
   const severityTone = record.severity === 'high' ? 'danger' : record.severity === 'medium' ? 'warning' : 'success';
 
@@ -1001,6 +1476,25 @@ function AuditRecordRow({ record }: { record: WebPlatformAdminAuditRecord }) {
       </div>
     </article>
   );
+}
+
+function summarizeOfferTargets(offer: WebPlatformAdminOffer): string {
+  if (offer.scope === 'sitewide') {
+    return 'All eligible users';
+  }
+  if (offer.scope === 'selected_users') {
+    return `${offer.targetEmails.length + offer.targetUids.length} user target(s)`;
+  }
+  if (offer.scope === 'selected_workspaces') {
+    return `${offer.targetWorkspaceIds.length} workspace target(s)`;
+  }
+  if (offer.scope === 'selected_plans') {
+    return offer.targetPlanIds.length ? offer.targetPlanIds.join(', ') : 'Plan targets missing';
+  }
+  if (offer.scope === 'selected_countries') {
+    return offer.targetCountries.length ? offer.targetCountries.join(', ') : 'Country targets missing';
+  }
+  return 'Selected targets';
 }
 
 function UserRow({

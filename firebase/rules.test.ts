@@ -104,6 +104,10 @@ describe('Firestore workspace rules', () => {
         target_uid: 'user-1',
         note: 'Internal note',
       });
+      await context.firestore().collection('platform_offers').doc('offer-1').set({
+        label: 'Launch Offer',
+        status: 'active',
+      });
     });
 
     const user = testEnv.authenticatedContext('user-1').firestore();
@@ -113,6 +117,8 @@ describe('Firestore workspace rules', () => {
     await assertFails(user.collection('platform_admin_audit').doc('audit-1').get());
     await assertFails(user.collection('platform_user_warnings').doc('warning-1').get());
     await assertFails(user.collection('platform_user_notes').doc('note-1').get());
+    await assertFails(user.collection('platform_offers').doc('offer-1').get());
+    await assertFails(user.collection('platform_offers').doc('offer-2').set({ label: 'Unsafe discount' }));
   });
 
   it('allows only the owning user to access workspace records', async () => {

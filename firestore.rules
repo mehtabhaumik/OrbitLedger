@@ -351,6 +351,10 @@ service cloud.firestore {
       allow read, create, update, delete: if false;
     }
 
+    match /platform_offers/{offerId} {
+      allow read, create, update, delete: if false;
+    }
+
     match /workspaces/{workspaceId} {
       allow create: if createsOwnWorkspace();
       allow read: if signedIn() && canReadWorkspaceDocument(workspaceId);

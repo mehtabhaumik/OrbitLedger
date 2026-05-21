@@ -83,6 +83,54 @@ export type WebPlatformAdminUserAction =
   | 'mark_under_review'
   | 'clear_under_review';
 
+export type WebPlatformAdminOfferScope =
+  | 'sitewide'
+  | 'selected_users'
+  | 'selected_workspaces'
+  | 'selected_plans'
+  | 'selected_countries';
+export type WebPlatformAdminOfferDiscountType = 'fixed_price' | 'percentage' | 'amount' | 'custom_tier_price';
+export type WebPlatformAdminOfferStatus = 'scheduled' | 'active' | 'expired' | 'deactivated' | 'removed';
+export type WebPlatformAdminOfferAction = 'create' | 'update' | 'deactivate' | 'remove';
+
+export type WebPlatformAdminOfferPlanPrice = {
+  planId: string;
+  originalAmountMinor: number;
+  originalAmountDisplay: string;
+  offerAmountMinor: number;
+  offerAmountDisplay: string;
+  currency: string;
+};
+
+export type WebPlatformAdminOffer = {
+  id: string;
+  label: string;
+  title: string;
+  publicBannerMessage: string;
+  internalNote: string | null;
+  scope: WebPlatformAdminOfferScope;
+  discountType: WebPlatformAdminOfferDiscountType;
+  discountValue: number;
+  currency: string | null;
+  targetEmails: string[];
+  targetUids: string[];
+  targetWorkspaceIds: string[];
+  targetPlanIds: string[];
+  targetCountries: string[];
+  startAt: string | null;
+  expiresAt: string | null;
+  status: WebPlatformAdminOfferStatus;
+  lifetimeConfirmed: boolean;
+  createdAt: string | null;
+  createdByUid: string | null;
+  createdByEmail: string | null;
+  updatedAt: string | null;
+  updatedByUid: string | null;
+  updatedByEmail: string | null;
+  lastReason: string | null;
+  planPrices?: WebPlatformAdminOfferPlanPrice[];
+};
+
 export type WebPlatformAdminAuditRecord = {
   id: string;
   action: string;
@@ -136,6 +184,7 @@ export type WebPlatformAdminSnapshot = {
   adminAccess: WebPlatformAdminAccess | null;
   metrics: WebPlatformAdminMetrics;
   admins: WebPlatformAdminRegistryRecord[];
+  offers: WebPlatformAdminOffer[];
   users: WebPlatformAdminUser[];
 };
 
@@ -218,6 +267,38 @@ export function filterWebPlatformAdminAuditRecords(
   );
 }
 
+export function filterWebPlatformAdminOffers(
+  offers: WebPlatformAdminOffer[],
+  searchTerm: string
+): WebPlatformAdminOffer[] {
+  const search = searchTerm.trim().toLowerCase();
+  if (!search) {
+    return offers;
+  }
+  return offers.filter((offer) =>
+    [
+      offer.id,
+      offer.label,
+      offer.title,
+      offer.publicBannerMessage,
+      offer.internalNote ?? '',
+      offer.scope,
+      offer.discountType,
+      offer.status,
+      offer.currency ?? '',
+      ...offer.targetEmails,
+      ...offer.targetUids,
+      ...offer.targetWorkspaceIds,
+      ...offer.targetPlanIds,
+      ...offer.targetCountries,
+      offer.lastReason ?? '',
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(search)
+  );
+}
+
 export function formatPlatformAdminDate(value: string | null | undefined): string {
   if (!value) {
     return 'Not seen yet';
@@ -278,6 +359,7 @@ export async function loadWebPlatformAdminSnapshot(input: {
     adminAccess: result.adminAccess ?? null,
     metrics: result.metrics,
     admins: result.admins ?? [],
+    offers: result.offers ?? [],
     users: result.users,
   };
 }
@@ -360,6 +442,61 @@ export async function manageWebPlatformAdminUser(input: {
   }
 }
 
+export async function manageWebPlatformAdminOffer(input: {
+  action: WebPlatformAdminOfferAction;
+  offerId?: string | null;
+  label?: string | null;
+  title?: string | null;
+  publicBannerMessage?: string | null;
+  internalNote?: string | null;
+  scope?: WebPlatformAdminOfferScope | null;
+  discountType?: WebPlatformAdminOfferDiscountType | null;
+  discountValue?: number | null;
+  currency?: string | null;
+  targetEmails?: string | string[] | null;
+  targetUids?: string | string[] | null;
+  targetWorkspaceIds?: string | string[] | null;
+  targetPlanIds?: string | string[] | null;
+  targetCountries?: string | string[] | null;
+  startAt?: string | null;
+  expiresAt?: string | null;
+  lifetimeConfirmed?: boolean;
+  reason: string;
+}): Promise<WebPlatformAdminOffer | null> {
+  const user = getWebAuth().currentUser;
+  if (!user) {
+    throw new Error('Sign in again before changing platform offers.');
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(getPlatformAdminOfferUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+  const result = (await response.json().catch(() => ({
+    ok: false,
+    error: 'platform_offer_update_failed',
+  }))) as
+    | {
+        ok: true;
+        offer?: WebPlatformAdminOffer | null;
+      }
+    | {
+        ok: false;
+        error: string;
+      };
+
+  if (!result.ok) {
+    throw new Error(platformAdminOfferErrorMessage(result.error));
+  }
+
+  return result.offer ?? null;
+}
+
 export async function loadWebPlatformAdminAuditTrail(input: Partial<WebPlatformAdminAuditFilters> & {
   limit?: number;
 } = {}): Promise<WebPlatformAdminAuditTrail> {
@@ -425,6 +562,11 @@ function getPlatformAdminUserUrl() {
 function getPlatformAdminAuditTrailUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/getPlatformAdminAuditTrail`;
+}
+
+function getPlatformAdminOfferUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/managePlatformAdminOffer`;
 }
 
 function platformAdminErrorMessage(error: string): string {
@@ -498,4 +640,35 @@ function platformAdminAuditErrorMessage(error: string): string {
     return 'Platform admin audit request method is not supported.';
   }
   return 'Platform admin audit trail could not be loaded.';
+}
+
+function platformAdminOfferErrorMessage(error: string): string {
+  if (error === 'offer_reason_required') {
+    return 'Add a clear reason with at least 10 characters before changing an offer.';
+  }
+  if (error === 'offer_copy_required') {
+    return 'Add an offer label, title, and public banner message.';
+  }
+  if (error === 'offer_configuration_required') {
+    return 'Choose an offer scope and discount type.';
+  }
+  if (error === 'offer_targets_required') {
+    return 'Add at least one matching target for this selected offer scope.';
+  }
+  if (error === 'offer_discount_invalid') {
+    return 'Enter a valid discount. Percentage discounts must be between 1 and 90.';
+  }
+  if (error === 'offer_lifetime_confirmation_required') {
+    return 'Add an expiry date, or explicitly confirm this is a lifetime offer.';
+  }
+  if (error === 'offer_expiry_required') {
+    return 'Choose a future expiry date for this offer.';
+  }
+  if (error === 'offer_expired_read_only') {
+    return 'Expired offers are historical records and cannot be edited.';
+  }
+  if (error === 'internal_admin_required') {
+    return 'Only Super Admin and Finance Admin accounts can change offers.';
+  }
+  return 'Platform offer could not be updated.';
 }

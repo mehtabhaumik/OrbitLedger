@@ -3248,6 +3248,19 @@ a:focus-visible {
   padding: 18px;
 }
 
+.ol-platform-admin-offer-tools {
+  padding: 18px;
+  border-bottom: 1px solid rgba(191, 205, 225, 0.78);
+}
+
+.ol-platform-admin-offer-management {
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 0.85fr);
+}
+
+.ol-platform-admin-offer-row {
+  grid-template-columns: minmax(260px, 1.15fr) minmax(190px, 0.8fr) minmax(220px, 1fr) minmax(180px, auto);
+}
+
 .ol-platform-admin-selected-user {
   display: grid;
   align-content: start;
@@ -3516,6 +3529,7 @@ a:focus-visible {
   }
 
   .ol-platform-admin-management,
+  .ol-platform-admin-offer-management,
   .ol-platform-admin-user-control,
   .ol-platform-admin-audit-filters,
   .ol-platform-admin-audit-row,
@@ -7259,6 +7273,76 @@ a:focus-visible {
   line-height: 1.45;
 }
 
+.ol-offer-dashboard-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(177, 226, 209, 0.92);
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(238, 250, 246, 0.98) 0%, rgba(248, 251, 255, 0.96) 100%),
+    #ffffff;
+  box-shadow: 0 18px 38px rgba(25, 105, 82, 0.08);
+}
+
+.ol-offer-dashboard-banner--market {
+  grid-template-columns: auto minmax(0, 1fr);
+  margin-top: 18px;
+}
+
+.ol-offer-dashboard-banner strong {
+  display: block;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.ol-offer-dashboard-banner p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.ol-market-offer-price {
+  display: grid;
+  gap: 3px;
+  margin-top: 6px;
+}
+
+.ol-market-offer-price span {
+  color: var(--text-soft);
+  font-size: 14px;
+  font-weight: 900;
+  text-decoration: line-through;
+}
+
+.ol-market-offer-price strong {
+  color: #167456;
+  font-size: clamp(24px, 3vw, 32px);
+  line-height: 1;
+}
+
+.ol-offer-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(177, 226, 209, 0.88);
+  border-radius: 14px;
+  background: rgba(238, 250, 246, 0.82);
+  color: #167456;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.ol-offer-inline span {
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
 .ol-beta-policy-card {
   display: grid;
   gap: 14px;
@@ -8881,6 +8965,10 @@ a:focus-visible {
 
   .ol-beta-policy-card__head,
   .ol-beta-policy-list {
+    grid-template-columns: 1fr;
+  }
+
+  .ol-offer-dashboard-banner {
     grid-template-columns: 1fr;
   }
 

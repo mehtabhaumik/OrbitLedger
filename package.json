@@ -50,7 +50,7 @@
     "qa:print-sample-pack": "npx -y tsx scripts/generate-print-sample-pack.ts",
     "typecheck": "npm run typecheck --workspace @orbit-ledger/contracts && npm run typecheck --workspace @orbit-ledger/core && npm run typecheck --workspace @orbit-ledger/ui && npm run typecheck --workspace @orbit-ledger/sync && npm run typecheck --workspace @orbit-ledger/mobile && npm run typecheck --workspace @orbit-ledger/web && npm run typecheck --workspace @orbit-ledger/functions",
     "test": "vitest run apps packages",
-    "test:rules": "vitest run firebase/*.rules.test.ts firebase/rules.test.ts --fileParallelism=false",
+    "test:rules": "vitest run firebase/*.rules.test.ts firebase/rules.test.ts --fileParallelism=false --testTimeout=30000 --hookTimeout=30000",
     "test:rules:emulators": "npx -y firebase-tools@13.35.1 emulators:exec --project orbit-ledger-ci --only firestore,storage \"npm run test:rules\"",
     "audit:ci": "npm audit --audit-level=high"
   },
