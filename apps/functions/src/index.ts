@@ -5,6 +5,7 @@ import { logger } from 'firebase-functions';
 import { defineSecret } from 'firebase-functions/params';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { Webhook } from 'svix';
 import {
   buildCustomerSupportSubmissionDecision,
   buildSupportCaseId,
@@ -17,6 +18,15 @@ import {
   type SupportResolutionState as SupportCenterResolutionState,
   type SupportTicketStatus as SupportCenterTicketStatus,
 } from './supportCenterBridge';
+import {
+  buildSupportInboundMessageBody,
+  buildSupportReplyToAddress,
+  extractMailboxAddress,
+  extractSupportInboundHeaderValue,
+  extractSupportInboundMessageReferences,
+  inferSupportKindFromInboundEmail,
+  parseSupportInboundRoute,
+} from './supportInbound';
 
 admin.initializeApp();
 
@@ -26,6 +36,7 @@ const razorpayKeyId = defineSecret('RAZORPAY_KEY_ID');
 const razorpayKeySecret = defineSecret('RAZORPAY_KEY_SECRET');
 const razorpayWebhookSecret = defineSecret('RAZORPAY_WEBHOOK_SECRET');
 const resendApiKey = defineSecret('RESEND_API_KEY');
+const resendWebhookSecret = defineSecret('RESEND_WEBHOOK_SECRET');
 
 const ORBIT_LEDGER_EMERGENCY_ADMIN_EMAILS = [
   'bvmehta1980@gmail.com',
@@ -396,6 +407,48 @@ type ResendEmailPayload = {
   text: string;
   reply_to?: string[];
   headers?: Record<string, string>;
+};
+type ResendReceivedEmailWebhookEvent = {
+  type: string;
+  created_at?: string | null;
+  data?: {
+    email_id?: string | null;
+    created_at?: string | null;
+    from?: string | null;
+    to?: string[] | null;
+    bcc?: string[] | null;
+    cc?: string[] | null;
+    message_id?: string | null;
+    subject?: string | null;
+    attachments?: Array<{
+      id?: string | null;
+      filename?: string | null;
+      content_type?: string | null;
+      content_disposition?: string | null;
+      content_id?: string | null;
+    }> | null;
+  } | null;
+};
+type ResendReceivedEmailRecord = {
+  id: string;
+  to: string[];
+  from: string | null;
+  createdAt: string | null;
+  subject: string | null;
+  html: string | null;
+  text: string | null;
+  headers: Record<string, unknown>;
+  bcc: string[];
+  cc: string[];
+  replyTo: string[];
+  messageId: string | null;
+  attachments: Array<{
+    id: string;
+    filename: string | null;
+    contentType: string | null;
+    contentDisposition: string | null;
+    contentId: string | null;
+  }>;
 };
 type OfficeInvitationCapacityDecision = {
   allowed: boolean;
@@ -982,7 +1035,7 @@ export function buildSupportCaseRecord(input: {
   status: SupportCaseStatus;
   previousStatus?: SupportCaseStatus | null;
   note: string;
-  actorUid: string;
+  actorUid?: string | null;
   actorEmail?: string | null;
   noteCount?: number | null;
   createdAt?: string | null;
@@ -1000,7 +1053,7 @@ export function buildSupportCaseRecord(input: {
     latest_action: input.action,
     latest_note: clean(input.note),
     latest_note_at: timestamp,
-    latest_note_by: input.actorUid,
+    latest_note_by: input.actorUid ?? null,
     latest_note_by_email: clean(input.actorEmail),
     resolved_at: input.status === 'resolved' ? timestamp : null,
     reopened_at: input.status === 'reopened' ? timestamp : null,
@@ -1021,6 +1074,9 @@ export function buildSupportCaseEmailRequestRecord(input: {
   queuedByEmail?: string | null;
   replyAction?: SupportReplyAction | null;
   emailThreadId?: string | null;
+  replyToEmail?: string | null;
+  threadMessageId?: string | null;
+  threadReferences?: string[] | null;
   now?: Date;
 }) {
   const now = input.now ?? new Date();
@@ -1041,6 +1097,9 @@ export function buildSupportCaseEmailRequestRecord(input: {
     queued_by_email: clean(input.queuedByEmail),
     reply_action: input.replyAction ?? 'reply',
     email_thread_id: clean(input.emailThreadId) ?? clean(input.supportCaseId),
+    reply_to_email: clean(input.replyToEmail),
+    thread_message_id: clean(input.threadMessageId),
+    thread_references: sanitizeStringList(input.threadReferences ?? []),
     queued_at: timestamp,
     sent_at: null,
     updated_at: timestamp,
@@ -5805,6 +5864,376 @@ export const recordSupportCaseAdminAction = onRequest(
   }
 );
 
+export const receiveSupportInboundEmail = onRequest(
+  {
+    region: 'asia-south1',
+    maxInstances: 10,
+    secrets: [resendApiKey, resendWebhookSecret],
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const rawPayload = (request.rawBody ?? Buffer.from(JSON.stringify(request.body ?? {}))).toString('utf8');
+    const isAuthorized = verifyResendWebhookRequest({
+      payload: rawPayload,
+      headers: {
+        id: request.header('svix-id'),
+        timestamp: request.header('svix-timestamp'),
+        signature: request.header('svix-signature'),
+      },
+      webhookSecret: getSecretValue(resendWebhookSecret, 'RESEND_WEBHOOK_SECRET'),
+    });
+    if (!isAuthorized) {
+      response.status(401).json({ ok: false, error: 'invalid_webhook' });
+      return;
+    }
+
+    let event: ResendReceivedEmailWebhookEvent;
+    try {
+      event = JSON.parse(rawPayload) as ResendReceivedEmailWebhookEvent;
+    } catch {
+      response.status(400).json({ ok: false, error: 'invalid_payload' });
+      return;
+    }
+
+    if (event.type !== 'email.received') {
+      response.status(200).json({ ok: true, ignored: true, type: event.type ?? 'unknown' });
+      return;
+    }
+
+    const resendEmailId = clean(stringValue(event.data?.email_id));
+    if (!resendEmailId) {
+      response.status(400).json({ ok: false, error: 'support_inbound_email_id_required' });
+      return;
+    }
+
+    const apiKey = getSecretValue(resendApiKey, 'RESEND_API_KEY');
+    if (!isConfiguredCredential(apiKey)) {
+      response.status(503).json({ ok: false, error: 'support_inbound_not_configured' });
+      return;
+    }
+
+    try {
+      const receivedEmail = await retrieveResendReceivedEmail(apiKey, resendEmailId);
+      const senderHeader = extractSupportInboundHeaderValue(receivedEmail.headers, 'from');
+      const senderEmail =
+        extractMailboxAddress(senderHeader) ??
+        extractMailboxAddress(receivedEmail.from) ??
+        extractMailboxAddress(clean(stringValue(event.data?.from)));
+      if (!senderEmail) {
+        response.status(202).json({ ok: true, ignored: true, reason: 'sender_missing' });
+        return;
+      }
+
+      const messageBody = buildSupportInboundMessageBody({
+        text: receivedEmail.text,
+        html: receivedEmail.html,
+      });
+      const supportInboxAddress = getSupportInboundInboxAddress();
+      const inboundRoute = parseSupportInboundRoute(
+        [...receivedEmail.to, ...normalizeStringList(event.data?.to)],
+        supportInboxAddress
+      );
+      const attachmentCount = receivedEmail.attachments.length;
+      const inferredSupportKind = inferSupportKindFromInboundEmail(receivedEmail.subject, messageBody);
+      const messageReferences = extractSupportInboundMessageReferences(receivedEmail.headers);
+      const receivedMessageId = receivedEmail.messageId ?? messageReferences[0] ?? resendEmailId;
+
+      let workspaceRef: FirebaseFirestore.DocumentReference | null = null;
+      let ticketRef: FirebaseFirestore.DocumentReference | null = null;
+      let existingTicket: FirebaseFirestore.DocumentData | null = null;
+      let actorUid: string | null = null;
+      let actorName: string | null = null;
+      let senderRole: 'customer' | 'owner' | 'member' = 'customer';
+
+      if (inboundRoute.supportCaseId) {
+        const ticketSnapshot = await db
+          .collectionGroup('support_tickets')
+          .where('support_case_id', '==', inboundRoute.supportCaseId)
+          .limit(2)
+          .get();
+        if (ticketSnapshot.docs.length === 1) {
+          const ticketDoc = ticketSnapshot.docs[0];
+          workspaceRef = ticketDoc.ref.parent.parent;
+          ticketRef = ticketDoc.ref;
+          existingTicket = ticketDoc.data() ?? {};
+          if (!workspaceRef) {
+            response.status(202).json({ ok: true, ignored: true, reason: 'workspace_unresolved' });
+            return;
+          }
+
+          const senderContext = await resolveSupportInboundSenderContext({
+            workspaceRef,
+            senderEmail,
+            ticketCustomerEmail: clean(stringValue(existingTicket.customer_email)),
+            ticketCustomerName: clean(stringValue(existingTicket.customer_name)),
+          });
+          if (!senderContext.allowed) {
+            await recordSupportInboundPermissionDenied({
+              workspaceRef,
+              ticketRef,
+              supportCaseId: inboundRoute.supportCaseId,
+              queueId: normalizeSupportQueueId(clean(stringValue(existingTicket.queue_id))) ?? 'general',
+              senderEmail,
+              senderName: supportInboundDisplayName(senderHeader, senderEmail),
+              resendEmailId,
+              detail: 'Inbound support email was ignored because the sender is not allowed for this ticket workspace.',
+            });
+            response.status(202).json({ ok: true, ignored: true, reason: 'sender_not_allowed' });
+            return;
+          }
+
+          actorUid = senderContext.actorUid;
+          actorName = supportInboundDisplayName(senderHeader, senderEmail, senderContext.actorName);
+          senderRole = senderContext.actorRole === 'owner' || senderContext.actorRole === 'member'
+            ? senderContext.actorRole
+            : 'customer';
+        }
+      }
+
+      if (!workspaceRef) {
+        const workspaceCandidate = await resolveSupportInboundWorkspaceBySender(senderEmail);
+        if (!workspaceCandidate) {
+          logger.warn('support inbound workspace unresolved', {
+            resendEmailId,
+            senderEmail,
+            supportCaseId: inboundRoute.supportCaseId,
+          });
+          response.status(202).json({ ok: true, ignored: true, reason: 'workspace_unresolved' });
+          return;
+        }
+        workspaceRef = db.collection('workspaces').doc(workspaceCandidate.workspaceId);
+        actorUid = workspaceCandidate.actorUid;
+        actorName = supportInboundDisplayName(senderHeader, senderEmail, workspaceCandidate.actorName);
+        senderRole = workspaceCandidate.actorRole;
+      }
+
+      const generatedSupportCaseId = buildSupportCaseId(
+        new Date(),
+        Date.now() + Math.floor(Math.random() * 1_679_616)
+      );
+      const supportCaseId = inboundRoute.supportCaseId ?? clean(stringValue(existingTicket?.support_case_id)) ?? generatedSupportCaseId;
+      const finalTicketRef =
+        ticketRef ?? workspaceRef.collection('support_tickets').doc(normalizeId(`support_ticket_${supportCaseId}`));
+      const caseRef = workspaceRef.collection('support_cases').doc(normalizeId(supportCaseId));
+      const messageRef = workspaceRef.collection('support_messages').doc(normalizeId(`support_inbound_message_${resendEmailId}`));
+      const eventRef = workspaceRef.collection('support_events').doc(normalizeId(`support_inbound_event_${resendEmailId}`));
+      const statusEventRef = workspaceRef.collection('support_events').doc(normalizeId(`support_inbound_status_${resendEmailId}`));
+      const auditRef = workspaceRef.collection('office_access_audit').doc(normalizeId(`support_inbound_${supportCaseId}_${resendEmailId}`));
+
+      const result = await db.runTransaction(async (transaction) => {
+        const [workspaceSnapshot, caseSnapshot, ticketSnapshot, messageSnapshot] = await Promise.all([
+          transaction.get(workspaceRef!),
+          transaction.get(caseRef),
+          transaction.get(finalTicketRef),
+          transaction.get(messageRef),
+        ]);
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+        if (messageSnapshot.exists) {
+          return {
+            duplicate: true,
+            supportCaseId,
+            ticketId: finalTicketRef.id,
+            workspaceId: workspaceRef!.id,
+            created: false,
+          };
+        }
+
+        const currentCase = caseSnapshot.exists ? caseSnapshot.data() ?? {} : {};
+        const currentTicket = ticketSnapshot.exists ? ticketSnapshot.data() ?? {} : {};
+        const currentCaseStatus = normalizeSupportCaseStatus(clean(stringValue(currentCase.status)));
+        const currentTicketStatus = normalizeSupportCenterTicketStatus(clean(stringValue(currentTicket.status)));
+        const decision = buildCustomerSupportSubmissionDecision({
+          currentSupportCaseStatus: caseSnapshot.exists ? currentCaseStatus : null,
+          currentTicketStatus: ticketSnapshot.exists ? currentTicketStatus : null,
+        });
+        const queueId =
+          normalizeSupportQueueId(clean(stringValue(currentTicket.queue_id))) ?? supportQueueForKind(inferredSupportKind);
+        const ticketRecord = buildSupportTicketRecord({
+          workspaceId: workspaceRef!.id,
+          ticketId: finalTicketRef.id,
+          supportCaseId,
+          supportKind: inferredSupportKind,
+          subject: clean(receivedEmail.subject) ?? supportSubjectForKind(inferredSupportKind),
+          summary: messageBody,
+          customerUserId: actorUid,
+          customerEmail: clean(stringValue(currentTicket.customer_email)) ?? senderEmail,
+          customerName: clean(stringValue(currentTicket.customer_name)) ?? actorName,
+          messageId: messageRef.id,
+          consentId: clean(stringValue(currentTicket.active_support_consent_id)),
+          linkedConsentIds: sanitizeStringList(currentTicket.linked_support_consent_ids),
+          existingQueueId: queueId,
+          existingSource:
+            normalizeSupportTicketSource(clean(stringValue(currentTicket.source))) ??
+            (ticketSnapshot.exists ? 'support_case' : 'support_reply_email'),
+          existingCreatedAt: clean(stringValue(currentTicket.created_at)),
+          currentAssignmentId: clean(stringValue(currentTicket.current_assignment_id)),
+        });
+        const statusDetail = attachmentCount > 0
+          ? `Customer replied by email. ${attachmentCount} attachment${attachmentCount === 1 ? '' : 's'} were detected and left out of automatic import.`
+          : ticketSnapshot.exists
+            ? 'Customer replied by email through the Orbit Ledger inbound support mailbox.'
+            : 'Customer opened a support ticket by email through the Orbit Ledger inbound support mailbox.';
+
+        transaction.set(
+          caseRef,
+          buildSupportCaseRecord({
+            workspaceId: workspaceRef!.id,
+            supportCaseId,
+            action: decision.supportCaseAction,
+            status: decision.nextSupportCaseStatus,
+            previousStatus: caseSnapshot.exists ? currentCaseStatus : null,
+            note: messageBody,
+            actorUid,
+            actorEmail: senderEmail,
+            noteCount: numberValue(currentCase.note_count),
+            createdAt: clean(stringValue(currentCase.created_at)),
+          }),
+          { merge: true }
+        );
+        transaction.set(
+          messageRef,
+          buildSupportMessageRecord({
+            workspaceId: workspaceRef!.id,
+            ticketId: finalTicketRef.id,
+            supportCaseId,
+            actorUid,
+            actorEmail: senderEmail,
+            body: messageBody,
+            emailThreadId: supportCaseId,
+            providerMessageId: receivedMessageId,
+          }),
+          { merge: true }
+        );
+        transaction.set(
+          finalTicketRef,
+          {
+            ...ticketRecord,
+            status: decision.nextTicketStatus,
+            resolution_state: decision.nextResolutionState,
+            resolution_reason: decision.nextResolutionReason,
+            latest_message_id: messageRef.id,
+            latest_message_at: clean(receivedEmail.createdAt) ?? new Date().toISOString(),
+            summary: messageBody,
+            last_actor_uid: actorUid,
+            last_actor_role: 'customer',
+            updated_at: new Date().toISOString(),
+            resolved_at: null,
+            closed_at: null,
+          },
+          { merge: true }
+        );
+        transaction.set(
+          eventRef,
+          buildSupportEventRecord({
+            workspaceId: workspaceRef!.id,
+            ticketId: finalTicketRef.id,
+            supportCaseId,
+            eventKind: ticketSnapshot.exists ? 'message_added' : 'ticket_created',
+            detail: statusDetail,
+            queueId,
+            actorUid,
+            actorRole: 'customer',
+            actorEmail: senderEmail,
+            statusBefore: ticketSnapshot.exists ? currentTicketStatus : null,
+            statusAfter: decision.nextTicketStatus,
+            resolutionStateBefore: ticketSnapshot.exists
+              ? normalizeSupportCenterResolutionState(clean(stringValue(currentTicket.resolution_state)))
+              : null,
+            resolutionStateAfter: decision.nextResolutionState,
+            resolutionReason: decision.nextResolutionReason,
+            metadata: {
+              attachmentCount,
+              resendEmailId,
+              receivedMessageId,
+              senderRole,
+              source: 'email.received',
+            },
+          }),
+          { merge: true }
+        );
+        if (
+          ticketSnapshot.exists &&
+          (currentTicketStatus !== decision.nextTicketStatus ||
+            normalizeSupportCenterResolutionState(clean(stringValue(currentTicket.resolution_state))) !== decision.nextResolutionState)
+        ) {
+          transaction.set(
+            statusEventRef,
+            buildSupportEventRecord({
+              workspaceId: workspaceRef!.id,
+              ticketId: finalTicketRef.id,
+              supportCaseId,
+              eventKind: 'status_changed',
+              detail: 'Inbound customer email updated the ticket state for operator review.',
+              queueId,
+              actorUid,
+              actorRole: 'customer',
+              actorEmail: senderEmail,
+              statusBefore: currentTicketStatus,
+              statusAfter: decision.nextTicketStatus,
+              resolutionStateBefore: normalizeSupportCenterResolutionState(clean(stringValue(currentTicket.resolution_state))),
+              resolutionStateAfter: decision.nextResolutionState,
+              resolutionReason: decision.nextResolutionReason,
+              metadata: {
+                resendEmailId,
+                source: 'email.received',
+              },
+            }),
+            { merge: true }
+          );
+        }
+        transaction.set(
+          auditRef,
+          {
+            version: 1,
+            workspace_id: workspaceRef!.id,
+            actor_uid: actorUid,
+            actor_email: senderEmail,
+            actor_role: senderRole,
+            action: 'support_inbound_email_received',
+            target_uid: null,
+            target_email: senderEmail,
+            previous_role: null,
+            next_role: null,
+            previous_status: ticketSnapshot.exists ? currentTicketStatus : null,
+            next_status: decision.nextTicketStatus,
+            support_consent_id: clean(stringValue(currentTicket.active_support_consent_id)),
+            support_case_id: supportCaseId,
+            customer_approved_diagnostic_access: false,
+            impersonation_allowed: false,
+            reason: statusDetail,
+            created_at: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+
+        return {
+          duplicate: false,
+          supportCaseId,
+          ticketId: finalTicketRef.id,
+          workspaceId: workspaceRef!.id,
+          created: !ticketSnapshot.exists,
+        };
+      });
+
+      response.status(200).json({ ok: true, ...result });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'workspace_not_found') {
+        response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+      logger.error('receiveSupportInboundEmail failed', { resendEmailId, error });
+      response.status(500).json({ ok: false, error: 'support_inbound_failed' });
+    }
+  }
+);
+
 export const sendOfficeSupportReply = onRequest(
   {
     region: 'asia-south1',
@@ -5871,6 +6300,15 @@ export const sendOfficeSupportReply = onRequest(
         action,
         previousResolutionReason: resolutionReason ?? normalizeSupportResolutionReason(clean(stringValue(currentTicket.resolution_reason))),
       });
+      const latestMessageId = clean(stringValue(currentTicket.latest_message_id));
+      const latestMessageSnapshot = latestMessageId
+        ? await workspaceRef.collection('support_messages').doc(latestMessageId).get()
+        : null;
+      const latestMessage = latestMessageSnapshot?.data() ?? {};
+      const latestThreadMessageId =
+        clean(stringValue(latestMessage.kind)) === 'customer_message'
+          ? clean(stringValue(latestMessage.provider_message_id))
+          : null;
       const canSend = action === 'close_silently'
         ? supportCapability.canChangeStatus
         : supportCapability.canSendReplies;
@@ -5928,6 +6366,9 @@ export const sendOfficeSupportReply = onRequest(
             queuedByEmail: adminUser.email,
             replyAction: action,
             emailThreadId,
+            replyToEmail: buildSupportReplyToAddress(getSupportInboundInboxAddress(), supportCaseId),
+            threadMessageId: latestThreadMessageId,
+            threadReferences: latestThreadMessageId ? [latestThreadMessageId] : [],
             now,
           })
         : null;
@@ -11088,6 +11529,217 @@ function supportReplySuccessMessage(input: {
       : 'Reply was saved, but delivery failed.';
 }
 
+type SupportInboundSenderContext = {
+  allowed: boolean;
+  actorUid: string | null;
+  actorName: string | null;
+  actorRole: 'customer' | 'owner' | 'member' | 'external';
+};
+
+type SupportInboundWorkspaceCandidate = {
+  workspaceId: string;
+  actorUid: string | null;
+  actorName: string | null;
+  actorRole: 'owner' | 'member';
+};
+
+async function resolveSupportInboundSenderContext(input: {
+  workspaceRef: FirebaseFirestore.DocumentReference;
+  senderEmail: string;
+  ticketCustomerEmail?: string | null;
+  ticketCustomerName?: string | null;
+}): Promise<SupportInboundSenderContext> {
+  const normalizedSenderEmail = normalizeEmailAddress(input.senderEmail);
+  if (!normalizedSenderEmail) {
+    return {
+      allowed: false,
+      actorUid: null,
+      actorName: null,
+      actorRole: 'external',
+    };
+  }
+
+  const [workspaceSnapshot, memberSnapshot] = await Promise.all([
+    input.workspaceRef.get(),
+    input.workspaceRef.collection('office_members').where('email', '==', normalizedSenderEmail).limit(5).get(),
+  ]);
+  const workspace = workspaceSnapshot.data() ?? {};
+  const activeMember = memberSnapshot.docs
+    .map((entry) => entry.data() ?? {})
+    .find((member) => clean(stringValue(member.status)) === 'active');
+  const ticketCustomerEmail = normalizeEmailAddress(input.ticketCustomerEmail ?? null);
+
+  if (ticketCustomerEmail && ticketCustomerEmail === normalizedSenderEmail) {
+    return {
+      allowed: true,
+      actorUid: null,
+      actorName: clean(input.ticketCustomerName) ?? null,
+      actorRole: 'customer',
+    };
+  }
+
+  if (normalizeEmailAddress(clean(stringValue(workspace.owner_email))) === normalizedSenderEmail) {
+    return {
+      allowed: true,
+      actorUid: clean(stringValue(workspace.owner_uid)),
+      actorName:
+        clean(stringValue(workspace.owner_name)) ??
+        clean(stringValue(workspace.contact_person)) ??
+        clean(input.ticketCustomerName) ??
+        null,
+      actorRole: 'owner',
+    };
+  }
+
+  if (activeMember) {
+    return {
+      allowed: true,
+      actorUid: clean(stringValue(activeMember.uid)) ?? null,
+      actorName: clean(stringValue(activeMember.display_name)) ?? null,
+      actorRole: 'member',
+    };
+  }
+
+  return {
+    allowed: false,
+    actorUid: null,
+    actorName: null,
+    actorRole: 'external',
+  };
+}
+
+async function resolveSupportInboundWorkspaceBySender(
+  senderEmail: string
+): Promise<SupportInboundWorkspaceCandidate | null> {
+  const normalizedSenderEmail = normalizeEmailAddress(senderEmail);
+  if (!normalizedSenderEmail) {
+    return null;
+  }
+
+  const [ownerSnapshot, memberSnapshot] = await Promise.all([
+    db.collection('workspaces').where('owner_email', '==', normalizedSenderEmail).limit(5).get(),
+    db.collectionGroup('office_members').where('email', '==', normalizedSenderEmail).limit(10).get(),
+  ]);
+  const candidates = new Map<string, SupportInboundWorkspaceCandidate>();
+
+  for (const workspaceDoc of ownerSnapshot.docs) {
+    const workspace = workspaceDoc.data() ?? {};
+    candidates.set(workspaceDoc.id, {
+      workspaceId: workspaceDoc.id,
+      actorUid: clean(stringValue(workspace.owner_uid)),
+      actorName:
+        clean(stringValue(workspace.owner_name)) ??
+        clean(stringValue(workspace.contact_person)) ??
+        null,
+      actorRole: 'owner',
+    });
+  }
+
+  for (const memberDoc of memberSnapshot.docs) {
+    const workspaceRef = memberDoc.ref.parent.parent;
+    if (!workspaceRef) {
+      continue;
+    }
+    const member = memberDoc.data() ?? {};
+    if (clean(stringValue(member.status)) !== 'active') {
+      continue;
+    }
+    if (candidates.has(workspaceRef.id)) {
+      continue;
+    }
+    candidates.set(workspaceRef.id, {
+      workspaceId: workspaceRef.id,
+      actorUid: clean(stringValue(member.uid)) ?? null,
+      actorName: clean(stringValue(member.display_name)) ?? null,
+      actorRole: 'member',
+    });
+  }
+
+  return candidates.size === 1 ? [...candidates.values()][0] : null;
+}
+
+function supportInboundDisplayName(fromHeader: string | null, senderEmail: string, fallbackName?: string | null) {
+  const header = clean(fromHeader);
+  if (header) {
+    const withoutMailbox = header.replace(/<[^>]+>/g, '').replaceAll('"', '').trim();
+    if (withoutMailbox && normalizeEmailAddress(withoutMailbox) !== normalizeEmailAddress(senderEmail)) {
+      return withoutMailbox;
+    }
+  }
+  return clean(fallbackName) ?? null;
+}
+
+async function recordSupportInboundPermissionDenied(input: {
+  workspaceRef: FirebaseFirestore.DocumentReference;
+  ticketRef: FirebaseFirestore.DocumentReference;
+  supportCaseId: string;
+  queueId: SupportQueueId;
+  senderEmail: string;
+  senderName?: string | null;
+  resendEmailId: string;
+  detail: string;
+}) {
+  const now = new Date().toISOString();
+  const eventRef = input.workspaceRef
+    .collection('support_events')
+    .doc(normalizeId(`support_inbound_denied_${input.supportCaseId}_${input.resendEmailId}`));
+  const auditRef = input.workspaceRef
+    .collection('office_access_audit')
+    .doc(normalizeId(`support_inbound_denied_${input.supportCaseId}_${Date.now()}`));
+
+  await Promise.all([
+    eventRef.set(
+      {
+        version: 1,
+        workspace_id: input.workspaceRef.id,
+        ticket_id: input.ticketRef.id,
+        support_case_id: input.supportCaseId,
+        kind: 'permission_denied',
+        actor_uid: null,
+        actor_role: 'system',
+        actor_email: input.senderEmail,
+        queue_id: input.queueId,
+        status_before: null,
+        status_after: null,
+        resolution_state_before: null,
+        resolution_state_after: null,
+        resolution_reason: null,
+        detail: input.detail,
+        metadata: {
+          resend_email_id: input.resendEmailId,
+          sender_name: clean(input.senderName),
+          source: 'email.received',
+        },
+        created_at: now,
+      },
+      { merge: true }
+    ),
+    auditRef.set(
+      {
+        version: 1,
+        workspace_id: input.workspaceRef.id,
+        actor_uid: null,
+        actor_email: input.senderEmail,
+        actor_role: 'customer',
+        action: 'support_inbound_email_denied',
+        target_uid: null,
+        target_email: input.senderEmail,
+        previous_role: null,
+        next_role: null,
+        previous_status: null,
+        next_status: null,
+        support_consent_id: null,
+        support_case_id: input.supportCaseId,
+        customer_approved_diagnostic_access: false,
+        impersonation_allowed: false,
+        reason: input.detail,
+        created_at: now,
+      },
+      { merge: true }
+    ),
+  ]);
+}
+
 function supportCaseMessageForStatus(status: SupportCaseStatus, action: SupportCaseAction) {
   if (status === 'in_progress') {
     return 'Support case marked in progress.';
@@ -12034,6 +12686,11 @@ async function deliverSupportCaseEmailRequest(
   const body = clean(stringValue(request.body));
   const supportCaseId = clean(stringValue(request.support_case_id));
   const emailThreadId = clean(stringValue(request.email_thread_id)) ?? supportCaseId;
+  const replyToEmail =
+    extractMailboxAddress(clean(stringValue(request.reply_to_email))) ??
+    buildSupportReplyToAddress(getSupportInboundInboxAddress(), supportCaseId ?? '');
+  const threadMessageId = clean(stringValue(request.thread_message_id));
+  const threadReferences = sanitizeStringList(request.thread_references).filter(Boolean);
   if (!recipientEmail || !isValidEmailAddress(recipientEmail) || !subject || !body) {
     return {
       status: 'failed',
@@ -12061,10 +12718,12 @@ async function deliverSupportCaseEmailRequest(
       subject,
       html: buildSupportCaseEmailHtml(body),
       text: body,
-      replyTo: [getSupportEmailFromAddress()],
+      replyTo: replyToEmail ? [replyToEmail] : [getSupportEmailFromAddress()],
       headers: {
         'X-Support-Case-ID': supportCaseId ?? '',
         'X-Support-Thread-ID': emailThreadId ?? '',
+        'In-Reply-To': threadMessageId ?? '',
+        References: threadReferences.length ? threadReferences.join(' ') : threadMessageId ?? '',
       },
     }),
   });
@@ -12278,6 +12937,79 @@ async function sendResendEmail(input: {
   }
 }
 
+function verifyResendWebhookRequest(input: {
+  payload: string;
+  headers: {
+    id?: string | null;
+    timestamp?: string | null;
+    signature?: string | null;
+  };
+  webhookSecret?: string | null;
+}) {
+  const secret = clean(input.webhookSecret);
+  if (!secret || !isConfiguredCredential(secret)) {
+    return process.env.FUNCTIONS_EMULATOR === 'true';
+  }
+
+  const svixId = clean(input.headers.id);
+  const svixTimestamp = clean(input.headers.timestamp);
+  const svixSignature = clean(input.headers.signature);
+  if (!svixId || !svixTimestamp || !svixSignature) {
+    return false;
+  }
+
+  try {
+    new Webhook(secret).verify(input.payload, {
+      'svix-id': svixId,
+      'svix-timestamp': svixTimestamp,
+      'svix-signature': svixSignature,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function retrieveResendReceivedEmail(apiKey: string, emailId: string): Promise<ResendReceivedEmailRecord> {
+  const response = await fetch(`https://api.resend.com/emails/receiving/${encodeURIComponent(emailId)}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(clean(stringValue(payload.message)) ?? `support_inbound_email_fetch_failed_${response.status}`);
+  }
+
+  const attachments = Array.isArray(payload.attachments) ? payload.attachments : [];
+  return {
+    id: clean(stringValue(payload.id)) ?? emailId,
+    to: normalizeStringList(payload.to),
+    from: clean(stringValue(payload.from)),
+    createdAt: clean(stringValue(payload.created_at)),
+    subject: clean(stringValue(payload.subject)),
+    html: clean(stringValue(payload.html)),
+    text: clean(stringValue(payload.text)),
+    headers: asRecord(payload.headers) ?? {},
+    bcc: normalizeStringList(payload.bcc),
+    cc: normalizeStringList(payload.cc),
+    replyTo: normalizeStringList(payload.reply_to),
+    messageId: clean(stringValue(payload.message_id)),
+    attachments: attachments
+      .map((attachment) => asRecord(attachment))
+      .filter((attachment): attachment is Record<string, unknown> => Boolean(attachment))
+      .map((attachment) => ({
+        id: clean(stringValue(attachment.id)) ?? '',
+        filename: clean(stringValue(attachment.filename)),
+        contentType: clean(stringValue(attachment.content_type)),
+        contentDisposition: clean(stringValue(attachment.content_disposition)),
+        contentId: clean(stringValue(attachment.content_id)),
+      })),
+  };
+}
+
 function getOrbitLedgerFromAddress() {
   return process.env.ORBIT_LEDGER_FROM_EMAIL?.trim() || 'Orbit Ledger <no-reply@orbitledger.rudraix.com>';
 }
@@ -12336,6 +13068,14 @@ function getOfficeInvitationFromAddress() {
 
 function getSupportEmailFromAddress() {
   return process.env.ORBIT_LEDGER_SUPPORT_FROM_EMAIL?.trim() || getOrbitLedgerFromAddress();
+}
+
+function getSupportInboundInboxAddress() {
+  return (
+    process.env.ORBIT_LEDGER_SUPPORT_INBOX_EMAIL?.trim() ||
+    extractMailboxAddress(getSupportEmailFromAddress()) ||
+    'support@orbitledger.rudraix.com'
+  );
 }
 
 function getOrbitLedgerWebAppUrl() {

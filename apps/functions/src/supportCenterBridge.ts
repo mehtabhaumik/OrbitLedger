@@ -154,7 +154,7 @@ export function buildSupportTicketRecord(input: {
   supportKind: string | null | undefined;
   subject: string;
   summary: string;
-  customerUserId: string;
+  customerUserId?: string | null;
   customerEmail?: string | null;
   customerName?: string | null;
   messageId: string;
@@ -186,7 +186,7 @@ export function buildSupportTicketRecord(input: {
     resolution_reason: null,
     subject: input.subject,
     summary: input.summary,
-    customer_user_id: input.customerUserId,
+    customer_user_id: input.customerUserId ?? null,
     customer_email: input.customerEmail ?? null,
     customer_name: input.customerName ?? null,
     active_support_consent_id: input.consentId ?? null,
@@ -194,7 +194,7 @@ export function buildSupportTicketRecord(input: {
     latest_message_id: input.messageId,
     latest_message_at: timestamp,
     current_assignment_id: input.currentAssignmentId ?? null,
-    last_actor_uid: input.customerUserId,
+    last_actor_uid: input.customerUserId ?? null,
     last_actor_role: 'customer',
     created_at: input.existingCreatedAt ?? timestamp,
     updated_at: timestamp,
@@ -207,9 +207,11 @@ export function buildSupportMessageRecord(input: {
   workspaceId: string;
   ticketId: string;
   supportCaseId: string;
-  actorUid: string;
+  actorUid?: string | null;
   actorEmail?: string | null;
   body: string;
+  emailThreadId?: string | null;
+  providerMessageId?: string | null;
   now?: Date;
 }) {
   const now = input.now ?? new Date();
@@ -219,13 +221,13 @@ export function buildSupportMessageRecord(input: {
     ticket_id: input.ticketId,
     support_case_id: input.supportCaseId,
     kind: 'customer_message' as SupportMessageKind,
-    actor_uid: input.actorUid,
+    actor_uid: input.actorUid ?? null,
     actor_role: 'customer',
     actor_email: input.actorEmail ?? null,
     visible_to_customer: true,
     body: input.body,
-    email_thread_id: null,
-    provider_message_id: null,
+    email_thread_id: input.emailThreadId ?? null,
+    provider_message_id: input.providerMessageId ?? null,
     created_at: now.toISOString(),
   };
 }
@@ -238,6 +240,7 @@ export function buildSupportEventRecord(input: {
   detail: string;
   queueId: SupportQueueId;
   actorUid?: string | null;
+  actorRole?: 'customer' | 'system';
   actorEmail?: string | null;
   statusBefore?: SupportTicketStatus | null;
   statusAfter?: SupportTicketStatus | null;
@@ -255,7 +258,7 @@ export function buildSupportEventRecord(input: {
     support_case_id: input.supportCaseId,
     kind: input.eventKind,
     actor_uid: input.actorUid ?? null,
-    actor_role: input.actorUid ? 'customer' : 'system',
+    actor_role: input.actorRole ?? (input.actorUid ? 'customer' : 'system'),
     actor_email: input.actorEmail ?? null,
     queue_id: input.queueId,
     status_before: input.statusBefore ?? null,
