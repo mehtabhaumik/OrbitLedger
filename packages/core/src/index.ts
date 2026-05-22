@@ -693,6 +693,7 @@ export {
   buildSupportTicketActionPlan,
   canSupportRoleAccessQueue,
   canSupportRoleAuditAllTickets,
+  canSupportRoleExportReports,
   canSupportRoleMutateQueue,
   getSupportRoleCapability,
   isSupportCenterCollection,

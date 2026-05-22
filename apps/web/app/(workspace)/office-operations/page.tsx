@@ -6,16 +6,24 @@ import { canSupportRoleAccessQueue, type OfficeSupportCaseAction, type PlatformA
 
 import { AppShell } from '@/components/app-shell';
 import {
+  buildWebSupportAuditRecords,
+  buildWebSupportPrintHtml,
+  buildWebSupportReport,
+  buildWebSupportReportCsv,
+  filterWebSupportAuditRecords,
   OFFICE_FINAL_LAUNCH_FREEZE_ITEMS,
   OFFICE_PRODUCTION_READINESS_CHECKLIST,
   OFFICE_SUPPORT_REVIEW_GUARDRAILS,
   isWebOfficeOperationsAllowed,
   loadWebOfficeOperationsSnapshot,
   recordWebSupportCaseAdminAction,
+  recordWebOfficeSupportReportEvent,
   recordWebSupportTicketAssignment,
   recordWebOfficeSupportReview,
   resolveWebOfficeAccessRequest,
   sendWebSupportReply,
+  type WebSupportAuditFilters,
+  type WebSupportAuditRecord,
   type WebOfficeOperationsSnapshot,
   type WebSupportAdminContext,
   type WebSupportAssignmentRecord,
@@ -25,6 +33,7 @@ import {
   type WebSupportMessageRecord,
   type WebSupportQueueRecord,
   type WebSupportReplyAction,
+  type WebSupportReportType,
   type WebSupportTicketRecord,
 } from '@/lib/office-admin-operations';
 import { useAuth } from '@/providers/auth-provider';
@@ -164,11 +173,19 @@ export default function OfficeOperationsPage() {
   const [supportQueueFilter, setSupportQueueFilter] = useState('all');
   const [supportOwnerFilter, setSupportOwnerFilter] = useState<(typeof OWNER_FILTER_OPTIONS)[number]['value']>('all');
   const [operationsSearch, setOperationsSearch] = useState('');
+  const [supportAuditActorRoleFilter, setSupportAuditActorRoleFilter] = useState('all');
+  const [supportAuditStatusFilter, setSupportAuditStatusFilter] = useState('all');
+  const [supportAuditDateFrom, setSupportAuditDateFrom] = useState('');
+  const [supportAuditDateTo, setSupportAuditDateTo] = useState('');
+  const [supportAuditSearch, setSupportAuditSearch] = useState('');
+  const [supportReportType, setSupportReportType] = useState<WebSupportReportType>('audit_trail');
+  const [supportReportScope, setSupportReportScope] = useState<'selected_case' | 'workspace_view'>('selected_case');
   const [selectedSupportCaseId, setSelectedSupportCaseId] = useState('');
   const [isRecordingSupportReview, setIsRecordingSupportReview] = useState(false);
   const [isSavingSupportCase, setIsSavingSupportCase] = useState(false);
   const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const [isQueueingSupportEmail, setIsQueueingSupportEmail] = useState(false);
+  const [busySupportReportAction, setBusySupportReportAction] = useState<'download_csv' | 'print_report' | null>(null);
   const [assignmentQueueId, setAssignmentQueueId] = useState('general');
   const [assignmentRole, setAssignmentRole] = useState<PlatformAdminRole>('support_admin');
   const [assignmentAdminEmail, setAssignmentAdminEmail] = useState('');
@@ -203,6 +220,23 @@ export default function OfficeOperationsPage() {
   const supportEmailsByCaseId = useMemo(
     () => buildCaseMap(snapshot?.supportCaseEmailRequests ?? [], (request) => request.supportCaseId),
     [snapshot?.supportCaseEmailRequests]
+  );
+  const supportAuditRecords = useMemo(
+    () =>
+      buildWebSupportAuditRecords({
+        supportTickets: snapshot?.supportTickets ?? [],
+        supportMessages: snapshot?.supportMessages ?? [],
+        supportAssignments: snapshot?.supportAssignments ?? [],
+        supportCaseEmailRequests: snapshot?.supportCaseEmailRequests ?? [],
+        supportCaseEvents: snapshot?.supportCaseEvents ?? [],
+      }),
+    [
+      snapshot?.supportAssignments,
+      snapshot?.supportCaseEmailRequests,
+      snapshot?.supportCaseEvents,
+      snapshot?.supportMessages,
+      snapshot?.supportTickets,
+    ]
   );
 
   const filteredReviewQueue = useMemo(
@@ -288,17 +322,10 @@ export default function OfficeOperationsPage() {
     [selectedSupportCaseId, supportShellRows]
   );
 
-  const selectedSupportMessages = useMemo(
-    () =>
-      selectedSupportRow
-        ? (supportMessagesByCaseId.get(selectedSupportRow.supportCase.supportCaseId) ?? []).slice(0, 6)
-        : [],
-    [selectedSupportRow, supportMessagesByCaseId]
-  );
   const selectedSupportEvents = useMemo(
     () =>
       selectedSupportRow
-        ? (supportEventsByCaseId.get(selectedSupportRow.supportCase.supportCaseId) ?? []).slice(0, 6)
+        ? supportEventsByCaseId.get(selectedSupportRow.supportCase.supportCaseId) ?? []
         : [],
     [selectedSupportRow, supportEventsByCaseId]
   );
@@ -317,6 +344,106 @@ export default function OfficeOperationsPage() {
     [selectedSupportRow, supportEmailsByCaseId]
   );
   const selectedSupportAssignment = selectedSupportRow?.currentAssignment ?? null;
+  const supportAuditActorRoleOptions = useMemo(
+    () =>
+      Array.from(new Set(supportAuditRecords.map((record) => record.actorRole).filter(Boolean) as string[])).sort((left, right) =>
+        left.localeCompare(right)
+      ),
+    [supportAuditRecords]
+  );
+  const supportAuditStatusOptions = useMemo(
+    () =>
+      Array.from(new Set(supportAuditRecords.map((record) => record.status).filter(Boolean) as string[])).sort((left, right) =>
+        left.localeCompare(right)
+      ),
+    [supportAuditRecords]
+  );
+  const supportAuditFilters = useMemo<WebSupportAuditFilters>(
+    () => ({
+      supportCaseId:
+        supportReportScope === 'selected_case' ? selectedSupportRow?.supportCase.supportCaseId ?? null : null,
+      queueId: supportQueueFilter === 'all' ? null : supportQueueFilter,
+      actorRole: supportAuditActorRoleFilter === 'all' ? null : supportAuditActorRoleFilter,
+      ticketStatus: supportAuditStatusFilter === 'all' ? null : supportAuditStatusFilter,
+      dateFrom: supportAuditDateFrom || null,
+      dateTo: supportAuditDateTo || null,
+      search: supportAuditSearch || null,
+    }),
+    [
+      selectedSupportRow?.supportCase.supportCaseId,
+      supportAuditActorRoleFilter,
+      supportAuditDateFrom,
+      supportAuditDateTo,
+      supportAuditSearch,
+      supportAuditStatusFilter,
+      supportQueueFilter,
+      supportReportScope,
+    ]
+  );
+  const filteredSupportAuditRecords = useMemo(
+    () => filterWebSupportAuditRecords(supportAuditRecords, supportAuditFilters),
+    [supportAuditFilters, supportAuditRecords]
+  );
+  const selectedSupportExactHistory = useMemo(
+    () =>
+      selectedSupportRow
+        ? filterWebSupportAuditRecords(supportAuditRecords, {
+            ...supportAuditFilters,
+            supportCaseId: selectedSupportRow.supportCase.supportCaseId,
+          })
+        : [],
+    [selectedSupportRow, supportAuditFilters, supportAuditRecords]
+  );
+  const supportReport = useMemo(
+    () =>
+      currentAdmin
+        ? buildWebSupportReport({
+            type: supportReportType,
+            generatedAt: new Date().toISOString(),
+            generatedBy: currentAdmin.email ?? 'Orbit Ledger',
+            adminRole: currentAdmin.role,
+            filters: supportAuditFilters,
+            supportTickets: snapshot?.supportTickets ?? [],
+            supportAssignments: snapshot?.supportAssignments ?? [],
+            supportCaseEmailRequests: snapshot?.supportCaseEmailRequests ?? [],
+            supportConsents: snapshot?.supportConsents ?? [],
+            auditRecords: filteredSupportAuditRecords,
+          })
+        : null,
+    [
+      currentAdmin,
+      filteredSupportAuditRecords,
+      snapshot?.supportAssignments,
+      snapshot?.supportCaseEmailRequests,
+      snapshot?.supportConsents,
+      snapshot?.supportTickets,
+      supportAuditFilters,
+      supportReportType,
+    ]
+  );
+  const supportAuditSummary = useMemo(
+    () => [
+      {
+        id: 'history-total',
+        label: 'Audit rows',
+        value: filteredSupportAuditRecords.length,
+        helper: 'Filtered interactions in the current report scope.',
+      },
+      {
+        id: 'history-customer',
+        label: 'Customer-visible',
+        value: filteredSupportAuditRecords.filter((record) => record.visibleToCustomer).length,
+        helper: 'Replies or messages that were visible to the customer.',
+      },
+      {
+        id: 'history-operator',
+        label: 'Internal only',
+        value: filteredSupportAuditRecords.filter((record) => !record.visibleToCustomer).length,
+        helper: 'Notes, assignment changes, and internal audit events.',
+      },
+    ],
+    [filteredSupportAuditRecords]
+  );
   const assignmentQueueOptions = useMemo(
     () => (supportQueues.length ? supportQueues : Object.entries(SUPPORT_QUEUE_LABELS).map(([id, label]) => ({ id, label, description: '', createdAt: null, updatedAt: null }))),
     [supportQueues]
@@ -368,29 +495,19 @@ export default function OfficeOperationsPage() {
   const replyActionNeedsResolution = replyAction === 'close_with_reply' || replyAction === 'close_silently';
   const selectedSupportTimeline = useMemo<SupportTimelineEntry[]>(
     () =>
-      [
-        ...selectedSupportMessages.map((message) => ({
-          id: `message:${message.id}`,
-          createdAt: message.createdAt,
-          kind: 'message' as const,
-          tone: supportMessageTone(message.kind),
-          title: supportMessageKindLabel(message.kind),
-          body: message.body,
-          meta: `${message.actorEmail ?? message.actorRole} · ${message.visibleToCustomer ? 'Customer-visible' : 'Internal only'}`,
-          badge: supportMessageKindBadge(message.kind),
-        })),
-        ...selectedSupportEvents.map((event) => ({
-          id: `event:${event.id}`,
-          createdAt: event.createdAt,
-          kind: 'event' as const,
-          tone: event.tone,
-          title: event.title,
-          body: event.detail,
-          meta: event.actor,
-          badge: event.status ?? event.kind ?? 'recorded',
-        })),
-      ].sort((left, right) => sortSupportTimeline(left.createdAt, right.createdAt)),
-    [selectedSupportEvents, selectedSupportMessages]
+      selectedSupportExactHistory.map((record) => ({
+        id: record.id,
+        createdAt: record.createdAt,
+        kind: record.source === 'event' ? ('event' as const) : ('message' as const),
+        tone: record.tone,
+        title: record.title,
+        body: record.detail,
+        meta: `${record.actorEmail ?? supportRoleLabel(record.actorRole)} · ${
+          record.visibleToCustomer ? 'Customer-visible' : 'Internal only'
+        }`,
+        badge: `${supportAuditSourceLabel(record.source)}${record.status ? ` · ${supportTicketStatusLabel(record.status)}` : ''}`,
+      })),
+    [selectedSupportExactHistory]
   );
 
   const supportRailHighlights = useMemo(
@@ -706,6 +823,69 @@ export default function OfficeOperationsPage() {
     setEmailBody(`Hello,\n\nWe have an update for support case ${supportCase.supportCaseId}.\n\nThank you,\nOrbit Ledger Support`);
     setReplyAction('reply');
     setReplyResolutionReason('');
+  }
+
+  async function runSupportReportAction(action: 'download_csv' | 'print_report') {
+    if (!activeWorkspace?.workspaceId || !supportReport || !currentAdmin) {
+      showToast('Load the support center before exporting reports.', 'info');
+      return;
+    }
+    if (!currentAdmin.supportCapability.canExportReports) {
+      showToast('This admin role cannot export support reports for the current workspace view.', 'danger');
+      return;
+    }
+    if (!supportReport.rows.length) {
+      showToast('There are no rows in the current report view to export.', 'info');
+      return;
+    }
+
+    setBusySupportReportAction(action);
+    try {
+      await recordWebOfficeSupportReportEvent({
+        workspaceId: activeWorkspace.workspaceId,
+        action,
+        report: supportReport,
+        supportCaseId: supportAuditFilters.supportCaseId,
+        ticketId:
+          supportReportScope === 'selected_case' && selectedSupportRow?.supportCase.supportCaseId === supportAuditFilters.supportCaseId
+            ? selectedSupportRow.ticket?.id ?? null
+            : null,
+        queueId:
+          (supportAuditFilters.queueId as SupportQueueId | null) ??
+          (supportReportScope === 'selected_case' ? (selectedSupportRow?.ticket?.queueId as SupportQueueId | null) : null),
+      });
+
+      if (action === 'download_csv') {
+        const blob = new Blob([buildWebSupportReportCsv(supportReport)], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = supportReportFilename(supportReport);
+        link.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1120,height=820');
+        if (!printWindow) {
+          throw new Error('Allow pop-ups temporarily so the support report can open for printing.');
+        }
+        printWindow.document.open();
+        printWindow.document.write(buildWebSupportPrintHtml(supportReport));
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      }
+
+      showToast(
+        action === 'download_csv' ? 'Support report CSV downloaded and audited.' : 'Support report print view opened and audited.',
+        'success'
+      );
+    } catch (reportError) {
+      showToast(reportError instanceof Error ? reportError.message : 'Support report could not be exported.', 'danger');
+    } finally {
+      setBusySupportReportAction(null);
+    }
   }
 
   return (
@@ -1167,9 +1347,10 @@ export default function OfficeOperationsPage() {
                   <div className="ol-support-thread-section">
                     <div className="ol-support-section-heading">
                       <div>
-                        <h3>Thread and activity</h3>
-                        <p>Customer messages, internal notes, and ticket events in one operator timeline.</p>
+                        <h3>Exact history</h3>
+                        <p>Customer messages, internal notes, assignments, replies, and immutable ticket events in one filtered history view.</p>
                       </div>
+                      <span className="ol-chip ol-chip--primary">{selectedSupportExactHistory.length} entries</span>
                     </div>
                     {selectedSupportTimeline.length ? (
                       <div className="ol-support-message-list">
@@ -1305,6 +1486,145 @@ export default function OfficeOperationsPage() {
               )}
             </section>
           </div>
+
+          <section className="ol-panel">
+            <div className="ol-panel-header">
+              <div>
+                <div className="ol-panel-title">Audit explorer and reporting</div>
+                <p className="ol-panel-copy">
+                  Filter immutable support history by date, role, queue, and ticket status, then export or print the exact current report view.
+                </p>
+              </div>
+              <div className="ol-actions ol-actions--compact">
+                <span className={`ol-chip ${currentAdmin?.supportCapability.canExportReports ? 'ol-chip--success' : 'ol-chip--warning'}`}>
+                  {currentAdmin?.supportCapability.canExportReports ? 'Export enabled' : 'Audit only'}
+                </span>
+                <button
+                  className="ol-button-secondary"
+                  disabled={!supportReport || busySupportReportAction !== null || !currentAdmin?.supportCapability.canExportReports}
+                  type="button"
+                  onClick={() => void runSupportReportAction('print_report')}
+                >
+                  {busySupportReportAction === 'print_report' ? 'Preparing print' : 'Print report'}
+                </button>
+                <button
+                  className="ol-button"
+                  disabled={!supportReport || busySupportReportAction !== null || !currentAdmin?.supportCapability.canExportReports}
+                  type="button"
+                  onClick={() => void runSupportReportAction('download_csv')}
+                >
+                  {busySupportReportAction === 'download_csv' ? 'Preparing CSV' : 'Download CSV'}
+                </button>
+              </div>
+            </div>
+
+            <div className="ol-form-band">
+              <div className="ol-form-band-grid">
+                <label className="ol-field">
+                  <span className="ol-field-label">Report type</span>
+                  <select className="ol-select" value={supportReportType} onChange={(event) => setSupportReportType(event.target.value as WebSupportReportType)}>
+                    <option value="audit_trail">Audit trail</option>
+                    <option value="ticket_registry">Ticket registry</option>
+                    <option value="assignment_log">Assignment log</option>
+                    <option value="reply_delivery">Reply delivery</option>
+                    <option value="diagnostic_consents">Diagnostic consents</option>
+                  </select>
+                </label>
+                <label className="ol-field">
+                  <span className="ol-field-label">Report scope</span>
+                  <select className="ol-select" value={supportReportScope} onChange={(event) => setSupportReportScope(event.target.value as 'selected_case' | 'workspace_view')}>
+                    <option value="selected_case">Selected case only</option>
+                    <option value="workspace_view">Current workspace view</option>
+                  </select>
+                </label>
+                <label className="ol-field">
+                  <span className="ol-field-label">Actor role</span>
+                  <select className="ol-select" value={supportAuditActorRoleFilter} onChange={(event) => setSupportAuditActorRoleFilter(event.target.value)}>
+                    <option value="all">All roles</option>
+                    {supportAuditActorRoleOptions.map((role) => (
+                    <option key={role} value={role}>
+                        {supportRoleLabel(role)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="ol-field">
+                  <span className="ol-field-label">Ticket status</span>
+                  <select className="ol-select" value={supportAuditStatusFilter} onChange={(event) => setSupportAuditStatusFilter(event.target.value)}>
+                    <option value="all">All statuses</option>
+                    {supportAuditStatusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {supportTicketStatusLabel(status)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="ol-field">
+                  <span className="ol-field-label">From date</span>
+                  <input className="ol-input" type="date" value={supportAuditDateFrom} onChange={(event) => setSupportAuditDateFrom(event.target.value)} />
+                </label>
+                <label className="ol-field">
+                  <span className="ol-field-label">To date</span>
+                  <input className="ol-input" type="date" value={supportAuditDateTo} onChange={(event) => setSupportAuditDateTo(event.target.value)} />
+                </label>
+                <label className="ol-field ol-field--span-2">
+                  <span className="ol-field-label">Audit search</span>
+                  <input
+                    className="ol-input"
+                    value={supportAuditSearch}
+                    onChange={(event) => setSupportAuditSearch(event.target.value)}
+                    placeholder="Search case, actor, event, note, or reply content"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="ol-support-audit-summary-grid ol-support-band-spacing">
+              {supportAuditSummary.map((item) => (
+                <article className="ol-support-detail-card" key={item.id}>
+                  <span className="ol-review-label">{item.label}</span>
+                  <strong className="ol-review-value">{item.value}</strong>
+                  <span className="ol-list-text">{item.helper}</span>
+                </article>
+              ))}
+            </div>
+
+            {supportReport ? (
+              <div className="ol-table ol-support-band-spacing">
+                <div className="ol-table-tools">
+                  <label className="ol-field">
+                    <span className="ol-field-label">Current report</span>
+                    <div className="ol-support-report-copy">
+                      <strong>{supportReport.title}</strong>
+                      <span>{supportReport.description}</span>
+                    </div>
+                  </label>
+                  <label className="ol-field">
+                    <span className="ol-field-label">Generated by</span>
+                    <div className="ol-support-report-copy">
+                      <strong>{supportReport.generatedBy}</strong>
+                      <span>{supportRoleLabel(supportReport.adminRole)}</span>
+                    </div>
+                  </label>
+                </div>
+                <div className="ol-table-summary">
+                  {supportReport.rows.length} row{supportReport.rows.length === 1 ? '' : 's'} · {supportReport.filters.length ? supportReport.filters.join(' · ') : 'No additional filters'}
+                </div>
+                <div className="ol-table-head" style={{ gridTemplateColumns: `repeat(${supportReport.columns.length}, minmax(160px, 1fr))` }}>
+                  {supportReport.columns.map((column) => (
+                    <span key={column.key}>{column.label}</span>
+                  ))}
+                </div>
+                {(supportReport.rows.slice(0, 12)).map((row, index) => (
+                  <div className="ol-table-row" key={`${supportReport.type}:${index}`} style={{ gridTemplateColumns: `repeat(${supportReport.columns.length}, minmax(160px, 1fr))` }}>
+                    {supportReport.columns.map((column) => (
+                      <span key={column.key}>{row[column.key] ?? 'Not recorded'}</span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </section>
 
           <div className="ol-support-workbench-grid">
             <section className="ol-panel">
@@ -1774,39 +2094,6 @@ function supportCaseStatusLabel(status: WebSupportCaseRecord['status']) {
     .join(' ');
 }
 
-function supportMessageKindLabel(kind: string) {
-  if (kind === 'operator_reply') {
-    return 'Operator reply';
-  }
-  if (kind === 'internal_note') {
-    return 'Internal note';
-  }
-  if (kind === 'system_event') {
-    return 'System event';
-  }
-  return 'Customer message';
-}
-
-function supportMessageKindBadge(kind: string) {
-  if (kind === 'internal_note') {
-    return 'Internal note';
-  }
-  if (kind === 'operator_reply') {
-    return 'Reply';
-  }
-  if (kind === 'system_event') {
-    return 'System';
-  }
-  return 'Customer';
-}
-
-function supportMessageTone(kind: string): SupportTimelineEntry['tone'] {
-  if (kind === 'operator_reply') {
-    return 'success';
-  }
-  return 'default';
-}
-
 function supportReplyActionLabel(action: WebSupportReplyAction) {
   if (action === 'close_with_reply') {
     return 'Reply and close';
@@ -1859,7 +2146,7 @@ function assignmentSummary(assignment: WebSupportAssignmentRecord | null) {
   return `${supportQueueLabel(assignment.queueId)} · ${owner}`;
 }
 
-function supportRoleLabel(roleOrAdmin: PlatformAdminRole | WebSupportAdminContext | null) {
+function supportRoleLabel(roleOrAdmin: PlatformAdminRole | WebSupportAdminContext | string | null) {
   const role = typeof roleOrAdmin === 'string' ? roleOrAdmin : roleOrAdmin?.role ?? null;
   if (!role) {
     return 'No role';
@@ -1915,8 +2202,31 @@ function supportPriorityLabel(priority: string | null | undefined) {
   return value.slice(0, 1).toUpperCase() + value.slice(1);
 }
 
+function supportTicketStatusLabel(status: string | null | undefined) {
+  if (!status) {
+    return 'Status not set';
+  }
+  return status
+    .split('_')
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function supportQueueLabel(queueId: string | null | undefined) {
   return SUPPORT_QUEUE_LABELS[queueId ?? ''] ?? 'General';
+}
+
+function supportAuditSourceLabel(source: WebSupportAuditRecord['source']) {
+  if (source === 'assignment') {
+    return 'Assignment';
+  }
+  if (source === 'email_request') {
+    return 'Outbound';
+  }
+  if (source === 'event') {
+    return 'Audit event';
+  }
+  return 'Message';
 }
 
 function resolveSupportContactEmail(
@@ -2018,8 +2328,7 @@ function formatDate(value: string | null | undefined) {
   }).format(date);
 }
 
-function sortSupportTimeline(left: string | null, right: string | null) {
-  const leftTime = left ? Date.parse(left) : 0;
-  const rightTime = right ? Date.parse(right) : 0;
-  return rightTime - leftTime;
+function supportReportFilename(report: { type: WebSupportReportType; generatedAt: string }) {
+  const stamp = report.generatedAt.replace(/[:]/g, '-').replace(/\..*/, '');
+  return `orbit-ledger-support-${report.type}-${stamp}.csv`;
 }

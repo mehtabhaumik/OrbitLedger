@@ -398,6 +398,10 @@ export function canSupportRoleAuditAllTickets(role: PlatformAdminRole): boolean 
   return SUPPORT_ROLE_CAPABILITIES[role].auditScope === 'all';
 }
 
+export function canSupportRoleExportReports(role: PlatformAdminRole): boolean {
+  return SUPPORT_ROLE_CAPABILITIES[role].canExportReports;
+}
+
 export function canSupportRoleMutateQueue(role: PlatformAdminRole, queueId: SupportQueueId): boolean {
   const capability = SUPPORT_ROLE_CAPABILITIES[role];
   if (capability.mutateScope === 'all') {

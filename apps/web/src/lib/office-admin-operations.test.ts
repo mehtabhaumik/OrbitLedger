@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildWebSupportAuditRecords,
   buildWebOfficeOperationsSnapshot,
+  buildWebSupportPrintHtml,
+  buildWebSupportReport,
+  buildWebSupportReportCsv,
+  filterWebSupportAuditRecords,
   OFFICE_PRODUCTION_READINESS_CHECKLIST,
   OFFICE_FINAL_LAUNCH_FREEZE_ITEMS,
   OFFICE_SUPPORT_REVIEW_GUARDRAILS,
@@ -84,6 +89,7 @@ describe('office admin operations', () => {
           canAddInternalNotes: true,
           canChangeStatus: true,
           canViewDiagnostics: false,
+          canExportReports: true,
         },
       },
       supportAssignments: [
@@ -313,6 +319,121 @@ describe('office admin operations', () => {
     expect(freeze).toContain('provider-pending');
     expect(freeze).toContain('bug fixes');
     expect(freeze).not.toContain('live email enabled');
+  });
+
+  it('builds filtered support audit records and export-ready reports', () => {
+    const tickets = [
+      parseSupportTicketRecord('ticket-1', {
+        ticket_id: 'ticket-1',
+        support_case_id: 'CASE-2001',
+        queue_id: 'billing',
+        priority: 'high',
+        status: 'pending_customer',
+        resolution_state: 'unresolved',
+        resolution_reason: null,
+        subject: 'Refund request',
+        summary: 'Customer needs a refund update.',
+        customer_email: 'owner@example.com',
+        updated_at: '2026-05-08T00:10:00.000Z',
+      }),
+    ];
+    const auditRecords = buildWebSupportAuditRecords({
+      supportTickets: tickets,
+      supportMessages: [
+        parseSupportMessageRecord('message-1', {
+          ticket_id: 'ticket-1',
+          support_case_id: 'CASE-2001',
+          kind: 'operator_reply',
+          actor_role: 'finance_admin',
+          actor_email: 'finance@example.com',
+          visible_to_customer: true,
+          body: 'We have issued the refund and are waiting for confirmation.',
+          created_at: '2026-05-08T00:12:00.000Z',
+        }),
+      ],
+      supportAssignments: [
+        parseSupportAssignmentRecord('assignment-1', {
+          ticket_id: 'ticket-1',
+          support_case_id: 'CASE-2001',
+          queue_id: 'billing',
+          assigned_role: 'finance_admin',
+          assigned_admin_email: 'finance@example.com',
+          assigned_by_role: 'admin',
+          status: 'active',
+          reason: 'Billing queue owns refund cases.',
+          updated_at: '2026-05-08T00:08:00.000Z',
+        }),
+      ],
+      supportCaseEmailRequests: [
+        parseSupportCaseEmailRequestRecord('email-1', {
+          support_case_id: 'CASE-2001',
+          recipient_email: 'owner@example.com',
+          subject: 'Refund update',
+          body: 'Your refund is now in progress.',
+          reply_action: 'reply',
+          delivery_status: 'sent',
+          queued_by_email: 'finance@example.com',
+          sent_at: '2026-05-08T00:13:00.000Z',
+        }),
+      ],
+      supportCaseEvents: [
+        parseSupportCaseAuditEvent('event-1', {
+          ticket_id: 'ticket-1',
+          support_case_id: 'CASE-2001',
+          kind: 'status_changed',
+          actor_role: 'finance_admin',
+          actor_email: 'finance@example.com',
+          status_after: 'pending_customer',
+          detail: 'Waiting on customer confirmation.',
+          created_at: '2026-05-08T00:11:00.000Z',
+        }),
+      ],
+    });
+
+    expect(auditRecords.map((record) => record.source)).toEqual([
+      'email_request',
+      'message',
+      'event',
+      'assignment',
+    ]);
+
+    const filtered = filterWebSupportAuditRecords(auditRecords, {
+      supportCaseId: 'CASE-2001',
+      actorRole: 'finance_admin',
+      ticketStatus: 'pending_customer',
+      dateFrom: '2026-05-08',
+      dateTo: '2026-05-08',
+    });
+
+    expect(filtered).toHaveLength(2);
+    expect(filtered.every((record) => record.status === 'pending_customer')).toBe(true);
+
+    const report = buildWebSupportReport({
+      type: 'audit_trail',
+      generatedAt: '2026-05-08T00:15:00.000Z',
+      generatedBy: 'finance@example.com',
+      adminRole: 'finance_admin',
+      filters: {
+        supportCaseId: 'CASE-2001',
+        actorRole: 'finance_admin',
+        ticketStatus: 'pending_customer',
+      },
+      supportTickets: tickets,
+      supportAssignments: [],
+      supportCaseEmailRequests: [],
+      supportConsents: [],
+      auditRecords: filtered,
+    });
+
+    expect(report.title).toBe('Support Audit Trail Report');
+    expect(report.filters).toEqual([
+      'Case CASE-2001',
+      'Actor Finance Admin',
+      'Status Pending customer',
+    ]);
+    expect(buildWebSupportReportCsv(report)).toContain('Support Audit Trail Report');
+    expect(buildWebSupportPrintHtml(report)).toContain('<table>');
+    expect(buildWebSupportPrintHtml(report)).toContain('finance@example.com');
   });
 });
 

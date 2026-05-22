@@ -153,6 +153,7 @@ type SupportRoleCapability = {
   canAddInternalNotes: boolean;
   canChangeStatus: boolean;
   canViewDiagnostics: boolean;
+  canExportReports: boolean;
 };
 
 const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability> = {
@@ -166,6 +167,7 @@ const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability
     canAddInternalNotes: true,
     canChangeStatus: true,
     canViewDiagnostics: true,
+    canExportReports: true,
   },
   admin: {
     readAll: true,
@@ -177,6 +179,7 @@ const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability
     canAddInternalNotes: true,
     canChangeStatus: true,
     canViewDiagnostics: true,
+    canExportReports: true,
   },
   finance_admin: {
     readAll: true,
@@ -188,6 +191,7 @@ const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability
     canAddInternalNotes: true,
     canChangeStatus: true,
     canViewDiagnostics: false,
+    canExportReports: true,
   },
   support_admin: {
     readAll: false,
@@ -199,6 +203,7 @@ const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability
     canAddInternalNotes: true,
     canChangeStatus: true,
     canViewDiagnostics: true,
+    canExportReports: false,
   },
   read_only_admin: {
     readAll: true,
@@ -210,6 +215,7 @@ const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability
     canAddInternalNotes: false,
     canChangeStatus: false,
     canViewDiagnostics: false,
+    canExportReports: true,
   },
 };
 
@@ -5165,14 +5171,14 @@ export const getOfficeSupportSnapshot = onRequest(
         supportEventSnapshot,
         supportAssignmentSnapshot,
       ] = await Promise.all([
-        workspaceRef.collection('support_cases').orderBy('updated_at', 'desc').limit(80).get(),
-        workspaceRef.collection('support_case_email_requests').orderBy('queued_at', 'desc').limit(80).get(),
-        workspaceRef.collection('support_diagnostic_consents').orderBy('created_at', 'desc').limit(40).get(),
-        workspaceRef.collection('office_access_audit').orderBy('created_at', 'desc').limit(160).get(),
-        workspaceRef.collection('support_tickets').orderBy('updated_at', 'desc').limit(80).get(),
-        workspaceRef.collection('support_messages').orderBy('created_at', 'desc').limit(200).get(),
-        workspaceRef.collection('support_events').orderBy('created_at', 'desc').limit(200).get(),
-        workspaceRef.collection('support_assignments').orderBy('updated_at', 'desc').limit(120).get(),
+        workspaceRef.collection('support_cases').orderBy('updated_at', 'desc').limit(120).get(),
+        workspaceRef.collection('support_case_email_requests').orderBy('queued_at', 'desc').limit(160).get(),
+        workspaceRef.collection('support_diagnostic_consents').orderBy('created_at', 'desc').limit(80).get(),
+        workspaceRef.collection('office_access_audit').orderBy('created_at', 'desc').limit(320).get(),
+        workspaceRef.collection('support_tickets').orderBy('updated_at', 'desc').limit(120).get(),
+        workspaceRef.collection('support_messages').orderBy('created_at', 'desc').limit(400).get(),
+        workspaceRef.collection('support_events').orderBy('created_at', 'desc').limit(400).get(),
+        workspaceRef.collection('support_assignments').orderBy('updated_at', 'desc').limit(240).get(),
       ]);
 
       const supportTickets = supportTicketSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Array<{ id: string } & Record<string, unknown>>;
@@ -5248,6 +5254,270 @@ export const getOfficeSupportSnapshot = onRequest(
     } catch (error) {
       logger.error('getOfficeSupportSnapshot failed', { workspaceId, error });
       response.status(500).json({ ok: false, error: 'office_support_snapshot_failed' });
+    }
+  }
+);
+
+type OfficeSupportReportAction = 'download_csv' | 'print_report';
+type OfficeSupportReportType =
+  | 'ticket_registry'
+  | 'assignment_log'
+  | 'reply_delivery'
+  | 'diagnostic_consents'
+  | 'audit_trail';
+
+export function normalizeOfficeSupportReportAction(value: string | null | undefined): OfficeSupportReportAction | null {
+  if (value === 'download_csv' || value === 'print_report') {
+    return value;
+  }
+  return null;
+}
+
+export function normalizeOfficeSupportReportType(value: string | null | undefined): OfficeSupportReportType | null {
+  if (
+    value === 'ticket_registry' ||
+    value === 'assignment_log' ||
+    value === 'reply_delivery' ||
+    value === 'diagnostic_consents' ||
+    value === 'audit_trail'
+  ) {
+    return value;
+  }
+  return null;
+}
+
+export function humanizeOfficeSupportReportType(reportType: OfficeSupportReportType): string {
+  return {
+    ticket_registry: 'Support Ticket Registry Report',
+    assignment_log: 'Support Assignment Report',
+    reply_delivery: 'Support Reply Delivery Report',
+    diagnostic_consents: 'Support Diagnostic Consent Report',
+    audit_trail: 'Support Audit Trail Report',
+  }[reportType];
+}
+
+export function buildOfficeSupportReportAuditRecord(input: {
+  workspaceId: string;
+  supportCaseId?: string | null;
+  ticketId?: string | null;
+  queueId?: SupportQueueId | null;
+  action: OfficeSupportReportAction;
+  reportType: OfficeSupportReportType;
+  reportTitle?: string | null;
+  generatedAt?: string | null;
+  generatedBy?: string | null;
+  adminRole: PlatformAdminRole;
+  actorUid: string;
+  actorEmail?: string | null;
+  filters: string[];
+  rowCount: number;
+  createdAt: string;
+}) {
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    support_case_id: input.supportCaseId ?? null,
+    ticket_id: input.ticketId ?? null,
+    queue_id: input.queueId ?? null,
+    action: input.action === 'download_csv' ? 'support_report_download_csv' : 'support_report_print',
+    kind: input.action === 'download_csv' ? 'exported' : 'printed',
+    actor_uid: input.actorUid,
+    actor_email: input.actorEmail ?? null,
+    actor_role: input.adminRole,
+    reason: `${input.action === 'download_csv' ? 'CSV export' : 'Print export'} recorded.`,
+    report_type: input.reportType,
+    report_title: input.reportTitle ?? humanizeOfficeSupportReportType(input.reportType),
+    report_generated_at: input.generatedAt ?? null,
+    report_generated_by: input.generatedBy ?? null,
+    report_admin_role: input.adminRole,
+    report_filters: input.filters,
+    report_row_count: input.rowCount,
+    created_at: input.createdAt,
+  };
+}
+
+export const recordOfficeSupportReportEvent = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_support_cases')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'recordOfficeSupportReportEvent',
+        requiredPermission: 'review_support_cases',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: 'export_support_report',
+        outcome: 'denied',
+        reason: 'Only support-center authorized admin roles can export support reports.',
+      });
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const supportCapability = getSupportRoleCapability(adminAccess.role);
+    if (!supportCapability.canExportReports) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'recordOfficeSupportReportEvent',
+        requiredPermission: 'review_support_cases',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: 'export_support_report',
+        outcome: 'denied',
+        reason: 'This admin role cannot export support reports.',
+      });
+      response.status(403).json({ ok: false, error: 'support_report_not_allowed' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const action = normalizeOfficeSupportReportAction(clean(stringValue(body?.action)));
+    const reportType = normalizeOfficeSupportReportType(clean(stringValue(body?.reportType)));
+    const reportTitle = clean(stringValue(body?.reportTitle));
+    const supportCaseId = clean(stringValue(body?.supportCaseId));
+    const ticketId = clean(stringValue(body?.ticketId));
+    const queueId = normalizeSupportQueueId(clean(stringValue(body?.queueId)));
+    const generatedAt = clean(stringValue(body?.generatedAt));
+    const generatedBy = clean(stringValue(body?.generatedBy));
+    const filters = normalizeStringList(body?.filters).slice(0, 16);
+    const rowCount = Math.max(0, Math.floor(numberValue(body?.rowCount, 0)));
+
+    if (!workspaceId) {
+      response.status(400).json({ ok: false, error: 'workspace_required' });
+      return;
+    }
+    if (!action) {
+      response.status(400).json({ ok: false, error: 'support_report_action_required' });
+      return;
+    }
+    if (!reportType) {
+      response.status(400).json({ ok: false, error: 'support_report_type_required' });
+      return;
+    }
+    if (queueId && !canSupportRoleReadQueue(adminAccess.role, queueId)) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'recordOfficeSupportReportEvent',
+        requiredPermission: 'review_support_cases',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: 'export_support_report',
+        outcome: 'denied',
+        reason: 'This admin role cannot export support reports for the requested queue scope.',
+      });
+      response.status(403).json({ ok: false, error: 'support_report_scope_not_allowed' });
+      return;
+    }
+
+    try {
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const workspaceSnapshot = await workspaceRef.get();
+      if (!workspaceSnapshot.exists) {
+        response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+
+      let resolvedQueueId: SupportQueueId | null = queueId ?? null;
+      if (ticketId) {
+        const ticketSnapshot = await workspaceRef.collection('support_tickets').doc(ticketId).get();
+        if (!ticketSnapshot.exists) {
+          response.status(404).json({ ok: false, error: 'support_ticket_not_found' });
+          return;
+        }
+        const ticketQueueId = normalizeSupportQueueId(clean(stringValue(ticketSnapshot.data()?.queue_id))) ?? 'general';
+        if (!canSupportRoleReadQueue(adminAccess.role, ticketQueueId)) {
+          await auditPlatformAdminPermissionAttempt({
+            endpoint: 'recordOfficeSupportReportEvent',
+            requiredPermission: 'review_support_cases',
+            actor: adminUser,
+            access: adminAccess,
+            requestedAction: 'export_support_report',
+            outcome: 'denied',
+            reason: 'This admin role cannot export support reports for the requested ticket.',
+          });
+          response.status(403).json({ ok: false, error: 'support_report_scope_not_allowed' });
+          return;
+        }
+        resolvedQueueId = ticketQueueId;
+      }
+
+      const createdAt = new Date().toISOString();
+      const auditRef = workspaceRef
+        .collection('office_access_audit')
+        .doc(normalizeId(`support_report_${action}_${reportType}_${Date.now()}`));
+      const auditRecord = buildOfficeSupportReportAuditRecord({
+        workspaceId,
+        supportCaseId: supportCaseId ?? null,
+        ticketId: ticketId ?? null,
+        queueId: resolvedQueueId,
+        action,
+        reportType,
+        reportTitle: reportTitle ?? null,
+        generatedAt: generatedAt ?? null,
+        generatedBy: generatedBy ?? null,
+        adminRole: adminAccess.role,
+        actorUid: adminUser.uid,
+        actorEmail: adminUser.email ?? null,
+        filters,
+        rowCount,
+        createdAt,
+      });
+
+      const writes: Array<Promise<unknown>> = [auditRef.set(auditRecord)];
+      if (supportCaseId && ticketId) {
+        const eventRef = workspaceRef
+          .collection('support_events')
+          .doc(normalizeId(`support_report_event_${supportCaseId}_${Date.now()}`));
+        writes.push(
+          eventRef.set({
+            version: 1,
+            workspace_id: workspaceId,
+            ticket_id: ticketId,
+            support_case_id: supportCaseId,
+            kind: action === 'download_csv' ? 'exported' : 'printed',
+            actor_uid: adminUser.uid,
+            actor_role: adminAccess.role,
+            actor_email: adminUser.email ?? null,
+            queue_id: resolvedQueueId,
+            status_before: null,
+            status_after: null,
+            resolution_state_before: null,
+            resolution_state_after: null,
+            resolution_reason: null,
+            detail: `${reportTitle ?? humanizeOfficeSupportReportType(reportType)} · ${rowCount} row(s)`,
+            metadata: {
+              report_type: reportType,
+              report_action: action,
+              row_count: rowCount,
+            },
+            created_at: createdAt,
+          })
+        );
+      }
+
+      await Promise.all(writes);
+      response.status(200).json({
+        ok: true,
+        reportId: auditRef.id,
+        message: `${action === 'download_csv' ? 'CSV export' : 'Print export'} recorded.`,
+      });
+    } catch (error) {
+      logger.error('recordOfficeSupportReportEvent failed', { workspaceId, error });
+      response.status(500).json({ ok: false, error: 'support_report_action_failed' });
     }
   }
 );

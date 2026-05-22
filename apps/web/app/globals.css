@@ -1728,9 +1728,30 @@ a:focus-visible {
   margin-top: 18px;
 }
 
+.ol-support-audit-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
 .ol-support-detail-card {
   display: grid;
   gap: 6px;
+}
+
+.ol-support-report-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.ol-support-report-copy strong {
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.ol-support-report-copy span {
+  color: var(--text-muted);
+  line-height: 1.55;
 }
 
 .ol-support-section-heading {
@@ -1777,6 +1798,10 @@ a:focus-visible {
 
   .ol-support-detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ol-support-audit-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

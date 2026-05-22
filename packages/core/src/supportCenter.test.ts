@@ -4,6 +4,7 @@ import {
   buildSupportTicketActionPlan,
   canSupportRoleAccessQueue,
   canSupportRoleAuditAllTickets,
+  canSupportRoleExportReports,
   canSupportRoleMutateQueue,
   getSupportRoleCapability,
   isSupportCenterCollection,
@@ -53,6 +54,8 @@ describe('support center core contract', () => {
     expect(canSupportRoleAuditAllTickets('admin')).toBe(true);
     expect(canSupportRoleAuditAllTickets('finance_admin')).toBe(true);
     expect(canSupportRoleAuditAllTickets('support_admin')).toBe(false);
+    expect(canSupportRoleExportReports('finance_admin')).toBe(true);
+    expect(canSupportRoleExportReports('support_admin')).toBe(false);
     expect(getSupportRoleCapability('read_only_admin')).toMatchObject({
       mutateScope: 'none',
       canSendReplies: false,

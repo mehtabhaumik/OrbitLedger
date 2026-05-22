@@ -4,7 +4,7 @@ import {
   buildOfficeAccessReviewPlan,
   buildOfficeSupportCaseAdminActionPlan,
   buildOfficeSupportReviewPlan,
-  canSupportRoleMutateQueue,
+  canSupportRoleExportReports,
   isOfficeAccessRequestStatus,
   isOfficeSupportCaseStatus,
   OFFICE_SUPPORT_REVIEW_GUARDRAILS,
@@ -87,10 +87,15 @@ export type WebSupportCaseAuditEvent = {
   supportCaseId: string | null;
   supportConsentId: string | null;
   kind: string | null;
+  actorRole: string | null;
+  queueId: string | null;
   title: string;
   detail: string;
   actor: string;
   status: string | null;
+  statusBefore: string | null;
+  statusAfter: string | null;
+  resolutionReason: string | null;
   createdAt: string | null;
   tone: 'success' | 'warning' | 'default';
 };
@@ -194,7 +199,61 @@ export type WebSupportAdminContext = {
     canAddInternalNotes: boolean;
     canChangeStatus: boolean;
     canViewDiagnostics: boolean;
+    canExportReports: boolean;
   };
+};
+
+export type WebSupportAuditRecord = {
+  id: string;
+  source: 'message' | 'event' | 'assignment' | 'email_request';
+  ticketId: string | null;
+  supportCaseId: string | null;
+  queueId: string | null;
+  actorRole: string | null;
+  actorEmail: string | null;
+  status: string | null;
+  resolutionReason: string | null;
+  title: string;
+  detail: string;
+  createdAt: string | null;
+  visibleToCustomer: boolean;
+  tone: 'success' | 'warning' | 'default';
+};
+
+export type WebSupportAuditFilters = {
+  supportCaseId?: string | null;
+  queueId?: string | null;
+  actorRole?: string | null;
+  ticketStatus?: string | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  search?: string | null;
+};
+
+export type WebSupportReportType =
+  | 'ticket_registry'
+  | 'assignment_log'
+  | 'reply_delivery'
+  | 'diagnostic_consents'
+  | 'audit_trail';
+
+export type WebSupportReportAction = 'download_csv' | 'print_report';
+
+export type WebSupportReportColumn = {
+  key: string;
+  label: string;
+};
+
+export type WebSupportReport = {
+  type: WebSupportReportType;
+  title: string;
+  description: string;
+  generatedAt: string;
+  generatedBy: string;
+  adminRole: PlatformAdminRole;
+  filters: string[];
+  columns: WebSupportReportColumn[];
+  rows: Array<Record<string, string>>;
 };
 
 export type WebOfficeOperationsSnapshot = {
@@ -262,6 +321,11 @@ export type WebSupportTicketAssignmentResult = {
   assignedAdminEmail: string | null;
   assignmentId: string;
   status: string;
+  message: string;
+};
+
+export type WebSupportReportEventResult = {
+  reportId: string;
   message: string;
 };
 
@@ -378,35 +442,35 @@ export async function loadWebOfficeOperationsSnapshot(
       query(
         collection(firestore, 'workspaces', workspaceId, 'support_cases'),
         orderBy('updated_at', 'desc'),
-        limit(50)
+        limit(120)
       )
     ).catch(() => null),
     getDocs(
       query(
         collection(firestore, 'workspaces', workspaceId, 'support_case_email_requests'),
         orderBy('queued_at', 'desc'),
-        limit(50)
+        limit(160)
       )
     ).catch(() => null),
     getDocs(
       query(
         collection(firestore, 'workspaces', workspaceId, 'support_tickets'),
         orderBy('updated_at', 'desc'),
-        limit(80)
+        limit(120)
       )
     ).catch(() => null),
     getDocs(
       query(
         collection(firestore, 'workspaces', workspaceId, 'support_messages'),
         orderBy('created_at', 'desc'),
-        limit(150)
+        limit(400)
       )
     ).catch(() => null),
     getDocs(
       query(
         collection(firestore, 'workspaces', workspaceId, 'support_events'),
         orderBy('created_at', 'desc'),
-        limit(150)
+        limit(400)
       )
     ).catch(() => null),
     loadWebOfficeSupportServerSnapshot(workspaceId, user).catch(() => null),
@@ -677,6 +741,66 @@ export async function recordWebSupportTicketAssignment(input: {
   };
 }
 
+export async function recordWebOfficeSupportReportEvent(input: {
+  workspaceId: string;
+  action: WebSupportReportAction;
+  report: Pick<WebSupportReport, 'type' | 'title' | 'generatedAt' | 'generatedBy' | 'adminRole' | 'filters' | 'rows'>;
+  supportCaseId?: string | null;
+  ticketId?: string | null;
+  queueId?: string | null;
+}): Promise<WebSupportReportEventResult> {
+  const user = getWebAuth().currentUser;
+  if (!user) {
+    throw new Error('Sign in again before exporting this support report.');
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(getRecordOfficeSupportReportEventUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      workspaceId: input.workspaceId,
+      action: input.action,
+      reportType: input.report.type,
+      reportTitle: input.report.title,
+      generatedAt: input.report.generatedAt,
+      generatedBy: input.report.generatedBy,
+      adminRole: input.report.adminRole,
+      filters: input.report.filters,
+      rowCount: input.report.rows.length,
+      supportCaseId: input.supportCaseId ?? null,
+      ticketId: input.ticketId ?? null,
+      queueId: input.queueId ?? null,
+    }),
+  });
+  const result = (await response.json().catch(() => ({
+    ok: false,
+    error: 'support_report_action_failed',
+  }))) as
+    | {
+        ok: true;
+        reportId: string;
+        message?: string | null;
+      }
+    | {
+        ok: false;
+        error: string;
+        message?: string | null;
+      };
+
+  if (!response.ok || !result.ok) {
+    throw new Error(result.message ?? officeReviewErrorMessage(result.ok ? 'support_report_action_failed' : result.error));
+  }
+
+  return {
+    reportId: result.reportId,
+    message: result.message ?? 'Support report export recorded.',
+  };
+}
+
 export async function resolveWebOfficeAccessRequest(input: {
   workspaceId: string;
   requestId: string;
@@ -861,6 +985,455 @@ export function buildWebOfficeOperationsSnapshot(input: {
   };
 }
 
+export function buildWebSupportAuditRecords(input: {
+  supportTickets: WebSupportTicketRecord[];
+  supportMessages: WebSupportMessageRecord[];
+  supportAssignments: WebSupportAssignmentRecord[];
+  supportCaseEmailRequests: WebSupportCaseEmailRequestRecord[];
+  supportCaseEvents: WebSupportCaseAuditEvent[];
+}): WebSupportAuditRecord[] {
+  const ticketByCaseId = new Map(
+    input.supportTickets
+      .filter((ticket) => ticket.supportCaseId)
+      .map((ticket) => [ticket.supportCaseId as string, ticket] as const)
+  );
+  const assignmentByTicketId = new Map(
+    input.supportAssignments.map((assignment) => [assignment.ticketId, assignment] as const)
+  );
+
+  const records: WebSupportAuditRecord[] = [
+    ...input.supportMessages.map((message) => {
+      const ticket = message.supportCaseId ? ticketByCaseId.get(message.supportCaseId) ?? null : null;
+      return {
+        id: `message:${message.id}`,
+        source: 'message' as const,
+        ticketId: message.ticketId || ticket?.id || null,
+        supportCaseId: message.supportCaseId,
+        queueId: ticket?.queueId ?? assignmentByTicketId.get(message.ticketId)?.queueId ?? null,
+        actorRole: message.actorRole,
+        actorEmail: message.actorEmail,
+        status: ticket?.status ?? null,
+        resolutionReason: ticket?.resolutionReason ?? null,
+        title: supportMessageKindLabel(message.kind),
+        detail: message.body,
+        createdAt: message.createdAt,
+        visibleToCustomer: message.visibleToCustomer,
+        tone: supportMessageTone(message.kind),
+      };
+    }),
+    ...input.supportAssignments.map((assignment) => {
+      const ticket = ticketByCaseId.get(assignment.supportCaseId ?? '') ?? null;
+      const tone: WebSupportAuditRecord['tone'] = assignment.status === 'reassigned' ? 'warning' : 'default';
+      return {
+        id: `assignment:${assignment.id}`,
+        source: 'assignment' as const,
+        ticketId: assignment.ticketId,
+        supportCaseId: assignment.supportCaseId,
+        queueId: assignment.queueId,
+        actorRole: assignment.assignedByRole,
+        actorEmail: assignment.assignedAdminEmail,
+        status: ticket?.status ?? null,
+        resolutionReason: ticket?.resolutionReason ?? null,
+        title: assignment.status === 'reassigned' ? 'Ticket reassigned' : 'Ticket assigned',
+        detail: assignment.reason ?? 'Queue ownership updated.',
+        createdAt: assignment.updatedAt ?? assignment.createdAt,
+        visibleToCustomer: false,
+        tone,
+      };
+    }),
+    ...input.supportCaseEmailRequests.map((request) => {
+      const ticket = ticketByCaseId.get(request.supportCaseId) ?? null;
+      const tone: WebSupportAuditRecord['tone'] =
+        request.deliveryStatus === 'failed'
+          ? 'warning'
+          : request.deliveryStatus === 'sent'
+            ? 'success'
+            : 'default';
+      return {
+        id: `email:${request.id}`,
+        source: 'email_request' as const,
+        ticketId: ticket?.id ?? null,
+        supportCaseId: request.supportCaseId,
+        queueId: ticket?.queueId ?? null,
+        actorRole: null,
+        actorEmail: request.queuedByEmail,
+        status: ticket?.status ?? null,
+        resolutionReason: ticket?.resolutionReason ?? null,
+        title: `Outbound ${supportReplyActionLabel(request.replyAction)}`,
+        detail: request.body,
+        createdAt: request.sentAt ?? request.queuedAt,
+        visibleToCustomer: request.replyAction !== 'close_silently',
+        tone,
+      };
+    }),
+    ...input.supportCaseEvents.map((event) => ({
+      id: `event:${event.id}`,
+      source: 'event' as const,
+      ticketId: event.ticketId,
+      supportCaseId: event.supportCaseId,
+      queueId: event.queueId,
+      actorRole: event.actorRole,
+      actorEmail: extractActorEmail(event.actor),
+      status: event.statusAfter ?? event.status ?? null,
+      resolutionReason: event.resolutionReason,
+      title: event.title,
+      detail: event.detail,
+      createdAt: event.createdAt,
+      visibleToCustomer: false,
+      tone: event.tone,
+    })),
+  ];
+
+  return records.sort((left, right) => sortIsoDesc(left.createdAt, right.createdAt));
+}
+
+export function filterWebSupportAuditRecords(
+  records: WebSupportAuditRecord[],
+  filters: WebSupportAuditFilters
+): WebSupportAuditRecord[] {
+  const fromAt = normalizeDateFloor(filters.dateFrom);
+  const toAt = normalizeDateCeiling(filters.dateTo);
+  const actorRole = nullableString(filters.actorRole);
+  const ticketStatus = nullableString(filters.ticketStatus);
+  const supportCaseId = nullableString(filters.supportCaseId);
+  const queueId = nullableString(filters.queueId);
+  const search = nullableString(filters.search)?.toLowerCase();
+
+  return records.filter((record) => {
+    const createdAt = record.createdAt ? Date.parse(record.createdAt) : NaN;
+    if (fromAt !== null && Number.isFinite(createdAt) && createdAt < fromAt) {
+      return false;
+    }
+    if (toAt !== null && Number.isFinite(createdAt) && createdAt > toAt) {
+      return false;
+    }
+    if (supportCaseId && record.supportCaseId !== supportCaseId) {
+      return false;
+    }
+    if (queueId && record.queueId !== queueId) {
+      return false;
+    }
+    if (actorRole && (record.actorRole ?? '') !== actorRole) {
+      return false;
+    }
+    if (ticketStatus && (record.status ?? '') !== ticketStatus) {
+      return false;
+    }
+    if (search) {
+      const haystack = [
+        record.supportCaseId ?? '',
+        record.queueId ?? '',
+        record.actorRole ?? '',
+        record.actorEmail ?? '',
+        record.status ?? '',
+        record.title,
+        record.detail,
+      ]
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(search)) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+export function buildWebSupportReport(input: {
+  type: WebSupportReportType;
+  generatedAt: string;
+  generatedBy: string;
+  adminRole: PlatformAdminRole;
+  filters: WebSupportAuditFilters;
+  supportTickets: WebSupportTicketRecord[];
+  supportAssignments: WebSupportAssignmentRecord[];
+  supportCaseEmailRequests: WebSupportCaseEmailRequestRecord[];
+  supportConsents: WebSupportDiagnosticConsentRecord[];
+  auditRecords: WebSupportAuditRecord[];
+}): WebSupportReport {
+  const filterLabels = describeSupportAuditFilters(input.filters);
+  if (input.type === 'ticket_registry') {
+    const filteredTickets = input.supportTickets.filter((ticket) => matchesTicketAuditFilters(ticket, input.filters));
+    return {
+      type: input.type,
+      title: 'Support Ticket Registry Report',
+      description: 'Current support ticket coverage for the selected workspace view.',
+      generatedAt: input.generatedAt,
+      generatedBy: input.generatedBy,
+      adminRole: input.adminRole,
+      filters: filterLabels,
+      columns: [
+        { key: 'case_id', label: 'Case ID' },
+        { key: 'queue', label: 'Queue' },
+        { key: 'priority', label: 'Priority' },
+        { key: 'status', label: 'Status' },
+        { key: 'resolution', label: 'Resolution' },
+        { key: 'customer', label: 'Customer' },
+        { key: 'updated_at', label: 'Updated' },
+      ],
+      rows: filteredTickets.map((ticket) => ({
+        case_id: ticket.supportCaseId ?? ticket.ticketId,
+        queue: supportQueueLabel(ticket.queueId),
+        priority: supportPriorityLabel(ticket.priority),
+        status: supportTicketStatusLabel(ticket.status),
+        resolution: ticket.resolutionReason ? supportResolutionReasonLabel(ticket.resolutionReason) : ticket.resolutionState,
+        customer: ticket.customerEmail ?? ticket.customerName ?? 'Unknown customer',
+        updated_at: formatDate(ticket.updatedAt ?? ticket.latestMessageAt ?? ticket.createdAt),
+      })),
+    };
+  }
+  if (input.type === 'assignment_log') {
+    const filteredAssignments = input.supportAssignments.filter((assignment) =>
+      matchesAssignmentAuditFilters(assignment, input.filters)
+    );
+    return {
+      type: input.type,
+      title: 'Support Assignment Report',
+      description: 'Queue ownership and manual routing decisions for the current support scope.',
+      generatedAt: input.generatedAt,
+      generatedBy: input.generatedBy,
+      adminRole: input.adminRole,
+      filters: filterLabels,
+      columns: [
+        { key: 'case_id', label: 'Case ID' },
+        { key: 'queue', label: 'Queue' },
+        { key: 'assigned_role', label: 'Assigned Role' },
+        { key: 'assigned_admin', label: 'Assigned Admin' },
+        { key: 'status', label: 'Assignment Status' },
+        { key: 'reason', label: 'Reason' },
+        { key: 'updated_at', label: 'Updated' },
+      ],
+      rows: filteredAssignments.map((assignment) => ({
+        case_id: assignment.supportCaseId ?? assignment.ticketId,
+        queue: supportQueueLabel(assignment.queueId),
+        assigned_role: supportRoleLabel(assignment.assignedRole),
+        assigned_admin: assignment.assignedAdminEmail ?? 'Unassigned',
+        status: assignment.status,
+        reason: assignment.reason ?? 'No reason recorded',
+        updated_at: formatDate(assignment.updatedAt ?? assignment.createdAt),
+      })),
+    };
+  }
+  if (input.type === 'reply_delivery') {
+    const filteredReplies = input.supportCaseEmailRequests.filter((request) =>
+      matchesEmailAuditFilters(request, input.filters)
+    );
+    return {
+      type: input.type,
+      title: 'Support Reply Delivery Report',
+      description: 'Customer-visible reply preparation and delivery outcomes.',
+      generatedAt: input.generatedAt,
+      generatedBy: input.generatedBy,
+      adminRole: input.adminRole,
+      filters: filterLabels,
+      columns: [
+        { key: 'case_id', label: 'Case ID' },
+        { key: 'action', label: 'Reply Action' },
+        { key: 'recipient', label: 'Recipient' },
+        { key: 'delivery_status', label: 'Delivery Status' },
+        { key: 'queued_by', label: 'Queued By' },
+        { key: 'queued_at', label: 'Queued' },
+        { key: 'sent_at', label: 'Sent' },
+      ],
+      rows: filteredReplies.map((request) => ({
+        case_id: request.supportCaseId,
+        action: supportReplyActionLabel(request.replyAction),
+        recipient: request.recipientEmail ?? 'No recipient',
+        delivery_status: request.deliveryStatus,
+        queued_by: request.queuedByEmail ?? 'Orbit Ledger',
+        queued_at: formatDate(request.queuedAt),
+        sent_at: formatDate(request.sentAt),
+      })),
+    };
+  }
+  if (input.type === 'diagnostic_consents') {
+    const filteredConsents = input.supportConsents.filter((consent) =>
+      matchesConsentAuditFilters(consent, input.filters)
+    );
+    return {
+      type: input.type,
+      title: 'Support Diagnostic Consent Report',
+      description: 'Customer-approved diagnostic access linked to support cases.',
+      generatedAt: input.generatedAt,
+      generatedBy: input.generatedBy,
+      adminRole: input.adminRole,
+      filters: filterLabels,
+      columns: [
+        { key: 'case_id', label: 'Case ID' },
+        { key: 'support_kind', label: 'Support Kind' },
+        { key: 'status', label: 'Status' },
+        { key: 'customer', label: 'Customer' },
+        { key: 'approved_fields', label: 'Approved Fields' },
+        { key: 'expires_at', label: 'Expires' },
+      ],
+      rows: filteredConsents.map((consent) => ({
+        case_id: consent.supportCaseId ?? 'Unlinked',
+        support_kind: supportKindLabel(consent.supportKind),
+        status: consent.isExpired && consent.status === 'active' ? 'expired' : consent.status,
+        customer: consent.userEmail ?? 'Workspace user',
+        approved_fields: consent.approvedFields.join(', ') || 'No fields recorded',
+        expires_at: formatDate(consent.expiresAt),
+      })),
+    };
+  }
+
+  return {
+    type: input.type,
+    title: 'Support Audit Trail Report',
+    description: 'Immutable support interactions filtered for the selected audit view.',
+    generatedAt: input.generatedAt,
+    generatedBy: input.generatedBy,
+    adminRole: input.adminRole,
+    filters: filterLabels,
+    columns: [
+      { key: 'time', label: 'Time' },
+      { key: 'case_id', label: 'Case ID' },
+      { key: 'queue', label: 'Queue' },
+      { key: 'actor_role', label: 'Actor Role' },
+      { key: 'actor_email', label: 'Actor' },
+      { key: 'status', label: 'Ticket Status' },
+      { key: 'event', label: 'Event' },
+      { key: 'detail', label: 'Detail' },
+    ],
+    rows: input.auditRecords.map((record) => ({
+      time: formatDate(record.createdAt),
+      case_id: record.supportCaseId ?? 'Unlinked',
+      queue: supportQueueLabel(record.queueId),
+      actor_role: supportActorRoleLabel(record.actorRole),
+      actor_email: record.actorEmail ?? 'Orbit Ledger',
+      status: supportTicketStatusLabel(record.status),
+      event: record.title,
+      detail: record.detail,
+    })),
+  };
+}
+
+export function buildWebSupportReportCsv(report: WebSupportReport): string {
+  const rows = [
+    [report.title],
+    [
+      `Generated by ${report.generatedBy}`,
+      `Admin role ${supportRoleLabel(report.adminRole)}`,
+      `Generated ${formatDate(report.generatedAt)}`,
+    ],
+    report.filters.length ? [`Filters: ${report.filters.join(' · ')}`] : [],
+    [],
+    report.columns.map((column) => column.label),
+    ...report.rows.map((row) => report.columns.map((column) => row[column.key] ?? '')),
+  ].filter((row) => row.length);
+
+  return rows.map((row) => row.map(csvCell).join(',')).join('\n');
+}
+
+export function buildWebSupportPrintHtml(report: WebSupportReport): string {
+  const filterMarkup = report.filters.length
+    ? `<p><strong>Filters:</strong> ${escapeSupportReportHtml(report.filters.join(' · '))}</p>`
+    : '';
+  const headerCells = report.columns.map((column) => `<th>${escapeSupportReportHtml(column.label)}</th>`).join('');
+  const rowMarkup = report.rows
+    .map(
+      (row) =>
+        `<tr>${report.columns
+          .map((column) => `<td>${escapeSupportReportHtml(row[column.key] ?? '')}</td>`)
+          .join('')}</tr>`
+    )
+    .join('');
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeSupportReportHtml(report.title)}</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 32px;
+        color: #172033;
+        background: #ffffff;
+      }
+      .report-shell {
+        display: grid;
+        gap: 20px;
+      }
+      .report-header {
+        display: grid;
+        gap: 8px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.2;
+      }
+      p {
+        margin: 0;
+        color: #4f5e79;
+        line-height: 1.55;
+      }
+      .report-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 20px;
+        font-size: 13px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      thead th {
+        background: #eff5ff;
+        color: #1f3452;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      th,
+      td {
+        padding: 12px 14px;
+        border: 1px solid #dbe5f2;
+        text-align: left;
+        vertical-align: top;
+        font-size: 13px;
+      }
+      tbody tr:nth-child(even) {
+        background: #f9fbff;
+      }
+      @media print {
+        body {
+          padding: 14mm;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="report-shell">
+      <header class="report-header">
+        <h1>${escapeSupportReportHtml(report.title)}</h1>
+        <p>${escapeSupportReportHtml(report.description)}</p>
+        <div class="report-meta">
+          <span><strong>Generated by:</strong> ${escapeSupportReportHtml(report.generatedBy)}</span>
+          <span><strong>Admin role:</strong> ${escapeSupportReportHtml(supportRoleLabel(report.adminRole))}</span>
+          <span><strong>Generated at:</strong> ${escapeSupportReportHtml(formatDate(report.generatedAt))}</span>
+          <span><strong>Rows:</strong> ${report.rows.length}</span>
+        </div>
+        ${filterMarkup}
+      </header>
+      <table>
+        <thead>
+          <tr>${headerCells}</tr>
+        </thead>
+        <tbody>
+          ${rowMarkup}
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>`;
+}
+
 export function parseSupportCaseEmailRequestRecord(
   id: string,
   data: DocumentData
@@ -964,11 +1537,11 @@ export function parseSupportCaseRecord(id: string, data: DocumentData): WebSuppo
 }
 
 export function parseSupportCaseAuditEvent(id: string, data: DocumentData): WebSupportCaseAuditEvent {
-  const kind = nullableString(data.kind);
+  const kind = normalizeSupportAuditEventKind(nullableString(data.kind) ?? nullableString(data.action));
   const ticketId = nullableString(data.ticket_id ?? data.ticketId);
   const supportCaseId = nullableString(data.support_case_id ?? data.supportCaseId);
   const supportConsentId = nullableString(data.support_consent_id ?? data.supportConsentId);
-  const nextStatus = nullableString(data.next_status ?? data.nextStatus);
+  const nextStatus = nullableString(data.next_status ?? data.nextStatus ?? data.status_after ?? data.statusAfter);
   const reason = nullableString(data.reason);
   const approved = data.customer_approved_diagnostic_access === true || data.customerApprovedDiagnosticAccess === true;
   const title = supportAuditEventTitle({
@@ -983,6 +1556,8 @@ export function parseSupportCaseAuditEvent(id: string, data: DocumentData): WebS
     supportCaseId,
     supportConsentId,
     kind,
+    actorRole: nullableString(data.actor_role ?? data.actorRole),
+    queueId: nullableString(data.queue_id ?? data.queueId),
     title,
     detail: reason ?? nullableString(data.detail) ?? 'Support review event recorded.',
     actor:
@@ -990,6 +1565,9 @@ export function parseSupportCaseAuditEvent(id: string, data: DocumentData): WebS
       nullableString(data.actor_uid ?? data.actorUid) ??
       'Orbit Ledger',
     status: nextStatus,
+    statusBefore: nullableString(data.status_before ?? data.statusBefore),
+    statusAfter: nullableString(data.status_after ?? data.statusAfter ?? data.next_status ?? data.nextStatus),
+    resolutionReason: nullableString(data.resolution_reason ?? data.resolutionReason),
     createdAt: nullableString(data.created_at ?? data.createdAt),
     tone: supportAuditEventTone(title),
   };
@@ -1135,11 +1713,23 @@ function supportAuditEventTitle(input: {
   if (input.kind === 'reply_failed') {
     return 'Reply failed';
   }
+  if (input.kind === 'ticket_assigned') {
+    return 'Ticket assigned';
+  }
+  if (input.kind === 'ticket_reassigned') {
+    return 'Ticket reassigned';
+  }
   if (input.kind === 'internal_note_added') {
     return 'Internal note added';
   }
   if (input.kind === 'status_changed') {
     return 'Ticket status changed';
+  }
+  if (input.kind === 'exported') {
+    return 'Report exported';
+  }
+  if (input.kind === 'printed') {
+    return 'Report printed';
   }
   if (input.kind === 'consent_linked') {
     return 'Diagnostic consent linked';
@@ -1173,13 +1763,303 @@ function supportAuditEventTitle(input: {
 }
 
 function supportAuditEventTone(title: string): WebSupportCaseAuditEvent['tone'] {
-  if (title === 'Approval saved' || title === 'Case resolved' || title === 'Reply sent') {
+  if (title === 'Approval saved' || title === 'Case resolved' || title === 'Reply sent' || title === 'Report exported' || title === 'Report printed') {
     return 'success';
   }
   if (title === 'Approval revoked' || title === 'Approval expired' || title === 'Case reopened' || title === 'Reply failed') {
     return 'warning';
   }
   return 'default';
+}
+
+function normalizeSupportAuditEventKind(value: string | null): string | null {
+  if (value === 'support_report_download_csv') {
+    return 'exported';
+  }
+  if (value === 'support_report_print') {
+    return 'printed';
+  }
+  return value;
+}
+
+function supportMessageKindLabel(kind: string) {
+  if (kind === 'customer_message') {
+    return 'Customer message';
+  }
+  if (kind === 'operator_reply') {
+    return 'Operator reply';
+  }
+  if (kind === 'internal_note') {
+    return 'Internal note';
+  }
+  return 'System event';
+}
+
+function supportMessageTone(kind: string): WebSupportAuditRecord['tone'] {
+  if (kind === 'operator_reply') {
+    return 'success';
+  }
+  if (kind === 'internal_note') {
+    return 'default';
+  }
+  return 'warning';
+}
+
+function supportReplyActionLabel(action: WebSupportCaseEmailRequestRecord['replyAction']) {
+  if (action === 'close_with_reply') {
+    return 'reply and close';
+  }
+  if (action === 'close_silently') {
+    return 'close silently';
+  }
+  if (action === 'reopen_with_reply') {
+    return 'reopen and reply';
+  }
+  return 'reply and wait';
+}
+
+function supportQueueLabel(queueId: string | null | undefined) {
+  return (
+    {
+      general: 'General',
+      billing: 'Billing',
+      technical: 'Technical',
+      privacy: 'Privacy',
+      feedback: 'Feedback',
+      complaint: 'Complaint',
+      restore: 'Restore',
+      purchase: 'Purchase',
+    }[queueId ?? ''] ?? 'Unassigned queue'
+  );
+}
+
+function supportPriorityLabel(priority: string | null | undefined) {
+  return (
+    {
+      low: 'Low',
+      normal: 'Normal',
+      high: 'High',
+      urgent: 'Urgent',
+    }[priority ?? ''] ?? 'Normal'
+  );
+}
+
+function supportTicketStatusLabel(status: string | null | undefined) {
+  return (
+    {
+      opened: 'Opened',
+      triaged: 'Triaged',
+      assigned: 'Assigned',
+      in_progress: 'In progress',
+      pending_customer: 'Pending customer',
+      pending_internal: 'Pending internal',
+      resolved: 'Resolved',
+      closed: 'Closed',
+      spam: 'Spam',
+      open: 'Open',
+      reopened: 'Reopened',
+      waiting_on_customer: 'Waiting on customer',
+    }[status ?? ''] ?? 'Status not set'
+  );
+}
+
+function supportResolutionReasonLabel(reason: string | null | undefined) {
+  return (
+    {
+      fixed: 'Fixed',
+      answered: 'Answered',
+      refunded: 'Refunded',
+      duplicate: 'Duplicate',
+      cannot_reproduce: 'Cannot reproduce',
+      policy_blocked: 'Policy blocked',
+      customer_stopped_replying: 'Customer stopped replying',
+      spam: 'Spam',
+      other: 'Other',
+    }[reason ?? ''] ?? 'Unresolved'
+  );
+}
+
+function supportKindLabel(kind: string | null | undefined) {
+  return kind
+    ? kind
+        .split('_')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ')
+    : 'Support';
+}
+
+function supportRoleLabel(role: string | null | undefined) {
+  return (
+    {
+      super_admin: 'Super Admin',
+      admin: 'Admin',
+      finance_admin: 'Finance Admin',
+      support_admin: 'Support Admin',
+      read_only_admin: 'Read-only Admin',
+      customer: 'Customer',
+      system: 'System',
+    }[role ?? ''] ?? 'Unassigned'
+  );
+}
+
+function supportActorRoleLabel(role: string | null | undefined) {
+  return supportRoleLabel(role);
+}
+
+function matchesTicketAuditFilters(ticket: WebSupportTicketRecord, filters: WebSupportAuditFilters) {
+  if (filters.supportCaseId && ticket.supportCaseId !== filters.supportCaseId) {
+    return false;
+  }
+  if (filters.queueId && ticket.queueId !== filters.queueId) {
+    return false;
+  }
+  if (filters.ticketStatus && ticket.status !== filters.ticketStatus) {
+    return false;
+  }
+  const fromAt = normalizeDateFloor(filters.dateFrom);
+  const toAt = normalizeDateCeiling(filters.dateTo);
+  const ticketAt = Date.parse(ticket.updatedAt ?? ticket.latestMessageAt ?? ticket.createdAt ?? '');
+  if (fromAt !== null && Number.isFinite(ticketAt) && ticketAt < fromAt) {
+    return false;
+  }
+  if (toAt !== null && Number.isFinite(ticketAt) && ticketAt > toAt) {
+    return false;
+  }
+  const search = nullableString(filters.search)?.toLowerCase();
+  if (!search) {
+    return true;
+  }
+  const haystack = [
+    ticket.supportCaseId ?? '',
+    ticket.subject,
+    ticket.summary,
+    ticket.customerEmail ?? '',
+    ticket.customerName ?? '',
+  ]
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(search);
+}
+
+function matchesAssignmentAuditFilters(assignment: WebSupportAssignmentRecord, filters: WebSupportAuditFilters) {
+  if (filters.supportCaseId && assignment.supportCaseId !== filters.supportCaseId) {
+    return false;
+  }
+  if (filters.queueId && assignment.queueId !== filters.queueId) {
+    return false;
+  }
+  if (filters.actorRole && assignment.assignedByRole !== filters.actorRole) {
+    return false;
+  }
+  const fromAt = normalizeDateFloor(filters.dateFrom);
+  const toAt = normalizeDateCeiling(filters.dateTo);
+  const assignmentAt = Date.parse(assignment.updatedAt ?? assignment.createdAt ?? '');
+  if (fromAt !== null && Number.isFinite(assignmentAt) && assignmentAt < fromAt) {
+    return false;
+  }
+  if (toAt !== null && Number.isFinite(assignmentAt) && assignmentAt > toAt) {
+    return false;
+  }
+  return true;
+}
+
+function matchesEmailAuditFilters(request: WebSupportCaseEmailRequestRecord, filters: WebSupportAuditFilters) {
+  if (filters.supportCaseId && request.supportCaseId !== filters.supportCaseId) {
+    return false;
+  }
+  const fromAt = normalizeDateFloor(filters.dateFrom);
+  const toAt = normalizeDateCeiling(filters.dateTo);
+  const emailAt = Date.parse(request.sentAt ?? request.queuedAt ?? '');
+  if (fromAt !== null && Number.isFinite(emailAt) && emailAt < fromAt) {
+    return false;
+  }
+  if (toAt !== null && Number.isFinite(emailAt) && emailAt > toAt) {
+    return false;
+  }
+  const search = nullableString(filters.search)?.toLowerCase();
+  if (!search) {
+    return true;
+  }
+  return [request.supportCaseId, request.subject, request.body, request.recipientEmail ?? ''].join(' ').toLowerCase().includes(search);
+}
+
+function matchesConsentAuditFilters(consent: WebSupportDiagnosticConsentRecord, filters: WebSupportAuditFilters) {
+  if (filters.supportCaseId && consent.supportCaseId !== filters.supportCaseId) {
+    return false;
+  }
+  const fromAt = normalizeDateFloor(filters.dateFrom);
+  const toAt = normalizeDateCeiling(filters.dateTo);
+  const consentAt = Date.parse(consent.createdAt ?? '');
+  if (fromAt !== null && Number.isFinite(consentAt) && consentAt < fromAt) {
+    return false;
+  }
+  if (toAt !== null && Number.isFinite(consentAt) && consentAt > toAt) {
+    return false;
+  }
+  const search = nullableString(filters.search)?.toLowerCase();
+  if (!search) {
+    return true;
+  }
+  return [consent.supportCaseId ?? '', consent.userEmail ?? '', consent.sanitizedMessage, consent.supportKind].join(' ').toLowerCase().includes(search);
+}
+
+function describeSupportAuditFilters(filters: WebSupportAuditFilters) {
+  return [
+    filters.supportCaseId ? `Case ${filters.supportCaseId}` : null,
+    filters.queueId ? `Queue ${supportQueueLabel(filters.queueId)}` : null,
+    filters.actorRole ? `Actor ${supportActorRoleLabel(filters.actorRole)}` : null,
+    filters.ticketStatus ? `Status ${supportTicketStatusLabel(filters.ticketStatus)}` : null,
+    filters.dateFrom ? `From ${filters.dateFrom}` : null,
+    filters.dateTo ? `To ${filters.dateTo}` : null,
+    filters.search ? `Search ${filters.search}` : null,
+  ].filter((value): value is string => Boolean(value));
+}
+
+function normalizeDateFloor(value: string | null | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+  const timestamp = Date.parse(`${value}T00:00:00.000Z`);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function normalizeDateCeiling(value: string | null | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+  const timestamp = Date.parse(`${value}T23:59:59.999Z`);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function extractActorEmail(actor: string) {
+  return actor.includes('@') ? actor : null;
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) {
+    return 'Not recorded';
+  }
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(parsed);
+}
+
+function escapeSupportReportHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function csvCell(value: string) {
+  return `"${value.replaceAll('"', '""')}"`;
 }
 
 function sortIsoDesc(left: string | null, right: string | null) {
@@ -1244,6 +2124,11 @@ function getOfficeSupportSnapshotUrl() {
   return `https://asia-south1-${projectId}.cloudfunctions.net/getOfficeSupportSnapshot`;
 }
 
+function getRecordOfficeSupportReportEventUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/recordOfficeSupportReportEvent`;
+}
+
 function getSendOfficeSupportReplyUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/sendOfficeSupportReply`;
@@ -1296,6 +2181,18 @@ function officeReviewErrorMessage(error: string) {
   }
   if (error === 'support_case_email_not_allowed') {
     return 'This admin role cannot prepare follow-up email for the selected support queue.';
+  }
+  if (error === 'support_report_action_required') {
+    return 'Choose whether you want to download CSV or print the support report.';
+  }
+  if (error === 'support_report_type_required') {
+    return 'Choose a valid support report before exporting.';
+  }
+  if (error === 'support_report_not_allowed' || error === 'support_report_scope_not_allowed') {
+    return 'This admin role cannot export support reports for the selected scope.';
+  }
+  if (error === 'support_report_action_failed') {
+    return 'Support report export could not be recorded.';
   }
   if (error === 'office_request_not_ready') {
     return 'Approve the Office request before granting access.';
@@ -1377,6 +2274,9 @@ async function loadWebOfficeSupportServerSnapshot(
               canAddInternalNotes: result.currentAdmin.supportCapability?.canAddInternalNotes === true,
               canChangeStatus: result.currentAdmin.supportCapability?.canChangeStatus === true,
               canViewDiagnostics: result.currentAdmin.supportCapability?.canViewDiagnostics === true,
+              canExportReports:
+                result.currentAdmin.supportCapability?.canExportReports === true ||
+                canSupportRoleExportReports((stringValue(result.currentAdmin.role) || 'read_only_admin') as PlatformAdminRole),
             },
           }
         : null,
