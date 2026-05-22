@@ -3,9 +3,16 @@
 import Link from 'next/link';
 import type { FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { getPlatformAdminRoleDefinition, PLATFORM_ADMIN_ROLES, type PlatformAdminRole } from '@orbit-ledger/core';
+import {
+  canPlatformAdminRole,
+  getPlatformAdminRoleDefinition,
+  PLATFORM_ADMIN_ROLES,
+  type PlatformAdminRole,
+} from '@orbit-ledger/core';
 
 import {
+  buildWebPlatformAdminReport,
+  buildWebPlatformAdminReportCsv,
   buildWebPlatformAdminSaasHealthCharts,
   filterWebPlatformAdminAuditRecords,
   filterWebPlatformAdminOffers,
@@ -16,6 +23,7 @@ import {
   manageWebPlatformAdminAccount,
   manageWebPlatformAdminOffer,
   manageWebPlatformAdminUser,
+  recordWebPlatformAdminReportEvent,
   type WebPlatformAdminAccountAction,
   type WebPlatformAdminAuditFilters,
   type WebPlatformAdminAuditRecord,
@@ -24,12 +32,20 @@ import {
   type WebPlatformAdminOfferAction,
   type WebPlatformAdminOfferDiscountType,
   type WebPlatformAdminOfferScope,
+  type WebPlatformAdminReport,
+  type WebPlatformAdminReportType,
   type WebPlatformAdminRegistryRecord,
   type WebPlatformAdminSnapshot,
   type WebPlatformAdminUser,
   type WebPlatformAdminUserAction,
+  WEB_PLATFORM_ADMIN_REPORT_DEFINITIONS,
 } from '@/lib/platform-admin';
+import {
+  WEB_PLATFORM_ADMIN_ABSOLUTE_TIMEOUT_MS,
+  WEB_PLATFORM_ADMIN_IDLE_TIMEOUT_MS,
+} from '@/lib/session-security';
 import { useAuth } from '@/providers/auth-provider';
+import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
 
 type AdminFormState = {
   action: WebPlatformAdminAccountAction;
@@ -125,6 +141,7 @@ const DEFAULT_AUDIT_FILTERS: WebPlatformAdminAuditFilters = {
 const PLATFORM_ADMIN_NAV_ITEMS = [
   { href: '#overview', label: 'Overview' },
   { href: '#saas-health', label: 'SaaS Health' },
+  { href: '#settings', label: 'Safety' },
   { href: '#users', label: 'Users' },
   { href: '#admins', label: 'Admins' },
   { href: '#offers', label: 'Billing & Offers' },
@@ -133,11 +150,40 @@ const PLATFORM_ADMIN_NAV_ITEMS = [
   { href: '#live-collections', label: 'Live Collections' },
   { href: '#reports', label: 'Reports' },
   { href: '#audit', label: 'Audit' },
-  { href: '#settings', label: 'Settings' },
 ] as const;
+
+const MFA_READINESS_COPY: Record<
+  PlatformAdminRole,
+  {
+    requirement: string;
+    detail: string;
+  }
+> = {
+  super_admin: {
+    requirement: 'Required before scale',
+    detail: 'Break-glass Super Admin access should be protected with MFA before the admin surface scales beyond a tiny operator group.',
+  },
+  finance_admin: {
+    requirement: 'Required before scale',
+    detail: 'Pricing overrides, offer control, and billing exports should move behind MFA before broader finance operations begin.',
+  },
+  admin: {
+    requirement: 'Strongly recommended',
+    detail: 'User lifecycle and support-sensitive actions should use MFA whenever this role is actively used.',
+  },
+  support_admin: {
+    requirement: 'Strongly recommended',
+    detail: 'Support review and warning workflows should use MFA when real customer-impact operations begin.',
+  },
+  read_only_admin: {
+    requirement: 'Optional but recommended',
+    detail: 'Read-only reporting can stay available without MFA, but operational review is safer with it turned on.',
+  },
+};
 
 export default function PlatformAdminPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
+  const { confirm, prompt } = useConfirmDialog();
   const [snapshot, setSnapshot] = useState<WebPlatformAdminSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -163,6 +209,7 @@ export default function PlatformAdminPage() {
   const [offerError, setOfferError] = useState<string | null>(null);
   const [isSavingOffer, setIsSavingOffer] = useState(false);
   const [offerForm, setOfferForm] = useState<OfferFormState>(DEFAULT_OFFER_FORM);
+  const [reportType, setReportType] = useState<WebPlatformAdminReportType>('user_registry');
   const users = useMemo(() => filterWebPlatformAdminUsers(snapshot?.users ?? [], search), [search, snapshot?.users]);
   const visibleOffers = useMemo(
     () => filterWebPlatformAdminOffers(snapshot?.offers ?? [], offerSearch),
@@ -174,12 +221,26 @@ export default function PlatformAdminPage() {
   );
   const admins = snapshot?.admins ?? [];
   const isSuperAdmin = snapshot?.adminAccess?.role === 'super_admin';
+  const adminRole = snapshot?.adminAccess?.role ?? null;
+  const adminRoleLabel = adminRole ? getPlatformAdminRoleDefinition(adminRole).label : 'Emergency allowlist Super Admin';
   const canManageOffers = isSuperAdmin || snapshot?.adminAccess?.role === 'finance_admin';
   const canControlUsers =
     snapshot?.adminAccess?.role === 'super_admin' ||
     snapshot?.adminAccess?.role === 'admin' ||
     snapshot?.adminAccess?.role === 'support_admin';
   const canSuspendUsers = snapshot?.adminAccess?.role === 'super_admin' || snapshot?.adminAccess?.role === 'admin';
+  const canDownloadReports = adminRole ? canPlatformAdminRole(adminRole, 'download_admin_reports') : true;
+  const mfaEnrolledCount = getUserMfaEnrollmentCount(user);
+  const mfaRequirement = adminRole ? MFA_READINESS_COPY[adminRole] : null;
+  const mfaStatusTone =
+    mfaEnrolledCount > 0
+      ? 'success'
+      : adminRole === 'super_admin' || adminRole === 'finance_admin'
+        ? 'danger'
+        : 'warning';
+  const adminSessionLabel = `${Math.round(WEB_PLATFORM_ADMIN_IDLE_TIMEOUT_MS / 60_000)} min idle · ${Math.round(
+    WEB_PLATFORM_ADMIN_ABSOLUTE_TIMEOUT_MS / 3_600_000
+  )} hr max`;
   const userControlNeedsMessage =
     userControlForm.action === 'send_warning' || userControlForm.action === 'add_internal_note';
   const userControlSubmitDisabled =
@@ -217,6 +278,55 @@ export default function PlatformAdminPage() {
     () => (snapshot ? buildWebPlatformAdminSaasHealthCharts(snapshot, auditTrail) : null),
     [auditTrail, snapshot]
   );
+  const reportFilterSummary = useMemo(
+    () =>
+      [
+        search.trim() ? `User search: ${search.trim()}` : '',
+        offerSearch.trim() ? `Offer search: ${offerSearch.trim()}` : '',
+        auditSearch.trim() ? `Audit search: ${auditSearch.trim()}` : '',
+        auditFilters.action.trim() ? `Audit action: ${auditFilters.action.trim()}` : '',
+        auditFilters.actor.trim() ? `Audit actor: ${auditFilters.actor.trim()}` : '',
+        auditFilters.target.trim() ? `Audit target: ${auditFilters.target.trim()}` : '',
+        auditFilters.severity.trim() ? `Audit severity: ${auditFilters.severity.trim()}` : '',
+        auditFilters.fromDate ? `From: ${auditFilters.fromDate}` : '',
+        auditFilters.toDate ? `To: ${auditFilters.toDate}` : '',
+      ].filter(Boolean),
+    [auditFilters, auditSearch, offerSearch, search]
+  );
+  const selectedReport = useMemo(() => {
+    if (!snapshot) {
+      return null;
+    }
+    return buildWebPlatformAdminReport({
+      type: reportType,
+      snapshot: {
+        ...snapshot,
+        users,
+        offers: visibleOffers,
+      },
+      auditRecords: visibleAuditRecords,
+      generatedBy: user?.email ?? 'Platform admin',
+      adminRole: adminRoleLabel,
+      loadedFilterSummary: reportFilterSummary,
+    });
+  }, [adminRoleLabel, reportFilterSummary, reportType, snapshot, user?.email, users, visibleAuditRecords, visibleOffers]);
+  const auditTrailReport = useMemo(() => {
+    if (!snapshot) {
+      return null;
+    }
+    return buildWebPlatformAdminReport({
+      type: 'audit_trail',
+      snapshot: {
+        ...snapshot,
+        users,
+        offers: visibleOffers,
+      },
+      auditRecords: visibleAuditRecords,
+      generatedBy: user?.email ?? 'Platform admin',
+      adminRole: adminRoleLabel,
+      loadedFilterSummary: reportFilterSummary,
+    });
+  }, [adminRoleLabel, reportFilterSummary, snapshot, user?.email, users, visibleAuditRecords, visibleOffers]);
 
   useEffect(() => {
     if (isAuthLoading || !user) {
@@ -313,10 +423,55 @@ export default function PlatformAdminPage() {
     });
   }
 
+  async function confirmAdminFormSubmission() {
+    const isDestructive = adminForm.action === 'suspend' || adminForm.action === 'revoke';
+    const isElevatedRoleChange = adminForm.action === 'change_role' && adminForm.role === 'super_admin';
+    if (!isDestructive && !isElevatedRoleChange) {
+      return true;
+    }
+
+    const confirmed = await confirm({
+      title: isDestructive ? 'Confirm admin access change' : 'Confirm elevated admin change',
+      message:
+        adminForm.action === 'revoke'
+          ? 'Revoking platform admin access immediately removes future admin access for this account.'
+          : 'This admin change affects who can operate sensitive Orbit Ledger controls.',
+      detail: adminForm.reason.trim(),
+      confirmLabel: adminForm.action === 'revoke' ? 'Continue revoke' : 'Continue',
+      tone: isDestructive ? 'danger' : 'default',
+    });
+    if (!confirmed) {
+      return false;
+    }
+
+    if (adminForm.action === 'revoke' && adminForm.role === 'super_admin') {
+      const typed = await prompt({
+        title: 'Second confirmation required',
+        message: 'Type REVOKE SUPER ADMIN to confirm this break-glass revoke.',
+        detail: 'This protects accidental removal of the highest privilege account.',
+        inputLabel: 'Type REVOKE SUPER ADMIN',
+        placeholder: 'REVOKE SUPER ADMIN',
+        required: true,
+        confirmLabel: 'Confirm revoke',
+        tone: 'danger',
+      });
+      if (typed !== 'REVOKE SUPER ADMIN') {
+        setAdminActionError('Type REVOKE SUPER ADMIN exactly to continue.');
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   async function handleAdminSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAdminActionError(null);
     setAdminActionMessage(null);
+    const confirmed = await confirmAdminFormSubmission();
+    if (!confirmed) {
+      return;
+    }
     setIsSavingAdmin(true);
     try {
       await manageWebPlatformAdminAccount({
@@ -357,10 +512,35 @@ export default function PlatformAdminPage() {
     });
   }
 
+  async function confirmUserControlSubmission() {
+    const isDestructive = userControlForm.action === 'suspend_user' || userControlForm.action === 'restore_user';
+    const isRiskReview = userControlForm.action === 'mark_under_review' || userControlForm.action === 'clear_under_review';
+    if (!isDestructive && !isRiskReview) {
+      return true;
+    }
+
+    return confirm({
+      title: isDestructive ? 'Confirm user status change' : 'Confirm risk review update',
+      message:
+        userControlForm.action === 'suspend_user'
+          ? 'Suspending a user immediately blocks sign-in until an admin restores access.'
+          : userControlForm.action === 'restore_user'
+            ? 'Restoring a user allows sign-in again after review.'
+            : 'This updates the user risk state shown in the admin registry and audit trail.',
+      detail: userControlForm.reason.trim(),
+      confirmLabel: 'Continue',
+      tone: isDestructive ? 'danger' : 'default',
+    });
+  }
+
   async function handleUserControlSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setUserControlError(null);
     setUserControlMessage(null);
+    const confirmed = await confirmUserControlSubmission();
+    if (!confirmed) {
+      return;
+    }
     setIsSavingUserControl(true);
     try {
       await manageWebPlatformAdminUser({
@@ -419,10 +599,57 @@ export default function PlatformAdminPage() {
     scrollToAdminSection('offers');
   }
 
+  function openReportsFromOverview() {
+    scrollToAdminSection('reports');
+  }
+
+  async function confirmOfferFormSubmission() {
+    const isDestructive = offerForm.action === 'deactivate' || offerForm.action === 'remove';
+    const isPricingChange = offerForm.action === 'create' || offerForm.action === 'update';
+    if (isDestructive || isPricingChange) {
+      const confirmed = await confirm({
+        title: isDestructive ? 'Confirm offer removal' : 'Confirm pricing change',
+        message:
+          offerForm.action === 'remove'
+            ? 'Removing an offer stops future eligibility and preserves only the historical audit trail.'
+            : 'This changes what eligible users see in offer banners and checkout pricing.',
+        detail: offerForm.reason.trim(),
+        confirmLabel: isDestructive ? 'Continue' : 'Apply pricing change',
+        tone: isDestructive ? 'danger' : 'default',
+      });
+      if (!confirmed) {
+        return false;
+      }
+    }
+
+    if (offerForm.lifetimeConfirmed && !offerForm.expiresAt) {
+      const typed = await prompt({
+        title: 'Second confirmation required',
+        message: 'Type LIFETIME OFFER to confirm this no-expiry discount.',
+        detail: 'Lifetime discounts should be rare and explicitly reviewed before saving.',
+        inputLabel: 'Type LIFETIME OFFER',
+        placeholder: 'LIFETIME OFFER',
+        required: true,
+        confirmLabel: 'Confirm lifetime offer',
+        tone: 'danger',
+      });
+      if (typed !== 'LIFETIME OFFER') {
+        setOfferError('Type LIFETIME OFFER exactly to continue.');
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   async function handleOfferSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setOfferError(null);
     setOfferMessage(null);
+    const confirmed = await confirmOfferFormSubmission();
+    if (!confirmed) {
+      return;
+    }
     setIsSavingOffer(true);
     try {
       await manageWebPlatformAdminOffer({
@@ -468,29 +695,99 @@ export default function PlatformAdminPage() {
     void refreshAudit(DEFAULT_AUDIT_FILTERS);
   }
 
-  function downloadAuditCsv() {
-    const csv = buildAuditCsv(visibleAuditRecords);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `orbit-ledger-admin-audit-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+  async function recordReportEvent(report: WebPlatformAdminReport, action: 'download_csv' | 'print_report') {
+    await recordWebPlatformAdminReportEvent({
+      action,
+      report,
+    });
   }
 
-  function printAuditReport() {
+  async function downloadAuditCsv() {
+    if (!auditTrailReport) {
+      return;
+    }
+    try {
+      await recordReportEvent(auditTrailReport, 'download_csv');
+      downloadTextFile(
+        buildWebPlatformAdminReportCsv(auditTrailReport),
+        `orbit-ledger-${auditTrailReport.type}-${new Date().toISOString().slice(0, 10)}.csv`,
+        'text/csv;charset=utf-8'
+      );
+    } catch (error) {
+      setAuditError(error instanceof Error ? error.message : 'Platform admin report export could not be recorded.');
+    }
+  }
+
+  async function printAuditReport() {
+    if (!auditTrailReport) {
+      return;
+    }
     const popup = window.open('', '_blank', 'width=1100,height=800');
     if (!popup) {
       setAuditError('Browser blocked the print report. Allow pop-ups for Orbit Ledger and try again.');
       return;
     }
-    popup.document.write(buildAuditPrintHtml(visibleAuditRecords, user?.email ?? 'Platform admin', auditGeneratedAt));
+    try {
+      await recordReportEvent(auditTrailReport, 'print_report');
+    } catch (error) {
+      popup.close();
+      setAuditError(error instanceof Error ? error.message : 'Platform admin report export could not be recorded.');
+      return;
+    }
+    popup.document.write(buildPlatformAdminReportPrintHtml(auditTrailReport));
     popup.document.close();
     popup.focus();
     popup.print();
+  }
+
+  async function downloadSelectedReport() {
+    if (!selectedReport) {
+      return;
+    }
+    try {
+      await recordReportEvent(selectedReport, 'download_csv');
+      downloadTextFile(
+        buildWebPlatformAdminReportCsv(selectedReport),
+        `orbit-ledger-${selectedReport.type}-${new Date().toISOString().slice(0, 10)}.csv`,
+        'text/csv;charset=utf-8'
+      );
+    } catch (error) {
+      setAuditError(error instanceof Error ? error.message : 'Platform admin report export could not be recorded.');
+    }
+  }
+
+  async function printSelectedReport() {
+    if (!selectedReport) {
+      return;
+    }
+    const popup = window.open('', '_blank', 'width=1100,height=800');
+    if (!popup) {
+      setAuditError('Browser blocked the report print view. Allow pop-ups for Orbit Ledger and try again.');
+      return;
+    }
+    try {
+      await recordReportEvent(selectedReport, 'print_report');
+    } catch (error) {
+      popup.close();
+      setAuditError(error instanceof Error ? error.message : 'Platform admin report export could not be recorded.');
+      return;
+    }
+    popup.document.write(buildPlatformAdminReportPrintHtml(selectedReport));
+    popup.document.close();
+    popup.focus();
+    popup.print();
+  }
+
+  function downloadTextFile(contents: string, filename: string, type: string) {
+    const blob = new Blob([contents], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   if (isAuthLoading) {
@@ -640,10 +937,10 @@ export default function PlatformAdminPage() {
                     <button
                       className="ol-button-secondary"
                       type="button"
-                      onClick={downloadAuditCsv}
-                      disabled={!visibleAuditRecords.length}
+                      onClick={openReportsFromOverview}
+                      disabled={!selectedReport}
                     >
-                      Export report
+                      {canDownloadReports ? 'Export report' : 'Open reports'}
                     </button>
                   </div>
                 </section>
@@ -722,8 +1019,8 @@ export default function PlatformAdminPage() {
                 <AdminAreaCard id="office" title="Office" value={`${snapshot?.metrics.officeMemberCount ?? 0} active member(s)`} detail="Team access and multi-company operations." />
                 <AdminAreaCard id="support" title="Support" value="Consent-bound" detail="Support review stays separate from user-led workspace control." />
                 <AdminAreaCard id="live-collections" title="Live Collections" value="Payment events" detail="Razorpay-linked payment updates and review signals." />
-                <AdminAreaCard id="reports" title="Reports" value="Print-ready" detail="Admin reports export from audit and registry data." />
-                <AdminAreaCard id="settings" title="Settings" value={snapshot?.adminAccess?.customClaimsReady ? 'Claims active' : 'Allowlist fallback'} detail="Admin session, permissions, and sensitive controls." />
+                <AdminAreaCard title="Reports" value="Print-ready" detail="Admin reports export from audit and registry data." />
+                <AdminAreaCard title="Settings" value={snapshot?.adminAccess?.customClaimsReady ? 'Claims active' : 'Allowlist fallback'} detail="Admin session, permissions, and sensitive controls." />
               </section>
             </section>
 
@@ -732,9 +1029,7 @@ export default function PlatformAdminPage() {
                 <div>
                   <span className="ol-muted">Role</span>
                   <strong>
-                    {snapshot?.adminAccess
-                      ? `${getPlatformAdminRoleDefinition(snapshot.adminAccess.role).label} · ${snapshot.adminAccess.roleSource}`
-                      : 'Emergency allowlist'}
+                    {snapshot?.adminAccess ? `${adminRoleLabel} · ${snapshot.adminAccess.roleSource}` : 'Emergency allowlist'}
                   </strong>
                 </div>
                 <div>
@@ -769,6 +1064,141 @@ export default function PlatformAdminPage() {
               <p className="ol-panel-copy">
                 This registry never shows passwords, provider secrets, payment secrets, or customer ledger data.
               </p>
+            </section>
+
+            <section className="ol-platform-admin-table-card" id="settings">
+              <div className="ol-platform-admin-table-head">
+                <div>
+                  <strong>Safety controls</strong>
+                  <span>Session policy, MFA readiness, export permissions, and abuse guardrails for the admin surface</span>
+                </div>
+                <span className="ol-platform-admin-status-pill" data-tone={mfaStatusTone}>
+                  {mfaEnrolledCount > 0 ? `${mfaEnrolledCount} MFA factor(s) ready` : mfaRequirement?.requirement ?? 'Review required'}
+                </span>
+              </div>
+              <div className="ol-platform-admin-safety-grid">
+                <article className="ol-platform-admin-safety-card">
+                  <span className="ol-platform-admin-sidebar-label">Session policy</span>
+                  <strong>{adminSessionLabel}</strong>
+                  <p>
+                    Platform Admin uses a stricter tracked session than the regular workspace shell so sensitive admin tabs do
+                    not stay open unattended.
+                  </p>
+                </article>
+                <article className="ol-platform-admin-safety-card">
+                  <span className="ol-platform-admin-sidebar-label">MFA readiness</span>
+                  <strong>{mfaRequirement?.requirement ?? 'Emergency allowlist review'}</strong>
+                  <p>{mfaRequirement?.detail ?? 'Break-glass allowlist access should be reviewed carefully before broader use.'}</p>
+                </article>
+                <article className="ol-platform-admin-safety-card">
+                  <span className="ol-platform-admin-sidebar-label">Report exports</span>
+                  <strong>{canDownloadReports ? 'Export allowed for this role' : 'View-only for this role'}</strong>
+                  <p>
+                    CSV downloads and print actions are audit logged, permission checked on the server, and rate-limited to
+                    reduce abuse.
+                  </p>
+                </article>
+              </div>
+            </section>
+
+            <section className="ol-platform-admin-table-card ol-platform-admin-report-card" id="reports">
+              <div className="ol-platform-admin-table-head">
+                <div>
+                  <strong>Reports</strong>
+                  <span>CSV and print-safe exports generated from loaded Platform Admin data</span>
+                </div>
+                <div className="ol-platform-admin-row-actions">
+                  {canDownloadReports ? (
+                    <>
+                      <button className="ol-button-secondary" type="button" onClick={downloadSelectedReport} disabled={!selectedReport}>
+                        Download CSV
+                      </button>
+                      <button className="ol-button-secondary" type="button" onClick={printSelectedReport} disabled={!selectedReport}>
+                        Print report
+                      </button>
+                    </>
+                  ) : (
+                    <span className="ol-platform-admin-status-pill" data-tone="warning">
+                      Export limited to Admin, Finance, Read-only, and Super Admin
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="ol-platform-admin-report-builder">
+                <div className="ol-platform-admin-report-list" aria-label="Admin report types">
+                  {WEB_PLATFORM_ADMIN_REPORT_DEFINITIONS.map((definition) => (
+                    <button
+                      key={definition.type}
+                      className="ol-platform-admin-report-option"
+                      data-active={reportType === definition.type}
+                      type="button"
+                      onClick={() => setReportType(definition.type)}
+                    >
+                      <strong>{definition.title}</strong>
+                      <span>{definition.description}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="ol-platform-admin-report-preview">
+                  {selectedReport ? (
+                    <>
+                      <div className="ol-platform-admin-report-summary">
+                        <div>
+                          <span className="ol-platform-admin-sidebar-label">Selected report</span>
+                          <strong>{selectedReport.title}</strong>
+                          <p>{selectedReport.description}</p>
+                        </div>
+                        <div className="ol-platform-admin-report-meta">
+                          <span>{selectedReport.rows.length.toLocaleString('en-IN')} row(s)</span>
+                          <span>{selectedReport.adminRole}</span>
+                          <span>Generated by {selectedReport.generatedBy}</span>
+                          <span>{formatPlatformAdminDate(selectedReport.generatedAt)}</span>
+                        </div>
+                      </div>
+                      {selectedReport.filters.length ? (
+                        <div className="ol-platform-admin-report-filters">
+                          {selectedReport.filters.map((filter) => (
+                            <span key={filter}>{filter}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="ol-platform-admin-report-note">No local filters are currently applied.</p>
+                      )}
+                      <div className="ol-platform-admin-report-table-wrap">
+                        <table className="ol-platform-admin-report-table">
+                          <thead>
+                            <tr>
+                              {selectedReport.columns.map((column) => (
+                                <th key={column.key}>{column.label}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedReport.rows.slice(0, 8).map((row, rowIndex) => (
+                              <tr key={`${selectedReport.type}-${rowIndex}`}>
+                                {selectedReport.columns.map((column) => (
+                                  <td key={column.key}>{row[column.key] ?? ''}</td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {selectedReport.rows.length > 8 ? (
+                        <p className="ol-platform-admin-report-note">
+                          Preview shows 8 rows. CSV and print include all loaded rows.
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <div className="ol-platform-admin-empty ol-platform-admin-empty-compact">
+                      <h2>No report available</h2>
+                      <p>Refresh the registry, then choose a report type.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </section>
 
         <section className="ol-platform-admin-table-card" id="admins">
@@ -1206,22 +1636,30 @@ export default function PlatformAdminPage() {
               </span>
             </div>
             <div className="ol-platform-admin-row-actions">
-              <button
-                className="ol-button-secondary"
-                type="button"
-                onClick={downloadAuditCsv}
-                disabled={!visibleAuditRecords.length}
-              >
-                Download CSV
-              </button>
-              <button
-                className="ol-button-secondary"
-                type="button"
-                onClick={printAuditReport}
-                disabled={!visibleAuditRecords.length}
-              >
-                Print audit
-              </button>
+              {canDownloadReports ? (
+                <>
+                  <button
+                    className="ol-button-secondary"
+                    type="button"
+                    onClick={downloadAuditCsv}
+                    disabled={!visibleAuditRecords.length}
+                  >
+                    Download CSV
+                  </button>
+                  <button
+                    className="ol-button-secondary"
+                    type="button"
+                    onClick={printAuditReport}
+                    disabled={!visibleAuditRecords.length}
+                  >
+                    Print audit
+                  </button>
+                </>
+              ) : (
+                <span className="ol-platform-admin-status-pill" data-tone="warning">
+                  Audit export not enabled for this role
+                </span>
+              )}
             </div>
           </div>
 
@@ -1734,7 +2172,7 @@ function StatusSignal({
   );
 }
 
-function AdminAreaCard({ id, title, value, detail }: { id: string; title: string; value: string; detail: string }) {
+function AdminAreaCard({ id, title, value, detail }: { id?: string; title: string; value: string; detail: string }) {
   return (
     <article className="ol-platform-admin-area-card" id={id}>
       <span>{title}</span>
@@ -2039,79 +2477,71 @@ function humanizeAuditAction(value: string) {
     .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
-function buildAuditCsv(records: WebPlatformAdminAuditRecord[]) {
-  const rows = [
-    ['Timestamp', 'Action', 'Severity', 'Actor', 'Actor role', 'Target', 'Affected', 'Reason', 'Audit ID'],
-    ...records.map((record) => [
-      formatPlatformAdminDate(record.timestamp),
-      record.action,
-      record.severity,
-      record.actorEmail ?? record.actorUid ?? 'System',
-      record.actorRole ?? '',
-      record.targetEmail ?? record.targetUid ?? record.workspaceId ?? record.supportCaseId ?? '',
-      record.affectedSummary,
-      record.reason ?? '',
-      record.id,
-    ]),
-  ];
-
-  return rows.map((row) => row.map(csvCell).join(',')).join('\n');
+function getUserMfaEnrollmentCount(user: object | null) {
+  const multiFactor = user ? (user as { multiFactor?: { enrolledFactors?: unknown[] } }).multiFactor : null;
+  return Array.isArray(multiFactor?.enrolledFactors) ? multiFactor.enrolledFactors.length : 0;
 }
 
 function csvCell(value: string) {
   return `"${value.replaceAll('"', '""')}"`;
 }
 
-function buildAuditPrintHtml(records: WebPlatformAdminAuditRecord[], generatedBy: string, generatedAt: string | null) {
-  const rows = records
-    .map(
-      (record) => `
+function buildPlatformAdminReportPrintHtml(report: WebPlatformAdminReport) {
+  const filterMarkup = report.filters.length
+    ? `<p>Filters: ${escapeHtml(report.filters.join(' · '))}</p>`
+    : '<p>No local filters applied.</p>';
+  const headerCells = report.columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join('');
+  const rows = report.rows.length
+    ? report.rows
+        .map(
+          (row) => `
         <tr>
-          <td>${escapeHtml(formatPlatformAdminDate(record.timestamp))}</td>
-          <td>${escapeHtml(humanizeAuditAction(record.action))}</td>
-          <td>${escapeHtml(record.severity)}</td>
-          <td>${escapeHtml(record.actorEmail ?? record.actorUid ?? 'System')}</td>
-          <td>${escapeHtml(record.affectedSummary)}</td>
-          <td>${escapeHtml(record.reason ?? 'No reason recorded')}</td>
+          ${report.columns.map((column) => `<td>${escapeHtml(row[column.key] ?? '')}</td>`).join('')}
         </tr>`
-    )
-    .join('');
+        )
+        .join('')
+    : `<tr><td colspan="${report.columns.length}">No rows available for this report.</td></tr>`;
 
   return `<!doctype html>
     <html>
       <head>
-        <title>Orbit Ledger Platform Admin Audit</title>
+        <title>${escapeHtml(report.title)}</title>
         <style>
           @page { margin: 18mm; }
           body { font-family: Inter, Arial, sans-serif; color: #111827; margin: 0; }
           header { border-bottom: 2px solid #d7e2f2; padding-bottom: 14px; margin-bottom: 18px; }
           h1 { margin: 0 0 8px; font-size: 26px; }
-          p { margin: 0; color: #607087; }
-          table { width: 100%; border-collapse: collapse; font-size: 11px; }
-          th { text-align: left; color: #607087; border-bottom: 1px solid #d7e2f2; padding: 8px; }
-          td { border-bottom: 1px solid #e4ebf5; padding: 8px; vertical-align: top; }
-          footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid #d7e2f2; color: #607087; font-size: 11px; }
+          p { margin: 4px 0 0; color: #607087; line-height: 1.45; }
+          .meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0 18px; }
+          .meta div { border: 1px solid #d7e2f2; border-radius: 12px; padding: 10px; }
+          .meta span { display: block; color: #607087; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+          .meta strong { display: block; margin-top: 5px; font-size: 12px; }
+          table { width: 100%; border-collapse: collapse; font-size: 10px; page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          th { text-align: left; color: #607087; border: 1px solid #d7e2f2; background: #f4f7fb; padding: 7px; }
+          td { border: 1px solid #e4ebf5; padding: 7px; vertical-align: top; overflow-wrap: anywhere; }
+          footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #d7e2f2; color: #607087; font-size: 11px; }
         </style>
       </head>
       <body>
         <header>
-          <h1>Platform Admin Audit Trail</h1>
-          <p>Generated by ${escapeHtml(generatedBy)} · ${escapeHtml(formatPlatformAdminDate(generatedAt))}</p>
+          <h1>${escapeHtml(report.title)}</h1>
+          <p>${escapeHtml(report.description)}</p>
+          ${filterMarkup}
         </header>
+        <section class="meta">
+          <div><span>Generated by</span><strong>${escapeHtml(report.generatedBy)}</strong></div>
+          <div><span>Admin role</span><strong>${escapeHtml(report.adminRole)}</strong></div>
+          <div><span>Generated</span><strong>${escapeHtml(formatPlatformAdminDate(report.generatedAt))}</strong></div>
+          <div><span>Rows</span><strong>${report.rows.length.toLocaleString('en-IN')}</strong></div>
+        </section>
         <table>
           <thead>
-            <tr>
-              <th>Time</th>
-              <th>Action</th>
-              <th>Severity</th>
-              <th>Actor</th>
-              <th>Affected</th>
-              <th>Reason</th>
-            </tr>
+            <tr>${headerCells}</tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
-        <footer>Created with Orbit Ledger · Internal platform admin report</footer>
+        <footer>Created with Orbit Ledger · Internal platform admin report · ${escapeHtml(report.type.replaceAll('_', ' '))}</footer>
       </body>
     </html>`;
 }

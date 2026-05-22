@@ -9,6 +9,10 @@ import { ConfirmDialogProvider } from './confirm-dialog-provider';
 import { DeviceSettingsProvider } from './device-settings-provider';
 import { LiveCollectionsFeedProvider } from './live-collections-feed-provider';
 import { OfficeAccessProvider } from './office-access-provider';
+import {
+  WEB_PLATFORM_ADMIN_ABSOLUTE_TIMEOUT_MS,
+  WEB_PLATFORM_ADMIN_IDLE_TIMEOUT_MS,
+} from '@/lib/session-security';
 import { ToastProvider } from './toast-provider';
 import { SubscriptionProvider } from './subscription-provider';
 import { WebLockProvider } from './web-lock-provider';
@@ -70,8 +74,13 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
 
   if (isPlatformAdminRoute) {
     return (
-      <AuthProvider>
-        <ToastProvider>{children}</ToastProvider>
+      <AuthProvider
+        absoluteTimeoutMs={WEB_PLATFORM_ADMIN_ABSOLUTE_TIMEOUT_MS}
+        idleTimeoutMs={WEB_PLATFORM_ADMIN_IDLE_TIMEOUT_MS}
+      >
+        <ToastProvider>
+          <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+        </ToastProvider>
       </AuthProvider>
     );
   }

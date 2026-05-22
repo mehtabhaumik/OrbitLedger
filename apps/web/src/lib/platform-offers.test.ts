@@ -84,4 +84,22 @@ describe('platform offer web helpers', () => {
       id: 'offer_1',
     });
   });
+
+  it('does not apply expired offers to banner or checkout pricing', () => {
+    const expiredOffer = {
+      ...activeOffer,
+      id: 'offer_expired',
+      status: 'expired' as const,
+      planPrices: [
+        {
+          ...activeOffer.planPrices![0],
+          offerAmountMinor: 109900,
+          offerAmountDisplay: '₹1,099',
+        },
+      ],
+    };
+
+    expect(resolveWebPlanOffer({ id: 'pro_yearly', amountMinor: 199900 }, [expiredOffer])).toBeNull();
+    expect(summarizeActivePlatformOffer([expiredOffer])).toBeNull();
+  });
 });

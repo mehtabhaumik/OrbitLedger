@@ -55,7 +55,15 @@ function setWorkspaceBootstrapHint(userId: string) {
   window.sessionStorage.setItem(`${WORKSPACE_BOOTSTRAP_HINT_PREFIX}${userId}`, '1');
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({
+  children,
+  idleTimeoutMs = WEB_AUTH_IDLE_TIMEOUT_MS,
+  absoluteTimeoutMs = WEB_AUTH_ABSOLUTE_TIMEOUT_MS,
+}: {
+  children: ReactNode;
+  idleTimeoutMs?: number;
+  absoluteTimeoutMs?: number;
+}) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [sessionExpiryMessage, setSessionExpiryMessage] = useState<string | null>(null);
@@ -141,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     writeWebAuthSession(session);
 
     async function expireIfNeeded(candidate: WebAuthSession) {
-      const reason = getWebAuthSessionExpiryReason(candidate);
+      const reason = getWebAuthSessionExpiryReason(candidate, Date.now(), idleTimeoutMs, absoluteTimeoutMs);
       if (!reason) {
         return false;
       }
@@ -160,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const current = readWebAuthSession() ?? session;
-      const reason = getWebAuthSessionExpiryReason(current);
+      const reason = getWebAuthSessionExpiryReason(current, Date.now(), idleTimeoutMs, absoluteTimeoutMs);
       if (reason) {
         void expireIfNeeded(current);
         return;
@@ -177,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const interval = window.setInterval(() => {
       void expireIfNeeded(readWebAuthSession() ?? session);
-    }, Math.min(60_000, WEB_AUTH_IDLE_TIMEOUT_MS, WEB_AUTH_ABSOLUTE_TIMEOUT_MS));
+    }, Math.min(60_000, idleTimeoutMs, absoluteTimeoutMs));
 
     void expireIfNeeded(session);
 
@@ -187,7 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       window.clearInterval(interval);
     };
-  }, [user]);
+  }, [absoluteTimeoutMs, idleTimeoutMs, user]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

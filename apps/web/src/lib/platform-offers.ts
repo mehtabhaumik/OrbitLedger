@@ -62,6 +62,7 @@ export function resolveWebPlanOffer(
   offers: WebPlatformAdminOffer[]
 ): WebPlanOfferResolution | null {
   const eligible = offers
+    .filter((offer) => offer.status === 'active')
     .flatMap((offer) =>
       (offer.planPrices ?? [])
         .filter((price) => price.planId === plan.id && price.offerAmountMinor < plan.amountMinor)

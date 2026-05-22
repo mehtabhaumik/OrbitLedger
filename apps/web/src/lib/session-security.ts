@@ -9,6 +9,8 @@ export type WebAuthSessionExpiryReason = 'idle_timeout' | 'absolute_timeout';
 export const WEB_AUTH_SESSION_STORAGE_KEY = 'orbit-ledger:web-auth-session:v1';
 export const WEB_AUTH_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 export const WEB_AUTH_ABSOLUTE_TIMEOUT_MS = 8 * 60 * 60 * 1000;
+export const WEB_PLATFORM_ADMIN_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
+export const WEB_PLATFORM_ADMIN_ABSOLUTE_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 
 export function createOrResumeWebAuthSession(
   existing: WebAuthSession | null,

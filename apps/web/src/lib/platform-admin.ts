@@ -202,6 +202,70 @@ export type WebPlatformAdminSaasHealthCharts = {
   adminRoleMix: WebPlatformAdminChartDatum[];
 };
 
+export type WebPlatformAdminReportType =
+  | 'user_registry'
+  | 'admin_access'
+  | 'billing_offers'
+  | 'audit_trail'
+  | 'office_access'
+  | 'support_cases';
+
+export type WebPlatformAdminReportColumn = {
+  key: string;
+  label: string;
+};
+
+export type WebPlatformAdminReport = {
+  type: WebPlatformAdminReportType;
+  title: string;
+  description: string;
+  generatedAt: string;
+  generatedBy: string;
+  adminRole: string;
+  filters: string[];
+  columns: WebPlatformAdminReportColumn[];
+  rows: Record<string, string>[];
+};
+
+export type WebPlatformAdminReportAction = 'download_csv' | 'print_report';
+
+export const WEB_PLATFORM_ADMIN_REPORT_DEFINITIONS: Array<{
+  type: WebPlatformAdminReportType;
+  title: string;
+  description: string;
+}> = [
+  {
+    type: 'user_registry',
+    title: 'User Registry Report',
+    description: 'Registered users, workspace ownership, providers, warnings, and risk state.',
+  },
+  {
+    type: 'admin_access',
+    title: 'Admin Access Report',
+    description: 'Platform admin roles, status, role source, break-glass access, and last activity.',
+  },
+  {
+    type: 'billing_offers',
+    title: 'Billing And Offer Report',
+    description: 'Promotional offer lifecycle, scope, pricing impact, targets, and expiry.',
+  },
+  {
+    type: 'audit_trail',
+    title: 'Audit Trail Report',
+    description: 'Loaded audit records with actor, affected record, severity, reason, and timestamp.',
+  },
+  {
+    type: 'office_access',
+    title: 'Office Access Report',
+    description: 'Users with Office membership, roles, workspace names, and activity signals.',
+  },
+  {
+    type: 'support_cases',
+    title: 'Support Case Report',
+    description: 'Support-related audit events, consent-linked cases, actor, target, and reason.',
+  },
+];
+
 export function buildWebPlatformAdminMetrics(users: WebPlatformAdminUser[]): WebPlatformAdminMetrics {
   return {
     userCount: users.length,
@@ -218,6 +282,224 @@ export function buildWebPlatformAdminMetrics(users: WebPlatformAdminUser[]): Web
     activePlatformAdminCount: users.filter((user) => user.platformAdminStatus === 'active').length,
     emergencyAllowlistAdminCount: users.filter((user) => user.platformAdminRoleSource === 'allowlist').length,
   };
+}
+
+export function buildWebPlatformAdminReport(input: {
+  type: WebPlatformAdminReportType;
+  snapshot: WebPlatformAdminSnapshot;
+  auditRecords: WebPlatformAdminAuditRecord[];
+  generatedBy: string;
+  adminRole: string;
+  loadedFilterSummary?: string[];
+}): WebPlatformAdminReport {
+  const definition = WEB_PLATFORM_ADMIN_REPORT_DEFINITIONS.find((item) => item.type === input.type);
+  const base = {
+    type: input.type,
+    title: definition?.title ?? 'Platform Admin Report',
+    description: definition?.description ?? 'Internal platform admin report.',
+    generatedAt: new Date().toISOString(),
+    generatedBy: input.generatedBy,
+    adminRole: input.adminRole,
+    filters: input.loadedFilterSummary?.filter(Boolean) ?? [],
+  };
+
+  if (input.type === 'user_registry') {
+    return {
+      ...base,
+      columns: [
+        { key: 'name', label: 'Name' },
+        { key: 'email', label: 'Email' },
+        { key: 'status', label: 'Status' },
+        { key: 'providers', label: 'Providers' },
+        { key: 'workspaces', label: 'Workspaces' },
+        { key: 'office', label: 'Office' },
+        { key: 'risk', label: 'Risk' },
+        { key: 'warnings', label: 'Warnings' },
+        { key: 'lastSignIn', label: 'Last sign-in' },
+      ],
+      rows: input.snapshot.users.map((user) => ({
+        name: user.displayName ?? user.uid,
+        email: user.email ?? 'No email saved',
+        status: user.disabled ? 'Disabled' : user.status,
+        providers: user.providerIds.join(', ') || 'No provider',
+        workspaces: user.workspaceNames.join(', ') || String(user.ownedWorkspaceCount),
+        office: user.officeWorkspaceCount ? `${user.officeWorkspaceCount} workspace(s) · ${user.officeRoles.join(', ')}` : 'No Office access',
+        risk: user.platformUserRiskStatus ?? 'No risk flag',
+        warnings: String(user.platformUserWarningCount),
+        lastSignIn: formatPlatformAdminDate(user.lastSignInAt),
+      })),
+    };
+  }
+
+  if (input.type === 'admin_access') {
+    return {
+      ...base,
+      columns: [
+        { key: 'admin', label: 'Admin' },
+        { key: 'email', label: 'Email' },
+        { key: 'role', label: 'Role' },
+        { key: 'status', label: 'Status' },
+        { key: 'source', label: 'Source' },
+        { key: 'emergency', label: 'Emergency' },
+        { key: 'lastActive', label: 'Last active' },
+        { key: 'updatedBy', label: 'Updated by' },
+      ],
+      rows: input.snapshot.admins.map((admin) => ({
+        admin: admin.displayName ?? admin.uid,
+        email: admin.email ?? 'No email saved',
+        role: admin.role.replaceAll('_', ' '),
+        status: admin.status,
+        source: admin.roleSource,
+        emergency: admin.isEmergencyAllowlist ? 'Protected allowlist' : 'Registry',
+        lastActive: formatPlatformAdminDate(admin.lastSignInAt),
+        updatedBy: admin.updatedByEmail ?? admin.createdByEmail ?? 'Unknown admin',
+      })),
+    };
+  }
+
+  if (input.type === 'billing_offers') {
+    return {
+      ...base,
+      columns: [
+        { key: 'label', label: 'Offer' },
+        { key: 'status', label: 'Status' },
+        { key: 'scope', label: 'Scope' },
+        { key: 'discount', label: 'Discount' },
+        { key: 'currency', label: 'Currency' },
+        { key: 'targets', label: 'Targets' },
+        { key: 'expires', label: 'Expires' },
+        { key: 'reason', label: 'Last reason' },
+      ],
+      rows: input.snapshot.offers.map((offer) => ({
+        label: offer.label,
+        status: offer.status,
+        scope: offer.scope.replaceAll('_', ' '),
+        discount:
+          offer.discountType === 'percentage'
+            ? `${offer.discountValue}%`
+            : `${offer.discountType.replaceAll('_', ' ')} · ${offer.discountValue}`,
+        currency: offer.currency ?? 'Any currency',
+        targets: summarizePlatformOfferTargets(offer),
+        expires: offer.expiresAt ? formatPlatformAdminDate(offer.expiresAt) : offer.lifetimeConfirmed ? 'Lifetime confirmed' : 'No expiry saved',
+        reason: offer.lastReason ?? 'No reason saved',
+      })),
+    };
+  }
+
+  if (input.type === 'audit_trail') {
+    return {
+      ...base,
+      columns: [
+        { key: 'time', label: 'Time' },
+        { key: 'action', label: 'Action' },
+        { key: 'severity', label: 'Severity' },
+        { key: 'actor', label: 'Actor' },
+        { key: 'affected', label: 'Affected' },
+        { key: 'target', label: 'Target' },
+        { key: 'reason', label: 'Reason' },
+      ],
+      rows: input.auditRecords.map((record) => ({
+        time: formatPlatformAdminDate(record.timestamp),
+        action: record.action.replaceAll('_', ' '),
+        severity: record.severity,
+        actor: record.actorEmail ?? record.actorUid ?? 'System',
+        affected: record.affectedSummary,
+        target: record.targetEmail ?? record.targetUid ?? record.workspaceId ?? record.supportCaseId ?? record.id,
+        reason: record.reason ?? 'No reason recorded',
+      })),
+    };
+  }
+
+  if (input.type === 'office_access') {
+    const officeUsers = input.snapshot.users.filter((user) => user.officeWorkspaceCount > 0 || user.officeRoles.length > 0);
+    return {
+      ...base,
+      columns: [
+        { key: 'name', label: 'Name' },
+        { key: 'email', label: 'Email' },
+        { key: 'workspaces', label: 'Office workspaces' },
+        { key: 'roles', label: 'Roles' },
+        { key: 'workspaceNames', label: 'Workspace names' },
+        { key: 'lastSignIn', label: 'Last sign-in' },
+      ],
+      rows: officeUsers.map((user) => ({
+        name: user.displayName ?? user.uid,
+        email: user.email ?? 'No email saved',
+        workspaces: String(user.officeWorkspaceCount),
+        roles: user.officeRoles.join(', ') || 'No role saved',
+        workspaceNames: user.workspaceNames.join(', ') || 'No workspace names',
+        lastSignIn: formatPlatformAdminDate(user.lastSignInAt),
+      })),
+    };
+  }
+
+  const supportRecords = input.auditRecords.filter((record) =>
+    [record.action, record.affectedSummary, record.reason ?? '', record.supportCaseId ?? '']
+      .join(' ')
+      .toLowerCase()
+      .includes('support')
+  );
+  return {
+    ...base,
+    columns: [
+      { key: 'time', label: 'Time' },
+      { key: 'case', label: 'Support case' },
+      { key: 'action', label: 'Action' },
+      { key: 'severity', label: 'Severity' },
+      { key: 'actor', label: 'Actor' },
+      { key: 'target', label: 'Target' },
+      { key: 'reason', label: 'Reason' },
+    ],
+    rows: supportRecords.map((record) => ({
+      time: formatPlatformAdminDate(record.timestamp),
+      case: record.supportCaseId ?? 'No case id',
+      action: record.action.replaceAll('_', ' '),
+      severity: record.severity,
+      actor: record.actorEmail ?? record.actorUid ?? 'System',
+      target: record.targetEmail ?? record.targetUid ?? record.workspaceId ?? 'No target saved',
+      reason: record.reason ?? 'No reason recorded',
+    })),
+  };
+}
+
+export function buildWebPlatformAdminReportCsv(report: WebPlatformAdminReport): string {
+  const rows = [
+    [`${report.title}`],
+    [
+      `Generated by ${report.generatedBy}`,
+      `Admin role ${report.adminRole}`,
+      `Generated ${formatPlatformAdminDate(report.generatedAt)}`,
+    ],
+    report.filters.length ? [`Filters: ${report.filters.join(' · ')}`] : [],
+    [],
+    report.columns.map((column) => column.label),
+    ...report.rows.map((row) => report.columns.map((column) => row[column.key] ?? '')),
+  ].filter((row) => row.length);
+
+  return rows.map((row) => row.map(csvCell).join(',')).join('\n');
+}
+
+function summarizePlatformOfferTargets(offer: WebPlatformAdminOffer): string {
+  if (offer.scope === 'sitewide') {
+    return 'All eligible users';
+  }
+  if (offer.scope === 'selected_users') {
+    return [...offer.targetEmails, ...offer.targetUids].join(', ') || 'No user target saved';
+  }
+  if (offer.scope === 'selected_workspaces') {
+    return offer.targetWorkspaceIds.join(', ') || 'No workspace target saved';
+  }
+  if (offer.scope === 'selected_plans') {
+    return offer.targetPlanIds.join(', ') || 'No plan target saved';
+  }
+  if (offer.scope === 'selected_countries') {
+    return offer.targetCountries.join(', ') || 'No country target saved';
+  }
+  return 'Selected target';
+}
+
+function csvCell(value: string) {
+  return `"${value.replaceAll('"', '""')}"`;
 }
 
 export function buildWebPlatformAdminSaasHealthCharts(
@@ -666,6 +948,50 @@ export async function loadWebPlatformAdminAuditTrail(input: Partial<WebPlatformA
   };
 }
 
+export async function recordWebPlatformAdminReportEvent(input: {
+  action: WebPlatformAdminReportAction;
+  report: Pick<WebPlatformAdminReport, 'type' | 'title' | 'generatedAt' | 'generatedBy' | 'adminRole' | 'filters' | 'rows'>;
+}): Promise<void> {
+  const user = getWebAuth().currentUser;
+  if (!user) {
+    throw new Error('Sign in again before exporting platform admin reports.');
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(getPlatformAdminReportEventUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      action: input.action,
+      reportType: input.report.type,
+      reportTitle: input.report.title,
+      generatedAt: input.report.generatedAt,
+      generatedBy: input.report.generatedBy,
+      adminRole: input.report.adminRole,
+      filters: input.report.filters,
+      rowCount: input.report.rows.length,
+    }),
+  });
+  const result = (await response.json().catch(() => ({
+    ok: false,
+    error: 'platform_admin_report_action_failed',
+  }))) as
+    | {
+        ok: true;
+      }
+    | {
+        ok: false;
+        error: string;
+      };
+
+  if (!result.ok) {
+    throw new Error(platformAdminReportEventErrorMessage(result.error));
+  }
+}
+
 function getPlatformAdminSnapshotUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/getPlatformAdminSnapshot`;
@@ -689,6 +1015,11 @@ function getPlatformAdminAuditTrailUrl() {
 function getPlatformAdminOfferUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/managePlatformAdminOffer`;
+}
+
+function getPlatformAdminReportEventUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/recordPlatformAdminReportEvent`;
 }
 
 function platformAdminErrorMessage(error: string): string {
@@ -720,6 +1051,9 @@ function platformAdminAccountErrorMessage(error: string): string {
   if (error === 'emergency_admin_protected') {
     return 'Emergency Super Admin allowlist accounts cannot be revoked or downgraded from the UI.';
   }
+  if (error === 'admin_rate_limit_exceeded') {
+    return 'Too many sensitive admin changes were attempted too quickly. Wait a few minutes and try again.';
+  }
   if (error === 'internal_admin_required') {
     return 'Only a Super Admin can manage platform admin accounts.';
   }
@@ -747,6 +1081,9 @@ function platformAdminUserErrorMessage(error: string): string {
   }
   if (error === 'platform_admin_user_protected') {
     return 'Platform admin accounts are protected from regular user lifecycle actions.';
+  }
+  if (error === 'admin_rate_limit_exceeded') {
+    return 'Too many sensitive admin changes were attempted too quickly. Wait a few minutes and try again.';
   }
   if (error === 'internal_admin_required') {
     return 'This account is not enabled to manage platform users.';
@@ -789,8 +1126,27 @@ function platformAdminOfferErrorMessage(error: string): string {
   if (error === 'offer_expired_read_only') {
     return 'Expired offers are historical records and cannot be edited.';
   }
+  if (error === 'admin_rate_limit_exceeded') {
+    return 'Too many sensitive admin changes were attempted too quickly. Wait a few minutes and try again.';
+  }
   if (error === 'internal_admin_required') {
     return 'Only Super Admin and Finance Admin accounts can change offers.';
   }
   return 'Platform offer could not be updated.';
+}
+
+function platformAdminReportEventErrorMessage(error: string): string {
+  if (error === 'report_action_required') {
+    return 'Choose whether you want to download CSV or print the report.';
+  }
+  if (error === 'report_type_required') {
+    return 'Choose a valid Platform Admin report before exporting.';
+  }
+  if (error === 'report_action_not_allowed' || error === 'internal_admin_required') {
+    return 'Your admin role cannot export Platform Admin reports.';
+  }
+  if (error === 'admin_rate_limit_exceeded') {
+    return 'Too many sensitive admin actions were attempted too quickly. Wait a few minutes and try again.';
+  }
+  return 'Platform admin report export could not be recorded.';
 }
