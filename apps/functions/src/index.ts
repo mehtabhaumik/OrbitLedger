@@ -13,6 +13,7 @@ import {
   buildSupportTicketRecord,
   supportQueueForKind,
   supportSubjectForKind,
+  type SupportResolutionReason as SupportCenterResolutionReason,
   type SupportResolutionState as SupportCenterResolutionState,
   type SupportTicketStatus as SupportCenterTicketStatus,
 } from './supportCenterBridge';
@@ -137,6 +138,7 @@ type SupportRoleCapability = {
   mutateAll: boolean;
   allowedQueues: SupportQueueId[];
   canAssignTickets: boolean;
+  canSendReplies: boolean;
   canAddInternalNotes: boolean;
   canChangeStatus: boolean;
   canViewDiagnostics: boolean;
@@ -149,6 +151,7 @@ const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability
     mutateAll: true,
     allowedQueues: [...SUPPORT_QUEUE_IDS],
     canAssignTickets: true,
+    canSendReplies: true,
     canAddInternalNotes: true,
     canChangeStatus: true,
     canViewDiagnostics: true,
@@ -159,6 +162,7 @@ const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability
     mutateAll: true,
     allowedQueues: [...SUPPORT_QUEUE_IDS],
     canAssignTickets: true,
+    canSendReplies: true,
     canAddInternalNotes: true,
     canChangeStatus: true,
     canViewDiagnostics: true,
@@ -169,6 +173,7 @@ const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability
     mutateAll: false,
     allowedQueues: ['billing', 'purchase'],
     canAssignTickets: true,
+    canSendReplies: true,
     canAddInternalNotes: true,
     canChangeStatus: true,
     canViewDiagnostics: false,
@@ -179,6 +184,7 @@ const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability
     mutateAll: false,
     allowedQueues: ['general', 'technical', 'privacy', 'feedback', 'complaint', 'restore', 'purchase'],
     canAssignTickets: true,
+    canSendReplies: true,
     canAddInternalNotes: true,
     canChangeStatus: true,
     canViewDiagnostics: true,
@@ -189,6 +195,7 @@ const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability
     mutateAll: false,
     allowedQueues: [...SUPPORT_QUEUE_IDS],
     canAssignTickets: false,
+    canSendReplies: false,
     canAddInternalNotes: false,
     canChangeStatus: false,
     canViewDiagnostics: false,
@@ -374,6 +381,7 @@ type SupportCaseAction =
   | 'close'
   | 'reopen';
 type SupportCaseEmailDeliveryStatus = 'queued' | 'pending_provider_connection' | 'sent' | 'failed';
+type SupportReplyAction = 'reply' | 'close_with_reply' | 'close_silently' | 'reopen_with_reply';
 type BillingEmailDeliveryResult = {
   status: BillingEmailDeliveryStatus;
   providerMessageId: string | null;
@@ -386,6 +394,8 @@ type ResendEmailPayload = {
   subject: string;
   html: string;
   text: string;
+  reply_to?: string[];
+  headers?: Record<string, string>;
 };
 type OfficeInvitationCapacityDecision = {
   allowed: boolean;
@@ -1003,11 +1013,14 @@ export function buildSupportCaseRecord(input: {
 export function buildSupportCaseEmailRequestRecord(input: {
   workspaceId: string;
   supportCaseId: string;
+  ticketId?: string | null;
   recipientEmail: string;
   subject: string;
   body: string;
   queuedBy: string;
   queuedByEmail?: string | null;
+  replyAction?: SupportReplyAction | null;
+  emailThreadId?: string | null;
   now?: Date;
 }) {
   const now = input.now ?? new Date();
@@ -1016,6 +1029,7 @@ export function buildSupportCaseEmailRequestRecord(input: {
     version: 1,
     workspace_id: input.workspaceId,
     support_case_id: input.supportCaseId,
+    ticket_id: clean(input.ticketId),
     recipient_email: clean(input.recipientEmail),
     subject: clean(input.subject),
     body: clean(input.body),
@@ -1025,6 +1039,8 @@ export function buildSupportCaseEmailRequestRecord(input: {
     failure_reason: null,
     queued_by: input.queuedBy,
     queued_by_email: clean(input.queuedByEmail),
+    reply_action: input.replyAction ?? 'reply',
+    email_thread_id: clean(input.emailThreadId) ?? clean(input.supportCaseId),
     queued_at: timestamp,
     sent_at: null,
     updated_at: timestamp,
@@ -5785,6 +5801,377 @@ export const recordSupportCaseAdminAction = onRequest(
       }
       logger.error('recordSupportCaseAdminAction failed', { workspaceId, supportCaseId, action, error });
       response.status(500).json({ ok: false, error: 'support_case_update_failed' });
+    }
+  }
+);
+
+export const sendOfficeSupportReply = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+    secrets: [resendApiKey],
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_support_cases')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'sendOfficeSupportReply',
+        requiredPermission: 'review_support_cases',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: 'send_support_reply',
+        outcome: 'denied',
+        reason: 'Only support-center authorized admin roles can send customer replies.',
+      });
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const supportCapability = getSupportRoleCapability(adminAccess.role);
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const supportCaseId = clean(stringValue(body?.supportCaseId));
+    const ticketId = clean(stringValue(body?.ticketId));
+    const recipientEmail = clean(stringValue(body?.recipientEmail));
+    const subject = clean(stringValue(body?.subject));
+    const replyBody = clean(stringValue(body?.body));
+    const action = normalizeSupportReplyAction(clean(stringValue(body?.action)));
+    const resolutionReason = normalizeSupportResolutionReason(clean(stringValue(body?.resolutionReason)));
+
+    if (!workspaceId || !supportCaseId || !ticketId || !replyBody) {
+      response.status(400).json({ ok: false, error: 'support_reply_required' });
+      return;
+    }
+
+    try {
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const caseRef = workspaceRef.collection('support_cases').doc(normalizeId(supportCaseId));
+      const ticketRef = workspaceRef.collection('support_tickets').doc(ticketId);
+      const ticketSnapshot = await ticketRef.get();
+      if (!ticketSnapshot.exists) {
+        response.status(404).json({ ok: false, error: 'support_ticket_not_found' });
+        return;
+      }
+
+      const currentTicket = ticketSnapshot.data() ?? {};
+      const currentQueueId = normalizeSupportQueueId(clean(stringValue(currentTicket.queue_id))) ?? 'general';
+      const transition = buildSupportReplyTransition({
+        action,
+        previousResolutionReason: resolutionReason ?? normalizeSupportResolutionReason(clean(stringValue(currentTicket.resolution_reason))),
+      });
+      const canSend = action === 'close_silently'
+        ? supportCapability.canChangeStatus
+        : supportCapability.canSendReplies;
+
+      if (!canSend || !canSupportRoleMutateQueue(adminAccess.role, currentQueueId)) {
+        await auditPlatformAdminPermissionAttempt({
+          endpoint: 'sendOfficeSupportReply',
+          requiredPermission: 'review_support_cases',
+          actor: adminUser,
+          access: adminAccess,
+          requestedAction: `send_support_reply:${action}`,
+          outcome: 'denied',
+          reason: 'This admin role cannot send replies or close tickets in the selected support queue.',
+        });
+        response.status(403).json({ ok: false, error: 'support_reply_not_allowed' });
+        return;
+      }
+
+      if (transition.customerEmailRequired && (!recipientEmail || !subject || !isValidEmailAddress(recipientEmail))) {
+        response.status(400).json({ ok: false, error: 'support_reply_required' });
+        return;
+      }
+      if (transition.resolutionReasonRequired && !resolutionReason) {
+        response.status(400).json({ ok: false, error: 'support_reply_resolution_reason_required' });
+        return;
+      }
+
+      const now = new Date();
+      const emailThreadId = supportCaseId;
+      const messageRef = workspaceRef
+        .collection('support_messages')
+        .doc(normalizeId(`support_reply_${supportCaseId}_${Date.now()}`));
+      const replyEventRef = workspaceRef
+        .collection('support_events')
+        .doc(normalizeId(`support_reply_event_${supportCaseId}_${Date.now()}`));
+      const statusEventRef = workspaceRef
+        .collection('support_events')
+        .doc(normalizeId(`support_reply_status_${supportCaseId}_${Date.now()}`));
+      const emailRef = workspaceRef
+        .collection('support_case_email_requests')
+        .doc(normalizeId(`support_reply_email_${supportCaseId}_${adminUser.uid}_${Date.now()}`));
+      const auditRef = workspaceRef
+        .collection('office_access_audit')
+        .doc(normalizeId(`support_reply_${supportCaseId}_${adminUser.uid}_${Date.now()}`));
+
+      const emailRequestRecord = transition.customerEmailRequired
+        ? buildSupportCaseEmailRequestRecord({
+            workspaceId,
+            supportCaseId,
+            ticketId,
+            recipientEmail: recipientEmail ?? '',
+            subject: subject ?? '',
+            body: replyBody,
+            queuedBy: adminUser.uid,
+            queuedByEmail: adminUser.email,
+            replyAction: action,
+            emailThreadId,
+            now,
+          })
+        : null;
+      const delivery = emailRequestRecord ? await deliverSupportCaseEmailRequest(emailRequestRecord) : null;
+      const emailDeliveryUpdate = emailRequestRecord && delivery
+        ? buildSupportCaseEmailDeliveryUpdate({
+            status: delivery.status,
+            providerMessageId: delivery.providerMessageId,
+            sentAt: delivery.sentAt,
+            failureReason: delivery.failureReason,
+            now,
+          })
+        : null;
+
+      let nextStatus: SupportCaseStatus = transition.nextCaseStatus;
+      await db.runTransaction(async (transaction) => {
+        const [workspaceSnapshot, caseSnapshot, freshTicketSnapshot] = await Promise.all([
+          transaction.get(workspaceRef),
+          transaction.get(caseRef),
+          transaction.get(ticketRef),
+        ]);
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+        if (!freshTicketSnapshot.exists) {
+          throw new Error('support_ticket_not_found');
+        }
+
+        const currentCase = caseSnapshot.exists ? caseSnapshot.data() ?? {} : {};
+        const freshTicket = freshTicketSnapshot.data() ?? {};
+        const freshQueueId = normalizeSupportQueueId(clean(stringValue(freshTicket.queue_id))) ?? 'general';
+        if (!canSupportRoleMutateQueue(adminAccess.role, freshQueueId)) {
+          throw new Error('support_reply_not_allowed');
+        }
+
+        const previousStatus = normalizeSupportCaseStatus(clean(stringValue(currentCase.status)));
+        const previousTicketStatus = normalizeSupportCenterTicketStatus(clean(stringValue(freshTicket.status)));
+        const previousResolutionState = normalizeSupportCenterResolutionState(clean(stringValue(freshTicket.resolution_state)));
+        const nextResolutionReason =
+          transition.resolutionReasonRequired
+            ? resolutionReason
+            : transition.nextResolutionReason;
+        nextStatus = transition.nextCaseStatus;
+
+        transaction.set(
+          caseRef,
+          buildSupportCaseRecord({
+            workspaceId,
+            supportCaseId,
+            action: transition.supportCaseAction,
+            status: nextStatus,
+            previousStatus,
+            note: replyBody.slice(0, 500),
+            actorUid: adminUser.uid,
+            actorEmail: adminUser.email,
+            noteCount: numberValue(currentCase.note_count),
+            createdAt: clean(stringValue(currentCase.created_at)),
+            now,
+          }),
+          { merge: true }
+        );
+        transaction.set(
+          ticketRef,
+          {
+            status: transition.nextTicketStatus,
+            resolution_state: transition.nextResolutionState,
+            resolution_reason: nextResolutionReason,
+            latest_message_id: messageRef.id,
+            latest_message_at: now.toISOString(),
+            last_actor_uid: adminUser.uid,
+            last_actor_role: adminAccess.role,
+            updated_at: now.toISOString(),
+            resolved_at:
+              transition.nextTicketStatus === 'resolved' || transition.nextTicketStatus === 'closed'
+                ? now.toISOString()
+                : transition.nextResolutionState === 'unresolved'
+                  ? null
+                  : clean(stringValue(freshTicket.resolved_at)) ?? null,
+            closed_at:
+              transition.nextTicketStatus === 'closed'
+                ? now.toISOString()
+                : transition.nextResolutionState === 'unresolved'
+                  ? null
+                  : clean(stringValue(freshTicket.closed_at)) ?? null,
+          },
+          { merge: true }
+        );
+        transaction.set(
+          messageRef,
+          {
+            version: 1,
+            workspace_id: workspaceId,
+            ticket_id: ticketId,
+            support_case_id: supportCaseId,
+            kind: transition.customerVisibleMessage ? 'operator_reply' : 'internal_note',
+            actor_uid: adminUser.uid,
+            actor_role: adminAccess.role,
+            actor_email: clean(adminUser.email),
+            visible_to_customer: transition.customerVisibleMessage,
+            body: replyBody,
+            email_thread_id: transition.customerVisibleMessage ? emailThreadId : null,
+            provider_message_id: delivery?.providerMessageId ?? null,
+            created_at: now.toISOString(),
+          },
+          { merge: true }
+        );
+        if (emailRequestRecord && emailDeliveryUpdate) {
+          transaction.set(emailRef, { ...emailRequestRecord, ...emailDeliveryUpdate }, { merge: true });
+        }
+        transaction.set(
+          replyEventRef,
+          {
+            version: 1,
+            workspace_id: workspaceId,
+            ticket_id: ticketId,
+            support_case_id: supportCaseId,
+            kind:
+              action === 'close_silently'
+                ? 'internal_note_added'
+                : delivery?.status === 'sent'
+                  ? 'reply_sent'
+                  : delivery?.status === 'failed'
+                    ? 'reply_failed'
+                    : 'reply_queued',
+            actor_uid: adminUser.uid,
+            actor_role: adminAccess.role,
+            actor_email: clean(adminUser.email),
+            queue_id: freshQueueId,
+            status_before: previousTicketStatus,
+            status_after: transition.nextTicketStatus,
+            resolution_state_before: previousResolutionState,
+            resolution_state_after: transition.nextResolutionState,
+            resolution_reason: nextResolutionReason,
+            detail: replyBody.slice(0, 500),
+            metadata: {
+              support_reply_action: action,
+              delivery_status: delivery?.status ?? 'silent',
+              recipient_email: recipientEmail ?? '',
+            },
+            created_at: now.toISOString(),
+          },
+          { merge: true }
+        );
+        if (
+          previousTicketStatus !== transition.nextTicketStatus ||
+          previousResolutionState !== transition.nextResolutionState
+        ) {
+          transaction.set(
+            statusEventRef,
+            {
+              version: 1,
+              workspace_id: workspaceId,
+              ticket_id: ticketId,
+              support_case_id: supportCaseId,
+              kind: 'status_changed',
+              actor_uid: adminUser.uid,
+              actor_role: adminAccess.role,
+              actor_email: clean(adminUser.email),
+              queue_id: freshQueueId,
+              status_before: previousTicketStatus,
+              status_after: transition.nextTicketStatus,
+              resolution_state_before: previousResolutionState,
+              resolution_state_after: transition.nextResolutionState,
+              resolution_reason: nextResolutionReason,
+              detail: `${supportReplyActionLabel(action)} recorded from the in-app support reply composer.`,
+              metadata: {
+                support_reply_action: action,
+                support_case_status: nextStatus,
+              },
+              created_at: now.toISOString(),
+            },
+            { merge: true }
+          );
+        }
+        transaction.set(
+          auditRef,
+          {
+            version: 1,
+            workspace_id: workspaceId,
+            actor_uid: adminUser.uid,
+            actor_email: clean(adminUser.email),
+            actor_role: adminAccess.role,
+            action:
+              action === 'close_silently'
+                ? 'support_ticket_closed_silently'
+                : delivery?.status === 'sent'
+                  ? 'support_reply_sent'
+                  : delivery?.status === 'failed'
+                    ? 'support_reply_failed'
+                    : 'support_reply_queued',
+            target_uid: null,
+            target_email: transition.customerEmailRequired ? recipientEmail : null,
+            previous_role: null,
+            next_role: null,
+            previous_status: previousStatus,
+            next_status: nextStatus,
+            support_consent_id: null,
+            support_case_id: supportCaseId,
+            customer_approved_diagnostic_access: false,
+            impersonation_allowed: false,
+            reason: replyBody.slice(0, 500),
+            created_at: now.toISOString(),
+          },
+          { merge: true }
+        );
+      });
+
+      response.status(200).json({
+        ok: true,
+        supportCaseId,
+        ticketId,
+        status: nextStatus,
+        deliveryStatus: delivery?.status ?? null,
+        messageId: messageRef.id,
+        emailRequestId: emailRequestRecord ? emailRef.id : null,
+        message: supportReplySuccessMessage({
+          action,
+          deliveryStatus: delivery?.status ?? null,
+        }),
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'support_reply_not_allowed') {
+        await auditPlatformAdminPermissionAttempt({
+          endpoint: 'sendOfficeSupportReply',
+          requiredPermission: 'review_support_cases',
+          actor: adminUser,
+          access: adminAccess,
+          requestedAction: `send_support_reply:${action}`,
+          outcome: 'denied',
+          reason: 'This admin role cannot send replies or close the selected support queue.',
+        });
+        response.status(403).json({ ok: false, error: 'support_reply_not_allowed' });
+        return;
+      }
+      if (error instanceof Error && error.message === 'workspace_not_found') {
+        response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+      if (error instanceof Error && error.message === 'support_ticket_not_found') {
+        response.status(404).json({ ok: false, error: 'support_ticket_not_found' });
+        return;
+      }
+      logger.error('sendOfficeSupportReply failed', { workspaceId, supportCaseId, ticketId, action, error });
+      response.status(500).json({ ok: false, error: 'support_reply_failed' });
     }
   }
 );
@@ -10570,6 +10957,67 @@ function supportCenterTicketStatusForCaseAction(action: SupportCaseAction): Supp
   return 'opened';
 }
 
+type SupportReplyTransition = {
+  supportCaseAction: SupportCaseAction;
+  nextCaseStatus: SupportCaseStatus;
+  nextTicketStatus: SupportCenterTicketStatus;
+  nextResolutionState: SupportCenterResolutionState;
+  nextResolutionReason: SupportCenterResolutionReason | null;
+  customerEmailRequired: boolean;
+  resolutionReasonRequired: boolean;
+  customerVisibleMessage: boolean;
+};
+
+export function buildSupportReplyTransition(input: {
+  action: SupportReplyAction;
+  previousResolutionReason?: SupportCenterResolutionReason | null;
+}) {
+  const previousResolutionReason = input.previousResolutionReason ?? null;
+  const base: Record<SupportReplyAction, SupportReplyTransition> = {
+    reply: {
+      supportCaseAction: 'wait_for_customer',
+      nextCaseStatus: 'waiting_on_customer',
+      nextTicketStatus: 'pending_customer',
+      nextResolutionState: 'unresolved',
+      nextResolutionReason: null,
+      customerEmailRequired: true,
+      resolutionReasonRequired: false,
+      customerVisibleMessage: true,
+    },
+    close_with_reply: {
+      supportCaseAction: 'close',
+      nextCaseStatus: 'closed',
+      nextTicketStatus: 'closed',
+      nextResolutionState: 'resolved',
+      nextResolutionReason: previousResolutionReason,
+      customerEmailRequired: true,
+      resolutionReasonRequired: true,
+      customerVisibleMessage: true,
+    },
+    close_silently: {
+      supportCaseAction: 'close',
+      nextCaseStatus: 'closed',
+      nextTicketStatus: 'closed',
+      nextResolutionState: 'resolved',
+      nextResolutionReason: previousResolutionReason,
+      customerEmailRequired: false,
+      resolutionReasonRequired: true,
+      customerVisibleMessage: false,
+    },
+    reopen_with_reply: {
+      supportCaseAction: 'reopen',
+      nextCaseStatus: 'reopened',
+      nextTicketStatus: 'pending_customer',
+      nextResolutionState: 'unresolved',
+      nextResolutionReason: null,
+      customerEmailRequired: true,
+      resolutionReasonRequired: false,
+      customerVisibleMessage: true,
+    },
+  };
+  return base[input.action];
+}
+
 function supportCaseAuditReason(action: SupportCaseAction, note: string) {
   const prefix = action === 'resolve'
     ? 'Support case resolved'
@@ -10585,6 +11033,59 @@ function supportCaseAuditReason(action: SupportCaseAction, note: string) {
               ? 'Support case closed'
               : 'Support case note added';
   return `${prefix}: ${note}`;
+}
+
+function normalizeSupportReplyAction(value: string | null | undefined): SupportReplyAction {
+  if (
+    value === 'reply' ||
+    value === 'close_with_reply' ||
+    value === 'close_silently' ||
+    value === 'reopen_with_reply'
+  ) {
+    return value;
+  }
+  return 'reply';
+}
+
+function supportReplyActionLabel(action: SupportReplyAction) {
+  if (action === 'close_with_reply') {
+    return 'close with reply';
+  }
+  if (action === 'close_silently') {
+    return 'close silently';
+  }
+  if (action === 'reopen_with_reply') {
+    return 'reopen with reply';
+  }
+  return 'reply';
+}
+
+function supportReplySuccessMessage(input: {
+  action: SupportReplyAction;
+  deliveryStatus: SupportCaseEmailDeliveryStatus | null;
+}) {
+  if (input.action === 'close_silently') {
+    return 'Support ticket closed without a customer message.';
+  }
+  if (input.deliveryStatus === 'sent') {
+    return input.action === 'close_with_reply'
+      ? 'Customer reply sent and ticket closed.'
+      : input.action === 'reopen_with_reply'
+        ? 'Customer reply sent and ticket reopened.'
+        : 'Customer reply sent.';
+  }
+  if (input.deliveryStatus === 'pending_provider_connection') {
+    return input.action === 'close_with_reply'
+      ? 'Reply saved and ticket closed. Email delivery is still pending provider setup.'
+      : input.action === 'reopen_with_reply'
+        ? 'Reply saved and ticket reopened. Email delivery is still pending provider setup.'
+        : 'Reply saved. Email delivery is still pending provider setup.';
+  }
+  return input.action === 'close_with_reply'
+    ? 'Reply was saved, but delivery failed while closing the ticket.'
+    : input.action === 'reopen_with_reply'
+      ? 'Reply was saved, but delivery failed while reopening the ticket.'
+      : 'Reply was saved, but delivery failed.';
 }
 
 function supportCaseMessageForStatus(status: SupportCaseStatus, action: SupportCaseAction) {
@@ -11531,6 +12032,8 @@ async function deliverSupportCaseEmailRequest(
   const recipientEmail = clean(stringValue(request.recipient_email));
   const subject = clean(stringValue(request.subject));
   const body = clean(stringValue(request.body));
+  const supportCaseId = clean(stringValue(request.support_case_id));
+  const emailThreadId = clean(stringValue(request.email_thread_id)) ?? supportCaseId;
   if (!recipientEmail || !isValidEmailAddress(recipientEmail) || !subject || !body) {
     return {
       status: 'failed',
@@ -11558,6 +12061,11 @@ async function deliverSupportCaseEmailRequest(
       subject,
       html: buildSupportCaseEmailHtml(body),
       text: body,
+      replyTo: [getSupportEmailFromAddress()],
+      headers: {
+        'X-Support-Case-ID': supportCaseId ?? '',
+        'X-Support-Thread-ID': emailThreadId ?? '',
+      },
     }),
   });
 }
@@ -11706,13 +12214,20 @@ export function buildResendEmailPayload(input: {
   subject: string;
   html: string;
   text: string;
+  replyTo?: string[] | null;
+  headers?: Record<string, string> | null;
 }): ResendEmailPayload {
+  const headers = Object.fromEntries(
+    Object.entries(input.headers ?? {}).filter((entry): entry is [string, string] => Boolean(clean(entry[0]) && clean(entry[1])))
+  );
   return {
     from: clean(input.from) ?? getOrbitLedgerFromAddress(),
     to: input.to.map((email) => email.trim()).filter(isValidEmailAddress),
     subject: input.subject,
     html: input.html,
     text: input.text,
+    reply_to: (input.replyTo ?? []).map((email) => email.trim()).filter(isValidEmailAddress),
+    headers: Object.keys(headers).length ? headers : undefined,
   };
 }
 

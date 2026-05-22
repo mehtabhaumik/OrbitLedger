@@ -42,6 +42,7 @@ describe('support center core contract', () => {
     expect(isSupportMessageKind('internal_note')).toBe(true);
     expect(isSupportMessageKind('reply')).toBe(false);
     expect(isSupportEventKind('permission_denied')).toBe(true);
+    expect(isSupportEventKind('reply_failed')).toBe(true);
     expect(isSupportEventKind('case_note_saved')).toBe(false);
     expect(isSupportTicketAction('resolve')).toBe(true);
     expect(isSupportTicketAction('add_note')).toBe(false);
@@ -56,6 +57,9 @@ describe('support center core contract', () => {
       mutateScope: 'none',
       canSendReplies: false,
       canExportReports: true,
+    });
+    expect(getSupportRoleCapability('support_admin')).toMatchObject({
+      canSendReplies: true,
     });
   });
 

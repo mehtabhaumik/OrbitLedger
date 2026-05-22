@@ -80,6 +80,7 @@ describe('office admin operations', () => {
           mutateAll: false,
           allowedQueues: ['billing', 'purchase'],
           canAssignTickets: true,
+          canSendReplies: true,
           canAddInternalNotes: true,
           canChangeStatus: true,
           canViewDiagnostics: false,
@@ -110,6 +111,7 @@ describe('office admin operations', () => {
       supportCapability: {
         allowedQueues: ['billing', 'purchase'],
         canAssignTickets: true,
+        canSendReplies: true,
       },
     });
     expect(snapshot.supportAssignments[0]).toMatchObject({
@@ -276,12 +278,18 @@ describe('office admin operations', () => {
       support_case_id: 'CASE-2001',
       recipient_email: 'owner@example.com',
       subject: 'Update on CASE-2001',
+      body: 'We fixed the issue and need your confirmation.',
+      reply_action: 'close_with_reply',
+      queued_by_email: 'support@example.com',
       delivery_status: 'pending_provider_connection',
       queued_at: '2026-05-07T00:00:00.000Z',
     })).toMatchObject({
       id: 'email-1',
       supportCaseId: 'CASE-2001',
       recipientEmail: 'owner@example.com',
+      body: 'We fixed the issue and need your confirmation.',
+      replyAction: 'close_with_reply',
+      queuedByEmail: 'support@example.com',
       deliveryStatus: 'pending_provider_connection',
     });
   });

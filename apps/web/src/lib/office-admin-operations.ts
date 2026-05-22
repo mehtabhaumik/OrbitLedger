@@ -148,7 +148,10 @@ export type WebSupportCaseEmailRequestRecord = {
   supportCaseId: string;
   recipientEmail: string | null;
   subject: string;
+  body: string;
+  replyAction: 'reply' | 'close_with_reply' | 'close_silently' | 'reopen_with_reply';
   deliveryStatus: 'queued' | 'pending_provider_connection' | 'sent' | 'failed';
+  queuedByEmail: string | null;
   queuedAt: string | null;
   sentAt: string | null;
 };
@@ -187,6 +190,7 @@ export type WebSupportAdminContext = {
     mutateAll: boolean;
     allowedQueues: string[];
     canAssignTickets: boolean;
+    canSendReplies: boolean;
     canAddInternalNotes: boolean;
     canChangeStatus: boolean;
     canViewDiagnostics: boolean;
@@ -228,6 +232,18 @@ export type WebOfficeSupportReviewResult = {
 export type WebSupportCaseAdminActionResult = {
   supportCaseId: string;
   status: OfficeSupportCaseStatus;
+  message: string;
+};
+
+export type WebSupportReplyAction = 'reply' | 'close_with_reply' | 'close_silently' | 'reopen_with_reply';
+
+export type WebSupportReplyResult = {
+  supportCaseId: string;
+  ticketId: string;
+  status: OfficeSupportCaseStatus;
+  deliveryStatus: WebSupportCaseEmailRequestRecord['deliveryStatus'] | null;
+  messageId: string;
+  emailRequestId: string | null;
   message: string;
 };
 
@@ -487,6 +503,61 @@ export async function queueWebSupportCaseFollowUpEmail(input: {
     requestId: result.requestId,
     deliveryStatus: result.deliveryStatus,
     message: result.message ?? 'Support follow-up email prepared.',
+  };
+}
+
+export async function sendWebSupportReply(input: {
+  workspaceId: string;
+  supportCaseId: string;
+  ticketId: string;
+  recipientEmail?: string | null;
+  subject?: string | null;
+  body: string;
+  action: WebSupportReplyAction;
+  resolutionReason?: SupportResolutionReason | null;
+}): Promise<WebSupportReplyResult> {
+  const user = getWebAuth().currentUser;
+  if (!user) {
+    throw new Error('Sign in again before sending this support reply.');
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(getSendOfficeSupportReplyUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      workspaceId: input.workspaceId,
+      supportCaseId: input.supportCaseId,
+      ticketId: input.ticketId,
+      recipientEmail: input.recipientEmail ?? null,
+      subject: input.subject ?? null,
+      body: input.body,
+      action: input.action,
+      resolutionReason: input.resolutionReason ?? null,
+    }),
+  });
+  const result = (await response.json().catch(() => ({
+    ok: false,
+    error: 'support_reply_failed',
+  }))) as
+    | ({ ok: true } & Record<string, unknown>)
+    | { ok: false; error: string; message?: string | null };
+
+  if (!response.ok || !result.ok) {
+    throw new Error(stringValue('message' in result ? result.message : null) || officeReviewErrorMessage(result.ok ? 'support_reply_failed' : result.error));
+  }
+
+  return {
+    supportCaseId: stringValue(result.supportCaseId) || input.supportCaseId,
+    ticketId: stringValue(result.ticketId) || input.ticketId,
+    status: (stringValue(result.status) || 'open') as OfficeSupportCaseStatus,
+    deliveryStatus: nullableString(result.deliveryStatus) as WebSupportCaseEmailRequestRecord['deliveryStatus'] | null,
+    messageId: stringValue(result.messageId) || '',
+    emailRequestId: nullableString(result.emailRequestId),
+    message: stringValue(result.message) || 'Customer reply saved.',
   };
 }
 
@@ -799,7 +870,10 @@ export function parseSupportCaseEmailRequestRecord(
     supportCaseId: stringValue(data.support_case_id) || stringValue(data.supportCaseId) || 'Support case',
     recipientEmail: nullableString(data.recipient_email ?? data.recipientEmail),
     subject: stringValue(data.subject) || 'Support case update',
+    body: stringValue(data.body) || 'No outbound message recorded.',
+    replyAction: normalizeSupportReplyAction(stringValue(data.reply_action) || stringValue(data.replyAction)),
     deliveryStatus: supportEmailDeliveryStatus(data.delivery_status ?? data.deliveryStatus),
+    queuedByEmail: nullableString(data.queued_by_email ?? data.queuedByEmail),
     queuedAt: nullableString(data.queued_at ?? data.queuedAt),
     sentAt: nullableString(data.sent_at ?? data.sentAt),
   };
@@ -1055,6 +1129,12 @@ function supportAuditEventTitle(input: {
   if (input.kind === 'reply_sent') {
     return 'Reply sent';
   }
+  if (input.kind === 'reply_queued') {
+    return 'Reply queued';
+  }
+  if (input.kind === 'reply_failed') {
+    return 'Reply failed';
+  }
   if (input.kind === 'internal_note_added') {
     return 'Internal note added';
   }
@@ -1093,10 +1173,10 @@ function supportAuditEventTitle(input: {
 }
 
 function supportAuditEventTone(title: string): WebSupportCaseAuditEvent['tone'] {
-  if (title === 'Approval saved' || title === 'Case resolved') {
+  if (title === 'Approval saved' || title === 'Case resolved' || title === 'Reply sent') {
     return 'success';
   }
-  if (title === 'Approval revoked' || title === 'Approval expired' || title === 'Case reopened') {
+  if (title === 'Approval revoked' || title === 'Approval expired' || title === 'Case reopened' || title === 'Reply failed') {
     return 'warning';
   }
   return 'default';
@@ -1164,6 +1244,11 @@ function getOfficeSupportSnapshotUrl() {
   return `https://asia-south1-${projectId}.cloudfunctions.net/getOfficeSupportSnapshot`;
 }
 
+function getSendOfficeSupportReplyUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/sendOfficeSupportReply`;
+}
+
 function getQueueSupportCaseFollowUpEmailUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/queueSupportCaseFollowUpEmail`;
@@ -1181,6 +1266,15 @@ function officeReviewErrorMessage(error: string) {
   }
   if (error === 'support_case_update_required') {
     return 'Add a support case and note before saving this update.';
+  }
+  if (error === 'support_reply_required') {
+    return 'Add the customer reply details before sending from the support center.';
+  }
+  if (error === 'support_reply_resolution_reason_required') {
+    return 'Choose an outcome reason before closing this ticket from the reply composer.';
+  }
+  if (error === 'support_reply_not_allowed') {
+    return 'This admin role cannot send customer replies for the selected support queue.';
   }
   if (error === 'support_case_resolution_reason_required') {
     return 'Choose a support outcome before saving this status change.';
@@ -1214,6 +1308,18 @@ function officeReviewErrorMessage(error: string) {
 
 function supportEmailDeliveryStatus(value: unknown): WebSupportCaseEmailRequestRecord['deliveryStatus'] {
   return value === 'queued' || value === 'sent' || value === 'failed' ? value : 'pending_provider_connection';
+}
+
+function normalizeSupportReplyAction(value: string | null | undefined): WebSupportReplyAction {
+  if (
+    value === 'reply' ||
+    value === 'close_with_reply' ||
+    value === 'close_silently' ||
+    value === 'reopen_with_reply'
+  ) {
+    return value;
+  }
+  return 'reply';
 }
 
 function numberValue(value: unknown) {
@@ -1267,6 +1373,7 @@ async function loadWebOfficeSupportServerSnapshot(
               mutateAll: result.currentAdmin.supportCapability?.mutateAll === true,
               allowedQueues: stringList(result.currentAdmin.supportCapability?.allowedQueues),
               canAssignTickets: result.currentAdmin.supportCapability?.canAssignTickets === true,
+              canSendReplies: result.currentAdmin.supportCapability?.canSendReplies === true,
               canAddInternalNotes: result.currentAdmin.supportCapability?.canAddInternalNotes === true,
               canChangeStatus: result.currentAdmin.supportCapability?.canChangeStatus === true,
               canViewDiagnostics: result.currentAdmin.supportCapability?.canViewDiagnostics === true,

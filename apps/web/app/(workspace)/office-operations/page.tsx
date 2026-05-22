@@ -11,11 +11,11 @@ import {
   OFFICE_SUPPORT_REVIEW_GUARDRAILS,
   isWebOfficeOperationsAllowed,
   loadWebOfficeOperationsSnapshot,
-  queueWebSupportCaseFollowUpEmail,
   recordWebSupportCaseAdminAction,
   recordWebSupportTicketAssignment,
   recordWebOfficeSupportReview,
   resolveWebOfficeAccessRequest,
+  sendWebSupportReply,
   type WebOfficeOperationsSnapshot,
   type WebSupportAdminContext,
   type WebSupportAssignmentRecord,
@@ -24,6 +24,7 @@ import {
   type WebSupportDiagnosticConsentRecord,
   type WebSupportMessageRecord,
   type WebSupportQueueRecord,
+  type WebSupportReplyAction,
   type WebSupportTicketRecord,
 } from '@/lib/office-admin-operations';
 import { useAuth } from '@/providers/auth-provider';
@@ -130,6 +131,13 @@ const OWNER_FILTER_OPTIONS = [
   { value: 'unassigned', label: 'Unassigned' },
 ] as const;
 
+const SUPPORT_REPLY_ACTION_OPTIONS: Array<{ value: WebSupportReplyAction; label: string; helper: string }> = [
+  { value: 'reply', label: 'Reply and wait', helper: 'Sends the customer reply and moves the ticket to waiting on customer.' },
+  { value: 'close_with_reply', label: 'Reply and close', helper: 'Sends the customer reply and closes the ticket with an outcome reason.' },
+  { value: 'close_silently', label: 'Close silently', helper: 'Closes the ticket without sending a customer email.' },
+  { value: 'reopen_with_reply', label: 'Reopen and reply', helper: 'Reopens the ticket and sends the customer a new reply.' },
+];
+
 export default function OfficeOperationsPage() {
   const { user } = useAuth();
   const { activeWorkspace } = useWorkspace();
@@ -149,6 +157,8 @@ export default function OfficeOperationsPage() {
   const [emailRecipient, setEmailRecipient] = useState('');
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
+  const [replyAction, setReplyAction] = useState<WebSupportReplyAction>('reply');
+  const [replyResolutionReason, setReplyResolutionReason] = useState<SupportResolutionReason | ''>('');
   const [reviewStatusFilter, setReviewStatusFilter] = useState('active');
   const [supportCaseFilter, setSupportCaseFilter] = useState<(typeof SUPPORT_FILTER_OPTIONS)[number]['value']>('active');
   const [supportQueueFilter, setSupportQueueFilter] = useState('all');
@@ -352,10 +362,10 @@ export default function OfficeOperationsPage() {
       selectedSupportRow?.ticket &&
       (currentAdmin.supportCapability.mutateAll ||
         currentAdmin.supportCapability.allowedQueues.includes(selectedSupportRow.ticket.queueId)) &&
-      (currentAdmin.supportCapability.canAddInternalNotes ||
-        currentAdmin.supportCapability.canChangeStatus ||
-        currentAdmin.supportCapability.canAssignTickets)
+      (currentAdmin.supportCapability.canSendReplies || currentAdmin.supportCapability.canChangeStatus)
   );
+  const replyActionNeedsDelivery = replyAction !== 'close_silently';
+  const replyActionNeedsResolution = replyAction === 'close_with_reply' || replyAction === 'close_silently';
   const selectedSupportTimeline = useMemo<SupportTimelineEntry[]>(
     () =>
       [
@@ -468,6 +478,12 @@ export default function OfficeOperationsPage() {
       setAssignmentRole('support_admin');
       setAssignmentAdminEmail('');
       setAssignmentReason('');
+      setEmailCaseId('');
+      setEmailRecipient('');
+      setEmailSubject('');
+      setEmailBody('');
+      setReplyAction('reply');
+      setReplyResolutionReason('');
       return;
     }
 
@@ -475,6 +491,12 @@ export default function OfficeOperationsPage() {
     setAssignmentRole(selectedSupportRow.currentAssignment?.assignedRole ?? inferDefaultAssignedRole(selectedSupportRow.ticket.queueId as SupportQueueId));
     setAssignmentAdminEmail(selectedSupportRow.currentAssignment?.assignedAdminEmail ?? '');
     setAssignmentReason(selectedSupportRow.currentAssignment?.reason ?? '');
+    setEmailCaseId(selectedSupportRow.supportCase.supportCaseId);
+    setEmailRecipient(selectedSupportRow.ticket.customerEmail ?? '');
+    setEmailSubject(buildSupportReplySubject(selectedSupportRow.supportCase.supportCaseId, selectedSupportRow.ticket.subject));
+    setEmailBody('');
+    setReplyAction('reply');
+    setReplyResolutionReason('');
   }, [selectedSupportRow]);
 
   useEffect(() => {
@@ -635,43 +657,55 @@ export default function OfficeOperationsPage() {
     }
   }
 
-  async function queueSupportEmail() {
-    if (!activeWorkspace?.workspaceId || !emailCaseId.trim() || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()) {
-      showToast('Add the case, recipient, subject, and message before preparing this email.', 'info');
+  async function sendSupportReply() {
+    if (!activeWorkspace?.workspaceId || !selectedSupportRow?.ticket || !emailCaseId.trim() || !emailBody.trim()) {
+      showToast('Add the selected case and reply message before sending from the support center.', 'info');
       return;
     }
     if (!canPrepareFollowUp) {
-      showToast('This admin role cannot prepare follow-up email for the selected support queue.', 'danger');
+      showToast('This admin role cannot send customer replies for the selected support queue.', 'danger');
+      return;
+    }
+    if (replyActionNeedsDelivery && (!emailRecipient.trim() || !emailSubject.trim())) {
+      showToast('Add the customer recipient and subject before sending this reply.', 'info');
+      return;
+    }
+    if (replyActionNeedsResolution && !replyResolutionReason) {
+      showToast('Choose an outcome reason before closing this ticket from the reply composer.', 'info');
       return;
     }
 
     setIsQueueingSupportEmail(true);
     try {
-      const result = await queueWebSupportCaseFollowUpEmail({
+      const result = await sendWebSupportReply({
         workspaceId: activeWorkspace.workspaceId,
         supportCaseId: emailCaseId,
-        recipientEmail: emailRecipient,
-        subject: emailSubject,
+        ticketId: selectedSupportRow.ticket.id,
+        recipientEmail: replyActionNeedsDelivery ? emailRecipient : null,
+        subject: replyActionNeedsDelivery ? emailSubject : null,
         body: emailBody,
+        action: replyAction,
+        resolutionReason: replyActionNeedsResolution ? (replyResolutionReason || null) : null,
       });
       showToast(result.message, 'success');
-      setEmailCaseId('');
-      setEmailRecipient('');
-      setEmailSubject('');
       setEmailBody('');
+      setReplyAction('reply');
+      setReplyResolutionReason('');
       await refresh();
     } catch (emailError) {
-      showToast(emailError instanceof Error ? emailError.message : 'Support email could not be prepared.', 'danger');
+      showToast(emailError instanceof Error ? emailError.message : 'Customer reply could not be sent from the support center.', 'danger');
     } finally {
       setIsQueueingSupportEmail(false);
     }
   }
 
-  function prepareSupportEmail(supportCase: WebSupportCaseRecord, ticket: WebSupportTicketRecord | null) {
+  function prepareSupportReply(supportCase: WebSupportCaseRecord, ticket: WebSupportTicketRecord | null) {
     setEmailCaseId(supportCase.supportCaseId);
     setEmailRecipient(ticket?.customerEmail ?? '');
-    setEmailSubject(`Update on ${supportCase.supportCaseId}`);
+    setEmailSubject(buildSupportReplySubject(supportCase.supportCaseId, ticket?.subject));
     setEmailBody(`Hello,\n\nWe have an update for support case ${supportCase.supportCaseId}.\n\nThank you,\nOrbit Ledger Support`);
+    setReplyAction('reply');
+    setReplyResolutionReason('');
   }
 
   return (
@@ -955,10 +989,10 @@ export default function OfficeOperationsPage() {
                       <button
                         className="ol-button-secondary"
                         disabled={!canPrepareFollowUp}
-                        onClick={() => prepareSupportEmail(selectedSupportRow.supportCase, selectedSupportRow.ticket)}
+                        onClick={() => prepareSupportReply(selectedSupportRow.supportCase, selectedSupportRow.ticket)}
                         type="button"
                       >
-                        Prepare follow-up
+                        Open reply composer
                       </button>
                     </div>
                   </div>
@@ -1425,45 +1459,81 @@ export default function OfficeOperationsPage() {
             <section className="ol-panel">
               <div className="ol-panel-header">
                 <div>
-                  <div className="ol-panel-title">Follow-up composer</div>
+                  <div className="ol-panel-title">Customer reply composer</div>
                   <p className="ol-panel-copy">
-                    Prepare safe customer follow-up inside Orbit Ledger while provider delivery remains behind trusted server controls.
+                    Send customer replies from Orbit Ledger, close tickets with a customer message, or close silently when no external message should go out.
                   </p>
                 </div>
                 <span className={`ol-chip ${canPrepareFollowUp ? 'ol-chip--warning' : 'ol-chip--primary'}`}>
-                  {canPrepareFollowUp ? 'Provider pending' : 'Read-only scope'}
+                  {canPrepareFollowUp ? 'In-app outbound' : 'Read-only scope'}
                 </span>
               </div>
               <div className="ol-form-band">
                 <div className="ol-form-band-grid">
+                  <label className="ol-field">
+                    <span className="ol-field-label">Reply action</span>
+                    <select className="ol-select" disabled={!canPrepareFollowUp} value={replyAction} onChange={(event) => setReplyAction(event.target.value as WebSupportReplyAction)}>
+                      {SUPPORT_REPLY_ACTION_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="ol-field">
                     <span className="ol-field-label">Support case</span>
                     <input className="ol-input" disabled={!canPrepareFollowUp} value={emailCaseId} onChange={(event) => setEmailCaseId(event.target.value)} placeholder="CASE-2001" />
                   </label>
                   <label className="ol-field">
                     <span className="ol-field-label">Recipient email</span>
-                    <input className="ol-input" disabled={!canPrepareFollowUp} value={emailRecipient} onChange={(event) => setEmailRecipient(event.target.value)} placeholder="customer@example.com" />
+                    <input className="ol-input" disabled={!canPrepareFollowUp || !replyActionNeedsDelivery} value={emailRecipient} onChange={(event) => setEmailRecipient(event.target.value)} placeholder="customer@example.com" />
+                  </label>
+                  <label className="ol-field">
+                    <span className="ol-field-label">Outcome reason</span>
+                    <select className="ol-select" disabled={!canPrepareFollowUp || !replyActionNeedsResolution} value={replyResolutionReason} onChange={(event) => setReplyResolutionReason(event.target.value as SupportResolutionReason | '')}>
+                      <option value="">Not needed</option>
+                      {SUPPORT_RESOLUTION_REASON_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label className="ol-field ol-field--span-2">
                     <span className="ol-field-label">Subject</span>
-                    <input className="ol-input" disabled={!canPrepareFollowUp} value={emailSubject} onChange={(event) => setEmailSubject(event.target.value)} placeholder="Update on CASE-2001" />
+                    <input className="ol-input" disabled={!canPrepareFollowUp || !replyActionNeedsDelivery} value={emailSubject} onChange={(event) => setEmailSubject(event.target.value)} placeholder="Update on CASE-2001" />
                   </label>
                   <label className="ol-field ol-field--span-2">
-                    <span className="ol-field-label">Message</span>
-                    <textarea className="ol-textarea" disabled={!canPrepareFollowUp} value={emailBody} onChange={(event) => setEmailBody(event.target.value)} placeholder="Write a safe follow-up message." rows={4} />
+                    <span className="ol-field-label">{replyAction === 'close_silently' ? 'Internal closure note' : 'Customer reply'}</span>
+                    <textarea className="ol-textarea" disabled={!canPrepareFollowUp} value={emailBody} onChange={(event) => setEmailBody(event.target.value)} placeholder={replyAction === 'close_silently' ? 'Explain why this ticket is closing without a customer email.' : 'Write a clear customer-safe reply message.'} rows={4} />
                   </label>
                   <div className="ol-field ol-field--action">
                     <span className="ol-field-label">Action</span>
                     <button
                       className="ol-button"
-                      disabled={isQueueingSupportEmail || !canPrepareFollowUp || !emailCaseId.trim() || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()}
-                      onClick={() => void queueSupportEmail()}
+                      disabled={
+                        isQueueingSupportEmail ||
+                        !canPrepareFollowUp ||
+                        !emailCaseId.trim() ||
+                        !emailBody.trim() ||
+                        (replyActionNeedsDelivery && (!emailRecipient.trim() || !emailSubject.trim())) ||
+                        (replyActionNeedsResolution && !replyResolutionReason)
+                      }
+                      onClick={() => void sendSupportReply()}
                       type="button"
                     >
-                      {isQueueingSupportEmail ? 'Preparing' : 'Prepare follow-up email'}
+                      {isQueueingSupportEmail ? 'Sending' : supportReplyActionButtonLabel(replyAction)}
                     </button>
                   </div>
                 </div>
+              </div>
+              <div className="ol-message ol-support-band-spacing">
+                <strong>{supportReplyActionHelper(replyAction)}</strong>
+                <p>
+                  {replyActionNeedsDelivery
+                    ? 'The reply is written back into the ticket thread and sent through the app-managed email transport.'
+                    : 'No customer email goes out. The closure note stays inside the internal audit trail only.'}
+                </p>
               </div>
               {snapshot?.supportCaseEmailRequests.length ? (
                 <div className="ol-support-library-list ol-support-band-spacing">
@@ -1476,14 +1546,15 @@ export default function OfficeOperationsPage() {
                         </span>
                       </div>
                       <p className="ol-panel-copy">
-                        {request.supportCaseId} · {request.recipientEmail ?? 'No recipient'} · queued {formatDate(request.queuedAt)}
+                        {request.supportCaseId} · {supportReplyActionLabel(request.replyAction)} · {request.recipientEmail ?? 'No recipient'} · queued {formatDate(request.queuedAt)}
                       </p>
+                      <p className="ol-panel-copy">{request.body}</p>
                     </article>
                   ))}
                 </div>
               ) : (
                 <div className="ol-message ol-message--success ol-support-band-spacing">
-                  No support follow-up emails are waiting for provider connection.
+                  No outbound support replies have been recorded for this workspace yet.
                 </div>
               )}
             </section>
@@ -1734,6 +1805,50 @@ function supportMessageTone(kind: string): SupportTimelineEntry['tone'] {
     return 'success';
   }
   return 'default';
+}
+
+function supportReplyActionLabel(action: WebSupportReplyAction) {
+  if (action === 'close_with_reply') {
+    return 'Reply and close';
+  }
+  if (action === 'close_silently') {
+    return 'Close silently';
+  }
+  if (action === 'reopen_with_reply') {
+    return 'Reopen and reply';
+  }
+  return 'Reply and wait';
+}
+
+function supportReplyActionButtonLabel(action: WebSupportReplyAction) {
+  if (action === 'close_with_reply') {
+    return 'Send reply and close';
+  }
+  if (action === 'close_silently') {
+    return 'Close silently';
+  }
+  if (action === 'reopen_with_reply') {
+    return 'Reopen and send';
+  }
+  return 'Send reply';
+}
+
+function supportReplyActionHelper(action: WebSupportReplyAction) {
+  if (action === 'close_with_reply') {
+    return 'Closes the ticket after the customer receives this reply.';
+  }
+  if (action === 'close_silently') {
+    return 'Records an internal closure note without sending a customer message.';
+  }
+  if (action === 'reopen_with_reply') {
+    return 'Reopens the ticket and starts a fresh customer-facing thread update.';
+  }
+  return 'Sends the reply and moves the ticket into waiting on customer.';
+}
+
+function buildSupportReplySubject(supportCaseId: string, ticketSubject: string | null | undefined) {
+  const base = ticketSubject?.trim() || `Update on ${supportCaseId}`;
+  return base.toLowerCase().startsWith('re:') ? base : `Re: ${base}`;
 }
 
 function assignmentSummary(assignment: WebSupportAssignmentRecord | null) {
