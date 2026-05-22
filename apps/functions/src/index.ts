@@ -118,6 +118,83 @@ const PLATFORM_ADMIN_RATE_LIMIT_POLICIES: Record<
   download_admin_reports: { limit: 30, windowMs: 10 * 60 * 1000 },
 };
 
+const SUPPORT_QUEUE_IDS = [
+  'general',
+  'billing',
+  'technical',
+  'privacy',
+  'feedback',
+  'complaint',
+  'restore',
+  'purchase',
+] as const;
+
+type SupportQueueId = (typeof SUPPORT_QUEUE_IDS)[number];
+
+type SupportRoleCapability = {
+  readAll: boolean;
+  auditAll: boolean;
+  mutateAll: boolean;
+  allowedQueues: SupportQueueId[];
+  canAssignTickets: boolean;
+  canAddInternalNotes: boolean;
+  canChangeStatus: boolean;
+  canViewDiagnostics: boolean;
+};
+
+const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability> = {
+  super_admin: {
+    readAll: true,
+    auditAll: true,
+    mutateAll: true,
+    allowedQueues: [...SUPPORT_QUEUE_IDS],
+    canAssignTickets: true,
+    canAddInternalNotes: true,
+    canChangeStatus: true,
+    canViewDiagnostics: true,
+  },
+  admin: {
+    readAll: true,
+    auditAll: true,
+    mutateAll: true,
+    allowedQueues: [...SUPPORT_QUEUE_IDS],
+    canAssignTickets: true,
+    canAddInternalNotes: true,
+    canChangeStatus: true,
+    canViewDiagnostics: true,
+  },
+  finance_admin: {
+    readAll: true,
+    auditAll: true,
+    mutateAll: false,
+    allowedQueues: ['billing', 'purchase'],
+    canAssignTickets: true,
+    canAddInternalNotes: true,
+    canChangeStatus: true,
+    canViewDiagnostics: false,
+  },
+  support_admin: {
+    readAll: false,
+    auditAll: false,
+    mutateAll: false,
+    allowedQueues: ['general', 'technical', 'privacy', 'feedback', 'complaint', 'restore', 'purchase'],
+    canAssignTickets: true,
+    canAddInternalNotes: true,
+    canChangeStatus: true,
+    canViewDiagnostics: true,
+  },
+  read_only_admin: {
+    readAll: true,
+    auditAll: true,
+    mutateAll: false,
+    allowedQueues: [...SUPPORT_QUEUE_IDS],
+    canAssignTickets: false,
+    canAddInternalNotes: false,
+    canChangeStatus: false,
+    canViewDiagnostics: false,
+  },
+};
+
 type ProviderSource = 'upi' | 'payment_page' | 'bank_transfer' | 'card' | 'wallet' | 'other';
 type ProviderPaymentStatus = 'succeeded' | 'pending' | 'failed' | 'refunded';
 
@@ -4971,6 +5048,16 @@ export const getOfficeSupportSnapshot = onRequest(
     const adminUser = await verifyRequestUser(request);
     const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
     if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_support_cases')) {
+      const body = asRecord(request.body);
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'getOfficeSupportSnapshot',
+        requiredPermission: 'review_support_cases',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: 'load_support_snapshot',
+        outcome: 'denied',
+        reason: 'Only support-center authorized admin roles can load Office support snapshots.',
+      });
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
@@ -4990,6 +5077,9 @@ export const getOfficeSupportSnapshot = onRequest(
         return;
       }
 
+      const supportCapability = getSupportRoleCapability(adminAccess.role);
+      const now = new Date().toISOString();
+
       const [
         supportCaseSnapshot,
         supportEmailSnapshot,
@@ -4998,6 +5088,7 @@ export const getOfficeSupportSnapshot = onRequest(
         supportTicketSnapshot,
         supportMessageSnapshot,
         supportEventSnapshot,
+        supportAssignmentSnapshot,
       ] = await Promise.all([
         workspaceRef.collection('support_cases').orderBy('updated_at', 'desc').limit(80).get(),
         workspaceRef.collection('support_case_email_requests').orderBy('queued_at', 'desc').limit(80).get(),
@@ -5006,24 +5097,319 @@ export const getOfficeSupportSnapshot = onRequest(
         workspaceRef.collection('support_tickets').orderBy('updated_at', 'desc').limit(80).get(),
         workspaceRef.collection('support_messages').orderBy('created_at', 'desc').limit(200).get(),
         workspaceRef.collection('support_events').orderBy('created_at', 'desc').limit(200).get(),
+        workspaceRef.collection('support_assignments').orderBy('updated_at', 'desc').limit(120).get(),
       ]);
+
+      const supportTickets = supportTicketSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Array<{ id: string } & Record<string, unknown>>;
+      const supportAssignments = supportAssignmentSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Array<{ id: string } & Record<string, unknown>>;
+      const visibleTickets = supportTickets.filter((ticket) => {
+        const queueId = normalizeSupportQueueId(clean(stringValue(ticket.queue_id))) ?? 'general';
+        return canSupportRoleReadQueue(adminAccess.role, queueId);
+      });
+      const visibleTicketIds = new Set(visibleTickets.map((ticket) => ticket.id));
+      const visibleSupportCaseIds = new Set(
+        visibleTickets
+          .map((ticket) => clean(stringValue(ticket.support_case_id)))
+          .filter((supportCaseId): supportCaseId is string => Boolean(supportCaseId))
+      );
+      const visibleSupportCases = supportCaseSnapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }) as { id: string } & Record<string, unknown>)
+        .filter((supportCase) => {
+          const supportCaseId = clean(stringValue(supportCase.support_case_id)) ?? supportCase.id;
+          return visibleSupportCaseIds.has(supportCaseId) || supportCapability.readAll;
+        });
+      const visibleCaseIdSet = new Set(
+        visibleSupportCases.map((supportCase) => clean(stringValue(supportCase.support_case_id)) ?? supportCase.id)
+      );
+      const visibleAssignments = supportAssignments.filter((assignment) => visibleTicketIds.has(assignment.ticket_id as string));
+      const visibleMessages = supportMessageSnapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }) as { id: string } & Record<string, unknown>)
+        .filter((message) => visibleTicketIds.has(clean(stringValue(message.ticket_id)) ?? ''));
+      const visibleSupportEvents = supportEventSnapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }) as { id: string } & Record<string, unknown>)
+        .filter((event) => visibleTicketIds.has(clean(stringValue(event.ticket_id)) ?? ''));
+      const visibleAuditEvents = auditSnapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }) as { id: string } & Record<string, unknown>)
+        .filter((event) => {
+          const supportCaseId = clean(stringValue(event.support_case_id));
+          return Boolean(supportCaseId && visibleCaseIdSet.has(supportCaseId));
+        });
+      const visibleEmails = supportEmailSnapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }) as { id: string } & Record<string, unknown>)
+        .filter((emailRequest) => {
+          const supportCaseId = clean(stringValue(emailRequest.support_case_id));
+          return Boolean(supportCaseId && visibleCaseIdSet.has(supportCaseId));
+        });
+      const visibleConsents = supportCapability.canViewDiagnostics
+        ? consentSnapshot.docs
+            .map((doc) => ({ id: doc.id, ...doc.data() }) as { id: string } & Record<string, unknown>)
+            .filter((consent) => {
+              const supportCaseId = clean(stringValue(consent.support_case_id));
+              return Boolean(supportCaseId && visibleCaseIdSet.has(supportCaseId));
+            })
+        : [];
+      const visibleQueues = buildDefaultSupportQueueRecords(now).filter((queue) =>
+        canSupportRoleReadQueue(adminAccess.role, normalizeSupportQueueId(queue.queue_id) ?? 'general')
+      );
 
       response.status(200).json({
         ok: true,
         workspaceId,
-        supportCases: supportCaseSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-        supportCaseEmailRequests: supportEmailSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-        supportConsents: consentSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-        supportCaseEvents: [
-          ...auditSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-          ...supportEventSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-        ],
-        supportTickets: supportTicketSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-        supportMessages: supportMessageSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+        currentAdmin: {
+          uid: adminUser.uid,
+          email: adminUser.email ?? null,
+          role: adminAccess.role,
+          supportCapability,
+        },
+        supportCases: visibleSupportCases,
+        supportCaseEmailRequests: visibleEmails,
+        supportConsents: visibleConsents,
+        supportCaseEvents: [...visibleAuditEvents, ...visibleSupportEvents],
+        supportTickets: visibleTickets,
+        supportMessages: visibleMessages,
+        supportAssignments: visibleAssignments,
+        supportQueues: visibleQueues,
       });
     } catch (error) {
       logger.error('getOfficeSupportSnapshot failed', { workspaceId, error });
       response.status(500).json({ ok: false, error: 'office_support_snapshot_failed' });
+    }
+  }
+);
+
+export const assignOfficeSupportTicket = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_support_cases')) {
+      const body = asRecord(request.body);
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'assignOfficeSupportTicket',
+        requiredPermission: 'review_support_cases',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: 'assign_ticket',
+        outcome: 'denied',
+        reason: 'Only support-center authorized admin roles can assign Office support tickets.',
+      });
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const supportCaseId = clean(stringValue(body?.supportCaseId));
+    const ticketId = clean(stringValue(body?.ticketId));
+    const queueId = normalizeSupportQueueId(clean(stringValue(body?.queueId)));
+    const assignedRole = normalizePlatformAdminRole(clean(stringValue(body?.assignedRole)));
+    const assignedAdminUid = clean(stringValue(body?.assignedAdminUid));
+    const assignedAdminEmail = normalizeEmailAddress(clean(stringValue(body?.assignedAdminEmail)));
+    const reason = clean(stringValue(body?.reason));
+
+    if (!workspaceId || !supportCaseId || !ticketId || !queueId || !assignedRole || !reason) {
+      response.status(400).json({ ok: false, error: 'support_assignment_required' });
+      return;
+    }
+
+    const supportCapability = getSupportRoleCapability(adminAccess.role);
+    if (!supportCapability.canAssignTickets || !canSupportRoleMutateQueue(adminAccess.role, queueId)) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'assignOfficeSupportTicket',
+        requiredPermission: 'review_support_cases',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: 'assign_ticket',
+        outcome: 'denied',
+        reason: 'This admin role cannot assign tickets in the requested support queue.',
+      });
+      response.status(403).json({ ok: false, error: 'support_assignment_not_allowed' });
+      return;
+    }
+
+    if (!canAssignSupportQueueToRole(assignedRole, queueId)) {
+      response.status(400).json({ ok: false, error: 'support_assignment_role_mismatch' });
+      return;
+    }
+
+    try {
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const ticketRef = workspaceRef.collection('support_tickets').doc(ticketId);
+      const now = new Date();
+      const assignmentRef = workspaceRef
+        .collection('support_assignments')
+        .doc(normalizeId(`support_assignment_${supportCaseId}_${Date.now()}`));
+      const eventRef = workspaceRef
+        .collection('support_events')
+        .doc(normalizeId(`support_assignment_event_${supportCaseId}_${Date.now()}`));
+      const auditRef = workspaceRef
+        .collection('office_access_audit')
+        .doc(normalizeId(`support_assignment_${supportCaseId}_${adminUser.uid}_${Date.now()}`));
+      let nextStatus: SupportCenterTicketStatus = 'assigned';
+
+      await db.runTransaction(async (transaction) => {
+        const [workspaceSnapshot, ticketSnapshot] = await Promise.all([
+          transaction.get(workspaceRef),
+          transaction.get(ticketRef),
+        ]);
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+        if (!ticketSnapshot.exists) {
+          throw new Error('support_ticket_not_found');
+        }
+
+        const currentTicket = ticketSnapshot.data() ?? {};
+        const currentQueueId = normalizeSupportQueueId(clean(stringValue(currentTicket.queue_id))) ?? 'general';
+        if (!canSupportRoleMutateQueue(adminAccess.role, currentQueueId)) {
+          throw new Error('support_assignment_not_allowed');
+        }
+
+        const previousAssignmentId = clean(stringValue(currentTicket.current_assignment_id));
+        const previousTicketStatus = normalizeSupportCenterTicketStatus(clean(stringValue(currentTicket.status)));
+        nextStatus =
+          previousTicketStatus === 'resolved' || previousTicketStatus === 'closed' || previousTicketStatus === 'spam'
+            ? previousTicketStatus
+            : 'assigned';
+
+        if (previousAssignmentId) {
+          transaction.set(
+            workspaceRef.collection('support_assignments').doc(previousAssignmentId),
+            {
+              status: 'reassigned',
+              updated_at: now.toISOString(),
+            },
+            { merge: true }
+          );
+        }
+
+        transaction.set(
+          assignmentRef,
+          {
+            version: 1,
+            workspace_id: workspaceId,
+            ticket_id: ticketId,
+            support_case_id: supportCaseId,
+            queue_id: queueId,
+            assigned_role: assignedRole,
+            assigned_admin_uid: assignedAdminUid ?? null,
+            assigned_admin_email: assignedAdminEmail ?? null,
+            assigned_by_uid: adminUser.uid,
+            assigned_by_role: adminAccess.role,
+            status: 'active',
+            reason,
+            created_at: now.toISOString(),
+            updated_at: now.toISOString(),
+          },
+          { merge: true }
+        );
+        transaction.set(
+          ticketRef,
+          {
+            queue_id: queueId,
+            current_assignment_id: assignmentRef.id,
+            status: nextStatus,
+            updated_at: now.toISOString(),
+            last_actor_uid: adminUser.uid,
+            last_actor_role: adminAccess.role,
+          },
+          { merge: true }
+        );
+        transaction.set(
+          eventRef,
+          {
+            version: 1,
+            workspace_id: workspaceId,
+            ticket_id: ticketId,
+            support_case_id: supportCaseId,
+            kind: previousAssignmentId ? 'ticket_reassigned' : 'ticket_assigned',
+            actor_uid: adminUser.uid,
+            actor_role: adminAccess.role,
+            actor_email: clean(adminUser.email),
+            queue_id: queueId,
+            status_before: previousTicketStatus,
+            status_after: nextStatus,
+            resolution_state_before: normalizeSupportCenterResolutionState(clean(stringValue(currentTicket.resolution_state))),
+            resolution_state_after: normalizeSupportCenterResolutionState(clean(stringValue(currentTicket.resolution_state))),
+            resolution_reason: normalizeSupportResolutionReason(clean(stringValue(currentTicket.resolution_reason))),
+            detail: reason,
+            metadata: {
+              assigned_role: assignedRole,
+              assigned_admin_email: assignedAdminEmail ?? '',
+              previous_assignment_id: previousAssignmentId ?? '',
+            },
+            created_at: now.toISOString(),
+          },
+          { merge: true }
+        );
+        transaction.set(
+          auditRef,
+          {
+            version: 1,
+            workspace_id: workspaceId,
+            support_case_id: supportCaseId,
+            ticket_id: ticketId,
+            action: previousAssignmentId ? 'support_ticket_reassigned' : 'support_ticket_assigned',
+            actor_uid: adminUser.uid,
+            actor_email: adminUser.email ?? null,
+            actor_role: adminAccess.role,
+            reason,
+            requested_queue_id: queueId,
+            requested_role: assignedRole,
+            requested_assignee_email: assignedAdminEmail ?? null,
+            created_at: now.toISOString(),
+          },
+          { merge: true }
+        );
+      });
+
+      response.status(200).json({
+        ok: true,
+        ticketId,
+        supportCaseId,
+        queueId,
+        assignedRole,
+        assignedAdminUid: assignedAdminUid ?? null,
+        assignedAdminEmail: assignedAdminEmail ?? null,
+        assignmentId: assignmentRef.id,
+        status: nextStatus,
+        message: 'Ticket assignment saved.',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'support_assignment_failed';
+      if (message === 'support_assignment_not_allowed') {
+        await auditPlatformAdminPermissionAttempt({
+          endpoint: 'assignOfficeSupportTicket',
+          requiredPermission: 'review_support_cases',
+          actor: adminUser,
+          access: adminAccess,
+          requestedAction: 'assign_ticket',
+          outcome: 'denied',
+          reason: 'This admin role cannot reassign the current ticket queue.',
+        });
+        response.status(403).json({ ok: false, error: 'support_assignment_not_allowed' });
+        return;
+      }
+      if (message === 'support_ticket_not_found') {
+        response.status(404).json({ ok: false, error: 'support_ticket_not_found' });
+        return;
+      }
+      logger.error('assignOfficeSupportTicket failed', { workspaceId, ticketId, supportCaseId, error });
+      response.status(500).json({ ok: false, error: 'support_assignment_failed' });
     }
   }
 );
@@ -5048,10 +5434,20 @@ export const recordOfficeSupportReview = onRequest(
     const adminUser = await verifyRequestUser(request);
     const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
     if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_support_cases')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'recordSupportCaseAdminAction',
+        requiredPermission: 'review_support_cases',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: 'update_support_case',
+        outcome: 'denied',
+        reason: 'Only support-center authorized admin roles can update Office support cases.',
+      });
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
 
+    const supportCapability = getSupportRoleCapability(adminAccess.role);
     const body = asRecord(request.body);
     const workspaceId = clean(stringValue(body?.workspaceId));
     const reason = clean(stringValue(body?.reason));
@@ -5069,6 +5465,50 @@ export const recordOfficeSupportReview = onRequest(
       if (!workspaceSnapshot.exists) {
         response.status(404).json({ ok: false, error: 'workspace_not_found' });
         return;
+      }
+      if (!supportCapability.canAddInternalNotes && !supportCapability.canChangeStatus && !supportCapability.canAssignTickets) {
+        await auditPlatformAdminPermissionAttempt({
+          endpoint: 'recordOfficeSupportReview',
+          requiredPermission: 'review_support_cases',
+          actor: adminUser,
+          access: adminAccess,
+          requestedAction: 'record_support_review',
+          outcome: 'denied',
+          reason: 'This admin role cannot record support review entries.',
+        });
+        response.status(403).json({ ok: false, error: 'support_review_not_allowed' });
+        return;
+      }
+      if (customerApprovedDiagnosticAccess && !supportCapability.canViewDiagnostics) {
+        await auditPlatformAdminPermissionAttempt({
+          endpoint: 'recordOfficeSupportReview',
+          requiredPermission: 'review_support_cases',
+          actor: adminUser,
+          access: adminAccess,
+          requestedAction: 'record_support_review',
+          outcome: 'denied',
+          reason: 'This admin role cannot record support review with diagnostic access.',
+        });
+        response.status(403).json({ ok: false, error: 'support_review_not_allowed' });
+        return;
+      }
+      if (supportCaseId) {
+        const linkedTicketSnapshot = await workspaceRef.collection('support_tickets').where('support_case_id', '==', supportCaseId).limit(1).get();
+        const linkedTicket = linkedTicketSnapshot.docs[0]?.data() ?? null;
+        const linkedQueueId = normalizeSupportQueueId(clean(stringValue(linkedTicket?.queue_id))) ?? null;
+        if (linkedQueueId && !canSupportRoleMutateQueue(adminAccess.role, linkedQueueId)) {
+          await auditPlatformAdminPermissionAttempt({
+            endpoint: 'recordOfficeSupportReview',
+            requiredPermission: 'review_support_cases',
+            actor: adminUser,
+            access: adminAccess,
+            requestedAction: 'record_support_review',
+            outcome: 'denied',
+            reason: 'This admin role cannot record review notes for the selected support queue.',
+          });
+          response.status(403).json({ ok: false, error: 'support_review_not_allowed' });
+          return;
+        }
       }
 
       const now = new Date();
@@ -5120,10 +5560,20 @@ export const recordSupportCaseAdminAction = onRequest(
     const adminUser = await verifyRequestUser(request);
     const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
     if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_support_cases')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'queueSupportCaseFollowUpEmail',
+        requiredPermission: 'review_support_cases',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: 'queue_support_follow_up_email',
+        outcome: 'denied',
+        reason: 'Only support-center authorized admin roles can prepare support follow-up email.',
+      });
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
 
+    const supportCapability = getSupportRoleCapability(adminAccess.role);
     const body = asRecord(request.body);
     const workspaceId = clean(stringValue(body?.workspaceId));
     const supportCaseId = clean(stringValue(body?.supportCaseId));
@@ -5141,6 +5591,7 @@ export const recordSupportCaseAdminAction = onRequest(
     }
 
     try {
+      const supportCapability = getSupportRoleCapability(adminAccess.role);
       const workspaceRef = db.collection('workspaces').doc(workspaceId);
       const caseRef = workspaceRef.collection('support_cases').doc(normalizeId(supportCaseId));
       const ticketRef = workspaceRef.collection('support_tickets').doc(normalizeId(`support_ticket_${supportCaseId}`));
@@ -5168,6 +5619,14 @@ export const recordSupportCaseAdminAction = onRequest(
 
         const currentCase = caseSnapshot.exists ? caseSnapshot.data() ?? {} : {};
         const currentTicket = ticketSnapshot.exists ? ticketSnapshot.data() ?? {} : {};
+        const currentQueueId = normalizeSupportQueueId(clean(stringValue(currentTicket.queue_id))) ?? 'general';
+        const canMutateCurrentQueue = canSupportRoleMutateQueue(adminAccess.role, currentQueueId);
+        if (action === 'add_note' && (!supportCapability.canAddInternalNotes || !canMutateCurrentQueue)) {
+          throw new Error('support_case_action_not_allowed');
+        }
+        if (action !== 'add_note' && (!supportCapability.canChangeStatus || !canMutateCurrentQueue)) {
+          throw new Error('support_case_action_not_allowed');
+        }
         const previousStatus = normalizeSupportCaseStatus(clean(stringValue(currentCase.status)));
         const previousTicketStatus = normalizeSupportCenterTicketStatus(clean(stringValue(currentTicket.status)));
         const previousResolutionState = normalizeSupportCenterResolutionState(clean(stringValue(currentTicket.resolution_state)));
@@ -5307,6 +5766,19 @@ export const recordSupportCaseAdminAction = onRequest(
         message: supportCaseMessageForStatus(nextStatus, action),
       });
     } catch (error) {
+      if (error instanceof Error && error.message === 'support_case_action_not_allowed') {
+        await auditPlatformAdminPermissionAttempt({
+          endpoint: 'recordSupportCaseAdminAction',
+          requiredPermission: 'review_support_cases',
+          actor: adminUser,
+          access: adminAccess,
+          requestedAction: action,
+          outcome: 'denied',
+          reason: 'This admin role cannot change status or notes for the current support queue.',
+        });
+        response.status(403).json({ ok: false, error: 'support_case_action_not_allowed' });
+        return;
+      }
       if (error instanceof Error && error.message === 'workspace_not_found') {
         response.status(404).json({ ok: false, error: 'workspace_not_found' });
         return;
@@ -5338,10 +5810,20 @@ export const queueSupportCaseFollowUpEmail = onRequest(
     const adminUser = await verifyRequestUser(request);
     const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
     if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_support_cases')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'queueSupportCaseFollowUpEmail',
+        requiredPermission: 'review_support_cases',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: 'queue_support_follow_up_email',
+        outcome: 'denied',
+        reason: 'Only support-center authorized admin roles can prepare support follow-up email.',
+      });
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
 
+    const supportCapability = getSupportRoleCapability(adminAccess.role);
     const body = asRecord(request.body);
     const workspaceId = clean(stringValue(body?.workspaceId));
     const supportCaseId = clean(stringValue(body?.supportCaseId));
@@ -5359,6 +5841,35 @@ export const queueSupportCaseFollowUpEmail = onRequest(
       const workspaceSnapshot = await workspaceRef.get();
       if (!workspaceSnapshot.exists) {
         response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+      if (!supportCapability.canAddInternalNotes && !supportCapability.canChangeStatus && !supportCapability.canAssignTickets) {
+        await auditPlatformAdminPermissionAttempt({
+          endpoint: 'queueSupportCaseFollowUpEmail',
+          requiredPermission: 'review_support_cases',
+          actor: adminUser,
+          access: adminAccess,
+          requestedAction: 'queue_support_follow_up_email',
+          outcome: 'denied',
+          reason: 'This admin role cannot prepare support follow-up email.',
+        });
+        response.status(403).json({ ok: false, error: 'support_case_email_not_allowed' });
+        return;
+      }
+      const linkedTicketSnapshot = await workspaceRef.collection('support_tickets').where('support_case_id', '==', supportCaseId).limit(1).get();
+      const linkedTicket = linkedTicketSnapshot.docs[0]?.data() ?? null;
+      const linkedQueueId = normalizeSupportQueueId(clean(stringValue(linkedTicket?.queue_id))) ?? null;
+      if (linkedQueueId && !canSupportRoleMutateQueue(adminAccess.role, linkedQueueId)) {
+        await auditPlatformAdminPermissionAttempt({
+          endpoint: 'queueSupportCaseFollowUpEmail',
+          requiredPermission: 'review_support_cases',
+          actor: adminUser,
+          access: adminAccess,
+          requestedAction: 'queue_support_follow_up_email',
+          outcome: 'denied',
+          reason: 'This admin role cannot prepare follow-up email for the selected support queue.',
+        });
+        response.status(403).json({ ok: false, error: 'support_case_email_not_allowed' });
         return;
       }
 
@@ -9388,10 +9899,57 @@ export function canPlatformAdminUseFunction(
   }
 
   if (permission === 'review_support_cases') {
-    return access.role === 'admin' || access.role === 'support_admin';
+    return (
+      access.role === 'admin' ||
+      access.role === 'finance_admin' ||
+      access.role === 'support_admin' ||
+      access.role === 'read_only_admin'
+    );
   }
 
   return false;
+}
+
+function getSupportRoleCapability(role: PlatformAdminRole): SupportRoleCapability {
+  return SUPPORT_ROLE_CAPABILITIES[role];
+}
+
+function canSupportRoleReadQueue(role: PlatformAdminRole, queueId: SupportQueueId): boolean {
+  const capability = getSupportRoleCapability(role);
+  return capability.readAll || capability.allowedQueues.includes(queueId);
+}
+
+function canSupportRoleMutateQueue(role: PlatformAdminRole, queueId: SupportQueueId): boolean {
+  const capability = getSupportRoleCapability(role);
+  return capability.mutateAll || capability.allowedQueues.includes(queueId);
+}
+
+function canAssignSupportQueueToRole(role: PlatformAdminRole, queueId: SupportQueueId): boolean {
+  const capability = getSupportRoleCapability(role);
+  if (!canSupportRoleReadQueue(role, queueId)) {
+    return false;
+  }
+  return capability.canAddInternalNotes || capability.canChangeStatus || capability.canAssignTickets;
+}
+
+function buildDefaultSupportQueueRecords(now: string) {
+  return [
+    { id: 'general', label: 'General', description: 'General support intake and case routing.' },
+    { id: 'billing', label: 'Billing', description: 'Billing, refunds, plan changes, and checkout help.' },
+    { id: 'technical', label: 'Technical', description: 'Technical issues, bugs, performance, and sync problems.' },
+    { id: 'privacy', label: 'Privacy', description: 'Privacy requests, data access, and diagnostic boundaries.' },
+    { id: 'feedback', label: 'Feedback', description: 'Product feedback and improvement ideas.' },
+    { id: 'complaint', label: 'Complaint', description: 'Escalated complaints and urgent trust issues.' },
+    { id: 'restore', label: 'Restore', description: 'Backup, restore, and recovery support.' },
+    { id: 'purchase', label: 'Purchase', description: 'Purchase, pricing, and sales-assist requests.' },
+  ].map((queue) => ({
+    version: 1,
+    queue_id: queue.id,
+    label: queue.label,
+    description: queue.description,
+    created_at: now,
+    updated_at: now,
+  }));
 }
 
 export function canPlatformAdminUseUserAction(access: PlatformAdminRegistryData, action: PlatformAdminUserAction): boolean {

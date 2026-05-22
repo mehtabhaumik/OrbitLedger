@@ -8,10 +8,12 @@ import {
   parseOfficeAccessRequest,
   parseOfficeAdminQueueRecord,
   parseSupportCaseAuditEvent,
+  parseSupportAssignmentRecord,
   parseSupportCaseEmailRequestRecord,
   parseSupportMessageRecord,
   parseSupportCaseRecord,
   parseSupportDiagnosticConsentRecord,
+  parseSupportQueueRecord,
   parseSupportTicketRecord,
 } from './office-admin-operations';
 
@@ -62,6 +64,63 @@ describe('office admin operations', () => {
     expect(snapshot.metrics[0]).toMatchObject({ id: 'requests', value: 0 });
     expect(snapshot.queue).toEqual([]);
     expect(snapshot.health.tone).toBe('success');
+  });
+
+  it('passes through current admin scope, queue records, and assignments', () => {
+    const snapshot = buildWebOfficeOperationsSnapshot({
+      requests: [],
+      adminQueue: [],
+      currentAdmin: {
+        uid: 'admin-1',
+        email: 'finance@example.com',
+        role: 'finance_admin',
+        supportCapability: {
+          readAll: true,
+          auditAll: true,
+          mutateAll: false,
+          allowedQueues: ['billing', 'purchase'],
+          canAssignTickets: true,
+          canAddInternalNotes: true,
+          canChangeStatus: true,
+          canViewDiagnostics: false,
+        },
+      },
+      supportAssignments: [
+        parseSupportAssignmentRecord('assignment-1', {
+          ticket_id: 'ticket-1',
+          support_case_id: 'CASE-2001',
+          queue_id: 'billing',
+          assigned_role: 'finance_admin',
+          assigned_admin_email: 'finance@example.com',
+          status: 'active',
+          reason: 'Billing queue owns refund cases.',
+        }),
+      ],
+      supportQueues: [
+        parseSupportQueueRecord('billing', {
+          queue_id: 'billing',
+          label: 'Billing',
+          description: 'Billing, refunds, and plan changes.',
+        }),
+      ],
+    });
+
+    expect(snapshot.currentAdmin).toMatchObject({
+      role: 'finance_admin',
+      supportCapability: {
+        allowedQueues: ['billing', 'purchase'],
+        canAssignTickets: true,
+      },
+    });
+    expect(snapshot.supportAssignments[0]).toMatchObject({
+      queueId: 'billing',
+      assignedRole: 'finance_admin',
+      assignedAdminEmail: 'finance@example.com',
+    });
+    expect(snapshot.supportQueues[0]).toMatchObject({
+      id: 'billing',
+      label: 'Billing',
+    });
   });
 
   it('parses server-controlled request and queue documents safely', () => {

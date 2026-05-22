@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import type { OfficeSupportCaseAction, SupportResolutionReason } from '@orbit-ledger/core';
+import { canSupportRoleAccessQueue, type OfficeSupportCaseAction, type PlatformAdminRole, type SupportQueueId, type SupportResolutionReason } from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
 import {
@@ -13,13 +13,17 @@ import {
   loadWebOfficeOperationsSnapshot,
   queueWebSupportCaseFollowUpEmail,
   recordWebSupportCaseAdminAction,
+  recordWebSupportTicketAssignment,
   recordWebOfficeSupportReview,
   resolveWebOfficeAccessRequest,
   type WebOfficeOperationsSnapshot,
+  type WebSupportAdminContext,
+  type WebSupportAssignmentRecord,
   type WebSupportCaseAuditEvent,
   type WebSupportCaseRecord,
   type WebSupportDiagnosticConsentRecord,
   type WebSupportMessageRecord,
+  type WebSupportQueueRecord,
   type WebSupportTicketRecord,
 } from '@/lib/office-admin-operations';
 import { useAuth } from '@/providers/auth-provider';
@@ -29,6 +33,7 @@ import { useWorkspace } from '@/providers/workspace-provider';
 type SupportShellRow = {
   supportCase: WebSupportCaseRecord;
   ticket: WebSupportTicketRecord | null;
+  currentAssignment: WebSupportAssignmentRecord | null;
   latestMessage: WebSupportMessageRecord | null;
   consentCount: number;
   pendingEmailCount: number;
@@ -111,6 +116,20 @@ const SUPPORT_RESOLUTION_REASON_OPTIONS: Array<{ value: SupportResolutionReason;
   { value: 'other', label: 'Other' },
 ];
 
+const ASSIGNABLE_ROLE_OPTIONS: Array<{ value: PlatformAdminRole; label: string }> = [
+  { value: 'super_admin', label: 'Super Admin' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'finance_admin', label: 'Finance Admin' },
+  { value: 'support_admin', label: 'Support Admin' },
+  { value: 'read_only_admin', label: 'Read-only Admin' },
+];
+
+const OWNER_FILTER_OPTIONS = [
+  { value: 'all', label: 'All ownership' },
+  { value: 'mine', label: 'Assigned to me' },
+  { value: 'unassigned', label: 'Unassigned' },
+] as const;
+
 export default function OfficeOperationsPage() {
   const { user } = useAuth();
   const { activeWorkspace } = useWorkspace();
@@ -132,11 +151,18 @@ export default function OfficeOperationsPage() {
   const [emailBody, setEmailBody] = useState('');
   const [reviewStatusFilter, setReviewStatusFilter] = useState('active');
   const [supportCaseFilter, setSupportCaseFilter] = useState<(typeof SUPPORT_FILTER_OPTIONS)[number]['value']>('active');
+  const [supportQueueFilter, setSupportQueueFilter] = useState('all');
+  const [supportOwnerFilter, setSupportOwnerFilter] = useState<(typeof OWNER_FILTER_OPTIONS)[number]['value']>('all');
   const [operationsSearch, setOperationsSearch] = useState('');
   const [selectedSupportCaseId, setSelectedSupportCaseId] = useState('');
   const [isRecordingSupportReview, setIsRecordingSupportReview] = useState(false);
   const [isSavingSupportCase, setIsSavingSupportCase] = useState(false);
+  const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const [isQueueingSupportEmail, setIsQueueingSupportEmail] = useState(false);
+  const [assignmentQueueId, setAssignmentQueueId] = useState('general');
+  const [assignmentRole, setAssignmentRole] = useState<PlatformAdminRole>('support_admin');
+  const [assignmentAdminEmail, setAssignmentAdminEmail] = useState('');
+  const [assignmentReason, setAssignmentReason] = useState('');
   const isAllowed = useMemo(() => isWebOfficeOperationsAllowed(user?.email), [user?.email]);
 
   const supportTicketByCaseId = useMemo(() => {
@@ -145,6 +171,12 @@ export default function OfficeOperationsPage() {
       .map((ticket) => [ticket.supportCaseId as string, ticket] as const);
     return new Map(entries);
   }, [snapshot?.supportTickets]);
+  const currentAdmin = snapshot?.currentAdmin ?? null;
+  const supportQueues = snapshot?.supportQueues ?? [];
+  const supportAssignmentById = useMemo(
+    () => new Map((snapshot?.supportAssignments ?? []).map((assignment) => [assignment.id, assignment] as const)),
+    [snapshot?.supportAssignments]
+  );
 
   const supportConsentsByCaseId = useMemo(
     () => buildCaseMap(snapshot?.supportConsents ?? [], (consent) => consent.supportCaseId),
@@ -186,9 +218,15 @@ export default function OfficeOperationsPage() {
       (snapshot?.supportCases ?? []).filter((supportCase) => {
         const matchesStatus =
           supportCaseFilter === 'all' ||
-          (supportCaseFilter === 'active' && supportCase.status !== 'resolved') ||
+          (supportCaseFilter === 'active' && supportCase.status !== 'resolved' && supportCase.status !== 'closed') ||
           supportCase.status === supportCaseFilter;
         const ticket = supportTicketByCaseId.get(supportCase.supportCaseId) ?? null;
+        const currentAssignment = ticket?.currentAssignmentId ? supportAssignmentById.get(ticket.currentAssignmentId) ?? null : null;
+        const matchesQueue = supportQueueFilter === 'all' || ticket?.queueId === supportQueueFilter;
+        const matchesOwner =
+          supportOwnerFilter === 'all' ||
+          (supportOwnerFilter === 'mine' && Boolean(currentAssignment?.assignedAdminUid && currentAssignment.assignedAdminUid === user?.uid)) ||
+          (supportOwnerFilter === 'unassigned' && !currentAssignment);
         const search = operationsSearch.trim().toLowerCase();
         const searchHaystack = [
           supportCase.supportCaseId,
@@ -198,13 +236,15 @@ export default function OfficeOperationsPage() {
           ticket?.customerEmail ?? '',
           ticket?.customerName ?? '',
           supportQueueLabel(ticket?.queueId),
+          currentAssignment?.assignedAdminEmail ?? '',
+          assignmentSummary(currentAssignment),
         ]
           .join(' ')
           .toLowerCase();
         const matchesSearch = !search || searchHaystack.includes(search);
-        return matchesStatus && matchesSearch;
+        return matchesStatus && matchesQueue && matchesOwner && matchesSearch;
       }),
-    [operationsSearch, snapshot?.supportCases, supportCaseFilter, supportTicketByCaseId]
+    [operationsSearch, snapshot?.supportCases, supportCaseFilter, supportQueueFilter, supportOwnerFilter, supportTicketByCaseId, supportAssignmentById, user?.uid]
   );
 
   const supportShellRows = useMemo<SupportShellRow[]>(
@@ -215,6 +255,7 @@ export default function OfficeOperationsPage() {
         return {
           supportCase,
           ticket,
+          currentAssignment: ticket?.currentAssignmentId ? supportAssignmentById.get(ticket.currentAssignmentId) ?? null : null,
           latestMessage: messages[0] ?? null,
           consentCount: (supportConsentsByCaseId.get(supportCase.supportCaseId) ?? []).length,
           pendingEmailCount: (supportEmailsByCaseId.get(supportCase.supportCaseId) ?? []).length,
@@ -227,6 +268,7 @@ export default function OfficeOperationsPage() {
       supportEmailsByCaseId,
       supportEventsByCaseId,
       supportMessagesByCaseId,
+      supportAssignmentById,
       supportTicketByCaseId,
     ]
   );
@@ -263,6 +305,56 @@ export default function OfficeOperationsPage() {
         ? supportEmailsByCaseId.get(selectedSupportRow.supportCase.supportCaseId) ?? []
         : [],
     [selectedSupportRow, supportEmailsByCaseId]
+  );
+  const selectedSupportAssignment = selectedSupportRow?.currentAssignment ?? null;
+  const assignmentQueueOptions = useMemo(
+    () => (supportQueues.length ? supportQueues : Object.entries(SUPPORT_QUEUE_LABELS).map(([id, label]) => ({ id, label, description: '', createdAt: null, updatedAt: null }))),
+    [supportQueues]
+  );
+  const assignableQueueOptions = useMemo(
+    () =>
+      currentAdmin
+        ? assignmentQueueOptions.filter(
+            (queue) => currentAdmin.supportCapability.mutateAll || currentAdmin.supportCapability.allowedQueues.includes(queue.id)
+          )
+        : [],
+    [assignmentQueueOptions, currentAdmin]
+  );
+  const allowedAssignmentRoles = useMemo(
+    () =>
+      ASSIGNABLE_ROLE_OPTIONS.filter(
+        (option) => option.value !== 'read_only_admin' && canSupportRoleAccessQueue(option.value, assignmentQueueId as SupportQueueId)
+      ),
+    [assignmentQueueId]
+  );
+  const canAssignSelectedTicket = Boolean(
+    currentAdmin &&
+      selectedSupportRow?.ticket &&
+      currentAdmin.supportCapability.canAssignTickets &&
+      (currentAdmin.supportCapability.mutateAll ||
+        currentAdmin.supportCapability.allowedQueues.includes(selectedSupportRow.ticket.queueId))
+  );
+  const canEditSelectedTicket = Boolean(
+    currentAdmin &&
+      selectedSupportRow?.ticket &&
+      (currentAdmin.supportCapability.mutateAll ||
+        currentAdmin.supportCapability.allowedQueues.includes(selectedSupportRow.ticket.queueId))
+  );
+  const canRecordSupportReview = Boolean(
+    currentAdmin &&
+      (currentAdmin.supportCapability.mutateAll ||
+        currentAdmin.supportCapability.canAddInternalNotes ||
+        currentAdmin.supportCapability.canChangeStatus ||
+        currentAdmin.supportCapability.canAssignTickets)
+  );
+  const canPrepareFollowUp = Boolean(
+    currentAdmin &&
+      selectedSupportRow?.ticket &&
+      (currentAdmin.supportCapability.mutateAll ||
+        currentAdmin.supportCapability.allowedQueues.includes(selectedSupportRow.ticket.queueId)) &&
+      (currentAdmin.supportCapability.canAddInternalNotes ||
+        currentAdmin.supportCapability.canChangeStatus ||
+        currentAdmin.supportCapability.canAssignTickets)
   );
   const selectedSupportTimeline = useMemo<SupportTimelineEntry[]>(
     () =>
@@ -370,6 +462,27 @@ export default function OfficeOperationsPage() {
     }
   }, [selectedSupportCaseId, supportShellRows]);
 
+  useEffect(() => {
+    if (!selectedSupportRow?.ticket) {
+      setAssignmentQueueId('general');
+      setAssignmentRole('support_admin');
+      setAssignmentAdminEmail('');
+      setAssignmentReason('');
+      return;
+    }
+
+    setAssignmentQueueId(selectedSupportRow.ticket.queueId);
+    setAssignmentRole(selectedSupportRow.currentAssignment?.assignedRole ?? inferDefaultAssignedRole(selectedSupportRow.ticket.queueId as SupportQueueId));
+    setAssignmentAdminEmail(selectedSupportRow.currentAssignment?.assignedAdminEmail ?? '');
+    setAssignmentReason(selectedSupportRow.currentAssignment?.reason ?? '');
+  }, [selectedSupportRow]);
+
+  useEffect(() => {
+    if (!allowedAssignmentRoles.some((option) => option.value === assignmentRole)) {
+      setAssignmentRole(inferDefaultAssignedRole(assignmentQueueId as SupportQueueId));
+    }
+  }, [allowedAssignmentRoles, assignmentQueueId, assignmentRole]);
+
   async function refresh() {
     if (!activeWorkspace?.workspaceId) {
       return;
@@ -415,6 +528,10 @@ export default function OfficeOperationsPage() {
       showToast('Add a short support reason before recording review.', 'info');
       return;
     }
+    if (!canRecordSupportReview) {
+      showToast('This admin role cannot record review notes for the selected support queue.', 'danger');
+      return;
+    }
 
     setIsRecordingSupportReview(true);
     try {
@@ -439,6 +556,10 @@ export default function OfficeOperationsPage() {
   async function saveSupportCaseUpdate() {
     if (!activeWorkspace?.workspaceId || !caseIdForUpdate.trim() || !caseNote.trim()) {
       showToast('Add a support case and note before saving this update.', 'info');
+      return;
+    }
+    if (!canEditSelectedTicket) {
+      showToast('This admin role cannot update the selected support queue.', 'danger');
       return;
     }
 
@@ -476,9 +597,51 @@ export default function OfficeOperationsPage() {
     setSupportReason('');
   }
 
+  async function saveTicketAssignment() {
+    if (!activeWorkspace?.workspaceId || !selectedSupportRow?.ticket) {
+      showToast('Choose a support ticket before saving an assignment.', 'info');
+      return;
+    }
+    if (!assignmentReason.trim()) {
+      showToast('Add a short assignment reason before saving.', 'info');
+      return;
+    }
+    if (!canAssignSelectedTicket) {
+      showToast('This admin role cannot assign the selected support queue.', 'danger');
+      return;
+    }
+    if (!allowedAssignmentRoles.some((option) => option.value === assignmentRole)) {
+      showToast('Choose an assignee role that is allowed to work in the selected support queue.', 'danger');
+      return;
+    }
+
+    setIsSavingAssignment(true);
+    try {
+      const result = await recordWebSupportTicketAssignment({
+        workspaceId: activeWorkspace.workspaceId,
+        supportCaseId: selectedSupportRow.supportCase.supportCaseId,
+        ticketId: selectedSupportRow.ticket.id,
+        queueId: assignmentQueueId,
+        assignedRole: assignmentRole,
+        assignedAdminEmail: assignmentAdminEmail || null,
+        reason: assignmentReason,
+      });
+      showToast(result.message, 'success');
+      await refresh();
+    } catch (assignmentError) {
+      showToast(assignmentError instanceof Error ? assignmentError.message : 'Ticket assignment could not be saved.', 'danger');
+    } finally {
+      setIsSavingAssignment(false);
+    }
+  }
+
   async function queueSupportEmail() {
     if (!activeWorkspace?.workspaceId || !emailCaseId.trim() || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()) {
       showToast('Add the case, recipient, subject, and message before preparing this email.', 'info');
+      return;
+    }
+    if (!canPrepareFollowUp) {
+      showToast('This admin role cannot prepare follow-up email for the selected support queue.', 'danger');
       return;
     }
 
@@ -590,6 +753,11 @@ export default function OfficeOperationsPage() {
               </div>
 
               <div className="ol-support-rail-block">
+                <div className="ol-support-queue-card">
+                  <strong>{supportRoleLabel(currentAdmin)}</strong>
+                  <span>{supportRoleScopeSummary(currentAdmin)}</span>
+                  <span>{supportAllowedQueueSummary(currentAdmin, supportQueues)}</span>
+                </div>
                 <label className="ol-field">
                   <span className="ol-field-label">Search</span>
                   <input
@@ -607,6 +775,31 @@ export default function OfficeOperationsPage() {
                     onChange={(event) => setSupportCaseFilter(event.target.value as (typeof SUPPORT_FILTER_OPTIONS)[number]['value'])}
                   >
                     {SUPPORT_FILTER_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="ol-field">
+                  <span className="ol-field-label">Queue</span>
+                  <select className="ol-select" value={supportQueueFilter} onChange={(event) => setSupportQueueFilter(event.target.value)}>
+                    <option value="all">All queues</option>
+                    {assignmentQueueOptions.map((queue) => (
+                      <option key={queue.id} value={queue.id}>
+                        {queue.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="ol-field">
+                  <span className="ol-field-label">Ownership</span>
+                  <select
+                    className="ol-select"
+                    value={supportOwnerFilter}
+                    onChange={(event) => setSupportOwnerFilter(event.target.value as (typeof OWNER_FILTER_OPTIONS)[number]['value'])}
+                  >
+                    {OWNER_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -634,7 +827,7 @@ export default function OfficeOperationsPage() {
                       option.value === 'all'
                         ? true
                         : option.value === 'active'
-                          ? supportCase.status !== 'resolved'
+                          ? supportCase.status !== 'resolved' && supportCase.status !== 'closed'
                           : supportCase.status === option.value
                     );
                     return (
@@ -714,6 +907,7 @@ export default function OfficeOperationsPage() {
                         <p>{row.ticket?.summary ?? row.supportCase.latestNote}</p>
                         <div className="ol-support-case-row-meta">
                           <span>{supportQueueLabel(row.ticket?.queueId)}</span>
+                          <span>{assignmentSummary(row.currentAssignment)}</span>
                           <span>{supportPriorityLabel(row.ticket?.priority)}</span>
                           <span>{row.supportCase.noteCount} note{row.supportCase.noteCount === 1 ? '' : 's'}</span>
                           <span>{row.consentCount} consent{row.consentCount === 1 ? '' : 's'}</span>
@@ -745,12 +939,14 @@ export default function OfficeOperationsPage() {
                       <button
                         className="ol-button-secondary"
                         onClick={() => prepareSupportReview(selectedSupportRow.supportCase)}
+                        disabled={!canRecordSupportReview || !canEditSelectedTicket}
                         type="button"
                       >
                         Use in review log
                       </button>
                       <button
                         className="ol-button-secondary"
+                        disabled={!canEditSelectedTicket}
                         onClick={() => prepareCaseUpdate(selectedSupportRow.supportCase, 'add_note')}
                         type="button"
                       >
@@ -758,6 +954,7 @@ export default function OfficeOperationsPage() {
                       </button>
                       <button
                         className="ol-button-secondary"
+                        disabled={!canPrepareFollowUp}
                         onClick={() => prepareSupportEmail(selectedSupportRow.supportCase, selectedSupportRow.ticket)}
                         type="button"
                       >
@@ -815,6 +1012,15 @@ export default function OfficeOperationsPage() {
                       </span>
                     </article>
                     <article className="ol-support-detail-card">
+                      <span className="ol-review-label">Assignment</span>
+                      <strong className="ol-review-value">
+                        {assignmentSummary(selectedSupportAssignment)}
+                      </strong>
+                      <span className="ol-list-text">
+                        {selectedSupportAssignment?.reason ?? 'No queue assignment reason recorded yet.'}
+                      </span>
+                    </article>
+                    <article className="ol-support-detail-card">
                       <span className="ol-review-label">Follow-ups</span>
                       <strong className="ol-review-value">
                         {selectedSupportEmails.length} queued
@@ -823,6 +1029,105 @@ export default function OfficeOperationsPage() {
                         {selectedSupportEvents.length} audit event{selectedSupportEvents.length === 1 ? '' : 's'}
                       </span>
                     </article>
+                  </div>
+
+                  <div className="ol-support-thread-section">
+                    <div className="ol-support-section-heading">
+                      <div>
+                        <h3>Assignment and queue control</h3>
+                        <p>Route the ticket to the right queue and operator role with a required audit reason.</p>
+                      </div>
+                      <span className={`ol-chip ${canAssignSelectedTicket ? 'ol-chip--success' : 'ol-chip--warning'}`}>
+                        {canAssignSelectedTicket ? 'Assignment enabled' : 'Read-only scope'}
+                      </span>
+                    </div>
+                    <div className="ol-form-band">
+                      <div className="ol-form-band-grid">
+                        <label className="ol-field">
+                          <span className="ol-field-label">Queue</span>
+                          <select
+                            className="ol-select"
+                            disabled={!canAssignSelectedTicket}
+                            value={assignmentQueueId}
+                            onChange={(event) => setAssignmentQueueId(event.target.value)}
+                          >
+                            {assignableQueueOptions.map((queue) => (
+                              <option key={queue.id} value={queue.id}>
+                                {queue.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="ol-field">
+                          <span className="ol-field-label">Assigned role</span>
+                          <select
+                            className="ol-select"
+                            disabled={!canAssignSelectedTicket}
+                            value={assignmentRole}
+                            onChange={(event) => setAssignmentRole(event.target.value as PlatformAdminRole)}
+                          >
+                            {allowedAssignmentRoles.map((role) => (
+                              <option key={role.value} value={role.value}>
+                                {role.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="ol-field">
+                          <span className="ol-field-label">Assigned admin email</span>
+                          <input
+                            className="ol-input"
+                            disabled={!canAssignSelectedTicket}
+                            onChange={(event) => setAssignmentAdminEmail(event.target.value)}
+                            placeholder="Optional owner email"
+                            value={assignmentAdminEmail}
+                          />
+                        </label>
+                        <label className="ol-field ol-field--span-2">
+                          <span className="ol-field-label">Assignment reason</span>
+                          <textarea
+                            className="ol-textarea"
+                            disabled={!canAssignSelectedTicket}
+                            onChange={(event) => setAssignmentReason(event.target.value)}
+                            placeholder="Explain why this queue or owner should take the ticket."
+                            rows={3}
+                            value={assignmentReason}
+                          />
+                        </label>
+                        <div className="ol-field ol-field--action">
+                          <span className="ol-field-label">Action</span>
+                          <button
+                            className="ol-button"
+                            disabled={isSavingAssignment || !canAssignSelectedTicket || !assignmentReason.trim()}
+                            onClick={() => void saveTicketAssignment()}
+                            type="button"
+                          >
+                            {isSavingAssignment ? 'Saving' : 'Save assignment'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="ol-support-detail-grid">
+                      <article className="ol-support-detail-card">
+                        <span className="ol-review-label">Current owner</span>
+                        <strong className="ol-review-value">{selectedSupportAssignment?.assignedAdminEmail ?? 'Unassigned'}</strong>
+                        <span className="ol-list-text">{supportRoleLabel(selectedSupportAssignment?.assignedRole ?? null)}</span>
+                      </article>
+                      <article className="ol-support-detail-card">
+                        <span className="ol-review-label">Queue description</span>
+                        <strong className="ol-review-value">{supportQueueLabel(assignmentQueueId)}</strong>
+                        <span className="ol-list-text">{queueDescription(assignmentQueueId, assignmentQueueOptions)}</span>
+                      </article>
+                      <article className="ol-support-detail-card">
+                        <span className="ol-review-label">Scope note</span>
+                        <strong className="ol-review-value">{canAssignSelectedTicket ? 'Writable' : 'Audit only'}</strong>
+                        <span className="ol-list-text">
+                          {canAssignSelectedTicket
+                            ? 'This role can re-route and assign the selected ticket.'
+                            : 'This role can inspect the ticket history but cannot reassign this queue.'}
+                        </span>
+                      </article>
+                    </div>
                   </div>
 
                   <div className="ol-support-thread-section">
@@ -880,6 +1185,7 @@ export default function OfficeOperationsPage() {
                           {CASE_ACTION_OPTIONS.map((option) => (
                             <button
                               className={caseAction === option.value ? 'ol-button' : 'ol-button-secondary'}
+                              disabled={!canEditSelectedTicket}
                               key={option.value}
                               onClick={() => prepareCaseUpdate(selectedSupportRow.supportCase, option.value)}
                               type="button"
@@ -1004,6 +1310,7 @@ export default function OfficeOperationsPage() {
                     <input
                       checked={supportDiagnosticsApproved}
                       className="ol-checkbox"
+                      disabled={!canRecordSupportReview || !currentAdmin?.supportCapability.canViewDiagnostics}
                       onChange={(event) => setSupportDiagnosticsApproved(event.target.checked)}
                       type="checkbox"
                     />
@@ -1013,7 +1320,7 @@ export default function OfficeOperationsPage() {
                     <span className="ol-field-label">Action</span>
                     <button
                       className="ol-button"
-                      disabled={isRecordingSupportReview || !supportReason.trim()}
+                      disabled={isRecordingSupportReview || !canRecordSupportReview || !supportReason.trim()}
                       onClick={() => void recordSupportReview()}
                       type="button"
                     >
@@ -1100,6 +1407,7 @@ export default function OfficeOperationsPage() {
                       className="ol-button"
                       disabled={
                         isSavingSupportCase ||
+                        !canEditSelectedTicket ||
                         !caseIdForUpdate.trim() ||
                         !caseNote.trim() ||
                         (requiresResolutionReason(caseAction) && !caseResolutionReason)
@@ -1122,31 +1430,33 @@ export default function OfficeOperationsPage() {
                     Prepare safe customer follow-up inside Orbit Ledger while provider delivery remains behind trusted server controls.
                   </p>
                 </div>
-                <span className="ol-chip ol-chip--warning">Provider pending</span>
+                <span className={`ol-chip ${canPrepareFollowUp ? 'ol-chip--warning' : 'ol-chip--primary'}`}>
+                  {canPrepareFollowUp ? 'Provider pending' : 'Read-only scope'}
+                </span>
               </div>
               <div className="ol-form-band">
                 <div className="ol-form-band-grid">
                   <label className="ol-field">
                     <span className="ol-field-label">Support case</span>
-                    <input className="ol-input" value={emailCaseId} onChange={(event) => setEmailCaseId(event.target.value)} placeholder="CASE-2001" />
+                    <input className="ol-input" disabled={!canPrepareFollowUp} value={emailCaseId} onChange={(event) => setEmailCaseId(event.target.value)} placeholder="CASE-2001" />
                   </label>
                   <label className="ol-field">
                     <span className="ol-field-label">Recipient email</span>
-                    <input className="ol-input" value={emailRecipient} onChange={(event) => setEmailRecipient(event.target.value)} placeholder="customer@example.com" />
+                    <input className="ol-input" disabled={!canPrepareFollowUp} value={emailRecipient} onChange={(event) => setEmailRecipient(event.target.value)} placeholder="customer@example.com" />
                   </label>
                   <label className="ol-field ol-field--span-2">
                     <span className="ol-field-label">Subject</span>
-                    <input className="ol-input" value={emailSubject} onChange={(event) => setEmailSubject(event.target.value)} placeholder="Update on CASE-2001" />
+                    <input className="ol-input" disabled={!canPrepareFollowUp} value={emailSubject} onChange={(event) => setEmailSubject(event.target.value)} placeholder="Update on CASE-2001" />
                   </label>
                   <label className="ol-field ol-field--span-2">
                     <span className="ol-field-label">Message</span>
-                    <textarea className="ol-textarea" value={emailBody} onChange={(event) => setEmailBody(event.target.value)} placeholder="Write a safe follow-up message." rows={4} />
+                    <textarea className="ol-textarea" disabled={!canPrepareFollowUp} value={emailBody} onChange={(event) => setEmailBody(event.target.value)} placeholder="Write a safe follow-up message." rows={4} />
                   </label>
                   <div className="ol-field ol-field--action">
                     <span className="ol-field-label">Action</span>
                     <button
                       className="ol-button"
-                      disabled={isQueueingSupportEmail || !emailCaseId.trim() || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()}
+                      disabled={isQueueingSupportEmail || !canPrepareFollowUp || !emailCaseId.trim() || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()}
                       onClick={() => void queueSupportEmail()}
                       type="button"
                     >
@@ -1424,6 +1734,65 @@ function supportMessageTone(kind: string): SupportTimelineEntry['tone'] {
     return 'success';
   }
   return 'default';
+}
+
+function assignmentSummary(assignment: WebSupportAssignmentRecord | null) {
+  if (!assignment) {
+    return 'Unassigned';
+  }
+  const owner = assignment.assignedAdminEmail ?? supportRoleLabel(assignment.assignedRole);
+  return `${supportQueueLabel(assignment.queueId)} · ${owner}`;
+}
+
+function supportRoleLabel(roleOrAdmin: PlatformAdminRole | WebSupportAdminContext | null) {
+  const role = typeof roleOrAdmin === 'string' ? roleOrAdmin : roleOrAdmin?.role ?? null;
+  if (!role) {
+    return 'No role';
+  }
+  return role
+    .split('_')
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function supportRoleScopeSummary(admin: WebSupportAdminContext | null) {
+  if (!admin) {
+    return 'Support scope is loading.';
+  }
+  if (admin.supportCapability.mutateAll) {
+    return 'Can assign, update, and audit every support queue.';
+  }
+  if (admin.supportCapability.canAssignTickets) {
+    return 'Can work only the queues listed below.';
+  }
+  return 'Audit visibility only. No ticket mutation is allowed.';
+}
+
+function supportAllowedQueueSummary(admin: WebSupportAdminContext | null, queues: WebSupportQueueRecord[]) {
+  if (!admin) {
+    return 'Queue access is loading.';
+  }
+  if (admin.supportCapability.readAll && admin.supportCapability.allowedQueues.length === 0) {
+    return 'Can read every support queue.';
+  }
+  const labels = admin.supportCapability.allowedQueues
+    .map((queueId) => queues.find((queue) => queue.id === queueId)?.label ?? supportQueueLabel(queueId))
+    .join(', ');
+  return labels ? `Queues: ${labels}` : 'No queue access recorded.';
+}
+
+function inferDefaultAssignedRole(queueId: SupportQueueId): PlatformAdminRole {
+  if (queueId === 'billing' || queueId === 'purchase') {
+    return 'finance_admin';
+  }
+  if (queueId === 'privacy') {
+    return 'admin';
+  }
+  return 'support_admin';
+}
+
+function queueDescription(queueId: string, queues: WebSupportQueueRecord[]) {
+  return queues.find((queue) => queue.id === queueId)?.description ?? 'No queue description recorded.';
 }
 
 function supportPriorityLabel(priority: string | null | undefined) {

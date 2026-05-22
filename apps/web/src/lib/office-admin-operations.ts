@@ -4,6 +4,7 @@ import {
   buildOfficeAccessReviewPlan,
   buildOfficeSupportCaseAdminActionPlan,
   buildOfficeSupportReviewPlan,
+  canSupportRoleMutateQueue,
   isOfficeAccessRequestStatus,
   isOfficeSupportCaseStatus,
   OFFICE_SUPPORT_REVIEW_GUARDRAILS,
@@ -14,6 +15,7 @@ import {
   type OfficeAccessRequestedPlanId,
   type OfficeSupportCaseAction,
   type OfficeSupportCaseStatus,
+  type PlatformAdminRole,
   type SupportResolutionReason,
 } from '@orbit-ledger/core';
 import {
@@ -151,15 +153,58 @@ export type WebSupportCaseEmailRequestRecord = {
   sentAt: string | null;
 };
 
+export type WebSupportAssignmentRecord = {
+  id: string;
+  ticketId: string;
+  supportCaseId: string | null;
+  queueId: string;
+  assignedRole: PlatformAdminRole;
+  assignedAdminUid: string | null;
+  assignedAdminEmail: string | null;
+  assignedByUid: string | null;
+  assignedByRole: PlatformAdminRole | null;
+  status: string;
+  reason: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type WebSupportQueueRecord = {
+  id: string;
+  label: string;
+  description: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type WebSupportAdminContext = {
+  uid: string;
+  email: string | null;
+  role: PlatformAdminRole;
+  supportCapability: {
+    readAll: boolean;
+    auditAll: boolean;
+    mutateAll: boolean;
+    allowedQueues: string[];
+    canAssignTickets: boolean;
+    canAddInternalNotes: boolean;
+    canChangeStatus: boolean;
+    canViewDiagnostics: boolean;
+  };
+};
+
 export type WebOfficeOperationsSnapshot = {
   metrics: WebOfficeOperationsMetric[];
   queue: WebOfficeOperationsQueueItem[];
   supportCases: WebSupportCaseRecord[];
   supportTickets: WebSupportTicketRecord[];
   supportMessages: WebSupportMessageRecord[];
+  supportAssignments: WebSupportAssignmentRecord[];
+  supportQueues: WebSupportQueueRecord[];
   supportCaseEmailRequests: WebSupportCaseEmailRequestRecord[];
   supportConsents: WebSupportDiagnosticConsentRecord[];
   supportCaseEvents: WebSupportCaseAuditEvent[];
+  currentAdmin: WebSupportAdminContext | null;
   health: {
     title: string;
     message: string;
@@ -192,10 +237,25 @@ export type WebSupportCaseFollowUpEmailResult = {
   message: string;
 };
 
+export type WebSupportTicketAssignmentResult = {
+  ticketId: string;
+  supportCaseId: string;
+  queueId: string;
+  assignedRole: PlatformAdminRole;
+  assignedAdminUid: string | null;
+  assignedAdminEmail: string | null;
+  assignmentId: string;
+  status: string;
+  message: string;
+};
+
 type WebOfficeSupportServerSnapshot = {
+  currentAdmin: WebSupportAdminContext | null;
   supportCases: Array<{ id: string } & Record<string, unknown>>;
   supportTickets: Array<{ id: string } & Record<string, unknown>>;
   supportMessages: Array<{ id: string } & Record<string, unknown>>;
+  supportAssignments: Array<{ id: string } & Record<string, unknown>>;
+  supportQueues: Array<{ id: string } & Record<string, unknown>>;
   supportCaseEmailRequests: Array<{ id: string } & Record<string, unknown>>;
   supportConsents: Array<{ id: string } & Record<string, unknown>>;
   supportCaseEvents: Array<{ id: string } & Record<string, unknown>>;
@@ -347,6 +407,7 @@ export async function loadWebOfficeOperationsSnapshot(
   return buildWebOfficeOperationsSnapshot({
     requests,
     adminQueue: [...queueRecords.values()],
+    currentAdmin: supportServerSnapshot?.currentAdmin ?? null,
     supportCases: supportServerSnapshot?.supportCases?.length
       ? supportServerSnapshot.supportCases.map((record) => parseSupportCaseRecord(record.id, record))
       : (supportCaseSnapshot?.docs ?? []).map((doc) => parseSupportCaseRecord(doc.id, doc.data())),
@@ -356,6 +417,12 @@ export async function loadWebOfficeOperationsSnapshot(
     supportMessages: supportServerSnapshot?.supportMessages?.length
       ? supportServerSnapshot.supportMessages.map((record) => parseSupportMessageRecord(record.id, record))
       : (supportMessageSnapshot?.docs ?? []).map((doc) => parseSupportMessageRecord(doc.id, doc.data())),
+    supportAssignments: supportServerSnapshot?.supportAssignments?.length
+      ? supportServerSnapshot.supportAssignments.map((record) => parseSupportAssignmentRecord(record.id, record))
+      : [],
+    supportQueues: supportServerSnapshot?.supportQueues?.length
+      ? supportServerSnapshot.supportQueues.map((record) => parseSupportQueueRecord(record.id, record))
+      : [],
     supportCaseEmailRequests: supportServerSnapshot?.supportCaseEmailRequests?.length
       ? supportServerSnapshot.supportCaseEmailRequests.map((record) => parseSupportCaseEmailRequestRecord(record.id, record))
       : (supportEmailSnapshot?.docs ?? []).map((doc) => parseSupportCaseEmailRequestRecord(doc.id, doc.data())),
@@ -482,6 +549,63 @@ export async function recordWebSupportCaseAdminAction(input: {
   };
 }
 
+export async function recordWebSupportTicketAssignment(input: {
+  workspaceId: string;
+  supportCaseId: string;
+  ticketId: string;
+  queueId: string;
+  assignedRole: PlatformAdminRole;
+  assignedAdminUid?: string | null;
+  assignedAdminEmail?: string | null;
+  reason: string;
+}): Promise<WebSupportTicketAssignmentResult> {
+  const user = getWebAuth().currentUser;
+  if (!user) {
+    throw new Error('Sign in again before assigning this support ticket.');
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(getAssignOfficeSupportTicketUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      workspaceId: input.workspaceId,
+      supportCaseId: input.supportCaseId,
+      ticketId: input.ticketId,
+      queueId: input.queueId,
+      assignedRole: input.assignedRole,
+      assignedAdminUid: input.assignedAdminUid ?? null,
+      assignedAdminEmail: input.assignedAdminEmail ?? null,
+      reason: input.reason,
+    }),
+  });
+  const result = (await response.json().catch(() => ({
+    ok: false,
+    error: 'support_assignment_failed',
+  }))) as
+    | ({ ok: true } & Record<string, unknown>)
+    | { ok: false; error: string; message?: string | null };
+
+  if (!response.ok || !result.ok) {
+    throw new Error(stringValue('message' in result ? result.message : null) || officeReviewErrorMessage(result.ok ? 'support_assignment_failed' : result.error));
+  }
+
+  return {
+    ticketId: stringValue(result.ticketId) || input.ticketId,
+    supportCaseId: stringValue(result.supportCaseId) || input.supportCaseId,
+    queueId: stringValue(result.queueId) || input.queueId,
+    assignedRole: (stringValue(result.assignedRole) || input.assignedRole) as PlatformAdminRole,
+    assignedAdminUid: nullableString(result.assignedAdminUid),
+    assignedAdminEmail: nullableString(result.assignedAdminEmail),
+    assignmentId: stringValue(result.assignmentId) || '',
+    status: stringValue(result.status) || 'assigned',
+    message: stringValue(result.message) || 'Ticket assignment saved.',
+  };
+}
+
 export async function resolveWebOfficeAccessRequest(input: {
   workspaceId: string;
   requestId: string;
@@ -591,9 +715,12 @@ export async function recordWebOfficeSupportReview(input: {
 export function buildWebOfficeOperationsSnapshot(input: {
   requests: OfficeAccessRequestRecord[];
   adminQueue: WebOfficeAdminQueueRecord[];
+  currentAdmin?: WebSupportAdminContext | null;
   supportCases?: WebSupportCaseRecord[];
   supportTickets?: WebSupportTicketRecord[];
   supportMessages?: WebSupportMessageRecord[];
+  supportAssignments?: WebSupportAssignmentRecord[];
+  supportQueues?: WebSupportQueueRecord[];
   supportCaseEmailRequests?: WebSupportCaseEmailRequestRecord[];
   supportConsents?: WebSupportDiagnosticConsentRecord[];
   supportCaseEvents?: WebSupportCaseAuditEvent[];
@@ -640,9 +767,12 @@ export function buildWebOfficeOperationsSnapshot(input: {
       },
     ],
     queue,
+    currentAdmin: input.currentAdmin ?? null,
     supportCases: input.supportCases ?? [],
     supportTickets: input.supportTickets ?? [],
     supportMessages: input.supportMessages ?? [],
+    supportAssignments: input.supportAssignments ?? [],
+    supportQueues: input.supportQueues ?? [],
     supportCaseEmailRequests: input.supportCaseEmailRequests ?? [],
     supportConsents: input.supportConsents ?? [],
     supportCaseEvents: input.supportCaseEvents ?? [],
@@ -711,6 +841,34 @@ export function parseSupportMessageRecord(id: string, data: DocumentData): WebSu
     visibleToCustomer: data.visible_to_customer === true || data.visibleToCustomer === true,
     body: stringValue(data.body) || 'No message body recorded.',
     createdAt: nullableString(data.created_at ?? data.createdAt),
+  };
+}
+
+export function parseSupportAssignmentRecord(id: string, data: DocumentData): WebSupportAssignmentRecord {
+  return {
+    id,
+    ticketId: stringValue(data.ticket_id) || stringValue(data.ticketId) || '',
+    supportCaseId: nullableString(data.support_case_id ?? data.supportCaseId),
+    queueId: stringValue(data.queue_id) || stringValue(data.queueId) || 'general',
+    assignedRole: (stringValue(data.assigned_role) || stringValue(data.assignedRole) || 'support_admin') as PlatformAdminRole,
+    assignedAdminUid: nullableString(data.assigned_admin_uid ?? data.assignedAdminUid),
+    assignedAdminEmail: nullableString(data.assigned_admin_email ?? data.assignedAdminEmail),
+    assignedByUid: nullableString(data.assigned_by_uid ?? data.assignedByUid),
+    assignedByRole: nullableString(data.assigned_by_role ?? data.assignedByRole) as PlatformAdminRole | null,
+    status: stringValue(data.status) || 'active',
+    reason: nullableString(data.reason),
+    createdAt: nullableString(data.created_at ?? data.createdAt),
+    updatedAt: nullableString(data.updated_at ?? data.updatedAt),
+  };
+}
+
+export function parseSupportQueueRecord(id: string, data: DocumentData): WebSupportQueueRecord {
+  return {
+    id: stringValue(data.queue_id) || stringValue(data.id) || id,
+    label: stringValue(data.label) || 'Support queue',
+    description: stringValue(data.description) || 'No queue description recorded.',
+    createdAt: nullableString(data.created_at ?? data.createdAt),
+    updatedAt: nullableString(data.updated_at ?? data.updatedAt),
   };
 }
 
@@ -996,6 +1154,11 @@ function getRecordSupportCaseAdminActionUrl() {
   return `https://asia-south1-${projectId}.cloudfunctions.net/recordSupportCaseAdminAction`;
 }
 
+function getAssignOfficeSupportTicketUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/assignOfficeSupportTicket`;
+}
+
 function getOfficeSupportSnapshotUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/getOfficeSupportSnapshot`;
@@ -1013,14 +1176,32 @@ function officeReviewErrorMessage(error: string) {
   if (error === 'support_review_required') {
     return 'Add a short support reason before recording review.';
   }
+  if (error === 'support_review_not_allowed') {
+    return 'This admin role cannot record review notes for the selected support queue.';
+  }
   if (error === 'support_case_update_required') {
     return 'Add a support case and note before saving this update.';
   }
   if (error === 'support_case_resolution_reason_required') {
     return 'Choose a support outcome before saving this status change.';
   }
+  if (error === 'support_case_action_not_allowed') {
+    return 'This admin role cannot update the selected support queue.';
+  }
+  if (error === 'support_assignment_required') {
+    return 'Choose a queue, role, and assignment note before saving this ticket assignment.';
+  }
+  if (error === 'support_assignment_not_allowed') {
+    return 'This admin role cannot assign tickets in the selected support queue.';
+  }
+  if (error === 'support_assignment_role_mismatch') {
+    return 'Choose an assignee role that is allowed to work in the selected support queue.';
+  }
   if (error === 'support_case_email_required') {
     return 'Add a valid recipient, subject, and message before preparing this email.';
+  }
+  if (error === 'support_case_email_not_allowed') {
+    return 'This admin role cannot prepare follow-up email for the selected support queue.';
   }
   if (error === 'office_request_not_ready') {
     return 'Approve the Office request before granting access.';
@@ -1074,9 +1255,29 @@ async function loadWebOfficeSupportServerSnapshot(
   }
 
   return {
+    currentAdmin:
+      result.currentAdmin && typeof result.currentAdmin === 'object'
+        ? {
+            uid: stringValue(result.currentAdmin.uid) || '',
+            email: nullableString(result.currentAdmin.email),
+            role: (stringValue(result.currentAdmin.role) || 'read_only_admin') as PlatformAdminRole,
+            supportCapability: {
+              readAll: result.currentAdmin.supportCapability?.readAll === true,
+              auditAll: result.currentAdmin.supportCapability?.auditAll === true,
+              mutateAll: result.currentAdmin.supportCapability?.mutateAll === true,
+              allowedQueues: stringList(result.currentAdmin.supportCapability?.allowedQueues),
+              canAssignTickets: result.currentAdmin.supportCapability?.canAssignTickets === true,
+              canAddInternalNotes: result.currentAdmin.supportCapability?.canAddInternalNotes === true,
+              canChangeStatus: result.currentAdmin.supportCapability?.canChangeStatus === true,
+              canViewDiagnostics: result.currentAdmin.supportCapability?.canViewDiagnostics === true,
+            },
+          }
+        : null,
     supportCases: result.supportCases ?? [],
     supportTickets: result.supportTickets ?? [],
     supportMessages: result.supportMessages ?? [],
+    supportAssignments: result.supportAssignments ?? [],
+    supportQueues: result.supportQueues ?? [],
     supportCaseEmailRequests: result.supportCaseEmailRequests ?? [],
     supportConsents: result.supportConsents ?? [],
     supportCaseEvents: result.supportCaseEvents ?? [],
