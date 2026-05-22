@@ -3,6 +3,7 @@ import type {
   OfficeWorkspaceRole,
   OrbitLedgerInternalAdminRole,
 } from './officeAccess';
+import type { SupportResolutionReason } from './supportCenter';
 import {
   canAssignOfficeRole,
   canOfficeRole,
@@ -42,8 +43,11 @@ export type OfficeOwnershipTransferStatus = (typeof OFFICE_OWNERSHIP_TRANSFER_ST
 
 export const OFFICE_SUPPORT_CASE_STATUSES = [
   'open',
+  'in_progress',
   'waiting_on_customer',
+  'pending_internal',
   'resolved',
+  'closed',
   'reopened',
 ] as const;
 
@@ -51,7 +55,11 @@ export type OfficeSupportCaseStatus = (typeof OFFICE_SUPPORT_CASE_STATUSES)[numb
 
 export const OFFICE_SUPPORT_CASE_ACTIONS = [
   'add_note',
+  'start_work',
+  'wait_for_customer',
+  'wait_for_internal',
   'resolve',
+  'close',
   'reopen',
 ] as const;
 
@@ -240,6 +248,7 @@ export type OfficeSupportCaseAdminActionInput = {
   supportCaseId?: string | null;
   action?: string | null;
   note?: string | null;
+  resolutionReason?: SupportResolutionReason | string | null;
 };
 
 export type OfficeSupportCaseAdminActionPlan = {
@@ -248,6 +257,7 @@ export type OfficeSupportCaseAdminActionPlan = {
   action: OfficeSupportCaseAction;
   note: string;
   nextStatus: OfficeSupportCaseStatus;
+  resolutionReason: SupportResolutionReason | null;
   message: string;
 };
 
@@ -455,6 +465,7 @@ export function buildOfficeSupportCaseAdminActionPlan(
   const rawAction = input.action ?? '';
   const action: OfficeSupportCaseAction = isOfficeSupportCaseAction(rawAction) ? rawAction : 'add_note';
   const note = normalizeOfficeSupportReviewText(input.note);
+  const resolutionReason = normalizeOfficeSupportResolutionReason(input.resolutionReason);
 
   if (!supportCaseId) {
     return {
@@ -463,6 +474,7 @@ export function buildOfficeSupportCaseAdminActionPlan(
       action,
       note: '',
       nextStatus: 'open',
+      resolutionReason,
       message: 'Choose a support case before saving this update.',
     };
   }
@@ -474,7 +486,20 @@ export function buildOfficeSupportCaseAdminActionPlan(
       action,
       note: '',
       nextStatus: supportCaseStatusForAction(action),
+      resolutionReason,
       message: 'Add a short support note before saving this update.',
+    };
+  }
+
+  if ((action === 'resolve' || action === 'close') && !resolutionReason) {
+    return {
+      canRecord: false,
+      supportCaseId,
+      action,
+      note,
+      nextStatus: supportCaseStatusForAction(action),
+      resolutionReason: null,
+      message: 'Choose a support outcome before saving this status change.',
     };
   }
 
@@ -484,13 +509,26 @@ export function buildOfficeSupportCaseAdminActionPlan(
     action,
     note,
     nextStatus: supportCaseStatusForAction(action),
+    resolutionReason,
     message: supportCaseMessageForAction(action),
   };
 }
 
 function supportCaseStatusForAction(action: OfficeSupportCaseAction): OfficeSupportCaseStatus {
+  if (action === 'start_work') {
+    return 'in_progress';
+  }
+  if (action === 'wait_for_customer') {
+    return 'waiting_on_customer';
+  }
+  if (action === 'wait_for_internal') {
+    return 'pending_internal';
+  }
   if (action === 'resolve') {
     return 'resolved';
+  }
+  if (action === 'close') {
+    return 'closed';
   }
   if (action === 'reopen') {
     return 'reopened';
@@ -499,8 +537,20 @@ function supportCaseStatusForAction(action: OfficeSupportCaseAction): OfficeSupp
 }
 
 function supportCaseMessageForAction(action: OfficeSupportCaseAction) {
+  if (action === 'start_work') {
+    return 'Support case marked in progress.';
+  }
+  if (action === 'wait_for_customer') {
+    return 'Support case is waiting on the customer.';
+  }
+  if (action === 'wait_for_internal') {
+    return 'Support case is waiting on internal follow-up.';
+  }
   if (action === 'resolve') {
     return 'Support case marked resolved.';
+  }
+  if (action === 'close') {
+    return 'Support case closed.';
   }
   if (action === 'reopen') {
     return 'Support case reopened.';
@@ -523,4 +573,21 @@ function normalizeOfficeSupportReviewText(value?: string | null) {
 
   const text = value.trim().replace(/\s+/g, ' ');
   return text ? text.slice(0, 240) : null;
+}
+
+function normalizeOfficeSupportResolutionReason(value?: SupportResolutionReason | string | null) {
+  if (
+    value === 'fixed' ||
+    value === 'answered' ||
+    value === 'refunded' ||
+    value === 'duplicate' ||
+    value === 'cannot_reproduce' ||
+    value === 'policy_blocked' ||
+    value === 'customer_stopped_replying' ||
+    value === 'spam' ||
+    value === 'other'
+  ) {
+    return value;
+  }
+  return null;
 }

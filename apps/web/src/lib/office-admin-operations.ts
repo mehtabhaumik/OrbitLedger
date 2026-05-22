@@ -14,6 +14,7 @@ import {
   type OfficeAccessRequestedPlanId,
   type OfficeSupportCaseAction,
   type OfficeSupportCaseStatus,
+  type SupportResolutionReason,
 } from '@orbit-ledger/core';
 import {
   collection,
@@ -191,6 +192,15 @@ export type WebSupportCaseFollowUpEmailResult = {
   message: string;
 };
 
+type WebOfficeSupportServerSnapshot = {
+  supportCases: Array<{ id: string } & Record<string, unknown>>;
+  supportTickets: Array<{ id: string } & Record<string, unknown>>;
+  supportMessages: Array<{ id: string } & Record<string, unknown>>;
+  supportCaseEmailRequests: Array<{ id: string } & Record<string, unknown>>;
+  supportConsents: Array<{ id: string } & Record<string, unknown>>;
+  supportCaseEvents: Array<{ id: string } & Record<string, unknown>>;
+};
+
 export { OFFICE_SUPPORT_REVIEW_GUARDRAILS };
 
 export const OFFICE_PRODUCTION_READINESS_CHECKLIST = [
@@ -247,6 +257,7 @@ export async function loadWebOfficeOperationsSnapshot(
   workspaceId: string
 ): Promise<WebOfficeOperationsSnapshot> {
   const firestore = getWebFirestore();
+  const user = getWebAuth().currentUser;
   const [
     requestSnapshot,
     queueSnapshot,
@@ -257,6 +268,7 @@ export async function loadWebOfficeOperationsSnapshot(
     supportTicketSnapshot,
     supportMessageSnapshot,
     supportEventSnapshot,
+    supportServerSnapshot,
   ] = await Promise.all([
     getDocs(
       query(
@@ -321,6 +333,7 @@ export async function loadWebOfficeOperationsSnapshot(
         limit(150)
       )
     ).catch(() => null),
+    loadWebOfficeSupportServerSnapshot(workspaceId, user).catch(() => null),
   ]);
 
   const requests = (requestSnapshot?.docs ?? []).map((doc) => parseOfficeAccessRequest(doc.id, doc.data()));
@@ -334,15 +347,29 @@ export async function loadWebOfficeOperationsSnapshot(
   return buildWebOfficeOperationsSnapshot({
     requests,
     adminQueue: [...queueRecords.values()],
-    supportCases: (supportCaseSnapshot?.docs ?? []).map((doc) => parseSupportCaseRecord(doc.id, doc.data())),
-    supportTickets: (supportTicketSnapshot?.docs ?? []).map((doc) => parseSupportTicketRecord(doc.id, doc.data())),
-    supportMessages: (supportMessageSnapshot?.docs ?? []).map((doc) => parseSupportMessageRecord(doc.id, doc.data())),
-    supportCaseEmailRequests: (supportEmailSnapshot?.docs ?? []).map((doc) => parseSupportCaseEmailRequestRecord(doc.id, doc.data())),
-    supportConsents: (consentSnapshot?.docs ?? []).map((doc) => parseSupportDiagnosticConsentRecord(doc.id, doc.data())),
-    supportCaseEvents: [
-      ...(auditSnapshot?.docs ?? []).map((doc) => parseSupportCaseAuditEvent(doc.id, doc.data())),
-      ...(supportEventSnapshot?.docs ?? []).map((doc) => parseSupportCaseAuditEvent(doc.id, doc.data())),
-    ]
+    supportCases: supportServerSnapshot?.supportCases?.length
+      ? supportServerSnapshot.supportCases.map((record) => parseSupportCaseRecord(record.id, record))
+      : (supportCaseSnapshot?.docs ?? []).map((doc) => parseSupportCaseRecord(doc.id, doc.data())),
+    supportTickets: supportServerSnapshot?.supportTickets?.length
+      ? supportServerSnapshot.supportTickets.map((record) => parseSupportTicketRecord(record.id, record))
+      : (supportTicketSnapshot?.docs ?? []).map((doc) => parseSupportTicketRecord(doc.id, doc.data())),
+    supportMessages: supportServerSnapshot?.supportMessages?.length
+      ? supportServerSnapshot.supportMessages.map((record) => parseSupportMessageRecord(record.id, record))
+      : (supportMessageSnapshot?.docs ?? []).map((doc) => parseSupportMessageRecord(doc.id, doc.data())),
+    supportCaseEmailRequests: supportServerSnapshot?.supportCaseEmailRequests?.length
+      ? supportServerSnapshot.supportCaseEmailRequests.map((record) => parseSupportCaseEmailRequestRecord(record.id, record))
+      : (supportEmailSnapshot?.docs ?? []).map((doc) => parseSupportCaseEmailRequestRecord(doc.id, doc.data())),
+    supportConsents: supportServerSnapshot?.supportConsents?.length
+      ? supportServerSnapshot.supportConsents.map((record) => parseSupportDiagnosticConsentRecord(record.id, record))
+      : (consentSnapshot?.docs ?? []).map((doc) => parseSupportDiagnosticConsentRecord(doc.id, doc.data())),
+    supportCaseEvents: (
+      supportServerSnapshot?.supportCaseEvents?.length
+        ? supportServerSnapshot.supportCaseEvents.map((record) => parseSupportCaseAuditEvent(record.id, record))
+        : [
+            ...(auditSnapshot?.docs ?? []).map((doc) => parseSupportCaseAuditEvent(doc.id, doc.data())),
+            ...(supportEventSnapshot?.docs ?? []).map((doc) => parseSupportCaseAuditEvent(doc.id, doc.data())),
+          ]
+    )
       .filter((item) => item.supportCaseId || item.supportConsentId || item.ticketId)
       .sort((left, right) => sortIsoDesc(left.createdAt, right.createdAt)),
   });
@@ -401,6 +428,7 @@ export async function recordWebSupportCaseAdminAction(input: {
   supportCaseId: string;
   action: OfficeSupportCaseAction;
   note: string;
+  resolutionReason?: SupportResolutionReason | null;
 }): Promise<WebSupportCaseAdminActionResult> {
   const user = getWebAuth().currentUser;
   if (!user) {
@@ -424,6 +452,7 @@ export async function recordWebSupportCaseAdminAction(input: {
       supportCaseId: plan.supportCaseId,
       action: plan.action,
       note: plan.note,
+      resolutionReason: plan.resolutionReason,
     }),
   });
   const result = (await response.json().catch(() => ({
@@ -967,6 +996,11 @@ function getRecordSupportCaseAdminActionUrl() {
   return `https://asia-south1-${projectId}.cloudfunctions.net/recordSupportCaseAdminAction`;
 }
 
+function getOfficeSupportSnapshotUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/getOfficeSupportSnapshot`;
+}
+
 function getQueueSupportCaseFollowUpEmailUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/queueSupportCaseFollowUpEmail`;
@@ -981,6 +1015,9 @@ function officeReviewErrorMessage(error: string) {
   }
   if (error === 'support_case_update_required') {
     return 'Add a support case and note before saving this update.';
+  }
+  if (error === 'support_case_resolution_reason_required') {
+    return 'Choose a support outcome before saving this status change.';
   }
   if (error === 'support_case_email_required') {
     return 'Add a valid recipient, subject, and message before preparing this email.';
@@ -1001,4 +1038,47 @@ function supportEmailDeliveryStatus(value: unknown): WebSupportCaseEmailRequestR
 function numberValue(value: unknown) {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? Math.max(0, Math.floor(number)) : 0;
+}
+
+async function loadWebOfficeSupportServerSnapshot(
+  workspaceId: string,
+  user: ReturnType<typeof getWebAuth>['currentUser']
+): Promise<WebOfficeSupportServerSnapshot | null> {
+  if (!user) {
+    return null;
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(getOfficeSupportSnapshotUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ workspaceId }),
+  });
+  const result = (await response.json().catch(() => ({
+    ok: false,
+    error: 'office_support_snapshot_failed',
+  }))) as
+    | ({
+        ok: true;
+      } & WebOfficeSupportServerSnapshot)
+    | {
+        ok: false;
+        error: string;
+      };
+
+  if (!result.ok) {
+    return null;
+  }
+
+  return {
+    supportCases: result.supportCases ?? [],
+    supportTickets: result.supportTickets ?? [],
+    supportMessages: result.supportMessages ?? [],
+    supportCaseEmailRequests: result.supportCaseEmailRequests ?? [],
+    supportConsents: result.supportConsents ?? [],
+    supportCaseEvents: result.supportCaseEvents ?? [],
+  };
 }

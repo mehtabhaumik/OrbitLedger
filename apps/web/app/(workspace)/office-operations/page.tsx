@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import type { OfficeSupportCaseAction } from '@orbit-ledger/core';
+import type { OfficeSupportCaseAction, SupportResolutionReason } from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
 import {
@@ -33,6 +33,17 @@ type SupportShellRow = {
   consentCount: number;
   pendingEmailCount: number;
   eventCount: number;
+};
+
+type SupportTimelineEntry = {
+  id: string;
+  createdAt: string | null;
+  kind: 'message' | 'event';
+  tone: 'success' | 'warning' | 'default';
+  title: string;
+  body: string;
+  meta: string;
+  badge: string;
 };
 
 const SUPPORT_FILTER_OPTIONS = [
@@ -79,6 +90,27 @@ const SUPPORT_QUEUE_LABELS: Record<string, string> = {
   purchase: 'Purchase',
 };
 
+const CASE_ACTION_OPTIONS: Array<{ value: OfficeSupportCaseAction; label: string }> = [
+  { value: 'add_note', label: 'Add internal note' },
+  { value: 'start_work', label: 'Started working' },
+  { value: 'wait_for_customer', label: 'Pending customer' },
+  { value: 'wait_for_internal', label: 'Pending internal' },
+  { value: 'resolve', label: 'Resolved' },
+  { value: 'close', label: 'Closed' },
+  { value: 'reopen', label: 'Reopened' },
+];
+
+const SUPPORT_RESOLUTION_REASON_OPTIONS: Array<{ value: SupportResolutionReason; label: string }> = [
+  { value: 'fixed', label: 'Fixed' },
+  { value: 'answered', label: 'Answered' },
+  { value: 'refunded', label: 'Refunded' },
+  { value: 'duplicate', label: 'Duplicate' },
+  { value: 'cannot_reproduce', label: 'Cannot reproduce' },
+  { value: 'policy_blocked', label: 'Policy blocked' },
+  { value: 'customer_stopped_replying', label: 'Customer stopped replying' },
+  { value: 'other', label: 'Other' },
+];
+
 export default function OfficeOperationsPage() {
   const { user } = useAuth();
   const { activeWorkspace } = useWorkspace();
@@ -92,6 +124,7 @@ export default function OfficeOperationsPage() {
   const [supportDiagnosticsApproved, setSupportDiagnosticsApproved] = useState(false);
   const [caseAction, setCaseAction] = useState<OfficeSupportCaseAction>('add_note');
   const [caseNote, setCaseNote] = useState('');
+  const [caseResolutionReason, setCaseResolutionReason] = useState<SupportResolutionReason | ''>('');
   const [caseIdForUpdate, setCaseIdForUpdate] = useState('');
   const [emailCaseId, setEmailCaseId] = useState('');
   const [emailRecipient, setEmailRecipient] = useState('');
@@ -230,6 +263,32 @@ export default function OfficeOperationsPage() {
         ? supportEmailsByCaseId.get(selectedSupportRow.supportCase.supportCaseId) ?? []
         : [],
     [selectedSupportRow, supportEmailsByCaseId]
+  );
+  const selectedSupportTimeline = useMemo<SupportTimelineEntry[]>(
+    () =>
+      [
+        ...selectedSupportMessages.map((message) => ({
+          id: `message:${message.id}`,
+          createdAt: message.createdAt,
+          kind: 'message' as const,
+          tone: supportMessageTone(message.kind),
+          title: supportMessageKindLabel(message.kind),
+          body: message.body,
+          meta: `${message.actorEmail ?? message.actorRole} · ${message.visibleToCustomer ? 'Customer-visible' : 'Internal only'}`,
+          badge: supportMessageKindBadge(message.kind),
+        })),
+        ...selectedSupportEvents.map((event) => ({
+          id: `event:${event.id}`,
+          createdAt: event.createdAt,
+          kind: 'event' as const,
+          tone: event.tone,
+          title: event.title,
+          body: event.detail,
+          meta: event.actor,
+          badge: event.status ?? event.kind ?? 'recorded',
+        })),
+      ].sort((left, right) => sortSupportTimeline(left.createdAt, right.createdAt)),
+    [selectedSupportEvents, selectedSupportMessages]
   );
 
   const supportRailHighlights = useMemo(
@@ -390,11 +449,13 @@ export default function OfficeOperationsPage() {
         supportCaseId: caseIdForUpdate,
         action: caseAction,
         note: caseNote,
+        resolutionReason: caseResolutionReason || null,
       });
       showToast(result.message, 'success');
       setCaseIdForUpdate('');
       setCaseNote('');
       setCaseAction('add_note');
+      setCaseResolutionReason('');
       await refresh();
     } catch (caseError) {
       showToast(caseError instanceof Error ? caseError.message : 'Support case could not be updated.', 'danger');
@@ -407,6 +468,7 @@ export default function OfficeOperationsPage() {
     setCaseIdForUpdate(supportCase.supportCaseId);
     setCaseAction(action);
     setCaseNote('');
+    setCaseResolutionReason('');
   }
 
   function prepareSupportReview(supportCase: WebSupportCaseRecord) {
@@ -766,22 +828,25 @@ export default function OfficeOperationsPage() {
                   <div className="ol-support-thread-section">
                     <div className="ol-support-section-heading">
                       <div>
-                        <h3>Latest messages</h3>
-                        <p>Recent customer or operator context already visible to this shell.</p>
+                        <h3>Thread and activity</h3>
+                        <p>Customer messages, internal notes, and ticket events in one operator timeline.</p>
                       </div>
                     </div>
-                    {selectedSupportMessages.length ? (
+                    {selectedSupportTimeline.length ? (
                       <div className="ol-support-message-list">
-                        {selectedSupportMessages.map((message) => (
-                          <article className="ol-support-message" data-kind={message.kind} key={message.id}>
+                        {selectedSupportTimeline.map((entry) => (
+                          <article className="ol-support-message" data-kind={entry.kind} key={entry.id}>
                             <div className="ol-support-message-head">
-                              <strong>{supportMessageKindLabel(message.kind)}</strong>
-                              <span>{formatDate(message.createdAt)}</span>
+                              <strong>{entry.title}</strong>
+                              <span>{formatDate(entry.createdAt)}</span>
                             </div>
-                            <p>{message.body}</p>
+                            <p>{entry.body}</p>
                             <span className="ol-list-text">
-                              {message.actorEmail ?? message.actorRole} · {message.visibleToCustomer ? 'Customer-visible' : 'Internal only'}
+                              {entry.meta}
                             </span>
+                            <div className="ol-support-band-spacing">
+                              <span className={`ol-chip ${supportAuditChipClass(entry.tone)}`}>{entry.badge}</span>
+                            </div>
                           </article>
                         ))}
                       </div>
@@ -799,6 +864,32 @@ export default function OfficeOperationsPage() {
                         </article>
                       </div>
                     )}
+                  </div>
+
+                  <div className="ol-support-thread-section">
+                    <div className="ol-support-section-heading">
+                      <div>
+                        <h3>Status controls</h3>
+                        <p>Record the current ticket state with a required note and support outcome when needed.</p>
+                      </div>
+                    </div>
+                    <div className="ol-support-detail-grid">
+                      <article className="ol-support-detail-card">
+                        <span className="ol-review-label">Quick state</span>
+                        <div className="ol-support-chip-row">
+                          {CASE_ACTION_OPTIONS.map((option) => (
+                            <button
+                              className={caseAction === option.value ? 'ol-button' : 'ol-button-secondary'}
+                              key={option.value}
+                              onClick={() => prepareCaseUpdate(selectedSupportRow.supportCase, option.value)}
+                              type="button"
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </article>
+                    </div>
                   </div>
 
                   <div className="ol-support-thread-section">
@@ -971,25 +1062,48 @@ export default function OfficeOperationsPage() {
                       value={caseAction}
                       onChange={(event) => setCaseAction(event.target.value as OfficeSupportCaseAction)}
                     >
-                      <option value="add_note">Add internal note</option>
-                      <option value="resolve">Mark resolved</option>
-                      <option value="reopen">Reopen case</option>
+                      {CASE_ACTION_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="ol-field">
+                    <span className="ol-field-label">Outcome reason</span>
+                    <select
+                      className="ol-select"
+                      value={caseResolutionReason}
+                      onChange={(event) => setCaseResolutionReason(event.target.value as SupportResolutionReason | '')}
+                    >
+                      <option value="">Not needed</option>
+                      {SUPPORT_RESOLUTION_REASON_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label className="ol-field ol-field--span-2">
                     <span className="ol-field-label">Internal note</span>
-                    <input
-                      className="ol-input"
+                    <textarea
+                      className="ol-textarea"
                       onChange={(event) => setCaseNote(event.target.value)}
-                      placeholder="Short resolution note visible in the audit trail"
+                      placeholder="Short operator note visible in the audit trail"
                       value={caseNote}
+                      rows={4}
                     />
                   </label>
                   <div className="ol-field ol-field--action">
                     <span className="ol-field-label">Action</span>
                     <button
                       className="ol-button"
-                      disabled={isSavingSupportCase || !caseIdForUpdate.trim() || !caseNote.trim()}
+                      disabled={
+                        isSavingSupportCase ||
+                        !caseIdForUpdate.trim() ||
+                        !caseNote.trim() ||
+                        (requiresResolutionReason(caseAction) && !caseResolutionReason)
+                      }
                       onClick={() => void saveSupportCaseUpdate()}
                       type="button"
                     >
@@ -1292,6 +1406,26 @@ function supportMessageKindLabel(kind: string) {
   return 'Customer message';
 }
 
+function supportMessageKindBadge(kind: string) {
+  if (kind === 'internal_note') {
+    return 'Internal note';
+  }
+  if (kind === 'operator_reply') {
+    return 'Reply';
+  }
+  if (kind === 'system_event') {
+    return 'System';
+  }
+  return 'Customer';
+}
+
+function supportMessageTone(kind: string): SupportTimelineEntry['tone'] {
+  if (kind === 'operator_reply') {
+    return 'success';
+  }
+  return 'default';
+}
+
 function supportPriorityLabel(priority: string | null | undefined) {
   const value = priority?.trim() || 'normal';
   return value.slice(0, 1).toUpperCase() + value.slice(1);
@@ -1306,6 +1440,10 @@ function resolveSupportContactEmail(
   consents: WebSupportDiagnosticConsentRecord[]
 ) {
   return row.ticket?.customerEmail ?? consents.find((consent) => consent.userEmail)?.userEmail ?? row.supportCase.latestNoteByEmail ?? null;
+}
+
+function requiresResolutionReason(action: OfficeSupportCaseAction) {
+  return action === 'resolve' || action === 'close';
 }
 
 function getLinkedSupportCaseEvents(
@@ -1394,4 +1532,10 @@ function formatDate(value: string | null | undefined) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
+}
+
+function sortSupportTimeline(left: string | null, right: string | null) {
+  const leftTime = left ? Date.parse(left) : 0;
+  const rightTime = right ? Date.parse(right) : 0;
+  return rightTime - leftTime;
 }

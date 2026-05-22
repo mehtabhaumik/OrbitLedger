@@ -1,4 +1,11 @@
-export type SupportCaseStatus = 'open' | 'waiting_on_customer' | 'resolved' | 'reopened';
+export type SupportCaseStatus =
+  | 'open'
+  | 'in_progress'
+  | 'waiting_on_customer'
+  | 'pending_internal'
+  | 'resolved'
+  | 'closed'
+  | 'reopened';
 export type SupportCaseAction = 'add_note' | 'resolve' | 'reopen';
 export type SupportTicketStatus =
   | 'opened'
@@ -115,7 +122,13 @@ export function buildCustomerSupportSubmissionDecision(input: {
   const supportCaseStatus = input.currentSupportCaseStatus ?? 'open';
   const ticketStatus = input.currentTicketStatus ?? 'opened';
 
-  if (supportCaseStatus === 'resolved' || supportCaseStatus === 'reopened' || ticketStatus === 'resolved' || ticketStatus === 'closed') {
+  if (
+    supportCaseStatus === 'resolved' ||
+    supportCaseStatus === 'closed' ||
+    supportCaseStatus === 'reopened' ||
+    ticketStatus === 'resolved' ||
+    ticketStatus === 'closed'
+  ) {
     return {
       supportCaseAction: 'reopen',
       nextSupportCaseStatus: 'reopened',

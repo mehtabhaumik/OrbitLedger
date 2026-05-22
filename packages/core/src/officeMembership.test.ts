@@ -109,12 +109,14 @@ describe('office membership schema', () => {
     expect(buildOfficeSupportCaseAdminActionPlan({
       supportCaseId: 'CASE-2001',
       action: 'resolve',
+      resolutionReason: 'fixed',
       note: 'Customer confirmed that the diagnostic review solved the issue.',
     })).toMatchObject({
       canRecord: true,
       supportCaseId: 'CASE-2001',
       action: 'resolve',
       nextStatus: 'resolved',
+      resolutionReason: 'fixed',
       message: 'Support case marked resolved.',
     });
 
@@ -134,6 +136,25 @@ describe('office membership schema', () => {
     })).toMatchObject({
       canRecord: false,
       message: 'Add a short support note before saving this update.',
+    });
+
+    expect(buildOfficeSupportCaseAdminActionPlan({
+      supportCaseId: 'CASE-2001',
+      action: 'start_work',
+      note: 'Reviewed the ledger snapshot and started the investigation.',
+    })).toMatchObject({
+      canRecord: true,
+      nextStatus: 'in_progress',
+      message: 'Support case marked in progress.',
+    });
+
+    expect(buildOfficeSupportCaseAdminActionPlan({
+      supportCaseId: 'CASE-2001',
+      action: 'close',
+      note: 'Customer stopped replying after two follow-ups.',
+    })).toMatchObject({
+      canRecord: false,
+      message: 'Choose a support outcome before saving this status change.',
     });
   });
 

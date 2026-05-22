@@ -280,8 +280,22 @@ type OfficeAccessRequestStatus =
   | 'cancelled';
 type OfficeAccessReviewAction = 'mark_reviewing' | 'approve' | 'reject' | 'grant_access';
 type SupportConsentStatus = 'active' | 'revoked' | 'expired';
-type SupportCaseStatus = 'open' | 'waiting_on_customer' | 'resolved' | 'reopened';
-type SupportCaseAction = 'add_note' | 'resolve' | 'reopen';
+type SupportCaseStatus =
+  | 'open'
+  | 'in_progress'
+  | 'waiting_on_customer'
+  | 'pending_internal'
+  | 'resolved'
+  | 'closed'
+  | 'reopened';
+type SupportCaseAction =
+  | 'add_note'
+  | 'start_work'
+  | 'wait_for_customer'
+  | 'wait_for_internal'
+  | 'resolve'
+  | 'close'
+  | 'reopen';
 type SupportCaseEmailDeliveryStatus = 'queued' | 'pending_provider_connection' | 'sent' | 'failed';
 type BillingEmailDeliveryResult = {
   status: BillingEmailDeliveryStatus;
@@ -4937,6 +4951,83 @@ export const recordPlatformAdminReportEvent = onRequest(
   }
 );
 
+export const getOfficeSupportSnapshot = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_support_cases')) {
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    if (!workspaceId) {
+      response.status(400).json({ ok: false, error: 'workspace_required' });
+      return;
+    }
+
+    try {
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const workspaceSnapshot = await workspaceRef.get();
+      if (!workspaceSnapshot.exists) {
+        response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+
+      const [
+        supportCaseSnapshot,
+        supportEmailSnapshot,
+        consentSnapshot,
+        auditSnapshot,
+        supportTicketSnapshot,
+        supportMessageSnapshot,
+        supportEventSnapshot,
+      ] = await Promise.all([
+        workspaceRef.collection('support_cases').orderBy('updated_at', 'desc').limit(80).get(),
+        workspaceRef.collection('support_case_email_requests').orderBy('queued_at', 'desc').limit(80).get(),
+        workspaceRef.collection('support_diagnostic_consents').orderBy('created_at', 'desc').limit(40).get(),
+        workspaceRef.collection('office_access_audit').orderBy('created_at', 'desc').limit(160).get(),
+        workspaceRef.collection('support_tickets').orderBy('updated_at', 'desc').limit(80).get(),
+        workspaceRef.collection('support_messages').orderBy('created_at', 'desc').limit(200).get(),
+        workspaceRef.collection('support_events').orderBy('created_at', 'desc').limit(200).get(),
+      ]);
+
+      response.status(200).json({
+        ok: true,
+        workspaceId,
+        supportCases: supportCaseSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+        supportCaseEmailRequests: supportEmailSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+        supportConsents: consentSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+        supportCaseEvents: [
+          ...auditSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+          ...supportEventSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+        ],
+        supportTickets: supportTicketSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+        supportMessages: supportMessageSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+      });
+    } catch (error) {
+      logger.error('getOfficeSupportSnapshot failed', { workspaceId, error });
+      response.status(500).json({ ok: false, error: 'office_support_snapshot_failed' });
+    }
+  }
+);
+
 export const recordOfficeSupportReview = onRequest(
   {
     region: 'asia-south1',
@@ -5038,34 +5129,63 @@ export const recordSupportCaseAdminAction = onRequest(
     const supportCaseId = clean(stringValue(body?.supportCaseId));
     const action = normalizeSupportCaseAction(clean(stringValue(body?.action)));
     const note = clean(stringValue(body?.note));
+    const resolutionReason = normalizeSupportResolutionReason(clean(stringValue(body?.resolutionReason)));
 
     if (!workspaceId || !supportCaseId || !note) {
       response.status(400).json({ ok: false, error: 'support_case_update_required' });
+      return;
+    }
+    if ((action === 'resolve' || action === 'close') && !resolutionReason) {
+      response.status(400).json({ ok: false, error: 'support_case_resolution_reason_required' });
       return;
     }
 
     try {
       const workspaceRef = db.collection('workspaces').doc(workspaceId);
       const caseRef = workspaceRef.collection('support_cases').doc(normalizeId(supportCaseId));
+      const ticketRef = workspaceRef.collection('support_tickets').doc(normalizeId(`support_ticket_${supportCaseId}`));
       const now = new Date();
       const auditRef = workspaceRef
         .collection('office_access_audit')
         .doc(normalizeId(`support_case_${action}_${supportCaseId}_${adminUser.uid}_${Date.now()}`));
+      const messageRef = workspaceRef
+        .collection('support_messages')
+        .doc(normalizeId(`support_message_${supportCaseId}_${adminUser.uid}_${Date.now()}`));
+      const eventRef = workspaceRef
+        .collection('support_events')
+        .doc(normalizeId(`support_event_${action}_${supportCaseId}_${adminUser.uid}_${Date.now()}`));
       let nextStatus: SupportCaseStatus = 'open';
 
       await db.runTransaction(async (transaction) => {
-        const [workspaceSnapshot, caseSnapshot] = await Promise.all([
+        const [workspaceSnapshot, caseSnapshot, ticketSnapshot] = await Promise.all([
           transaction.get(workspaceRef),
           transaction.get(caseRef),
+          transaction.get(ticketRef),
         ]);
         if (!workspaceSnapshot.exists) {
           throw new Error('workspace_not_found');
         }
 
         const currentCase = caseSnapshot.exists ? caseSnapshot.data() ?? {} : {};
+        const currentTicket = ticketSnapshot.exists ? ticketSnapshot.data() ?? {} : {};
         const previousStatus = normalizeSupportCaseStatus(clean(stringValue(currentCase.status)));
+        const previousTicketStatus = normalizeSupportCenterTicketStatus(clean(stringValue(currentTicket.status)));
+        const previousResolutionState = normalizeSupportCenterResolutionState(clean(stringValue(currentTicket.resolution_state)));
         nextStatus = supportCaseStatusForAction(action);
         const latestNote = note.slice(0, 500);
+        const nextTicketStatus = supportCenterTicketStatusForCaseAction(action);
+        const nextResolutionState =
+          action === 'resolve' || action === 'close'
+            ? 'resolved'
+            : action === 'reopen'
+              ? 'unresolved'
+              : previousResolutionState;
+        const nextResolutionReason =
+          action === 'resolve' || action === 'close'
+            ? resolutionReason
+            : action === 'reopen'
+              ? null
+              : normalizeSupportResolutionReason(clean(stringValue(currentTicket.resolution_reason)));
 
         transaction.set(
           caseRef,
@@ -5082,6 +5202,77 @@ export const recordSupportCaseAdminAction = onRequest(
             createdAt: clean(stringValue(currentCase.created_at)),
             now,
           }),
+          { merge: true }
+        );
+        transaction.set(
+          ticketRef,
+          {
+            status: nextTicketStatus,
+            resolution_state: nextResolutionState,
+            resolution_reason: nextResolutionReason,
+            latest_message_id: messageRef.id,
+            latest_message_at: now.toISOString(),
+            last_actor_uid: adminUser.uid,
+            last_actor_role: adminAccess.role,
+            updated_at: now.toISOString(),
+            resolved_at:
+              nextTicketStatus === 'resolved' || nextTicketStatus === 'closed'
+                ? now.toISOString()
+                : action === 'reopen'
+                  ? null
+                  : clean(stringValue(currentTicket.resolved_at)) ?? null,
+            closed_at:
+              nextTicketStatus === 'closed'
+                ? now.toISOString()
+                : action === 'reopen'
+                  ? null
+                  : clean(stringValue(currentTicket.closed_at)) ?? null,
+          },
+          { merge: true }
+        );
+        transaction.set(
+          messageRef,
+          {
+            version: 1,
+            workspace_id: workspaceId,
+            ticket_id: ticketRef.id,
+            support_case_id: supportCaseId,
+            kind: 'internal_note',
+            actor_uid: adminUser.uid,
+            actor_role: adminAccess.role,
+            actor_email: clean(adminUser.email),
+            visible_to_customer: false,
+            body: latestNote,
+            email_thread_id: null,
+            provider_message_id: null,
+            created_at: now.toISOString(),
+          },
+          { merge: true }
+        );
+        transaction.set(
+          eventRef,
+          {
+            version: 1,
+            workspace_id: workspaceId,
+            ticket_id: ticketRef.id,
+            support_case_id: supportCaseId,
+            kind: action === 'add_note' ? 'internal_note_added' : 'status_changed',
+            actor_uid: adminUser.uid,
+            actor_role: adminAccess.role,
+            actor_email: clean(adminUser.email),
+            queue_id: normalizeSupportQueueId(clean(stringValue(currentTicket.queue_id))) ?? 'general',
+            status_before: previousTicketStatus,
+            status_after: nextTicketStatus,
+            resolution_state_before: previousResolutionState,
+            resolution_state_after: nextResolutionState,
+            resolution_reason: nextResolutionReason,
+            detail: latestNote,
+            metadata: {
+              support_case_action: action,
+              support_case_status: nextStatus,
+            },
+            created_at: now.toISOString(),
+          },
           { merge: true }
         );
         transaction.set(auditRef, {
@@ -5111,6 +5302,7 @@ export const recordSupportCaseAdminAction = onRequest(
         supportCaseId,
         caseRecordId: caseRef.id,
         status: nextStatus,
+        resolutionReason,
         auditId: auditRef.id,
         message: supportCaseMessageForStatus(nextStatus, action),
       });
@@ -9681,7 +9873,14 @@ function normalizeSupportConsentStatus(value: string | null | undefined): Suppor
 }
 
 function normalizeSupportCaseStatus(value: string | null | undefined): SupportCaseStatus {
-  if (value === 'waiting_on_customer' || value === 'resolved' || value === 'reopened') {
+  if (
+    value === 'in_progress' ||
+    value === 'waiting_on_customer' ||
+    value === 'pending_internal' ||
+    value === 'resolved' ||
+    value === 'closed' ||
+    value === 'reopened'
+  ) {
     return value;
   }
   return 'open';
@@ -9707,6 +9906,23 @@ function normalizeSupportCenterResolutionState(
   value: string | null | undefined
 ): SupportCenterResolutionState {
   return value === 'resolved' ? 'resolved' : 'unresolved';
+}
+
+function normalizeSupportResolutionReason(value: string | null | undefined) {
+  if (
+    value === 'fixed' ||
+    value === 'answered' ||
+    value === 'refunded' ||
+    value === 'duplicate' ||
+    value === 'cannot_reproduce' ||
+    value === 'policy_blocked' ||
+    value === 'customer_stopped_replying' ||
+    value === 'spam' ||
+    value === 'other'
+  ) {
+    return value;
+  }
+  return null;
 }
 
 function normalizeSupportQueueId(value: string | null | undefined) {
@@ -9739,15 +9955,34 @@ function customerNameFromVerifiedUser(user: VerifiedRequestUser): string | null 
 }
 
 function normalizeSupportCaseAction(value: string | null | undefined): SupportCaseAction {
-  if (value === 'resolve' || value === 'reopen') {
+  if (
+    value === 'start_work' ||
+    value === 'wait_for_customer' ||
+    value === 'wait_for_internal' ||
+    value === 'resolve' ||
+    value === 'close' ||
+    value === 'reopen'
+  ) {
     return value;
   }
   return 'add_note';
 }
 
 function supportCaseStatusForAction(action: SupportCaseAction): SupportCaseStatus {
+  if (action === 'start_work') {
+    return 'in_progress';
+  }
+  if (action === 'wait_for_customer') {
+    return 'waiting_on_customer';
+  }
+  if (action === 'wait_for_internal') {
+    return 'pending_internal';
+  }
   if (action === 'resolve') {
     return 'resolved';
+  }
+  if (action === 'close') {
+    return 'closed';
   }
   if (action === 'reopen') {
     return 'reopened';
@@ -9755,18 +9990,60 @@ function supportCaseStatusForAction(action: SupportCaseAction): SupportCaseStatu
   return 'open';
 }
 
+function supportCenterTicketStatusForCaseAction(action: SupportCaseAction): SupportCenterTicketStatus {
+  if (action === 'start_work') {
+    return 'in_progress';
+  }
+  if (action === 'wait_for_customer') {
+    return 'pending_customer';
+  }
+  if (action === 'wait_for_internal') {
+    return 'pending_internal';
+  }
+  if (action === 'resolve') {
+    return 'resolved';
+  }
+  if (action === 'close') {
+    return 'closed';
+  }
+  if (action === 'reopen') {
+    return 'opened';
+  }
+  return 'opened';
+}
+
 function supportCaseAuditReason(action: SupportCaseAction, note: string) {
   const prefix = action === 'resolve'
     ? 'Support case resolved'
     : action === 'reopen'
       ? 'Support case reopened'
-      : 'Support case note added';
+      : action === 'start_work'
+        ? 'Support case marked in progress'
+        : action === 'wait_for_customer'
+          ? 'Support case waiting on customer'
+          : action === 'wait_for_internal'
+            ? 'Support case waiting on internal follow-up'
+            : action === 'close'
+              ? 'Support case closed'
+              : 'Support case note added';
   return `${prefix}: ${note}`;
 }
 
 function supportCaseMessageForStatus(status: SupportCaseStatus, action: SupportCaseAction) {
+  if (status === 'in_progress') {
+    return 'Support case marked in progress.';
+  }
+  if (status === 'waiting_on_customer' && action === 'wait_for_customer') {
+    return 'Support case is waiting on the customer.';
+  }
+  if (status === 'pending_internal') {
+    return 'Support case is waiting on internal follow-up.';
+  }
   if (status === 'resolved') {
     return 'Support case marked resolved.';
+  }
+  if (status === 'closed') {
+    return 'Support case closed.';
   }
   if (status === 'reopened') {
     return 'Support case reopened.';
