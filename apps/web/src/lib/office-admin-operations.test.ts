@@ -9,8 +9,10 @@ import {
   parseOfficeAdminQueueRecord,
   parseSupportCaseAuditEvent,
   parseSupportCaseEmailRequestRecord,
+  parseSupportMessageRecord,
   parseSupportCaseRecord,
   parseSupportDiagnosticConsentRecord,
+  parseSupportTicketRecord,
 } from './office-admin-operations';
 
 describe('office admin operations', () => {
@@ -45,6 +47,8 @@ describe('office admin operations', () => {
     ]);
     expect(snapshot.supportConsents).toEqual([]);
     expect(snapshot.supportCases).toEqual([]);
+    expect(snapshot.supportTickets).toEqual([]);
+    expect(snapshot.supportMessages).toEqual([]);
     expect(snapshot.supportCaseEmailRequests).toEqual([]);
     expect(snapshot.supportCaseEvents).toEqual([]);
   });
@@ -125,8 +129,10 @@ describe('office admin operations', () => {
       created_at: '2026-05-07T00:00:00.000Z',
     })).toMatchObject({
       id: 'audit-1',
+      ticketId: null,
       supportConsentId: 'consent-1',
       supportCaseId: 'CASE-2001',
+      kind: null,
       title: 'Approval saved',
     });
 
@@ -138,6 +144,19 @@ describe('office admin operations', () => {
     })).toMatchObject({
       title: 'Approval revoked',
       status: 'revoked',
+    });
+
+    expect(parseSupportCaseAuditEvent('event-1', {
+      ticket_id: 'ticket-1',
+      support_case_id: 'CASE-2001',
+      kind: 'ticket_created',
+      detail: 'Ticket was created from a customer support submission.',
+      created_at: '2026-05-07T00:01:00.000Z',
+    })).toMatchObject({
+      ticketId: 'ticket-1',
+      kind: 'ticket_created',
+      title: 'Ticket created',
+      detail: 'Ticket was created from a customer support submission.',
     });
 
     expect(parseSupportCaseRecord('case-2001', {
@@ -153,6 +172,45 @@ describe('office admin operations', () => {
       status: 'resolved',
       latestAction: 'resolve',
       noteCount: 2,
+    });
+
+    expect(parseSupportTicketRecord('ticket-1', {
+      ticket_id: 'ticket-1',
+      support_case_id: 'CASE-2001',
+      queue_id: 'technical',
+      priority: 'high',
+      status: 'opened',
+      subject: 'Sync help request',
+      summary: 'Sync stalled after sign-in.',
+      customer_email: 'owner@example.com',
+      linked_support_consent_ids: ['consent-1'],
+      latest_message_at: '2026-05-07T00:00:00.000Z',
+    })).toMatchObject({
+      id: 'ticket-1',
+      supportCaseId: 'CASE-2001',
+      queueId: 'technical',
+      priority: 'high',
+      subject: 'Sync help request',
+      customerEmail: 'owner@example.com',
+      linkedConsentIds: ['consent-1'],
+    });
+
+    expect(parseSupportMessageRecord('message-1', {
+      ticket_id: 'ticket-1',
+      support_case_id: 'CASE-2001',
+      kind: 'customer_message',
+      actor_role: 'customer',
+      actor_email: 'owner@example.com',
+      visible_to_customer: true,
+      body: 'Sync stops after login.',
+      created_at: '2026-05-07T00:00:00.000Z',
+    })).toMatchObject({
+      id: 'message-1',
+      ticketId: 'ticket-1',
+      supportCaseId: 'CASE-2001',
+      actorRole: 'customer',
+      visibleToCustomer: true,
+      body: 'Sync stops after login.',
     });
 
     expect(parseSupportCaseEmailRequestRecord('email-1', {

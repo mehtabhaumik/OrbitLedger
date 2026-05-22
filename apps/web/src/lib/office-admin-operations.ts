@@ -80,8 +80,10 @@ export type WebSupportDiagnosticConsentRecord = {
 
 export type WebSupportCaseAuditEvent = {
   id: string;
+  ticketId: string | null;
   supportCaseId: string | null;
   supportConsentId: string | null;
+  kind: string | null;
   title: string;
   detail: string;
   actor: string;
@@ -103,6 +105,41 @@ export type WebSupportCaseRecord = {
   updatedAt: string | null;
 };
 
+export type WebSupportTicketRecord = {
+  id: string;
+  ticketId: string;
+  supportCaseId: string | null;
+  queueId: string;
+  priority: string;
+  status: string;
+  resolutionState: string;
+  resolutionReason: string | null;
+  subject: string;
+  summary: string;
+  customerEmail: string | null;
+  customerName: string | null;
+  activeConsentId: string | null;
+  linkedConsentIds: string[];
+  latestMessageId: string | null;
+  latestMessageAt: string | null;
+  currentAssignmentId: string | null;
+  lastActorRole: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type WebSupportMessageRecord = {
+  id: string;
+  ticketId: string;
+  supportCaseId: string | null;
+  kind: string;
+  actorRole: string;
+  actorEmail: string | null;
+  visibleToCustomer: boolean;
+  body: string;
+  createdAt: string | null;
+};
+
 export type WebSupportCaseEmailRequestRecord = {
   id: string;
   supportCaseId: string;
@@ -117,6 +154,8 @@ export type WebOfficeOperationsSnapshot = {
   metrics: WebOfficeOperationsMetric[];
   queue: WebOfficeOperationsQueueItem[];
   supportCases: WebSupportCaseRecord[];
+  supportTickets: WebSupportTicketRecord[];
+  supportMessages: WebSupportMessageRecord[];
   supportCaseEmailRequests: WebSupportCaseEmailRequestRecord[];
   supportConsents: WebSupportDiagnosticConsentRecord[];
   supportCaseEvents: WebSupportCaseAuditEvent[];
@@ -208,54 +247,85 @@ export async function loadWebOfficeOperationsSnapshot(
   workspaceId: string
 ): Promise<WebOfficeOperationsSnapshot> {
   const firestore = getWebFirestore();
-  const [requestSnapshot, queueSnapshot, consentSnapshot, auditSnapshot, supportCaseSnapshot, supportEmailSnapshot] = await Promise.all([
+  const [
+    requestSnapshot,
+    queueSnapshot,
+    consentSnapshot,
+    auditSnapshot,
+    supportCaseSnapshot,
+    supportEmailSnapshot,
+    supportTicketSnapshot,
+    supportMessageSnapshot,
+    supportEventSnapshot,
+  ] = await Promise.all([
     getDocs(
       query(
         collection(firestore, 'workspaces', workspaceId, 'office_access_requests'),
         orderBy('updated_at', 'desc'),
         limit(50)
       )
-    ),
+    ).catch(() => null),
     getDocs(
       query(
         collection(firestore, 'workspaces', workspaceId, 'office_access_admin_queue'),
         orderBy('updated_at', 'desc'),
         limit(50)
       )
-    ),
+    ).catch(() => null),
     getDocs(
       query(
         collection(firestore, 'workspaces', workspaceId, 'support_diagnostic_consents'),
         orderBy('created_at', 'desc'),
         limit(20)
       )
-    ),
+    ).catch(() => null),
     getDocs(
       query(
         collection(firestore, 'workspaces', workspaceId, 'office_access_audit'),
         orderBy('created_at', 'desc'),
         limit(80)
       )
-    ),
+    ).catch(() => null),
     getDocs(
       query(
         collection(firestore, 'workspaces', workspaceId, 'support_cases'),
         orderBy('updated_at', 'desc'),
         limit(50)
       )
-    ),
+    ).catch(() => null),
     getDocs(
       query(
         collection(firestore, 'workspaces', workspaceId, 'support_case_email_requests'),
         orderBy('queued_at', 'desc'),
         limit(50)
       )
-    ),
+    ).catch(() => null),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'support_tickets'),
+        orderBy('updated_at', 'desc'),
+        limit(80)
+      )
+    ).catch(() => null),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'support_messages'),
+        orderBy('created_at', 'desc'),
+        limit(150)
+      )
+    ).catch(() => null),
+    getDocs(
+      query(
+        collection(firestore, 'workspaces', workspaceId, 'support_events'),
+        orderBy('created_at', 'desc'),
+        limit(150)
+      )
+    ).catch(() => null),
   ]);
 
-  const requests = requestSnapshot.docs.map((doc) => parseOfficeAccessRequest(doc.id, doc.data()));
+  const requests = (requestSnapshot?.docs ?? []).map((doc) => parseOfficeAccessRequest(doc.id, doc.data()));
   const queueRecords = new Map(
-    queueSnapshot.docs.map((doc) => {
+    (queueSnapshot?.docs ?? []).map((doc) => {
       const record = parseOfficeAdminQueueRecord(doc.id, doc.data());
       return [record.requestId, record] as const;
     })
@@ -264,12 +334,17 @@ export async function loadWebOfficeOperationsSnapshot(
   return buildWebOfficeOperationsSnapshot({
     requests,
     adminQueue: [...queueRecords.values()],
-    supportCases: supportCaseSnapshot.docs.map((doc) => parseSupportCaseRecord(doc.id, doc.data())),
-    supportCaseEmailRequests: supportEmailSnapshot.docs.map((doc) => parseSupportCaseEmailRequestRecord(doc.id, doc.data())),
-    supportConsents: consentSnapshot.docs.map((doc) => parseSupportDiagnosticConsentRecord(doc.id, doc.data())),
-    supportCaseEvents: auditSnapshot.docs
-      .map((doc) => parseSupportCaseAuditEvent(doc.id, doc.data()))
-      .filter((item) => item.supportCaseId || item.supportConsentId),
+    supportCases: (supportCaseSnapshot?.docs ?? []).map((doc) => parseSupportCaseRecord(doc.id, doc.data())),
+    supportTickets: (supportTicketSnapshot?.docs ?? []).map((doc) => parseSupportTicketRecord(doc.id, doc.data())),
+    supportMessages: (supportMessageSnapshot?.docs ?? []).map((doc) => parseSupportMessageRecord(doc.id, doc.data())),
+    supportCaseEmailRequests: (supportEmailSnapshot?.docs ?? []).map((doc) => parseSupportCaseEmailRequestRecord(doc.id, doc.data())),
+    supportConsents: (consentSnapshot?.docs ?? []).map((doc) => parseSupportDiagnosticConsentRecord(doc.id, doc.data())),
+    supportCaseEvents: [
+      ...(auditSnapshot?.docs ?? []).map((doc) => parseSupportCaseAuditEvent(doc.id, doc.data())),
+      ...(supportEventSnapshot?.docs ?? []).map((doc) => parseSupportCaseAuditEvent(doc.id, doc.data())),
+    ]
+      .filter((item) => item.supportCaseId || item.supportConsentId || item.ticketId)
+      .sort((left, right) => sortIsoDesc(left.createdAt, right.createdAt)),
   });
 }
 
@@ -488,6 +563,8 @@ export function buildWebOfficeOperationsSnapshot(input: {
   requests: OfficeAccessRequestRecord[];
   adminQueue: WebOfficeAdminQueueRecord[];
   supportCases?: WebSupportCaseRecord[];
+  supportTickets?: WebSupportTicketRecord[];
+  supportMessages?: WebSupportMessageRecord[];
   supportCaseEmailRequests?: WebSupportCaseEmailRequestRecord[];
   supportConsents?: WebSupportDiagnosticConsentRecord[];
   supportCaseEvents?: WebSupportCaseAuditEvent[];
@@ -535,6 +612,8 @@ export function buildWebOfficeOperationsSnapshot(input: {
     ],
     queue,
     supportCases: input.supportCases ?? [],
+    supportTickets: input.supportTickets ?? [],
+    supportMessages: input.supportMessages ?? [],
     supportCaseEmailRequests: input.supportCaseEmailRequests ?? [],
     supportConsents: input.supportConsents ?? [],
     supportCaseEvents: input.supportCaseEvents ?? [],
@@ -567,6 +646,45 @@ export function parseSupportCaseEmailRequestRecord(
   };
 }
 
+export function parseSupportTicketRecord(id: string, data: DocumentData): WebSupportTicketRecord {
+  return {
+    id,
+    ticketId: stringValue(data.ticket_id) || stringValue(data.ticketId) || id,
+    supportCaseId: nullableString(data.support_case_id ?? data.supportCaseId),
+    queueId: stringValue(data.queue_id) || stringValue(data.queueId) || 'general',
+    priority: stringValue(data.priority) || 'normal',
+    status: stringValue(data.status) || 'opened',
+    resolutionState: stringValue(data.resolution_state) || stringValue(data.resolutionState) || 'unresolved',
+    resolutionReason: nullableString(data.resolution_reason ?? data.resolutionReason),
+    subject: stringValue(data.subject) || 'Support request',
+    summary: stringValue(data.summary) || 'No support summary recorded.',
+    customerEmail: nullableString(data.customer_email ?? data.customerEmail),
+    customerName: nullableString(data.customer_name ?? data.customerName),
+    activeConsentId: nullableString(data.active_support_consent_id ?? data.activeSupportConsentId),
+    linkedConsentIds: stringList(data.linked_support_consent_ids ?? data.linkedSupportConsentIds),
+    latestMessageId: nullableString(data.latest_message_id ?? data.latestMessageId),
+    latestMessageAt: nullableString(data.latest_message_at ?? data.latestMessageAt),
+    currentAssignmentId: nullableString(data.current_assignment_id ?? data.currentAssignmentId),
+    lastActorRole: nullableString(data.last_actor_role ?? data.lastActorRole),
+    createdAt: nullableString(data.created_at ?? data.createdAt),
+    updatedAt: nullableString(data.updated_at ?? data.updatedAt),
+  };
+}
+
+export function parseSupportMessageRecord(id: string, data: DocumentData): WebSupportMessageRecord {
+  return {
+    id,
+    ticketId: stringValue(data.ticket_id) || stringValue(data.ticketId) || '',
+    supportCaseId: nullableString(data.support_case_id ?? data.supportCaseId),
+    kind: stringValue(data.kind) || 'customer_message',
+    actorRole: stringValue(data.actor_role) || stringValue(data.actorRole) || 'system',
+    actorEmail: nullableString(data.actor_email ?? data.actorEmail),
+    visibleToCustomer: data.visible_to_customer === true || data.visibleToCustomer === true,
+    body: stringValue(data.body) || 'No message body recorded.',
+    createdAt: nullableString(data.created_at ?? data.createdAt),
+  };
+}
+
 export function parseSupportCaseRecord(id: string, data: DocumentData): WebSupportCaseRecord {
   const status = stringValue(data.status);
   const latestAction = stringValue(data.latest_action) || stringValue(data.latestAction);
@@ -585,22 +703,27 @@ export function parseSupportCaseRecord(id: string, data: DocumentData): WebSuppo
 }
 
 export function parseSupportCaseAuditEvent(id: string, data: DocumentData): WebSupportCaseAuditEvent {
+  const kind = nullableString(data.kind);
+  const ticketId = nullableString(data.ticket_id ?? data.ticketId);
   const supportCaseId = nullableString(data.support_case_id ?? data.supportCaseId);
   const supportConsentId = nullableString(data.support_consent_id ?? data.supportConsentId);
   const nextStatus = nullableString(data.next_status ?? data.nextStatus);
   const reason = nullableString(data.reason);
   const approved = data.customer_approved_diagnostic_access === true || data.customerApprovedDiagnosticAccess === true;
   const title = supportAuditEventTitle({
+    kind,
     reason,
     nextStatus,
     approved,
   });
   return {
     id,
+    ticketId,
     supportCaseId,
     supportConsentId,
+    kind,
     title,
-    detail: reason ?? 'Support review event recorded.',
+    detail: reason ?? nullableString(data.detail) ?? 'Support review event recorded.',
     actor:
       nullableString(data.actor_email ?? data.actorEmail) ??
       nullableString(data.actor_uid ?? data.actorUid) ??
@@ -730,7 +853,33 @@ function officeRequestTone(status: OfficeAccessRequestStatus): WebOfficeOperatio
   return 'warning';
 }
 
-function supportAuditEventTitle(input: { reason: string | null; nextStatus: string | null; approved: boolean }) {
+function supportAuditEventTitle(input: {
+  kind: string | null;
+  reason: string | null;
+  nextStatus: string | null;
+  approved: boolean;
+}) {
+  if (input.kind === 'ticket_created') {
+    return 'Ticket created';
+  }
+  if (input.kind === 'message_added') {
+    return 'Customer message added';
+  }
+  if (input.kind === 'reply_sent') {
+    return 'Reply sent';
+  }
+  if (input.kind === 'internal_note_added') {
+    return 'Internal note added';
+  }
+  if (input.kind === 'status_changed') {
+    return 'Ticket status changed';
+  }
+  if (input.kind === 'consent_linked') {
+    return 'Diagnostic consent linked';
+  }
+  if (input.kind === 'permission_denied') {
+    return 'Permission denied';
+  }
   const reason = input.reason?.toLowerCase() ?? '';
   if (input.nextStatus === 'resolved' || reason.includes('case resolved')) {
     return 'Case resolved';
@@ -764,6 +913,12 @@ function supportAuditEventTone(title: string): WebSupportCaseAuditEvent['tone'] 
     return 'warning';
   }
   return 'default';
+}
+
+function sortIsoDesc(left: string | null, right: string | null) {
+  const leftValue = left ? Date.parse(left) : 0;
+  const rightValue = right ? Date.parse(right) : 0;
+  return rightValue - leftValue;
 }
 
 function requestedPlanId(value: unknown): OfficeAccessRequestedPlanId {
