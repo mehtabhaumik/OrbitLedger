@@ -13,8 +13,9 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { StatusChip } from '../components/StatusChip';
 import { TextField } from '../components/TextField';
-import { markRatingPromptActioned, submitUserFeedback } from '../engagement';
+import { markRatingPromptActioned } from '../engagement';
 import type { RootStackParamList } from '../navigation/types';
+import { submitMobileSupportRequest } from '../support/customerSupport';
 import { colors, spacing, touch, typography } from '../theme/theme';
 
 type FeedbackScreenProps = NativeStackScreenProps<RootStackParamList, 'Feedback'>;
@@ -34,9 +35,11 @@ const supportKinds: Array<{
 export function FeedbackScreen({ navigation }: FeedbackScreenProps) {
   const [kind, setKind] = useState<FounderSafeSupportKind>('general_feedback');
   const [message, setMessage] = useState('');
+  const [supportCaseId, setSupportCaseId] = useState('');
   const [includeDiagnostics, setIncludeDiagnostics] = useState(true);
   const [privacyReviewed, setPrivacyReviewed] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [statusTone, setStatusTone] = useState<'warning' | 'success'>('warning');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const cleanedMessage = message.trim();
 
@@ -71,6 +74,7 @@ export function FeedbackScreen({ navigation }: FeedbackScreenProps) {
 
   async function submitFeedback() {
     if (!canSubmit) {
+      setStatusTone('warning');
       setStatusMessage(
         cleanedMessage.length < 10
           ? 'Add a short message before sending.'
@@ -81,17 +85,25 @@ export function FeedbackScreen({ navigation }: FeedbackScreenProps) {
 
     try {
       setIsSubmitting(true);
+      setStatusTone('success');
       setStatusMessage('');
-      await submitUserFeedback(
-        buildSupportMessage({
-          diagnosticSummary,
-          draft,
-          includeDiagnostics,
-        })
-      );
+      const result = await submitMobileSupportRequest({
+        supportKind: kind,
+        supportCaseId,
+        includeDiagnostics,
+        sanitizedMessage: draft.sanitizedMessage,
+        diagnosticSummary: includeDiagnostics ? diagnosticSummary : null,
+        privateDataWarnings: draft.privateDataWarnings,
+      });
       await markRatingPromptActioned();
-      setStatusMessage('Your support request is ready in your mail or sharing app.');
+      if (result.mode === 'ticket') {
+        setSupportCaseId(result.supportCaseId);
+        setMessage('');
+        setPrivacyReviewed(false);
+      }
+      setStatusMessage(result.message);
     } catch {
+      setStatusTone('warning');
       setStatusMessage('Support request could not be opened. Please try again from your mail app.');
     } finally {
       setIsSubmitting(false);
@@ -107,6 +119,11 @@ export function FeedbackScreen({ navigation }: FeedbackScreenProps) {
   function updateMessage(nextMessage: string) {
     setMessage(nextMessage);
     setPrivacyReviewed(false);
+    setStatusMessage('');
+  }
+
+  function updateSupportCase(nextCaseId: string) {
+    setSupportCaseId(nextCaseId);
     setStatusMessage('');
   }
 
@@ -180,6 +197,14 @@ export function FeedbackScreen({ navigation }: FeedbackScreenProps) {
             style={styles.feedbackInput}
           />
 
+          <TextField
+            label="Support case"
+            placeholder="Optional case number if support shared one"
+            value={supportCaseId}
+            onChangeText={updateSupportCase}
+            helperText="Leave this blank when you are starting a new request."
+          />
+
           <SupportCheckbox
             checked={includeDiagnostics}
             label="Include safe diagnostic summary"
@@ -197,7 +222,11 @@ export function FeedbackScreen({ navigation }: FeedbackScreenProps) {
             />
           ) : null}
 
-          {statusMessage ? <Text style={styles.statusMessage}>{statusMessage}</Text> : null}
+          {statusMessage ? (
+            <Text style={statusTone === 'success' ? styles.statusMessageSuccess : styles.statusMessage}>
+              {statusMessage}
+            </Text>
+          ) : null}
 
           <PrimaryButton loading={isSubmitting} disabled={!canSubmit} onPress={submitFeedback}>
             Send Request
@@ -278,32 +307,6 @@ function SupportCheckbox({
   );
 }
 
-function buildSupportMessage(input: {
-  draft: ReturnType<typeof buildFounderSafeSupportDraft>;
-  diagnosticSummary: ReturnType<typeof buildFounderSafeDiagnosticSummary>;
-  includeDiagnostics: boolean;
-}) {
-  const lines = [
-    'Hello Orbit Ledger team,',
-    '',
-    input.draft.summary,
-    '',
-    'Message:',
-    input.draft.sanitizedMessage,
-  ];
-
-  if (input.includeDiagnostics) {
-    lines.push('', 'Safe diagnostic summary:');
-    for (const [label, value] of Object.entries(input.diagnosticSummary.safeFields)) {
-      lines.push(`- ${formatDiagnosticLabel(label)}: ${Array.isArray(value) ? value.join(', ') : String(value)}`);
-    }
-    lines.push('', input.diagnosticSummary.privacyNote);
-  }
-
-  lines.push('', 'No customer records, invoices, payment proof, backups, or private keys are attached automatically.');
-  return lines.join('\n');
-}
-
 function formatDiagnosticLabel(value: string) {
   return value
     .replace(/([A-Z])/g, ' $1')
@@ -359,11 +362,11 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   kindGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     gap: spacing.sm,
   },
   kindChip: {
+    alignItems: 'center',
     borderColor: colors.border,
     borderRadius: 999,
     borderWidth: 1,
@@ -436,6 +439,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     backgroundColor: colors.warningSurface,
     color: colors.warning,
+    fontSize: typography.caption,
+    fontWeight: '800',
+    lineHeight: 18,
+    padding: spacing.md,
+  },
+  statusMessageSuccess: {
+    borderColor: colors.successSurface,
+    borderRadius: 8,
+    borderWidth: 1,
+    backgroundColor: colors.successSurface,
+    color: colors.success,
     fontSize: typography.caption,
     fontWeight: '800',
     lineHeight: 18,

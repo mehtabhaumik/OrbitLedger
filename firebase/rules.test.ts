@@ -61,6 +61,40 @@ describe('Firestore workspace rules', () => {
     await assertSucceeds(owner.collection('workspaces').where('owner_uid', '==', 'owner-1').get());
   });
 
+  it('allows the full first-workspace payload used by the web setup flow', async () => {
+    const owner = testEnv.authenticatedContext('owner-1').firestore();
+    const workspace = owner.collection('workspaces').doc('workspace-bootstrap');
+
+    await assertSucceeds(
+      workspace.set({
+        owner_uid: 'owner-1',
+        owner_email: 'owner@example.com',
+        business_name: 'Orbit Bootstrap Workspace',
+        owner_name: 'Orbit Owner',
+        phone: '',
+        email: 'owner@example.com',
+        address: '',
+        currency: 'INR',
+        country_code: 'IN',
+        state_code: 'GJ',
+        logo_uri: null,
+        document_watermark_type: 'none',
+        document_watermark_text: null,
+        document_watermark_image_uri: null,
+        document_watermark_opacity: 0.08,
+        authorized_person_name: '',
+        authorized_person_title: '',
+        signature_uri: null,
+        data_state: 'profile_only',
+        created_at: '2026-05-22T00:00:00.000Z',
+        updated_at: '2026-05-22T00:00:00.000Z',
+        server_revision: 1,
+      })
+    );
+
+    await assertSucceeds(workspace.get());
+  });
+
   it('blocks cross-owner workspace reads and writes', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await context.firestore().collection('workspaces').doc('workspace-1').set({

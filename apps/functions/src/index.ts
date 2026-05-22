@@ -5,6 +5,17 @@ import { logger } from 'firebase-functions';
 import { defineSecret } from 'firebase-functions/params';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import {
+  buildCustomerSupportSubmissionDecision,
+  buildSupportCaseId,
+  buildSupportEventRecord,
+  buildSupportMessageRecord,
+  buildSupportTicketRecord,
+  supportQueueForKind,
+  supportSubjectForKind,
+  type SupportResolutionState as SupportCenterResolutionState,
+  type SupportTicketStatus as SupportCenterTicketStatus,
+} from './supportCenterBridge';
 
 admin.initializeApp();
 
@@ -34,6 +45,7 @@ type PlatformAdminFunctionPermission =
   | 'view_audit_trail'
   | 'manage_user_controls'
   | 'manage_offers'
+  | 'download_admin_reports'
   | 'review_office_access'
   | 'review_support_cases';
 type PlatformAdminAccountAction = 'create' | 'change_role' | 'suspend' | 'reactivate' | 'revoke';
@@ -58,6 +70,17 @@ type PlatformOfferScope = (typeof PLATFORM_OFFER_SCOPES)[number];
 type PlatformOfferDiscountType = (typeof PLATFORM_OFFER_DISCOUNT_TYPES)[number];
 type PlatformOfferStatus = (typeof PLATFORM_OFFER_STATUSES)[number];
 type PlatformAdminOfferAction = 'create' | 'update' | 'deactivate' | 'remove';
+const PLATFORM_ADMIN_REPORT_TYPES = [
+  'user_registry',
+  'admin_access',
+  'billing_offers',
+  'audit_trail',
+  'office_access',
+  'support_cases',
+] as const;
+const PLATFORM_ADMIN_REPORT_ACTIONS = ['download_csv', 'print_report'] as const;
+type PlatformAdminReportType = (typeof PLATFORM_ADMIN_REPORT_TYPES)[number];
+type PlatformAdminReportAction = (typeof PLATFORM_ADMIN_REPORT_ACTIONS)[number];
 type VerifiedRequestUser = { uid: string; email: string | null; claims: Record<string, unknown> };
 
 type PlatformAdminRegistryData = {
@@ -83,6 +106,16 @@ type PlatformAdminRegistryData = {
   revoked_by_email: string | null;
   revoked_at: string | null;
   reason: string | null;
+};
+
+const PLATFORM_ADMIN_RATE_LIMIT_POLICIES: Record<
+  Extract<PlatformAdminFunctionPermission, 'manage_admin_accounts' | 'manage_user_controls' | 'manage_offers' | 'download_admin_reports'>,
+  { limit: number; windowMs: number }
+> = {
+  manage_admin_accounts: { limit: 6, windowMs: 10 * 60 * 1000 },
+  manage_user_controls: { limit: 20, windowMs: 10 * 60 * 1000 },
+  manage_offers: { limit: 12, windowMs: 10 * 60 * 1000 },
+  download_admin_reports: { limit: 30, windowMs: 10 * 60 * 1000 },
 };
 
 type ProviderSource = 'upi' | 'payment_page' | 'bank_transfer' | 'card' | 'wallet' | 'other';
@@ -3600,6 +3633,14 @@ export const getPlatformAdminSnapshot = onRequest(
     const adminUser = await verifyRequestUser(request);
     const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
     if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'view_registry')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'getPlatformAdminSnapshot',
+        requiredPermission: 'view_registry',
+        actor: adminUser,
+        access: adminAccess,
+        outcome: 'denied',
+        reason: 'Platform admin registry access requires a server-authorized admin account.',
+      });
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
@@ -3893,6 +3934,17 @@ export const managePlatformAdminAccount = onRequest(
     const adminUser = await verifyRequestUser(request);
     const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
     if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'manage_admin_accounts')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'managePlatformAdminAccount',
+        requiredPermission: 'manage_admin_accounts',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: clean(stringValue(asRecord(request.body)?.action)),
+        targetUid: clean(stringValue(asRecord(request.body)?.targetUid)),
+        targetEmail: normalizeEmailAddress(clean(stringValue(asRecord(request.body)?.targetEmail))),
+        outcome: 'denied',
+        reason: 'Only server-authorized Super Admin access can manage platform admin accounts.',
+      });
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
@@ -3923,6 +3975,18 @@ export const managePlatformAdminAccount = onRequest(
     }
     if (targetEmail && !isValidEmailAddress(targetEmail)) {
       response.status(400).json({ ok: false, error: 'admin_email_invalid' });
+      return;
+    }
+    if (!(await enforcePlatformAdminRateLimit({
+      actor: adminUser,
+      access: adminAccess,
+      permission: 'manage_admin_accounts',
+      endpoint: 'managePlatformAdminAccount',
+      requestedAction: action,
+      targetUid,
+      targetEmail,
+    }))) {
+      response.status(429).json({ ok: false, error: 'admin_rate_limit_exceeded' });
       return;
     }
 
@@ -4084,6 +4148,17 @@ export const managePlatformAdminUser = onRequest(
     const adminUser = await verifyRequestUser(request);
     const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
     if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'manage_user_controls')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'managePlatformAdminUser',
+        requiredPermission: 'manage_user_controls',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: clean(stringValue(asRecord(request.body)?.action)),
+        targetUid: clean(stringValue(asRecord(request.body)?.targetUid)),
+        targetEmail: normalizeEmailAddress(clean(stringValue(asRecord(request.body)?.targetEmail))),
+        outcome: 'denied',
+        reason: 'Only server-authorized admin roles can change platform user status.',
+      });
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
@@ -4113,11 +4188,34 @@ export const managePlatformAdminUser = onRequest(
       return;
     }
     if (!canPlatformAdminUseUserAction(adminAccess, action)) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'managePlatformAdminUser',
+        requiredPermission: 'manage_user_controls',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: action,
+        targetUid,
+        targetEmail,
+        outcome: 'denied',
+        reason: 'This admin role is not allowed to perform the requested user control action.',
+      });
       response.status(403).json({ ok: false, error: 'user_action_not_allowed' });
       return;
     }
     if ((action === 'send_warning' || action === 'add_internal_note') && (!message || message.length < 10)) {
       response.status(400).json({ ok: false, error: 'user_message_required' });
+      return;
+    }
+    if (!(await enforcePlatformAdminRateLimit({
+      actor: adminUser,
+      access: adminAccess,
+      permission: 'manage_user_controls',
+      endpoint: 'managePlatformAdminUser',
+      requestedAction: action,
+      targetUid,
+      targetEmail,
+    }))) {
+      response.status(429).json({ ok: false, error: 'admin_rate_limit_exceeded' });
       return;
     }
 
@@ -4366,6 +4464,15 @@ export const managePlatformAdminOffer = onRequest(
     const adminUser = await verifyRequestUser(request);
     const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
     if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'manage_offers')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'managePlatformAdminOffer',
+        requiredPermission: 'manage_offers',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: clean(stringValue(asRecord(request.body)?.action)),
+        outcome: 'denied',
+        reason: 'Only server-authorized finance or Super Admin access can change billing offers.',
+      });
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
@@ -4381,6 +4488,17 @@ export const managePlatformAdminOffer = onRequest(
     }
     if (!reason || reason.length < 10) {
       response.status(400).json({ ok: false, error: 'offer_reason_required' });
+      return;
+    }
+    if (!(await enforcePlatformAdminRateLimit({
+      actor: adminUser,
+      access: adminAccess,
+      permission: 'manage_offers',
+      endpoint: 'managePlatformAdminOffer',
+      requestedAction: action,
+      targetUid: offerId ?? null,
+    }))) {
+      response.status(429).json({ ok: false, error: 'admin_rate_limit_exceeded' });
       return;
     }
     if ((action === 'update' || action === 'deactivate' || action === 'remove') && !offerId) {
@@ -4643,6 +4761,14 @@ export const getPlatformAdminAuditTrail = onRequest(
     const adminUser = await verifyRequestUser(request);
     const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
     if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'view_audit_trail')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'getPlatformAdminAuditTrail',
+        requiredPermission: 'view_audit_trail',
+        actor: adminUser,
+        access: adminAccess,
+        outcome: 'denied',
+        reason: 'Platform admin audit viewing requires a server-authorized admin account.',
+      });
       response.status(403).json({ ok: false, error: 'internal_admin_required' });
       return;
     }
@@ -4720,6 +4846,94 @@ export const getPlatformAdminAuditTrail = onRequest(
       logger.error('Platform admin audit trail failed', error);
       response.status(500).json({ ok: false, error: 'platform_admin_audit_failed' });
     }
+  }
+);
+
+export const recordPlatformAdminReportEvent = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 5,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'download_admin_reports')) {
+      const body = asRecord(request.body);
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'recordPlatformAdminReportEvent',
+        requiredPermission: 'download_admin_reports',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: clean(stringValue(body?.action)),
+        reportType: clean(stringValue(body?.reportType)),
+        outcome: 'denied',
+        reason: 'Only export-authorized admin roles can download or print Platform Admin reports.',
+      });
+      response.status(403).json({ ok: false, error: 'report_action_not_allowed' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const action = normalizePlatformAdminReportAction(clean(stringValue(body?.action)));
+    const reportType = normalizePlatformAdminReportType(clean(stringValue(body?.reportType)));
+    const reportTitle = clean(stringValue(body?.reportTitle));
+    const rowCount = Math.max(0, Math.floor(numberValue(body?.rowCount, 0)));
+    const filters = normalizeStringList(body?.filters);
+
+    if (!action) {
+      response.status(400).json({ ok: false, error: 'report_action_required' });
+      return;
+    }
+    if (!reportType) {
+      response.status(400).json({ ok: false, error: 'report_type_required' });
+      return;
+    }
+    if (
+      !(await enforcePlatformAdminRateLimit({
+        actor: adminUser,
+        access: adminAccess,
+        permission: 'download_admin_reports',
+        endpoint: 'recordPlatformAdminReportEvent',
+        requestedAction: action,
+        reportType,
+      }))
+    ) {
+      response.status(429).json({ ok: false, error: 'admin_rate_limit_exceeded' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    await db.collection('platform_admin_audit').doc(normalizeId(`platform_admin_report_${action}_${reportType}_${Date.now()}`)).set({
+      action: `platform_admin_report_${action}`,
+      actor_uid: adminUser.uid,
+      actor_email: adminUser.email ?? null,
+      actor_role: adminAccess.role,
+      report_type: reportType,
+      report_title: reportTitle ?? humanizePlatformAdminReportType(reportType),
+      report_generated_at: clean(stringValue(body?.generatedAt)),
+      report_generated_by: clean(stringValue(body?.generatedBy)),
+      report_admin_role: clean(stringValue(body?.adminRole)),
+      filters,
+      filter_count: filters.length,
+      row_count: rowCount,
+      reason: `${action === 'download_csv' ? 'CSV export' : 'Print export'} recorded.`,
+      affected_summary: `${reportTitle ?? humanizePlatformAdminReportType(reportType)} · ${rowCount} row(s)`,
+      risk_level: 'low',
+      created_at: now,
+    });
+
+    response.json({ ok: true });
   }
 );
 
@@ -5027,6 +5241,329 @@ export const queueSupportCaseFollowUpEmail = onRequest(
     } catch (error) {
       logger.error('queueSupportCaseFollowUpEmail failed', { workspaceId, supportCaseId, error });
       response.status(500).json({ ok: false, error: 'support_case_email_failed' });
+    }
+  }
+);
+
+export const submitFounderSafeSupportRequest = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 20,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const user = await verifyRequestUser(request);
+    if (!user?.uid) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const supportKind = clean(stringValue(body?.supportKind));
+    const requestedSupportCaseId = clean(stringValue(body?.supportCaseId));
+    const consentId = clean(stringValue(body?.consentId));
+    const sanitizedMessage = clean(stringValue(body?.sanitizedMessage));
+    const includeDiagnostics = body?.includeDiagnostics === true;
+    const safeFields = asRecord(body?.safeFields);
+    const redactedFields = Array.isArray(body?.redactedFields) ? body.redactedFields : [];
+    const privateDataWarnings = Array.isArray(body?.privateDataWarnings) ? body.privateDataWarnings : [];
+
+    if (!workspaceId || !sanitizedMessage || sanitizedMessage.length < 10) {
+      response.status(400).json({ ok: false, error: 'support_request_required' });
+      return;
+    }
+
+    if (includeDiagnostics && !consentId && !safeFields) {
+      response.status(400).json({ ok: false, error: 'support_request_diagnostics_required' });
+      return;
+    }
+
+    const workspaceRef = db.collection('workspaces').doc(workspaceId);
+    const generatedSupportCaseId = buildSupportCaseId(
+      new Date(),
+      Date.now() + Math.floor(Math.random() * 1_679_616)
+    );
+    const autoConsentRef =
+      includeDiagnostics && !consentId
+        ? workspaceRef.collection('support_diagnostic_consents').doc(normalizeId(`support_consent_${user.uid}_${Date.now()}`))
+        : null;
+
+    try {
+      let resolvedSupportCaseId: string | null = null;
+      let resolvedTicketId: string | null = null;
+      let resolvedConsentId: string | null = null;
+      let createdTicket = false;
+
+      await db.runTransaction(async (transaction) => {
+        const workspaceSnapshot = await transaction.get(workspaceRef);
+        if (!workspaceSnapshot.exists) {
+          throw new Error('workspace_not_found');
+        }
+
+        const memberRef = workspaceRef.collection('office_members').doc(user.uid);
+        const memberSnapshot = await transaction.get(memberRef);
+        const consentRef = consentId ? workspaceRef.collection('support_diagnostic_consents').doc(consentId) : autoConsentRef;
+        const consentSnapshot = consentRef ? await transaction.get(consentRef) : null;
+        const workspace = workspaceSnapshot.data() ?? {};
+        const member = memberSnapshot.exists ? memberSnapshot.data() ?? {} : null;
+        const ownsWorkspace = clean(stringValue(workspace.owner_uid)) === user.uid;
+        const isOfficeApprover =
+          clean(stringValue(member?.status)) === 'active' &&
+          (clean(stringValue(member?.role)) === 'owner' || clean(stringValue(member?.role)) === 'admin');
+
+        if (!ownsWorkspace && !isOfficeApprover) {
+          throw new Error('support_request_forbidden');
+        }
+
+        if (consentId) {
+          if (!consentSnapshot?.exists) {
+            throw new Error('support_consent_not_found');
+          }
+          const consent = consentSnapshot.data() ?? {};
+          if (clean(stringValue(consent.user_id)) !== user.uid || normalizeSupportConsentStatus(clean(stringValue(consent.status))) !== 'active') {
+            throw new Error('support_consent_forbidden');
+          }
+          const consentCaseId = clean(stringValue(consent.support_case_id));
+          if (requestedSupportCaseId && consentCaseId && requestedSupportCaseId !== consentCaseId) {
+            throw new Error('support_consent_case_mismatch');
+          }
+        }
+
+        const existingConsent = consentSnapshot?.exists ? consentSnapshot.data() ?? {} : null;
+        const consentCaseId = clean(stringValue(existingConsent?.support_case_id));
+        const now = new Date();
+        const effectiveSupportCaseId = requestedSupportCaseId ?? consentCaseId ?? generatedSupportCaseId;
+        const caseRef = workspaceRef.collection('support_cases').doc(normalizeId(effectiveSupportCaseId));
+        const ticketRef = workspaceRef.collection('support_tickets').doc(normalizeId(`support_ticket_${effectiveSupportCaseId}`));
+        const [caseSnapshot, ticketSnapshot] = await Promise.all([
+          transaction.get(caseRef),
+          transaction.get(ticketRef),
+        ]);
+
+        if (requestedSupportCaseId && !caseSnapshot.exists && !ticketSnapshot.exists && !consentCaseId) {
+          throw new Error('support_case_not_found');
+        }
+
+        const currentCase = caseSnapshot.exists ? caseSnapshot.data() ?? {} : {};
+        const currentTicket = ticketSnapshot.exists ? ticketSnapshot.data() ?? {} : {};
+        const currentCaseStatus = normalizeSupportCaseStatus(clean(stringValue(currentCase.status)));
+        const currentTicketStatus = normalizeSupportCenterTicketStatus(clean(stringValue(currentTicket.status)));
+        const decision = buildCustomerSupportSubmissionDecision({
+          currentSupportCaseStatus: caseSnapshot.exists ? currentCaseStatus : null,
+          currentTicketStatus: ticketSnapshot.exists ? currentTicketStatus : null,
+        });
+        const queueId =
+          normalizeSupportQueueId(clean(stringValue(currentTicket.queue_id))) ?? supportQueueForKind(supportKind);
+        const messageRef = workspaceRef
+          .collection('support_messages')
+          .doc(normalizeId(`support_message_${effectiveSupportCaseId}_${Date.now()}`));
+        const eventRef = workspaceRef
+          .collection('support_events')
+          .doc(normalizeId(`support_event_${effectiveSupportCaseId}_${Date.now()}`));
+        const consentEventRef =
+          includeDiagnostics
+            ? workspaceRef.collection('support_events').doc(normalizeId(`support_consent_link_${effectiveSupportCaseId}_${Date.now()}`))
+            : null;
+        const auditRef = workspaceRef
+          .collection('office_access_audit')
+          .doc(normalizeId(`support_request_submit_${effectiveSupportCaseId}_${user.uid}_${Date.now()}`));
+        const consentRecord =
+          includeDiagnostics && autoConsentRef
+            ? buildSupportDiagnosticConsentRecord({
+                workspaceId,
+                userId: user.uid,
+                userEmail: user.email,
+                supportKind,
+                supportCaseId: effectiveSupportCaseId,
+                sanitizedMessage,
+                safeFields,
+                redactedFields,
+                privateDataWarnings,
+                now,
+              })
+            : null;
+        const linkedConsentId = includeDiagnostics ? (consentId ?? autoConsentRef?.id ?? null) : null;
+        const supportCaseRecord = buildSupportCaseRecord({
+          workspaceId,
+          supportCaseId: effectiveSupportCaseId,
+          action: decision.supportCaseAction,
+          status: decision.nextSupportCaseStatus,
+          previousStatus: caseSnapshot.exists ? currentCaseStatus : null,
+          note: sanitizedMessage,
+          actorUid: user.uid,
+          actorEmail: user.email,
+          noteCount: numberValue(currentCase.note_count),
+          createdAt: clean(stringValue(currentCase.created_at)),
+          now,
+        });
+        const ticketRecord = buildSupportTicketRecord({
+          workspaceId,
+          ticketId: ticketRef.id,
+          supportCaseId: effectiveSupportCaseId,
+          supportKind,
+          subject: supportSubjectForKind(supportKind),
+          summary: sanitizedMessage,
+          customerUserId: user.uid,
+          customerEmail: user.email,
+          customerName: customerNameFromVerifiedUser(user),
+          messageId: messageRef.id,
+          consentId: linkedConsentId,
+          linkedConsentIds: sanitizeStringList(currentTicket.linked_support_consent_ids),
+          existingQueueId: queueId,
+          existingSource: normalizeSupportTicketSource(clean(stringValue(currentTicket.source))),
+          existingCreatedAt: clean(stringValue(currentTicket.created_at)),
+          currentAssignmentId: clean(stringValue(currentTicket.current_assignment_id)),
+          now,
+        });
+
+        transaction.set(caseRef, supportCaseRecord, { merge: true });
+        transaction.set(messageRef, buildSupportMessageRecord({
+          workspaceId,
+          ticketId: ticketRef.id,
+          supportCaseId: effectiveSupportCaseId,
+          actorUid: user.uid,
+          actorEmail: user.email,
+          body: sanitizedMessage,
+          now,
+        }));
+        transaction.set(
+          ticketRef,
+          {
+            ...ticketRecord,
+            status: decision.nextTicketStatus,
+            resolution_state: decision.nextResolutionState,
+            resolution_reason: decision.nextResolutionReason,
+            resolved_at: null,
+            closed_at: null,
+          },
+          { merge: true }
+        );
+        transaction.set(
+          eventRef,
+          buildSupportEventRecord({
+            workspaceId,
+            ticketId: ticketRef.id,
+            supportCaseId: effectiveSupportCaseId,
+            eventKind: ticketSnapshot.exists ? 'message_added' : 'ticket_created',
+            detail: ticketSnapshot.exists
+              ? 'Customer added a founder-safe support follow-up message.'
+              : 'Customer submitted a founder-safe support request.',
+            queueId,
+            actorUid: user.uid,
+            actorEmail: user.email,
+            statusBefore: ticketSnapshot.exists ? currentTicketStatus : null,
+            statusAfter: decision.nextTicketStatus,
+            resolutionStateBefore: ticketSnapshot.exists
+              ? normalizeSupportCenterResolutionState(clean(stringValue(currentTicket.resolution_state)))
+              : null,
+            resolutionStateAfter: decision.nextResolutionState,
+            resolutionReason: decision.nextResolutionReason,
+            metadata: {
+              includeDiagnostics,
+              supportKind: supportKind ?? 'general_feedback',
+            },
+            now,
+          })
+        );
+
+        if (consentRecord && autoConsentRef) {
+          transaction.set(autoConsentRef, consentRecord);
+        }
+        if (linkedConsentId && consentRef) {
+          transaction.set(
+            consentRef,
+            {
+              support_case_id: effectiveSupportCaseId,
+              updated_at: now.toISOString(),
+            },
+            { merge: true }
+          );
+        }
+        if (linkedConsentId && consentEventRef) {
+          transaction.set(
+            consentEventRef,
+            buildSupportEventRecord({
+              workspaceId,
+              ticketId: ticketRef.id,
+              supportCaseId: effectiveSupportCaseId,
+              eventKind: 'consent_linked',
+              detail: 'Customer linked an approved founder-safe diagnostic review pack to this support ticket.',
+              queueId,
+              actorUid: user.uid,
+              actorEmail: user.email,
+              statusBefore: null,
+              statusAfter: decision.nextTicketStatus,
+              resolutionStateBefore: null,
+              resolutionStateAfter: decision.nextResolutionState,
+              resolutionReason: decision.nextResolutionReason,
+              metadata: {
+                supportConsentId: linkedConsentId,
+              },
+              now,
+            })
+          );
+        }
+
+        transaction.set(auditRef, {
+          version: 1,
+          workspace_id: workspaceId,
+          actor_uid: user.uid,
+          actor_email: clean(user.email),
+          actor_role: ownsWorkspace ? 'owner' : clean(stringValue(member?.role)),
+          action: 'internal_access_reviewed',
+          target_uid: null,
+          target_email: null,
+          previous_role: null,
+          next_role: null,
+          previous_status: ticketSnapshot.exists ? currentTicketStatus : null,
+          next_status: decision.nextTicketStatus,
+          support_consent_id: linkedConsentId,
+          support_case_id: effectiveSupportCaseId,
+          customer_approved_diagnostic_access: Boolean(linkedConsentId),
+          impersonation_allowed: false,
+          reason: linkedConsentId
+            ? 'Customer submitted a founder-safe support request with an approved diagnostic review pack.'
+            : 'Customer submitted a founder-safe support request without diagnostic review access.',
+          created_at: now.toISOString(),
+        });
+
+        resolvedSupportCaseId = effectiveSupportCaseId;
+        resolvedTicketId = ticketRef.id;
+        resolvedConsentId = linkedConsentId;
+        createdTicket = !ticketSnapshot.exists;
+      });
+
+      response.status(200).json({
+        ok: true,
+        supportCaseId: resolvedSupportCaseId,
+        ticketId: resolvedTicketId,
+        consentId: resolvedConsentId,
+        created: createdTicket,
+        message: `Support request saved. Case number ${resolvedSupportCaseId}.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'support_request_failed';
+      if (message === 'workspace_not_found' || message === 'support_case_not_found' || message === 'support_consent_not_found') {
+        response.status(404).json({ ok: false, error: message });
+        return;
+      }
+      if (message === 'support_request_forbidden' || message === 'support_consent_forbidden' || message === 'support_consent_case_mismatch') {
+        response.status(403).json({ ok: false, error: message });
+        return;
+      }
+      logger.error('submitFounderSafeSupportRequest failed', { workspaceId, requestedSupportCaseId, error });
+      response.status(500).json({ ok: false, error: 'support_request_failed' });
     }
   }
 );
@@ -8517,7 +9054,108 @@ async function resolvePlatformAdminAccess(user: VerifiedRequestUser): Promise<Pl
   return null;
 }
 
-function canPlatformAdminUseFunction(
+async function auditPlatformAdminPermissionAttempt(input: {
+  endpoint: string;
+  requiredPermission: PlatformAdminFunctionPermission;
+  actor: VerifiedRequestUser | null;
+  access: PlatformAdminRegistryData | null;
+  requestedAction?: string | null;
+  targetUid?: string | null;
+  targetEmail?: string | null;
+  reportType?: string | null;
+  outcome: 'denied' | 'rate_limited';
+  reason: string;
+}) {
+  try {
+    const createdAt = new Date().toISOString();
+    await db.collection('platform_admin_audit').doc(normalizeId(`${input.endpoint}_${input.outcome}_${Date.now()}_${input.actor?.uid ?? 'unknown'}`)).set({
+      action: `platform_admin_${input.outcome}_attempt`,
+      actor_uid: input.actor?.uid ?? null,
+      actor_email: input.actor?.email ?? null,
+      actor_role: input.access?.role ?? null,
+      target_uid: input.targetUid ?? null,
+      target_email: input.targetEmail ?? null,
+      required_permission: input.requiredPermission,
+      endpoint: input.endpoint,
+      requested_action: input.requestedAction ?? null,
+      report_type: input.reportType ?? null,
+      outcome: input.outcome,
+      reason: input.reason,
+      risk_level:
+        input.requiredPermission === 'manage_admin_accounts' || input.requiredPermission === 'manage_offers'
+          ? 'high'
+          : 'medium',
+      created_at: createdAt,
+    });
+  } catch (error) {
+    logger.warn('platform admin permission attempt audit failed', { input, error });
+  }
+}
+
+async function enforcePlatformAdminRateLimit(input: {
+  actor: VerifiedRequestUser;
+  access: PlatformAdminRegistryData;
+  permission: Extract<
+    PlatformAdminFunctionPermission,
+    'manage_admin_accounts' | 'manage_user_controls' | 'manage_offers' | 'download_admin_reports'
+  >;
+  endpoint: string;
+  requestedAction?: string | null;
+  targetUid?: string | null;
+  targetEmail?: string | null;
+  reportType?: string | null;
+}) {
+  const policy = PLATFORM_ADMIN_RATE_LIMIT_POLICIES[input.permission];
+  const now = Date.now();
+  const windowStart = Math.floor(now / policy.windowMs) * policy.windowMs;
+  const windowEnd = windowStart + policy.windowMs;
+  const limitRef = db
+    .collection('platform_admin_rate_limits')
+    .doc(normalizeId(`${input.actor.uid}_${input.permission}_${windowStart}`));
+
+  const allowed = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(limitRef);
+    const currentCount = snapshot.exists ? Math.max(0, Math.floor(numberValue(snapshot.data()?.count, 0))) : 0;
+    if (currentCount >= policy.limit) {
+      return false;
+    }
+    transaction.set(
+      limitRef,
+      {
+        actor_uid: input.actor.uid,
+        actor_email: input.actor.email ?? null,
+        actor_role: input.access.role,
+        permission: input.permission,
+        endpoint: input.endpoint,
+        count: currentCount + 1,
+        window_started_at: new Date(windowStart).toISOString(),
+        window_ends_at: new Date(windowEnd).toISOString(),
+        updated_at: new Date(now).toISOString(),
+      },
+      { merge: true }
+    );
+    return true;
+  });
+
+  if (!allowed) {
+    await auditPlatformAdminPermissionAttempt({
+      endpoint: input.endpoint,
+      requiredPermission: input.permission,
+      actor: input.actor,
+      access: input.access,
+      requestedAction: input.requestedAction ?? null,
+      targetUid: input.targetUid ?? null,
+      targetEmail: input.targetEmail ?? null,
+      reportType: input.reportType ?? null,
+      outcome: 'rate_limited',
+      reason: 'Too many sensitive admin actions were attempted in a short window.',
+    });
+  }
+
+  return allowed;
+}
+
+export function canPlatformAdminUseFunction(
   access: PlatformAdminRegistryData,
   permission: PlatformAdminFunctionPermission
 ): boolean {
@@ -8549,6 +9187,10 @@ function canPlatformAdminUseFunction(
     return access.role === 'finance_admin';
   }
 
+  if (permission === 'download_admin_reports') {
+    return access.role === 'admin' || access.role === 'finance_admin' || access.role === 'read_only_admin';
+  }
+
   if (permission === 'review_office_access') {
     return access.role === 'admin';
   }
@@ -8560,7 +9202,7 @@ function canPlatformAdminUseFunction(
   return false;
 }
 
-function canPlatformAdminUseUserAction(access: PlatformAdminRegistryData, action: PlatformAdminUserAction): boolean {
+export function canPlatformAdminUseUserAction(access: PlatformAdminRegistryData, action: PlatformAdminUserAction): boolean {
   if (!canPlatformAdminUseFunction(access, 'manage_user_controls')) {
     return false;
   }
@@ -8606,6 +9248,16 @@ function normalizePlatformAdminUserAction(value: string | null): PlatformAdminUs
     return value;
   }
   return null;
+}
+
+function normalizePlatformAdminReportType(value: string | null): PlatformAdminReportType | null {
+  return PLATFORM_ADMIN_REPORT_TYPES.includes(value as PlatformAdminReportType) ? (value as PlatformAdminReportType) : null;
+}
+
+function normalizePlatformAdminReportAction(value: string | null): PlatformAdminReportAction | null {
+  return PLATFORM_ADMIN_REPORT_ACTIONS.includes(value as PlatformAdminReportAction)
+    ? (value as PlatformAdminReportAction)
+    : null;
 }
 
 function normalizePlatformAdminRole(value: string | null): PlatformAdminRole | null {
@@ -8748,7 +9400,7 @@ function normalizePlatformAdminRegistryData(
   };
 }
 
-function buildAllowlistPlatformAdminRegistryData(input: {
+export function buildAllowlistPlatformAdminRegistryData(input: {
   uid: string;
   email: string | null;
   displayName: string | null;
@@ -9035,6 +9687,57 @@ function normalizeSupportCaseStatus(value: string | null | undefined): SupportCa
   return 'open';
 }
 
+function normalizeSupportCenterTicketStatus(value: string | null | undefined): SupportCenterTicketStatus {
+  if (
+    value === 'triaged' ||
+    value === 'assigned' ||
+    value === 'in_progress' ||
+    value === 'pending_customer' ||
+    value === 'pending_internal' ||
+    value === 'resolved' ||
+    value === 'closed' ||
+    value === 'spam'
+  ) {
+    return value;
+  }
+  return 'opened';
+}
+
+function normalizeSupportCenterResolutionState(
+  value: string | null | undefined
+): SupportCenterResolutionState {
+  return value === 'resolved' ? 'resolved' : 'unresolved';
+}
+
+function normalizeSupportQueueId(value: string | null | undefined) {
+  if (
+    value === 'billing' ||
+    value === 'technical' ||
+    value === 'privacy' ||
+    value === 'feedback' ||
+    value === 'complaint' ||
+    value === 'restore' ||
+    value === 'purchase'
+  ) {
+    return value;
+  }
+  if (value === 'general') {
+    return value;
+  }
+  return null;
+}
+
+function normalizeSupportTicketSource(value: string | null | undefined) {
+  if (value === 'support_reply_email' || value === 'admin_created' || value === 'system_triage') {
+    return value;
+  }
+  return value === 'support_case' ? value : null;
+}
+
+function customerNameFromVerifiedUser(user: VerifiedRequestUser): string | null {
+  return clean(stringValue(user.claims.name)) ?? clean(stringValue(user.claims.display_name));
+}
+
 function normalizeSupportCaseAction(value: string | null | undefined): SupportCaseAction {
   if (value === 'resolve' || value === 'reopen') {
     return value;
@@ -9290,6 +9993,12 @@ function normalizePlatformOfferRecord(id: string, data: FirebaseFirestore.Docume
 
 function humanizePlatformOfferScope(scope: PlatformOfferScope): string {
   return scope.replaceAll('_', ' ');
+}
+
+function humanizePlatformAdminReportType(reportType: PlatformAdminReportType): string {
+  return reportType
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
 function inferPlatformOfferRiskLevel(

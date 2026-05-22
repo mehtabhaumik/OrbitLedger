@@ -31,6 +31,25 @@ export type CreateWebSupportDiagnosticConsentResult = {
   message: string;
 };
 
+export type SubmitWebSupportRequestInput = {
+  workspaceId: string;
+  supportKind: FounderSafeSupportKind;
+  supportCaseId?: string | null;
+  consentId?: string | null;
+  includeDiagnostics: boolean;
+  sanitizedMessage: string;
+  diagnosticSummary?: FounderSafeDiagnosticSummary | null;
+  privateDataWarnings: string[];
+};
+
+export type SubmitWebSupportRequestResult = {
+  supportCaseId: string;
+  ticketId: string;
+  consentId: string | null;
+  created: boolean;
+  message: string;
+};
+
 export type RevokeWebSupportDiagnosticConsentResult = {
   consentId: string;
   status: 'revoked' | 'expired' | 'active';
@@ -155,6 +174,64 @@ export async function createWebSupportDiagnosticConsent(
   };
 }
 
+export async function submitWebSupportRequest(
+  input: SubmitWebSupportRequestInput
+): Promise<SubmitWebSupportRequestResult> {
+  const user = getWebAuth().currentUser;
+  if (!user) {
+    throw new Error('Sign in again before sending this support request.');
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(getSubmitSupportRequestUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      workspaceId: input.workspaceId,
+      supportKind: input.supportKind,
+      supportCaseId: input.supportCaseId,
+      consentId: input.consentId,
+      includeDiagnostics: input.includeDiagnostics,
+      sanitizedMessage: input.sanitizedMessage,
+      safeFields: input.includeDiagnostics ? input.diagnosticSummary?.safeFields ?? null : null,
+      redactedFields: input.includeDiagnostics ? input.diagnosticSummary?.redactedFields ?? [] : [],
+      privateDataWarnings: input.privateDataWarnings,
+    }),
+  });
+  const result = (await response.json().catch(() => ({
+    ok: false,
+    error: 'support_request_failed',
+  }))) as
+    | {
+        ok: true;
+        supportCaseId: string;
+        ticketId: string;
+        consentId: string | null;
+        created: boolean;
+        message?: string | null;
+      }
+    | {
+        ok: false;
+        error: string;
+        message?: string | null;
+      };
+
+  if (!result.ok) {
+    throw new Error(result.message ?? supportRequestErrorMessage(result.error));
+  }
+
+  return {
+    supportCaseId: result.supportCaseId,
+    ticketId: result.ticketId,
+    consentId: result.consentId,
+    created: result.created,
+    message: result.message ?? `Support request saved. Case number ${result.supportCaseId}.`,
+  };
+}
+
 export async function revokeWebSupportDiagnosticConsent(input: {
   workspaceId: string;
   consentId: string;
@@ -206,6 +283,11 @@ function getCreateSupportDiagnosticConsentUrl() {
   return `https://asia-south1-${projectId}.cloudfunctions.net/createSupportDiagnosticConsent`;
 }
 
+function getSubmitSupportRequestUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/submitFounderSafeSupportRequest`;
+}
+
 function getRevokeSupportDiagnosticConsentUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/revokeSupportDiagnosticConsent`;
@@ -244,4 +326,29 @@ function supportConsentErrorMessage(error: string) {
     return 'Choose a support review approval to revoke.';
   }
   return 'Support review approval could not be saved.';
+}
+
+function supportRequestErrorMessage(error: string) {
+  if (error === 'support_request_required') {
+    return 'Add a short support message before sending this request.';
+  }
+  if (error === 'support_request_diagnostics_required') {
+    return 'Review the diagnostic summary before sending it with this request.';
+  }
+  if (error === 'support_request_forbidden') {
+    return 'Only the workspace owner or Office admin can send this support request.';
+  }
+  if (error === 'support_case_not_found') {
+    return 'That support case could not be found. Check the case number and try again.';
+  }
+  if (error === 'support_consent_not_found') {
+    return 'The saved support review approval could not be found. Approve it again before sending.';
+  }
+  if (error === 'support_consent_case_mismatch') {
+    return 'The saved support review approval belongs to a different case number.';
+  }
+  if (error === 'support_consent_forbidden') {
+    return 'This support review approval is no longer available for your account.';
+  }
+  return 'Support request could not be saved.';
 }

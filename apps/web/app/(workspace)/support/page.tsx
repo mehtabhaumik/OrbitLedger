@@ -14,6 +14,7 @@ import { AppShell } from '@/components/app-shell';
 import {
   createWebSupportDiagnosticConsent,
   loadWebSupportCaseCustomerStatuses,
+  submitWebSupportRequest,
   revokeWebSupportDiagnosticConsent,
   type WebSupportCaseCustomerStatus,
 } from '@/lib/support-consent';
@@ -21,8 +22,6 @@ import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-sys
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
-
-const supportEmail = 'support@rudraix.com';
 
 const supportKinds: Array<{
   label: string;
@@ -72,10 +71,22 @@ export default function SupportPage() {
   const [privacyReviewed, setPrivacyReviewed] = useState(false);
   const [isSavingConsent, setIsSavingConsent] = useState(false);
   const [isRevokingConsent, setIsRevokingConsent] = useState(false);
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [savedConsent, setSavedConsent] = useState<{ consentId: string; expiresAt: string } | null>(null);
   const [supportCases, setSupportCases] = useState<WebSupportCaseCustomerStatus[]>([]);
   const [isLoadingSupportCases, setIsLoadingSupportCases] = useState(false);
   const businessName = activeWorkspace?.businessName ?? 'Orbit Ledger workspace';
+
+  async function refreshSupportCases(workspaceId: string) {
+    setIsLoadingSupportCases(true);
+    try {
+      setSupportCases(await loadWebSupportCaseCustomerStatuses(workspaceId));
+    } catch {
+      setSupportCases([]);
+    } finally {
+      setIsLoadingSupportCases(false);
+    }
+  }
 
   useEffect(() => {
     if (!activeWorkspace?.workspaceId) {
@@ -83,28 +94,7 @@ export default function SupportPage() {
       return;
     }
 
-    let cancelled = false;
-    setIsLoadingSupportCases(true);
-    loadWebSupportCaseCustomerStatuses(activeWorkspace.workspaceId)
-      .then((items) => {
-        if (!cancelled) {
-          setSupportCases(items);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSupportCases([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoadingSupportCases(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    refreshSupportCases(activeWorkspace.workspaceId).catch(() => undefined);
   }, [activeWorkspace?.workspaceId]);
 
   const diagnosticInput = useMemo<FounderSafeDiagnosticInput>(
@@ -140,16 +130,6 @@ export default function SupportPage() {
   const cleanedMessage = message.trim();
   const needsReview = draft.requiresPrivacyReview || (includeDiagnostics && !privacyReviewed);
   const canSend = cleanedMessage.length >= 10 && (!needsReview || privacyReviewed);
-  const mailHref = canSend
-    ? buildMailto({
-        subject: `${draft.title} - Orbit Ledger`,
-        body: buildSupportEmailBody({
-          draft,
-          includeDiagnostics,
-          diagnosticSummary,
-        }),
-      })
-    : '#';
 
   async function approveSupportReviewPack() {
     if (!activeWorkspace?.workspaceId) {
@@ -205,6 +185,47 @@ export default function SupportPage() {
       showToast(error instanceof Error ? error.message : 'Support review approval could not be revoked.', 'danger');
     } finally {
       setIsRevokingConsent(false);
+    }
+  }
+
+  async function submitSupportRequest() {
+    if (!activeWorkspace?.workspaceId) {
+      showToast('Select a workspace before sending a support request.', 'info');
+      return;
+    }
+    if (!canSend) {
+      showToast(
+        cleanedMessage.length < 10
+          ? 'Add a short support message before sending.'
+          : 'Review what will be shared before sending.',
+        'info'
+      );
+      return;
+    }
+
+    setIsSubmittingRequest(true);
+    try {
+      const result = await submitWebSupportRequest({
+        workspaceId: activeWorkspace.workspaceId,
+        supportKind: kind,
+        supportCaseId,
+        consentId: includeDiagnostics ? savedConsent?.consentId ?? null : null,
+        includeDiagnostics,
+        sanitizedMessage: draft.sanitizedMessage,
+        diagnosticSummary: includeDiagnostics ? diagnosticSummary : null,
+        privateDataWarnings: draft.privateDataWarnings,
+      });
+      setSupportCaseId(result.supportCaseId);
+      setMessage('');
+      setPrivacyReviewed(false);
+      if (activeWorkspace.workspaceId) {
+        await refreshSupportCases(activeWorkspace.workspaceId);
+      }
+      showToast(result.message, 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Support request could not be saved.', 'danger');
+    } finally {
+      setIsSubmittingRequest(false);
     }
   }
 
@@ -371,20 +392,16 @@ export default function SupportPage() {
             ) : null}
 
             <div className="ol-actions">
-              <a
-                aria-disabled={!canSend}
+              <button
                 className={canSend ? 'ol-button' : 'ol-button ol-button-disabled'}
-                href={mailHref}
-                onClick={(event) => {
-                  if (!canSend) {
-                    event.preventDefault();
-                  }
-                }}
+                disabled={!canSend || isSubmittingRequest}
+                onClick={() => void submitSupportRequest()}
+                type="button"
               >
-                Send request
-              </a>
+                {isSubmittingRequest ? 'Saving request' : 'Send request'}
+              </button>
               <span className="ol-panel-copy" style={{ alignSelf: 'center' }}>
-                Your email app opens with the reviewed request.
+                Orbit Ledger saves the reviewed request and keeps the case number ready for follow-up.
               </span>
               <button className="ol-button-secondary" type="button" onClick={printSupportSummary}>
                 Print summary
@@ -560,32 +577,6 @@ export default function SupportPage() {
   );
 }
 
-function buildSupportEmailBody(input: {
-  draft: ReturnType<typeof buildFounderSafeSupportDraft>;
-  diagnosticSummary: ReturnType<typeof buildFounderSafeDiagnosticSummary>;
-  includeDiagnostics: boolean;
-}) {
-  const lines = [
-    'Hello Orbit Ledger team,',
-    '',
-    input.draft.summary,
-    '',
-    'Message:',
-    input.draft.sanitizedMessage,
-  ];
-
-  if (input.includeDiagnostics) {
-    lines.push('', 'Safe diagnostic summary:');
-    for (const [label, value] of Object.entries(input.diagnosticSummary.safeFields)) {
-      lines.push(`- ${formatDiagnosticLabel(label)}: ${Array.isArray(value) ? value.join(', ') : String(value)}`);
-    }
-    lines.push('', input.diagnosticSummary.privacyNote);
-  }
-
-  lines.push('', 'No customer records, invoices, payment proof, backups, or private keys are attached automatically.');
-  return lines.join('\n');
-}
-
 function formatDiagnosticLabel(value: string) {
   return value
     .replace(/([A-Z])/g, ' $1')
@@ -605,8 +596,4 @@ function formatConsentDate(value: string | null) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
-}
-
-function buildMailto(input: { subject: string; body: string }) {
-  return `mailto:${supportEmail}?subject=${encodeURIComponent(input.subject)}&body=${encodeURIComponent(input.body)}`;
 }
