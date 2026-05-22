@@ -45,6 +45,8 @@ export type SupportTicketSource = (typeof SUPPORT_TICKET_SOURCES)[number];
 export const SUPPORT_TICKET_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
 
 export type SupportTicketPriority = (typeof SUPPORT_TICKET_PRIORITIES)[number];
+export type SupportNotificationTone = 'soft' | 'standard' | 'urgent';
+export type SupportSlaState = 'on_track' | 'due_soon' | 'overdue';
 
 export const SUPPORT_TICKET_STATUSES = [
   'opened',
@@ -146,6 +148,11 @@ export type SupportTicketRecord = {
   linkedConsentIds: string[];
   latestMessageId: string | null;
   latestMessageAt: string | null;
+  firstResponseDueAt: string | null;
+  slaDueAt: string | null;
+  lastCustomerMessageAt: string | null;
+  operatorFirstRepliedAt: string | null;
+  notificationTone: SupportNotificationTone;
   currentAssignmentId: string | null;
   lastActorUid: string | null;
   lastActorRole: PlatformAdminRole | null;
@@ -228,10 +235,13 @@ export type SupportNotificationPreferenceRecord = {
   adminUid: string;
   adminRole: PlatformAdminRole;
   muteAll: boolean;
+  desktopAlertsEnabled: boolean;
   browserNotificationsEnabled: boolean;
+  browserPermissionState: 'default' | 'denied' | 'granted' | null;
   soundEnabled: boolean;
   quietHoursStart: string | null;
   quietHoursEnd: string | null;
+  lastViewedSupportAt: string | null;
   updatedAt: string | null;
   schemaVersion: 1;
 };
@@ -353,6 +363,20 @@ const SUPPORT_RESOLVE_REASONS: readonly SupportResolutionReason[] = [
   'other',
 ] as const;
 
+const SUPPORT_FIRST_RESPONSE_SLA_HOURS: Record<SupportTicketPriority, number> = {
+  low: 72,
+  normal: 24,
+  high: 8,
+  urgent: 2,
+};
+
+const SUPPORT_RESOLUTION_SLA_HOURS: Record<SupportTicketPriority, number> = {
+  low: 336,
+  normal: 168,
+  high: 72,
+  urgent: 24,
+};
+
 export function isSupportCenterCollection(value: unknown): value is SupportCenterCollectionName {
   return typeof value === 'string' && SUPPORT_CENTER_COLLECTIONS.includes(value as SupportCenterCollectionName);
 }
@@ -411,6 +435,102 @@ export function canSupportRoleMutateQueue(role: PlatformAdminRole, queueId: Supp
     return false;
   }
   return capability.allowedQueues.includes(queueId);
+}
+
+export function getSupportFirstResponseSlaHours(priority: SupportTicketPriority): number {
+  return SUPPORT_FIRST_RESPONSE_SLA_HOURS[priority];
+}
+
+export function getSupportResolutionSlaHours(priority: SupportTicketPriority): number {
+  return SUPPORT_RESOLUTION_SLA_HOURS[priority];
+}
+
+export function buildSupportSlaTargets(input: {
+  priority: SupportTicketPriority;
+  now?: Date | string;
+}): { firstResponseDueAt: string; slaDueAt: string } {
+  const now = normalizeDate(input.now);
+  return {
+    firstResponseDueAt: new Date(now.getTime() + getSupportFirstResponseSlaHours(input.priority) * 3_600_000).toISOString(),
+    slaDueAt: new Date(now.getTime() + getSupportResolutionSlaHours(input.priority) * 3_600_000).toISOString(),
+  };
+}
+
+export function getSupportNotificationTone(input: {
+  queueId: SupportQueueId;
+  priority: SupportTicketPriority;
+}): SupportNotificationTone {
+  if (input.priority === 'urgent' || input.queueId === 'complaint' || input.queueId === 'privacy') {
+    return 'urgent';
+  }
+  if (input.queueId === 'feedback') {
+    return 'soft';
+  }
+  return 'standard';
+}
+
+export function getSupportSlaState(input: {
+  dueAt: string | null;
+  now?: Date | string;
+}): SupportSlaState {
+  if (!input.dueAt) {
+    return 'on_track';
+  }
+  const dueAt = new Date(input.dueAt);
+  if (Number.isNaN(dueAt.getTime())) {
+    return 'on_track';
+  }
+  const now = normalizeDate(input.now);
+  const remainingMs = dueAt.getTime() - now.getTime();
+  if (remainingMs < 0) {
+    return 'overdue';
+  }
+  if (remainingMs <= 4 * 3_600_000) {
+    return 'due_soon';
+  }
+  return 'on_track';
+}
+
+export function isSupportQuietHoursActive(input: {
+  quietHoursStart: string | null;
+  quietHoursEnd: string | null;
+  now?: Date | string;
+}): boolean {
+  const start = parseClockMinutes(input.quietHoursStart);
+  const end = parseClockMinutes(input.quietHoursEnd);
+  if (start === null || end === null || start === end) {
+    return false;
+  }
+  const now = normalizeDate(input.now);
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  if (start < end) {
+    return currentMinutes >= start && currentMinutes < end;
+  }
+  return currentMinutes >= start || currentMinutes < end;
+}
+
+export function buildDefaultSupportNotificationPreference(input: {
+  workspaceId: string;
+  adminUid: string;
+  adminRole: PlatformAdminRole;
+  updatedAt?: string | null;
+}): SupportNotificationPreferenceRecord {
+  return {
+    id: input.adminUid,
+    workspaceId: input.workspaceId,
+    adminUid: input.adminUid,
+    adminRole: input.adminRole,
+    muteAll: false,
+    desktopAlertsEnabled: true,
+    browserNotificationsEnabled: false,
+    browserPermissionState: null,
+    soundEnabled: false,
+    quietHoursStart: '22:00',
+    quietHoursEnd: '07:00',
+    lastViewedSupportAt: null,
+    updatedAt: input.updatedAt ?? null,
+    schemaVersion: 1,
+  };
 }
 
 export function buildSupportTicketActionPlan(
@@ -539,4 +659,29 @@ function missingReasonPlan(action: SupportTicketAction, message: string): Suppor
 function normalizeReason(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function parseClockMinutes(value: string | null | undefined): number | null {
+  const normalized = value?.trim() ?? '';
+  if (!/^\d{2}:\d{2}$/.test(normalized)) {
+    return null;
+  }
+  const [hoursText, minutesText] = normalized.split(':');
+  const hours = Number(hoursText);
+  const minutes = Number(minutesText);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
+function normalizeDate(value?: Date | string): Date {
+  if (!value) {
+    return new Date();
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 }

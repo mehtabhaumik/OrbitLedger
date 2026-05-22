@@ -1,8 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { canSupportRoleAccessQueue, type OfficeSupportCaseAction, type PlatformAdminRole, type SupportQueueId, type SupportResolutionReason } from '@orbit-ledger/core';
+import {
+  canSupportRoleAccessQueue,
+  getSupportSlaState,
+  isSupportQuietHoursActive,
+  type OfficeSupportCaseAction,
+  type PlatformAdminRole,
+  type SupportQueueId,
+  type SupportResolutionReason,
+  type SupportSlaState,
+} from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
 import {
@@ -22,8 +31,10 @@ import {
   recordWebOfficeSupportReview,
   resolveWebOfficeAccessRequest,
   sendWebSupportReply,
+  updateWebSupportNotificationPreferences,
   type WebSupportAuditFilters,
   type WebSupportAuditRecord,
+  type WebSupportNotificationPreferenceRecord,
   type WebOfficeOperationsSnapshot,
   type WebSupportAdminContext,
   type WebSupportAssignmentRecord,
@@ -186,10 +197,13 @@ export default function OfficeOperationsPage() {
   const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const [isQueueingSupportEmail, setIsQueueingSupportEmail] = useState(false);
   const [busySupportReportAction, setBusySupportReportAction] = useState<'download_csv' | 'print_report' | null>(null);
+  const [notificationPreferences, setNotificationPreferences] = useState<WebSupportNotificationPreferenceRecord | null>(null);
+  const [isSavingNotificationPreferences, setIsSavingNotificationPreferences] = useState(false);
   const [assignmentQueueId, setAssignmentQueueId] = useState('general');
   const [assignmentRole, setAssignmentRole] = useState<PlatformAdminRole>('support_admin');
   const [assignmentAdminEmail, setAssignmentAdminEmail] = useState('');
   const [assignmentReason, setAssignmentReason] = useState('');
+  const previousUnreadCountRef = useRef(0);
   const isAllowed = useMemo(() => isWebOfficeOperationsAllowed(user?.email), [user?.email]);
 
   const supportTicketByCaseId = useMemo(() => {
@@ -200,6 +214,7 @@ export default function OfficeOperationsPage() {
   }, [snapshot?.supportTickets]);
   const currentAdmin = snapshot?.currentAdmin ?? null;
   const supportQueues = snapshot?.supportQueues ?? [];
+  const notificationPreference = notificationPreferences ?? snapshot?.supportNotificationPreference ?? null;
   const supportAssignmentById = useMemo(
     () => new Map((snapshot?.supportAssignments ?? []).map((assignment) => [assignment.id, assignment] as const)),
     [snapshot?.supportAssignments]
@@ -237,6 +252,20 @@ export default function OfficeOperationsPage() {
       snapshot?.supportMessages,
       snapshot?.supportTickets,
     ]
+  );
+  const unreadSupportRecords = useMemo(() => {
+    const seenAt = notificationPreference?.lastViewedSupportAt ? Date.parse(notificationPreference.lastViewedSupportAt) : 0;
+    return supportAuditRecords.filter((record) => {
+      const createdAt = record.createdAt ? Date.parse(record.createdAt) : NaN;
+      return Number.isFinite(createdAt) && createdAt > seenAt;
+    });
+  }, [notificationPreference?.lastViewedSupportAt, supportAuditRecords]);
+  const unreadCustomerRecords = useMemo(
+    () =>
+      unreadSupportRecords.filter(
+        (record) => record.source === 'message' && record.actorRole === 'customer'
+      ),
+    [unreadSupportRecords]
   );
 
   const filteredReviewQueue = useMemo(
@@ -315,6 +344,46 @@ export default function OfficeOperationsPage() {
       supportAssignmentById,
       supportTicketByCaseId,
     ]
+  );
+  const supportRowsWithSla = useMemo(
+    () =>
+      supportShellRows.map((row) => ({
+        row,
+        firstResponseState: supportTicketSlaState(row.ticket, 'first_response'),
+        resolutionState: supportTicketSlaState(row.ticket, 'resolution'),
+      })),
+    [supportShellRows]
+  );
+  const overdueSupportRows = useMemo(
+    () =>
+      supportRowsWithSla.filter(
+        (entry) => entry.firstResponseState === 'overdue' || entry.resolutionState === 'overdue'
+      ),
+    [supportRowsWithSla]
+  );
+  const dueSoonSupportRows = useMemo(
+    () =>
+      supportRowsWithSla.filter(
+        (entry) =>
+          entry.firstResponseState === 'due_soon' ||
+          entry.resolutionState === 'due_soon'
+      ),
+    [supportRowsWithSla]
+  );
+  const urgentSupportRows = useMemo(
+    () =>
+      supportShellRows.filter(
+        (row) => row.ticket?.notificationTone === 'urgent' || row.ticket?.priority === 'urgent'
+      ),
+    [supportShellRows]
+  );
+  const quietHoursActive = useMemo(
+    () =>
+      isSupportQuietHoursActive({
+        quietHoursStart: notificationPreference?.quietHoursStart ?? null,
+        quietHoursEnd: notificationPreference?.quietHoursEnd ?? null,
+      }),
+    [notificationPreference?.quietHoursEnd, notificationPreference?.quietHoursStart]
   );
 
   const selectedSupportRow = useMemo(
@@ -530,8 +599,14 @@ export default function OfficeOperationsPage() {
         helper: 'Customer update drafts already prepared.',
         count: snapshot?.supportCaseEmailRequests.length ?? 0,
       },
+      {
+        id: 'sla-overdue',
+        label: 'Overdue SLAs',
+        helper: 'Tickets that are past first-response or resolution targets.',
+        count: overdueSupportRows.length,
+      },
     ],
-    [snapshot?.supportCaseEmailRequests.length, snapshot?.supportCases, supportShellRows]
+    [overdueSupportRows.length, snapshot?.supportCaseEmailRequests.length, snapshot?.supportCases, supportShellRows]
   );
 
   const supportShellSummary = useMemo(
@@ -564,8 +639,15 @@ export default function OfficeOperationsPage() {
         helper: 'Customer-approved diagnostic packs still valid for review.',
         tone: countSupportConsents(snapshot?.supportConsents ?? [], (item) => item.isActiveForReview) ? 'premium' : 'default',
       },
+      {
+        id: 'support-unread',
+        label: 'Unread support',
+        value: unreadSupportRecords.length,
+        helper: 'Audit and message activity newer than your seen marker.',
+        tone: unreadSupportRecords.length ? 'warning' : 'success',
+      },
     ],
-    [snapshot?.supportCases, snapshot?.supportConsents]
+    [snapshot?.supportCases, snapshot?.supportConsents, unreadSupportRecords.length]
   );
 
   useEffect(() => {
@@ -622,6 +704,68 @@ export default function OfficeOperationsPage() {
     }
   }, [allowedAssignmentRoles, assignmentQueueId, assignmentRole]);
 
+  useEffect(() => {
+    if (!snapshot?.supportNotificationPreference) {
+      return;
+    }
+    setNotificationPreferences(snapshot.supportNotificationPreference);
+  }, [snapshot?.supportNotificationPreference]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+      return;
+    }
+
+    setNotificationPreferences((current) => {
+      if (!current || current.browserPermissionState === Notification.permission) {
+        return current;
+      }
+      return {
+        ...current,
+        browserPermissionState: Notification.permission,
+      };
+    });
+  }, []);
+
+  useEffect(() => {
+    const nextUnreadCount = unreadCustomerRecords.length;
+    const previousUnreadCount = previousUnreadCountRef.current;
+    previousUnreadCountRef.current = nextUnreadCount;
+
+    if (nextUnreadCount <= previousUnreadCount) {
+      return;
+    }
+    if (!notificationPreference || notificationPreference.muteAll || quietHoursActive) {
+      return;
+    }
+    if (!notificationPreference.browserNotificationsEnabled || notificationPreference.browserPermissionState !== 'granted') {
+      return;
+    }
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+      return;
+    }
+
+    const latestUnread = unreadCustomerRecords[0];
+    const notification = new Notification('OrbitLedger support update', {
+      body: latestUnread
+        ? `${latestUnread.supportCaseId ?? 'Support ticket'}: ${latestUnread.title}`
+        : 'New customer-visible support activity is waiting in the support center.',
+      tag: `support-${latestUnread?.supportCaseId ?? 'workspace'}`,
+    });
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+
+    if (notificationPreference.soundEnabled) {
+      playSupportNotificationTone();
+    }
+  }, [
+    notificationPreference,
+    quietHoursActive,
+    unreadCustomerRecords,
+  ]);
+
   async function refresh() {
     if (!activeWorkspace?.workspaceId) {
       return;
@@ -637,6 +781,86 @@ export default function OfficeOperationsPage() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  async function saveSupportNotificationPreferences(nextSeenAt?: string | null) {
+    if (!activeWorkspace?.workspaceId || !notificationPreference) {
+      showToast('Load the support center before saving notification settings.', 'info');
+      return;
+    }
+
+    setIsSavingNotificationPreferences(true);
+    try {
+      const result = await updateWebSupportNotificationPreferences({
+        workspaceId: activeWorkspace.workspaceId,
+        muteAll: notificationPreference.muteAll,
+        desktopAlertsEnabled: notificationPreference.desktopAlertsEnabled,
+        browserNotificationsEnabled: notificationPreference.browserNotificationsEnabled,
+        browserPermissionState: notificationPreference.browserPermissionState,
+        soundEnabled: notificationPreference.soundEnabled,
+        quietHoursStart: notificationPreference.quietHoursStart,
+        quietHoursEnd: notificationPreference.quietHoursEnd,
+        lastViewedSupportAt: nextSeenAt ?? notificationPreference.lastViewedSupportAt,
+      });
+      setNotificationPreferences(result.preference);
+      setSnapshot((current) =>
+        current
+          ? {
+              ...current,
+              supportNotificationPreference: result.preference,
+            }
+          : current
+      );
+      showToast(result.message, 'success');
+    } catch (notificationError) {
+      showToast(
+        notificationError instanceof Error
+          ? notificationError.message
+          : 'Support notification settings could not be saved.',
+        'danger'
+      );
+    } finally {
+      setIsSavingNotificationPreferences(false);
+    }
+  }
+
+  async function requestBrowserNotificationPermission() {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+      showToast('Browser notifications are not supported in this browser.', 'info');
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotificationPreferences((current) =>
+      current
+        ? {
+            ...current,
+            browserPermissionState: permission,
+            browserNotificationsEnabled: permission === 'granted' ? current.browserNotificationsEnabled : false,
+          }
+        : current
+    );
+    showToast(
+      permission === 'granted'
+        ? 'Browser notifications are now allowed for the support center.'
+        : permission === 'denied'
+          ? 'Browser notifications were denied for this browser.'
+          : 'Browser notification permission was dismissed.',
+      permission === 'granted' ? 'success' : 'info'
+    );
+  }
+
+  function markCurrentSupportActivitySeen() {
+    const nowIso = new Date().toISOString();
+    setNotificationPreferences((current) =>
+      current
+        ? {
+            ...current,
+            lastViewedSupportAt: nowIso,
+          }
+        : current
+    );
+    void saveSupportNotificationPreferences(nowIso);
   }
 
   async function runAction(requestId: string, action: 'mark_reviewing' | 'approve' | 'reject' | 'grant_access') {
@@ -710,6 +934,7 @@ export default function OfficeOperationsPage() {
         action: caseAction,
         note: caseNote,
         resolutionReason: caseResolutionReason || null,
+        expectedTicketUpdatedAt: selectedSupportRow?.ticket?.updatedAt ?? null,
       });
       showToast(result.message, 'success');
       setCaseIdForUpdate('');
@@ -764,6 +989,7 @@ export default function OfficeOperationsPage() {
         assignedRole: assignmentRole,
         assignedAdminEmail: assignmentAdminEmail || null,
         reason: assignmentReason,
+        expectedTicketUpdatedAt: selectedSupportRow.ticket.updatedAt ?? null,
       });
       showToast(result.message, 'success');
       await refresh();
@@ -803,6 +1029,7 @@ export default function OfficeOperationsPage() {
         body: emailBody,
         action: replyAction,
         resolutionReason: replyActionNeedsResolution ? (replyResolutionReason || null) : null,
+        expectedTicketUpdatedAt: selectedSupportRow.ticket.updatedAt ?? null,
       });
       showToast(result.message, 'success');
       setEmailBody('');
@@ -1085,6 +1312,171 @@ export default function OfficeOperationsPage() {
                   <span className="ol-chip ol-chip--primary">{filteredReviewQueue.length} Office review items</span>
                 </div>
               </div>
+
+              <div className="ol-support-rail-section">
+                <div className="ol-support-rail-label">Alerts and SLAs</div>
+                <div className="ol-support-signal-grid">
+                  <article className="ol-support-detail-card">
+                    <span className="ol-review-label">Unread</span>
+                    <strong className="ol-review-value">{unreadSupportRecords.length}</strong>
+                    <span className="ol-list-text">{unreadCustomerRecords.length} customer follow-up{unreadCustomerRecords.length === 1 ? '' : 's'}</span>
+                  </article>
+                  <article className="ol-support-detail-card">
+                    <span className="ol-review-label">Overdue</span>
+                    <strong className="ol-review-value">{overdueSupportRows.length}</strong>
+                    <span className="ol-list-text">{dueSoonSupportRows.length} due soon</span>
+                  </article>
+                  <article className="ol-support-detail-card">
+                    <span className="ol-review-label">Urgent</span>
+                    <strong className="ol-review-value">{urgentSupportRows.length}</strong>
+                    <span className="ol-list-text">{quietHoursActive ? 'Quiet hours active now' : 'Quiet hours inactive'}</span>
+                  </article>
+                </div>
+
+                <div className="ol-support-notification-panel">
+                  <label className="ol-checkbox-row">
+                    <input
+                      checked={notificationPreference?.muteAll === true}
+                      className="ol-checkbox"
+                      onChange={(event) =>
+                        setNotificationPreferences((current) =>
+                          current
+                            ? {
+                                ...current,
+                                muteAll: event.target.checked,
+                              }
+                            : current
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    <span>Mute all support alerts</span>
+                  </label>
+                  <label className="ol-checkbox-row">
+                    <input
+                      checked={notificationPreference?.desktopAlertsEnabled === true}
+                      className="ol-checkbox"
+                      onChange={(event) =>
+                        setNotificationPreferences((current) =>
+                          current
+                            ? {
+                                ...current,
+                                desktopAlertsEnabled: event.target.checked,
+                              }
+                            : current
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    <span>Enable in-app desktop alerts</span>
+                  </label>
+                  <label className="ol-checkbox-row">
+                    <input
+                      checked={notificationPreference?.browserNotificationsEnabled === true}
+                      className="ol-checkbox"
+                      disabled={notificationPreference?.browserPermissionState === 'denied'}
+                      onChange={(event) =>
+                        setNotificationPreferences((current) =>
+                          current
+                            ? {
+                                ...current,
+                                browserNotificationsEnabled: event.target.checked,
+                              }
+                            : current
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    <span>Enable browser notifications</span>
+                  </label>
+                  <label className="ol-checkbox-row">
+                    <input
+                      checked={notificationPreference?.soundEnabled === true}
+                      className="ol-checkbox"
+                      onChange={(event) =>
+                        setNotificationPreferences((current) =>
+                          current
+                            ? {
+                                ...current,
+                                soundEnabled: event.target.checked,
+                              }
+                            : current
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    <span>Enable support sound chime</span>
+                  </label>
+                  <div className="ol-form-band-grid">
+                    <label className="ol-field">
+                      <span className="ol-field-label">Quiet hours start</span>
+                      <input
+                        className="ol-input"
+                        onChange={(event) =>
+                          setNotificationPreferences((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  quietHoursStart: event.target.value || null,
+                                }
+                              : current
+                          )
+                        }
+                        type="time"
+                        value={notificationPreference?.quietHoursStart ?? ''}
+                      />
+                    </label>
+                    <label className="ol-field">
+                      <span className="ol-field-label">Quiet hours end</span>
+                      <input
+                        className="ol-input"
+                        onChange={(event) =>
+                          setNotificationPreferences((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  quietHoursEnd: event.target.value || null,
+                                }
+                              : current
+                          )
+                        }
+                        type="time"
+                        value={notificationPreference?.quietHoursEnd ?? ''}
+                      />
+                    </label>
+                  </div>
+                  <div className="ol-support-inline-actions">
+                    <button className="ol-button-secondary" onClick={() => void requestBrowserNotificationPermission()} type="button">
+                      Request browser permission
+                    </button>
+                    <button className="ol-button-secondary" onClick={() => playSupportNotificationTone()} type="button">
+                      Test sound
+                    </button>
+                    <button className="ol-button-secondary" onClick={() => markCurrentSupportActivitySeen()} type="button">
+                      Mark current activity seen
+                    </button>
+                    <button
+                      className="ol-button"
+                      disabled={!notificationPreference || isSavingNotificationPreferences}
+                      onClick={() => void saveSupportNotificationPreferences()}
+                      type="button"
+                    >
+                      {isSavingNotificationPreferences ? 'Saving settings' : 'Save notification settings'}
+                    </button>
+                  </div>
+                  <div className="ol-support-chip-row">
+                    <span className={`ol-chip ${notificationPreference?.muteAll ? 'ol-chip--warning' : 'ol-chip--success'}`}>
+                      {notificationPreference?.muteAll ? 'Muted' : 'Alerts active'}
+                    </span>
+                    <span className={`ol-chip ${quietHoursActive ? 'ol-chip--warning' : 'ol-chip--primary'}`}>
+                      {quietHoursActive ? 'Quiet hours active' : 'Quiet hours inactive'}
+                    </span>
+                    <span className="ol-chip ol-chip--primary">
+                      Browser {notificationPreference?.browserPermissionState ?? 'unknown'}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </aside>
 
             <section className="ol-panel ol-support-center-listpane">
@@ -1114,9 +1506,16 @@ export default function OfficeOperationsPage() {
                             <strong>{row.supportCase.supportCaseId}</strong>
                             <span>{row.ticket?.subject ?? 'Support request'}</span>
                           </div>
-                          <span className={`ol-chip ${supportCaseChipClass(row.supportCase.status)}`}>
-                            {supportCaseStatusLabel(row.supportCase.status)}
-                          </span>
+                          <div className="ol-support-case-row-badges">
+                            <span className={`ol-chip ${supportCaseChipClass(row.supportCase.status)}`}>
+                              {supportCaseStatusLabel(row.supportCase.status)}
+                            </span>
+                            {row.ticket ? (
+                              <span className={`ol-chip ${supportSlaChipClass(supportTicketSlaState(row.ticket, 'resolution'))}`}>
+                                {supportTicketSlaLabel(row.ticket)}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                         <p>{row.ticket?.summary ?? row.supportCase.latestNote}</p>
                         <div className="ol-support-case-row-meta">
@@ -1215,6 +1614,13 @@ export default function OfficeOperationsPage() {
                       </span>
                     </article>
                     <article className="ol-support-detail-card">
+                      <span className="ol-review-label">SLA state</span>
+                      <strong className="ol-review-value">{supportTicketSlaLabel(selectedSupportRow.ticket)}</strong>
+                      <span className="ol-list-text">
+                        First response {formatDate(selectedSupportRow.ticket?.firstResponseDueAt)} · Resolution {formatDate(selectedSupportRow.ticket?.slaDueAt)}
+                      </span>
+                    </article>
+                    <article className="ol-support-detail-card">
                       <span className="ol-review-label">Diagnostics</span>
                       <strong className="ol-review-value">
                         {selectedSupportRow.consentCount} pack{selectedSupportRow.consentCount === 1 ? '' : 's'}
@@ -1241,6 +1647,17 @@ export default function OfficeOperationsPage() {
                       </strong>
                       <span className="ol-list-text">
                         {selectedSupportEvents.length} audit event{selectedSupportEvents.length === 1 ? '' : 's'}
+                      </span>
+                    </article>
+                    <article className="ol-support-detail-card">
+                      <span className="ol-review-label">Notification tone</span>
+                      <strong className="ol-review-value">
+                        {supportNotificationToneLabel(selectedSupportRow.ticket?.notificationTone)}
+                      </strong>
+                      <span className="ol-list-text">
+                        {selectedSupportRow.ticket?.operatorFirstRepliedAt
+                          ? `First operator reply ${formatDate(selectedSupportRow.ticket.operatorFirstRepliedAt)}`
+                          : 'No operator reply recorded yet.'}
                       </span>
                     </article>
                   </div>
@@ -2062,6 +2479,87 @@ function chipClassForTone(tone: 'success' | 'warning' | 'premium' | 'default') {
     return 'ol-chip--premium';
   }
   return 'ol-chip--primary';
+}
+
+function supportTicketSlaState(
+  ticket: WebSupportTicketRecord | null,
+  target: 'first_response' | 'resolution'
+): SupportSlaState {
+  if (!ticket) {
+    return 'on_track';
+  }
+  const completedAt =
+    target === 'first_response'
+      ? ticket.operatorFirstRepliedAt
+      : ticket.resolutionState === 'resolved'
+        ? ticket.updatedAt
+        : null;
+  if (completedAt) {
+    return 'on_track';
+  }
+  return getSupportSlaState({
+    dueAt: target === 'first_response' ? ticket.firstResponseDueAt : ticket.slaDueAt,
+  });
+}
+
+function supportTicketSlaLabel(ticket: WebSupportTicketRecord | null) {
+  if (!ticket) {
+    return 'SLA not available';
+  }
+  const firstResponseState = supportTicketSlaState(ticket, 'first_response');
+  const resolutionState = supportTicketSlaState(ticket, 'resolution');
+  if (firstResponseState === 'overdue' || resolutionState === 'overdue') {
+    return 'Overdue SLA';
+  }
+  if (firstResponseState === 'due_soon' || resolutionState === 'due_soon') {
+    return 'Due soon';
+  }
+  return 'On track';
+}
+
+function supportSlaChipClass(state: SupportSlaState) {
+  if (state === 'overdue') {
+    return 'ol-chip--warning';
+  }
+  if (state === 'due_soon') {
+    return 'ol-chip--premium';
+  }
+  return 'ol-chip--success';
+}
+
+function supportNotificationToneLabel(tone: WebSupportTicketRecord['notificationTone'] | null | undefined) {
+  if (tone === 'soft') {
+    return 'Soft chime';
+  }
+  if (tone === 'urgent') {
+    return 'Urgent alert';
+  }
+  return 'Standard alert';
+}
+
+function playSupportNotificationTone() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextClass) {
+    return;
+  }
+  const context = new AudioContextClass();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(784, context.currentTime);
+  gain.gain.setValueAtTime(0.0001, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.32);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + 0.34);
+  oscillator.onended = () => {
+    void context.close();
+  };
 }
 
 function supportAuditChipClass(tone: WebSupportCaseAuditEvent['tone']) {

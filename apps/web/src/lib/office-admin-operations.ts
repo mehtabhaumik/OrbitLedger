@@ -130,6 +130,11 @@ export type WebSupportTicketRecord = {
   linkedConsentIds: string[];
   latestMessageId: string | null;
   latestMessageAt: string | null;
+  firstResponseDueAt: string | null;
+  slaDueAt: string | null;
+  lastCustomerMessageAt: string | null;
+  operatorFirstRepliedAt: string | null;
+  notificationTone: 'soft' | 'standard' | 'urgent';
   currentAssignmentId: string | null;
   lastActorRole: string | null;
   createdAt: string | null;
@@ -203,6 +208,22 @@ export type WebSupportAdminContext = {
   };
 };
 
+export type WebSupportNotificationPreferenceRecord = {
+  id: string;
+  workspaceId: string;
+  adminUid: string;
+  adminRole: PlatformAdminRole;
+  muteAll: boolean;
+  desktopAlertsEnabled: boolean;
+  browserNotificationsEnabled: boolean;
+  browserPermissionState: 'default' | 'denied' | 'granted' | null;
+  soundEnabled: boolean;
+  quietHoursStart: string | null;
+  quietHoursEnd: string | null;
+  lastViewedSupportAt: string | null;
+  updatedAt: string | null;
+};
+
 export type WebSupportAuditRecord = {
   id: string;
   source: 'message' | 'event' | 'assignment' | 'email_request';
@@ -267,6 +288,7 @@ export type WebOfficeOperationsSnapshot = {
   supportCaseEmailRequests: WebSupportCaseEmailRequestRecord[];
   supportConsents: WebSupportDiagnosticConsentRecord[];
   supportCaseEvents: WebSupportCaseAuditEvent[];
+  supportNotificationPreference: WebSupportNotificationPreferenceRecord | null;
   currentAdmin: WebSupportAdminContext | null;
   health: {
     title: string;
@@ -329,6 +351,11 @@ export type WebSupportReportEventResult = {
   message: string;
 };
 
+export type WebSupportNotificationPreferenceResult = {
+  preference: WebSupportNotificationPreferenceRecord;
+  message: string;
+};
+
 type WebOfficeSupportServerSnapshot = {
   currentAdmin: WebSupportAdminContext | null;
   supportCases: Array<{ id: string } & Record<string, unknown>>;
@@ -339,6 +366,7 @@ type WebOfficeSupportServerSnapshot = {
   supportCaseEmailRequests: Array<{ id: string } & Record<string, unknown>>;
   supportConsents: Array<{ id: string } & Record<string, unknown>>;
   supportCaseEvents: Array<{ id: string } & Record<string, unknown>>;
+  supportNotificationPreference?: ({ id: string } & Record<string, unknown>) | null;
 };
 
 export { OFFICE_SUPPORT_REVIEW_GUARDRAILS };
@@ -519,6 +547,12 @@ export async function loadWebOfficeOperationsSnapshot(
     )
       .filter((item) => item.supportCaseId || item.supportConsentId || item.ticketId)
       .sort((left, right) => sortIsoDesc(left.createdAt, right.createdAt)),
+    supportNotificationPreference: supportServerSnapshot?.supportNotificationPreference
+      ? parseSupportNotificationPreferenceRecord(
+          supportServerSnapshot.supportNotificationPreference.id,
+          supportServerSnapshot.supportNotificationPreference
+        )
+      : null,
   });
 }
 
@@ -528,6 +562,7 @@ export async function queueWebSupportCaseFollowUpEmail(input: {
   recipientEmail: string;
   subject: string;
   body: string;
+  expectedTicketUpdatedAt?: string | null;
 }): Promise<WebSupportCaseFollowUpEmailResult> {
   const user = getWebAuth().currentUser;
   if (!user) {
@@ -541,7 +576,10 @@ export async function queueWebSupportCaseFollowUpEmail(input: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...input,
+      expectedTicketUpdatedAt: input.expectedTicketUpdatedAt ?? null,
+    }),
   });
   const result = (await response.json().catch(() => ({
     ok: false,
@@ -579,6 +617,7 @@ export async function sendWebSupportReply(input: {
   body: string;
   action: WebSupportReplyAction;
   resolutionReason?: SupportResolutionReason | null;
+  expectedTicketUpdatedAt?: string | null;
 }): Promise<WebSupportReplyResult> {
   const user = getWebAuth().currentUser;
   if (!user) {
@@ -601,6 +640,7 @@ export async function sendWebSupportReply(input: {
       body: input.body,
       action: input.action,
       resolutionReason: input.resolutionReason ?? null,
+      expectedTicketUpdatedAt: input.expectedTicketUpdatedAt ?? null,
     }),
   });
   const result = (await response.json().catch(() => ({
@@ -631,6 +671,7 @@ export async function recordWebSupportCaseAdminAction(input: {
   action: OfficeSupportCaseAction;
   note: string;
   resolutionReason?: SupportResolutionReason | null;
+  expectedTicketUpdatedAt?: string | null;
 }): Promise<WebSupportCaseAdminActionResult> {
   const user = getWebAuth().currentUser;
   if (!user) {
@@ -655,6 +696,7 @@ export async function recordWebSupportCaseAdminAction(input: {
       action: plan.action,
       note: plan.note,
       resolutionReason: plan.resolutionReason,
+      expectedTicketUpdatedAt: input.expectedTicketUpdatedAt ?? null,
     }),
   });
   const result = (await response.json().catch(() => ({
@@ -693,6 +735,7 @@ export async function recordWebSupportTicketAssignment(input: {
   assignedAdminUid?: string | null;
   assignedAdminEmail?: string | null;
   reason: string;
+  expectedTicketUpdatedAt?: string | null;
 }): Promise<WebSupportTicketAssignmentResult> {
   const user = getWebAuth().currentUser;
   if (!user) {
@@ -715,6 +758,7 @@ export async function recordWebSupportTicketAssignment(input: {
       assignedAdminUid: input.assignedAdminUid ?? null,
       assignedAdminEmail: input.assignedAdminEmail ?? null,
       reason: input.reason,
+      expectedTicketUpdatedAt: input.expectedTicketUpdatedAt ?? null,
     }),
   });
   const result = (await response.json().catch(() => ({
@@ -919,6 +963,7 @@ export function buildWebOfficeOperationsSnapshot(input: {
   supportCaseEmailRequests?: WebSupportCaseEmailRequestRecord[];
   supportConsents?: WebSupportDiagnosticConsentRecord[];
   supportCaseEvents?: WebSupportCaseAuditEvent[];
+  supportNotificationPreference?: WebSupportNotificationPreferenceRecord | null;
 }): WebOfficeOperationsSnapshot {
   const queueByRequestId = new Map(input.adminQueue.map((item) => [item.requestId, item]));
   const activeRequests = input.requests.filter((request) => request.status !== 'cancelled');
@@ -971,6 +1016,7 @@ export function buildWebOfficeOperationsSnapshot(input: {
     supportCaseEmailRequests: input.supportCaseEmailRequests ?? [],
     supportConsents: input.supportConsents ?? [],
     supportCaseEvents: input.supportCaseEvents ?? [],
+    supportNotificationPreference: input.supportNotificationPreference ?? null,
     health: attentionCount
       ? {
           title: 'Office operations need review',
@@ -1470,10 +1516,98 @@ export function parseSupportTicketRecord(id: string, data: DocumentData): WebSup
     linkedConsentIds: stringList(data.linked_support_consent_ids ?? data.linkedSupportConsentIds),
     latestMessageId: nullableString(data.latest_message_id ?? data.latestMessageId),
     latestMessageAt: nullableString(data.latest_message_at ?? data.latestMessageAt),
+    firstResponseDueAt: nullableString(data.first_response_due_at ?? data.firstResponseDueAt),
+    slaDueAt: nullableString(data.sla_due_at ?? data.slaDueAt),
+    lastCustomerMessageAt: nullableString(data.last_customer_message_at ?? data.lastCustomerMessageAt),
+    operatorFirstRepliedAt: nullableString(data.operator_first_replied_at ?? data.operatorFirstRepliedAt),
+    notificationTone: supportNotificationTone(data.notification_tone ?? data.notificationTone),
     currentAssignmentId: nullableString(data.current_assignment_id ?? data.currentAssignmentId),
     lastActorRole: nullableString(data.last_actor_role ?? data.lastActorRole),
     createdAt: nullableString(data.created_at ?? data.createdAt),
     updatedAt: nullableString(data.updated_at ?? data.updatedAt),
+  };
+}
+
+export function parseSupportNotificationPreferenceRecord(
+  id: string,
+  data: DocumentData
+): WebSupportNotificationPreferenceRecord {
+  return {
+    id,
+    workspaceId: stringValue(data.workspace_id) || stringValue(data.workspaceId) || '',
+    adminUid: stringValue(data.admin_uid) || stringValue(data.adminUid) || '',
+    adminRole: (stringValue(data.admin_role) || stringValue(data.adminRole) || 'read_only_admin') as PlatformAdminRole,
+    muteAll: data.mute_all === true || data.muteAll === true,
+    desktopAlertsEnabled: data.desktop_alerts_enabled !== false && data.desktopAlertsEnabled !== false,
+    browserNotificationsEnabled: data.browser_notifications_enabled === true || data.browserNotificationsEnabled === true,
+    browserPermissionState: supportNotificationPermissionState(
+      data.browser_permission_state ?? data.browserPermissionState
+    ),
+    soundEnabled: data.sound_enabled === true || data.soundEnabled === true,
+    quietHoursStart: nullableString(data.quiet_hours_start ?? data.quietHoursStart),
+    quietHoursEnd: nullableString(data.quiet_hours_end ?? data.quietHoursEnd),
+    lastViewedSupportAt: nullableString(data.last_viewed_support_at ?? data.lastViewedSupportAt),
+    updatedAt: nullableString(data.updated_at ?? data.updatedAt),
+  };
+}
+
+export async function updateWebSupportNotificationPreferences(input: {
+  workspaceId: string;
+  muteAll: boolean;
+  desktopAlertsEnabled: boolean;
+  browserNotificationsEnabled: boolean;
+  browserPermissionState?: 'default' | 'denied' | 'granted' | null;
+  soundEnabled: boolean;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
+  lastViewedSupportAt?: string | null;
+}): Promise<WebSupportNotificationPreferenceResult> {
+  const user = getWebAuth().currentUser;
+  if (!user) {
+    throw new Error('Sign in again before saving support notification settings.');
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(getUpdateOfficeSupportNotificationPreferencesUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      workspaceId: input.workspaceId,
+      muteAll: input.muteAll,
+      desktopAlertsEnabled: input.desktopAlertsEnabled,
+      browserNotificationsEnabled: input.browserNotificationsEnabled,
+      browserPermissionState: input.browserPermissionState ?? null,
+      soundEnabled: input.soundEnabled,
+      quietHoursStart: input.quietHoursStart ?? null,
+      quietHoursEnd: input.quietHoursEnd ?? null,
+      lastViewedSupportAt: input.lastViewedSupportAt ?? null,
+    }),
+  });
+  const result = (await response.json().catch(() => ({
+    ok: false,
+    error: 'support_notification_preferences_failed',
+  }))) as
+    | {
+        ok: true;
+        preference: { id: string } & Record<string, unknown>;
+        message?: string | null;
+      }
+    | {
+        ok: false;
+        error: string;
+        message?: string | null;
+      };
+
+  if (!response.ok || !result.ok) {
+    throw new Error(result.message ?? officeReviewErrorMessage(result.ok ? 'support_notification_preferences_failed' : result.error));
+  }
+
+  return {
+    preference: parseSupportNotificationPreferenceRecord(result.preference.id, result.preference),
+    message: result.message ?? 'Support notification preferences saved.',
   };
 }
 
@@ -2124,6 +2258,11 @@ function getOfficeSupportSnapshotUrl() {
   return `https://asia-south1-${projectId}.cloudfunctions.net/getOfficeSupportSnapshot`;
 }
 
+function getUpdateOfficeSupportNotificationPreferencesUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/updateOfficeSupportNotificationPreferences`;
+}
+
 function getRecordOfficeSupportReportEventUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/recordOfficeSupportReportEvent`;
@@ -2194,6 +2333,18 @@ function officeReviewErrorMessage(error: string) {
   if (error === 'support_report_action_failed') {
     return 'Support report export could not be recorded.';
   }
+  if (error === 'support_rate_limited') {
+    return 'This action was rate-limited. Wait a moment and try again.';
+  }
+  if (error === 'support_ticket_conflict') {
+    return 'This ticket changed in another admin session. Refresh the support center and try again.';
+  }
+  if (error === 'support_notification_preferences_invalid') {
+    return 'Quiet hours must use a valid 24-hour time like 22:00 or 07:00.';
+  }
+  if (error === 'support_notification_preferences_failed') {
+    return 'Support notification settings could not be saved.';
+  }
   if (error === 'office_request_not_ready') {
     return 'Approve the Office request before granting access.';
   }
@@ -2205,6 +2356,16 @@ function officeReviewErrorMessage(error: string) {
 
 function supportEmailDeliveryStatus(value: unknown): WebSupportCaseEmailRequestRecord['deliveryStatus'] {
   return value === 'queued' || value === 'sent' || value === 'failed' ? value : 'pending_provider_connection';
+}
+
+function supportNotificationPermissionState(
+  value: unknown
+): WebSupportNotificationPreferenceRecord['browserPermissionState'] {
+  return value === 'default' || value === 'denied' || value === 'granted' ? value : null;
+}
+
+function supportNotificationTone(value: unknown): WebSupportTicketRecord['notificationTone'] {
+  return value === 'soft' || value === 'urgent' ? value : 'standard';
 }
 
 function normalizeSupportReplyAction(value: string | null | undefined): WebSupportReplyAction {
@@ -2288,5 +2449,9 @@ async function loadWebOfficeSupportServerSnapshot(
     supportCaseEmailRequests: result.supportCaseEmailRequests ?? [],
     supportConsents: result.supportConsents ?? [],
     supportCaseEvents: result.supportCaseEvents ?? [],
+    supportNotificationPreference:
+      result.supportNotificationPreference && typeof result.supportNotificationPreference === 'object'
+        ? result.supportNotificationPreference
+        : null,
   };
 }

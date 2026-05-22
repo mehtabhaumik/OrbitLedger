@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildDefaultSupportNotificationPreference,
+  buildSupportSlaTargets,
   buildSupportTicketActionPlan,
   canSupportRoleAccessQueue,
   canSupportRoleAuditAllTickets,
   canSupportRoleExportReports,
   canSupportRoleMutateQueue,
+  getSupportNotificationTone,
   getSupportRoleCapability,
+  getSupportSlaState,
+  isSupportQuietHoursActive,
   isSupportCenterCollection,
   isSupportEventKind,
   isSupportMessageKind,
@@ -130,5 +135,55 @@ describe('support center core contract', () => {
       nextStatus: 'spam',
       nextResolutionReason: 'spam',
     });
+  });
+
+  it('defines predictable SLA targets and notification tone rules', () => {
+    expect(buildSupportSlaTargets({
+      priority: 'high',
+      now: '2026-05-22T12:00:00.000Z',
+    })).toEqual({
+      firstResponseDueAt: '2026-05-22T20:00:00.000Z',
+      slaDueAt: '2026-05-25T12:00:00.000Z',
+    });
+    expect(getSupportNotificationTone({ queueId: 'feedback', priority: 'low' })).toBe('soft');
+    expect(getSupportNotificationTone({ queueId: 'privacy', priority: 'normal' })).toBe('urgent');
+    expect(getSupportSlaState({
+      dueAt: '2026-05-22T15:30:00.000Z',
+      now: '2026-05-22T12:00:00.000Z',
+    })).toBe('due_soon');
+    expect(getSupportSlaState({
+      dueAt: '2026-05-22T11:59:00.000Z',
+      now: '2026-05-22T12:00:00.000Z',
+    })).toBe('overdue');
+  });
+
+  it('keeps notification defaults calm and respects quiet hours correctly', () => {
+    expect(buildDefaultSupportNotificationPreference({
+      workspaceId: 'workspace-1',
+      adminUid: 'admin-1',
+      adminRole: 'support_admin',
+      updatedAt: '2026-05-22T12:00:00.000Z',
+    })).toMatchObject({
+      id: 'admin-1',
+      adminRole: 'support_admin',
+      muteAll: false,
+      desktopAlertsEnabled: true,
+      browserNotificationsEnabled: false,
+      soundEnabled: false,
+      quietHoursStart: '22:00',
+      quietHoursEnd: '07:00',
+      lastViewedSupportAt: null,
+    });
+
+    expect(isSupportQuietHoursActive({
+      quietHoursStart: '22:00',
+      quietHoursEnd: '07:00',
+      now: '2026-05-22T23:15:00.000Z',
+    })).toBe(true);
+    expect(isSupportQuietHoursActive({
+      quietHoursStart: '22:00',
+      quietHoursEnd: '07:00',
+      now: '2026-05-22T14:15:00.000Z',
+    })).toBe(false);
   });
 });

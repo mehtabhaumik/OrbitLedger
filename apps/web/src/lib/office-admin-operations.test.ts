@@ -16,6 +16,7 @@ import {
   parseSupportAssignmentRecord,
   parseSupportCaseEmailRequestRecord,
   parseSupportMessageRecord,
+  parseSupportNotificationPreferenceRecord,
   parseSupportCaseRecord,
   parseSupportDiagnosticConsentRecord,
   parseSupportQueueRecord,
@@ -58,6 +59,7 @@ describe('office admin operations', () => {
     expect(snapshot.supportMessages).toEqual([]);
     expect(snapshot.supportCaseEmailRequests).toEqual([]);
     expect(snapshot.supportCaseEvents).toEqual([]);
+    expect(snapshot.supportNotificationPreference).toBeNull();
   });
 
   it('does not show cancelled requests as active queue work', () => {
@@ -110,6 +112,20 @@ describe('office admin operations', () => {
           description: 'Billing, refunds, and plan changes.',
         }),
       ],
+      supportNotificationPreference: parseSupportNotificationPreferenceRecord('admin-1', {
+        workspace_id: 'workspace-1',
+        admin_uid: 'admin-1',
+        admin_role: 'finance_admin',
+        mute_all: false,
+        desktop_alerts_enabled: true,
+        browser_notifications_enabled: true,
+        browser_permission_state: 'granted',
+        sound_enabled: false,
+        quiet_hours_start: '22:00',
+        quiet_hours_end: '07:00',
+        last_viewed_support_at: '2026-05-22T12:00:00.000Z',
+        updated_at: '2026-05-22T12:01:00.000Z',
+      }),
     });
 
     expect(snapshot.currentAdmin).toMatchObject({
@@ -128,6 +144,12 @@ describe('office admin operations', () => {
     expect(snapshot.supportQueues[0]).toMatchObject({
       id: 'billing',
       label: 'Billing',
+    });
+    expect(snapshot.supportNotificationPreference).toMatchObject({
+      adminUid: 'admin-1',
+      browserPermissionState: 'granted',
+      quietHoursStart: '22:00',
+      quietHoursEnd: '07:00',
     });
   });
 
@@ -247,6 +269,11 @@ describe('office admin operations', () => {
       queue_id: 'technical',
       priority: 'high',
       status: 'opened',
+      first_response_due_at: '2026-05-07T08:00:00.000Z',
+      sla_due_at: '2026-05-10T00:00:00.000Z',
+      last_customer_message_at: '2026-05-07T00:00:00.000Z',
+      operator_first_replied_at: '2026-05-07T01:00:00.000Z',
+      notification_tone: 'urgent',
       subject: 'Sync help request',
       summary: 'Sync stalled after sign-in.',
       customer_email: 'owner@example.com',
@@ -257,9 +284,40 @@ describe('office admin operations', () => {
       supportCaseId: 'CASE-2001',
       queueId: 'technical',
       priority: 'high',
+      firstResponseDueAt: '2026-05-07T08:00:00.000Z',
+      slaDueAt: '2026-05-10T00:00:00.000Z',
+      lastCustomerMessageAt: '2026-05-07T00:00:00.000Z',
+      operatorFirstRepliedAt: '2026-05-07T01:00:00.000Z',
+      notificationTone: 'urgent',
       subject: 'Sync help request',
       customerEmail: 'owner@example.com',
       linkedConsentIds: ['consent-1'],
+    });
+
+    expect(parseSupportNotificationPreferenceRecord('pref-1', {
+      workspace_id: 'workspace-1',
+      admin_uid: 'admin-1',
+      admin_role: 'support_admin',
+      mute_all: false,
+      desktop_alerts_enabled: true,
+      browser_notifications_enabled: false,
+      browser_permission_state: 'default',
+      sound_enabled: true,
+      quiet_hours_start: '21:30',
+      quiet_hours_end: '06:30',
+      last_viewed_support_at: '2026-05-07T00:00:00.000Z',
+      updated_at: '2026-05-07T00:05:00.000Z',
+    })).toMatchObject({
+      id: 'pref-1',
+      workspaceId: 'workspace-1',
+      adminUid: 'admin-1',
+      adminRole: 'support_admin',
+      desktopAlertsEnabled: true,
+      browserNotificationsEnabled: false,
+      browserPermissionState: 'default',
+      soundEnabled: true,
+      quietHoursStart: '21:30',
+      quietHoursEnd: '06:30',
     });
 
     expect(parseSupportMessageRecord('message-1', {

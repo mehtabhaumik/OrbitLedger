@@ -163,12 +163,18 @@ export function buildSupportTicketRecord(input: {
   existingQueueId?: SupportQueueId | null;
   existingSource?: SupportTicketSource | null;
   existingCreatedAt?: string | null;
+  existingFirstResponseDueAt?: string | null;
+  existingSlaDueAt?: string | null;
+  existingOperatorFirstRepliedAt?: string | null;
   currentAssignmentId?: string | null;
   now?: Date;
 }) {
   const now = input.now ?? new Date();
   const timestamp = now.toISOString();
   const linkedConsentIds = uniqueStrings(input.linkedConsentIds ?? []);
+  const priority = supportPriorityForKind(input.supportKind);
+  const firstResponseDueAt = new Date(now.getTime() + getSupportFirstResponseSlaHours(priority) * 3_600_000).toISOString();
+  const slaDueAt = new Date(now.getTime() + getSupportResolutionSlaHours(priority) * 3_600_000).toISOString();
   if (input.consentId) {
     linkedConsentIds.push(input.consentId);
   }
@@ -180,7 +186,7 @@ export function buildSupportTicketRecord(input: {
     support_case_id: input.supportCaseId,
     source: input.existingSource ?? ('support_case' as SupportTicketSource),
     queue_id: input.existingQueueId ?? supportQueueForKind(input.supportKind),
-    priority: supportPriorityForKind(input.supportKind),
+    priority,
     status: 'opened' as SupportTicketStatus,
     resolution_state: 'unresolved' as SupportResolutionState,
     resolution_reason: null,
@@ -193,6 +199,11 @@ export function buildSupportTicketRecord(input: {
     linked_support_consent_ids: uniqueStrings(linkedConsentIds),
     latest_message_id: input.messageId,
     latest_message_at: timestamp,
+    first_response_due_at: input.existingFirstResponseDueAt ?? firstResponseDueAt,
+    sla_due_at: input.existingSlaDueAt ?? slaDueAt,
+    last_customer_message_at: timestamp,
+    operator_first_replied_at: input.existingOperatorFirstRepliedAt ?? null,
+    notification_tone: notificationToneForTicket(input.existingQueueId ?? supportQueueForKind(input.supportKind), priority),
     current_assignment_id: input.currentAssignmentId ?? null,
     last_actor_uid: input.customerUserId ?? null,
     last_actor_role: 'customer',
@@ -278,4 +289,40 @@ function uniqueStrings(values: string[]) {
 
 function pad(value: number) {
   return String(value).padStart(2, '0');
+}
+
+function getSupportFirstResponseSlaHours(priority: SupportTicketPriority) {
+  if (priority === 'urgent') {
+    return 2;
+  }
+  if (priority === 'high') {
+    return 8;
+  }
+  if (priority === 'low') {
+    return 72;
+  }
+  return 24;
+}
+
+function getSupportResolutionSlaHours(priority: SupportTicketPriority) {
+  if (priority === 'urgent') {
+    return 24;
+  }
+  if (priority === 'high') {
+    return 72;
+  }
+  if (priority === 'low') {
+    return 336;
+  }
+  return 168;
+}
+
+function notificationToneForTicket(queueId: SupportQueueId, priority: SupportTicketPriority) {
+  if (priority === 'urgent' || queueId === 'complaint' || queueId === 'privacy') {
+    return 'urgent';
+  }
+  if (queueId === 'feedback' && priority === 'low') {
+    return 'soft';
+  }
+  return 'standard';
 }

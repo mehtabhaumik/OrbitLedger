@@ -156,6 +156,14 @@ type SupportRoleCapability = {
   canExportReports: boolean;
 };
 
+type SupportActionRateLimitKey =
+  | 'support_assign_ticket'
+  | 'support_case_update'
+  | 'support_reply'
+  | 'support_follow_up_email'
+  | 'support_report_export'
+  | 'support_notification_preferences';
+
 const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability> = {
   super_admin: {
     readAll: true,
@@ -217,6 +225,15 @@ const SUPPORT_ROLE_CAPABILITIES: Record<PlatformAdminRole, SupportRoleCapability
     canViewDiagnostics: false,
     canExportReports: true,
   },
+};
+
+const SUPPORT_ACTION_RATE_LIMIT_POLICIES: Record<SupportActionRateLimitKey, { limit: number; windowMs: number }> = {
+  support_assign_ticket: { limit: 40, windowMs: 10 * 60 * 1000 },
+  support_case_update: { limit: 60, windowMs: 10 * 60 * 1000 },
+  support_reply: { limit: 30, windowMs: 10 * 60 * 1000 },
+  support_follow_up_email: { limit: 20, windowMs: 10 * 60 * 1000 },
+  support_report_export: { limit: 25, windowMs: 10 * 60 * 1000 },
+  support_notification_preferences: { limit: 24, windowMs: 10 * 60 * 1000 },
 };
 
 type ProviderSource = 'upi' | 'payment_page' | 'bank_transfer' | 'card' | 'wallet' | 'other';
@@ -5170,6 +5187,7 @@ export const getOfficeSupportSnapshot = onRequest(
         supportMessageSnapshot,
         supportEventSnapshot,
         supportAssignmentSnapshot,
+        supportNotificationPreferenceSnapshot,
       ] = await Promise.all([
         workspaceRef.collection('support_cases').orderBy('updated_at', 'desc').limit(120).get(),
         workspaceRef.collection('support_case_email_requests').orderBy('queued_at', 'desc').limit(160).get(),
@@ -5179,6 +5197,7 @@ export const getOfficeSupportSnapshot = onRequest(
         workspaceRef.collection('support_messages').orderBy('created_at', 'desc').limit(400).get(),
         workspaceRef.collection('support_events').orderBy('created_at', 'desc').limit(400).get(),
         workspaceRef.collection('support_assignments').orderBy('updated_at', 'desc').limit(240).get(),
+        workspaceRef.collection('support_notification_preferences').doc(adminUser.uid).get(),
       ]);
 
       const supportTickets = supportTicketSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Array<{ id: string } & Record<string, unknown>>;
@@ -5232,6 +5251,16 @@ export const getOfficeSupportSnapshot = onRequest(
       const visibleQueues = buildDefaultSupportQueueRecords(now).filter((queue) =>
         canSupportRoleReadQueue(adminAccess.role, normalizeSupportQueueId(queue.queue_id) ?? 'general')
       );
+      const supportNotificationPreference = supportNotificationPreferenceSnapshot.exists
+        ? { id: supportNotificationPreferenceSnapshot.id, ...supportNotificationPreferenceSnapshot.data() }
+        : {
+            id: adminUser.uid,
+            ...buildDefaultSupportNotificationPreference({
+              workspaceId,
+              adminUid: adminUser.uid,
+              adminRole: adminAccess.role,
+            }),
+          };
 
       response.status(200).json({
         ok: true,
@@ -5250,10 +5279,157 @@ export const getOfficeSupportSnapshot = onRequest(
         supportMessages: visibleMessages,
         supportAssignments: visibleAssignments,
         supportQueues: visibleQueues,
+        supportNotificationPreference,
       });
     } catch (error) {
       logger.error('getOfficeSupportSnapshot failed', { workspaceId, error });
       response.status(500).json({ ok: false, error: 'office_support_snapshot_failed' });
+    }
+  }
+);
+
+export const updateOfficeSupportNotificationPreferences = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 10,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_support_cases')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'updateOfficeSupportNotificationPreferences',
+        requiredPermission: 'review_support_cases',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: 'update_support_notification_preferences',
+        outcome: 'denied',
+        reason: 'Only support-center authorized admin roles can update support notification preferences.',
+      });
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspaceId = clean(stringValue(body?.workspaceId));
+    const muteAll = body?.muteAll === true;
+    const desktopAlertsEnabled = body?.desktopAlertsEnabled !== false;
+    const browserNotificationsEnabled = body?.browserNotificationsEnabled === true;
+    const browserPermissionState = normalizeSupportNotificationPermissionState(clean(stringValue(body?.browserPermissionState)));
+    const soundEnabled = body?.soundEnabled === true;
+    const quietHoursStart = normalizeSupportClockTime(clean(stringValue(body?.quietHoursStart)));
+    const quietHoursEnd = normalizeSupportClockTime(clean(stringValue(body?.quietHoursEnd)));
+    const lastViewedSupportAt = normalizeSupportViewedAt(clean(stringValue(body?.lastViewedSupportAt)));
+
+    if (!workspaceId) {
+      response.status(400).json({ ok: false, error: 'workspace_required' });
+      return;
+    }
+    if ((clean(stringValue(body?.quietHoursStart)) && !quietHoursStart) || (clean(stringValue(body?.quietHoursEnd)) && !quietHoursEnd)) {
+      response.status(400).json({ ok: false, error: 'support_notification_preferences_invalid' });
+      return;
+    }
+
+    const allowed = await enforceSupportActionRateLimit({
+      actor: adminUser,
+      access: adminAccess,
+      rateLimitKey: 'support_notification_preferences',
+      endpoint: 'updateOfficeSupportNotificationPreferences',
+      requestedAction: 'update_support_notification_preferences',
+      workspaceId,
+    });
+    if (!allowed) {
+      response.status(429).json({ ok: false, error: 'support_rate_limited' });
+      return;
+    }
+
+    try {
+      const workspaceRef = db.collection('workspaces').doc(workspaceId);
+      const workspaceSnapshot = await workspaceRef.get();
+      if (!workspaceSnapshot.exists) {
+        response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+
+      const now = new Date();
+      const preferenceRef = workspaceRef.collection('support_notification_preferences').doc(adminUser.uid);
+      const auditRef = workspaceRef
+        .collection('office_access_audit')
+        .doc(normalizeId(`support_notification_preferences_${adminUser.uid}_${Date.now()}`));
+
+      const preferenceRecord = await db.runTransaction(async (transaction) => {
+        const existingSnapshot = await transaction.get(preferenceRef);
+        const nextRecord = buildSupportNotificationPreferenceRecord({
+          workspaceId,
+          adminUid: adminUser.uid,
+          adminRole: adminAccess.role,
+          existing: existingSnapshot.exists ? existingSnapshot.data() ?? {} : null,
+          muteAll,
+          desktopAlertsEnabled,
+          browserNotificationsEnabled,
+          browserPermissionState,
+          soundEnabled,
+          quietHoursStart,
+          quietHoursEnd,
+          lastViewedSupportAt,
+          now,
+        });
+        transaction.set(preferenceRef, nextRecord, { merge: true });
+        transaction.set(
+          auditRef,
+          {
+            version: 1,
+            workspace_id: workspaceId,
+            actor_uid: adminUser.uid,
+            actor_email: clean(adminUser.email),
+            actor_role: adminAccess.role,
+            action: 'support_notification_preferences_updated',
+            target_uid: adminUser.uid,
+            target_email: adminUser.email ?? null,
+            previous_role: null,
+            next_role: null,
+            previous_status: null,
+            next_status: null,
+            support_consent_id: null,
+            support_case_id: null,
+            customer_approved_diagnostic_access: false,
+            impersonation_allowed: false,
+            reason: [
+              muteAll ? 'Muted' : 'Alerts active',
+              desktopAlertsEnabled ? 'desktop alerts enabled' : 'desktop alerts disabled',
+              browserNotificationsEnabled ? 'browser notifications enabled' : 'browser notifications disabled',
+              soundEnabled ? 'sound enabled' : 'sound disabled',
+              quietHoursStart && quietHoursEnd ? `quiet hours ${quietHoursStart}-${quietHoursEnd}` : 'quiet hours cleared',
+            ].join(' · '),
+            created_at: now.toISOString(),
+          },
+          { merge: true }
+        );
+        return nextRecord;
+      });
+
+      response.status(200).json({
+        ok: true,
+        preference: {
+          id: preferenceRef.id,
+          ...preferenceRecord,
+        },
+        message: 'Support notification preferences saved.',
+      });
+    } catch (error) {
+      logger.error('updateOfficeSupportNotificationPreferences failed', { workspaceId, error });
+      response.status(500).json({ ok: false, error: 'support_notification_preferences_failed' });
     }
   }
 );
@@ -5407,6 +5583,20 @@ export const recordOfficeSupportReportEvent = onRequest(
     }
     if (!reportType) {
       response.status(400).json({ ok: false, error: 'support_report_type_required' });
+      return;
+    }
+    const allowed = await enforceSupportActionRateLimit({
+      actor: adminUser,
+      access: adminAccess,
+      rateLimitKey: 'support_report_export',
+      endpoint: 'recordOfficeSupportReportEvent',
+      requestedAction: `support_report_${action}`,
+      workspaceId,
+      supportCaseId,
+      ticketId,
+    });
+    if (!allowed) {
+      response.status(429).json({ ok: false, error: 'support_rate_limited' });
       return;
     }
     if (queueId && !canSupportRoleReadQueue(adminAccess.role, queueId)) {
@@ -5565,6 +5755,7 @@ export const assignOfficeSupportTicket = onRequest(
     const assignedAdminUid = clean(stringValue(body?.assignedAdminUid));
     const assignedAdminEmail = normalizeEmailAddress(clean(stringValue(body?.assignedAdminEmail)));
     const reason = clean(stringValue(body?.reason));
+    const expectedTicketUpdatedAt = normalizeSupportViewedAt(clean(stringValue(body?.expectedTicketUpdatedAt)));
 
     if (!workspaceId || !supportCaseId || !ticketId || !queueId || !assignedRole || !reason) {
       response.status(400).json({ ok: false, error: 'support_assignment_required' });
@@ -5588,6 +5779,20 @@ export const assignOfficeSupportTicket = onRequest(
 
     if (!canAssignSupportQueueToRole(assignedRole, queueId)) {
       response.status(400).json({ ok: false, error: 'support_assignment_role_mismatch' });
+      return;
+    }
+    const allowed = await enforceSupportActionRateLimit({
+      actor: adminUser,
+      access: adminAccess,
+      rateLimitKey: 'support_assign_ticket',
+      endpoint: 'assignOfficeSupportTicket',
+      requestedAction: 'assign_ticket',
+      workspaceId,
+      supportCaseId,
+      ticketId,
+    });
+    if (!allowed) {
+      response.status(429).json({ ok: false, error: 'support_rate_limited' });
       return;
     }
 
@@ -5619,6 +5824,7 @@ export const assignOfficeSupportTicket = onRequest(
         }
 
         const currentTicket = ticketSnapshot.data() ?? {};
+        assertSupportTicketFresh(currentTicket, expectedTicketUpdatedAt);
         const currentQueueId = normalizeSupportQueueId(clean(stringValue(currentTicket.queue_id))) ?? 'general';
         if (!canSupportRoleMutateQueue(adminAccess.role, currentQueueId)) {
           throw new Error('support_assignment_not_allowed');
@@ -5751,6 +5957,10 @@ export const assignOfficeSupportTicket = onRequest(
       }
       if (message === 'support_ticket_not_found') {
         response.status(404).json({ ok: false, error: 'support_ticket_not_found' });
+        return;
+      }
+      if (message === 'support_ticket_conflict') {
+        response.status(409).json({ ok: false, error: 'support_ticket_conflict' });
         return;
       }
       logger.error('assignOfficeSupportTicket failed', { workspaceId, ticketId, supportCaseId, error });
@@ -5925,6 +6135,7 @@ export const recordSupportCaseAdminAction = onRequest(
     const action = normalizeSupportCaseAction(clean(stringValue(body?.action)));
     const note = clean(stringValue(body?.note));
     const resolutionReason = normalizeSupportResolutionReason(clean(stringValue(body?.resolutionReason)));
+    const expectedTicketUpdatedAt = normalizeSupportViewedAt(clean(stringValue(body?.expectedTicketUpdatedAt)));
 
     if (!workspaceId || !supportCaseId || !note) {
       response.status(400).json({ ok: false, error: 'support_case_update_required' });
@@ -5932,6 +6143,20 @@ export const recordSupportCaseAdminAction = onRequest(
     }
     if ((action === 'resolve' || action === 'close') && !resolutionReason) {
       response.status(400).json({ ok: false, error: 'support_case_resolution_reason_required' });
+      return;
+    }
+    const allowed = await enforceSupportActionRateLimit({
+      actor: adminUser,
+      access: adminAccess,
+      rateLimitKey: 'support_case_update',
+      endpoint: 'recordSupportCaseAdminAction',
+      requestedAction: action,
+      workspaceId,
+      supportCaseId,
+      ticketId: normalizeId(`support_ticket_${supportCaseId}`),
+    });
+    if (!allowed) {
+      response.status(429).json({ ok: false, error: 'support_rate_limited' });
       return;
     }
 
@@ -5964,6 +6189,7 @@ export const recordSupportCaseAdminAction = onRequest(
 
         const currentCase = caseSnapshot.exists ? caseSnapshot.data() ?? {} : {};
         const currentTicket = ticketSnapshot.exists ? ticketSnapshot.data() ?? {} : {};
+        assertSupportTicketFresh(currentTicket, expectedTicketUpdatedAt);
         const currentQueueId = normalizeSupportQueueId(clean(stringValue(currentTicket.queue_id))) ?? 'general';
         const canMutateCurrentQueue = canSupportRoleMutateQueue(adminAccess.role, currentQueueId);
         if (action === 'add_note' && (!supportCapability.canAddInternalNotes || !canMutateCurrentQueue)) {
@@ -5990,6 +6216,8 @@ export const recordSupportCaseAdminAction = onRequest(
             : action === 'reopen'
               ? null
               : normalizeSupportResolutionReason(clean(stringValue(currentTicket.resolution_reason)));
+        const currentPriority = clean(stringValue(currentTicket.priority));
+        const nextSlaTargets = buildSupportSlaTargets({ priority: currentPriority, now });
 
         transaction.set(
           caseRef,
@@ -6019,6 +6247,16 @@ export const recordSupportCaseAdminAction = onRequest(
             last_actor_uid: adminUser.uid,
             last_actor_role: adminAccess.role,
             updated_at: now.toISOString(),
+            first_response_due_at:
+              action === 'reopen'
+                ? nextSlaTargets.firstResponseDueAt
+                : clean(stringValue(currentTicket.first_response_due_at)) ?? nextSlaTargets.firstResponseDueAt,
+            sla_due_at:
+              action === 'reopen'
+                ? nextSlaTargets.slaDueAt
+                : clean(stringValue(currentTicket.sla_due_at)) ?? nextSlaTargets.slaDueAt,
+            operator_first_replied_at:
+              action === 'reopen' ? null : clean(stringValue(currentTicket.operator_first_replied_at)) ?? null,
             resolved_at:
               nextTicketStatus === 'resolved' || nextTicketStatus === 'closed'
                 ? now.toISOString()
@@ -6126,6 +6364,10 @@ export const recordSupportCaseAdminAction = onRequest(
       }
       if (error instanceof Error && error.message === 'workspace_not_found') {
         response.status(404).json({ ok: false, error: 'workspace_not_found' });
+        return;
+      }
+      if (error instanceof Error && error.message === 'support_ticket_conflict') {
+        response.status(409).json({ ok: false, error: 'support_ticket_conflict' });
         return;
       }
       logger.error('recordSupportCaseAdminAction failed', { workspaceId, supportCaseId, action, error });
@@ -6296,6 +6538,7 @@ export const receiveSupportInboundEmail = onRequest(
       const auditRef = workspaceRef.collection('office_access_audit').doc(normalizeId(`support_inbound_${supportCaseId}_${resendEmailId}`));
 
       const result = await db.runTransaction(async (transaction) => {
+        const now = new Date();
         const [workspaceSnapshot, caseSnapshot, ticketSnapshot, messageSnapshot] = await Promise.all([
           transaction.get(workspaceRef!),
           transaction.get(caseRef),
@@ -6343,6 +6586,9 @@ export const receiveSupportInboundEmail = onRequest(
             normalizeSupportTicketSource(clean(stringValue(currentTicket.source))) ??
             (ticketSnapshot.exists ? 'support_case' : 'support_reply_email'),
           existingCreatedAt: clean(stringValue(currentTicket.created_at)),
+          existingFirstResponseDueAt: clean(stringValue(currentTicket.first_response_due_at)),
+          existingSlaDueAt: clean(stringValue(currentTicket.sla_due_at)),
+          existingOperatorFirstRepliedAt: clean(stringValue(currentTicket.operator_first_replied_at)),
           currentAssignmentId: clean(stringValue(currentTicket.current_assignment_id)),
         });
         const statusDetail = attachmentCount > 0
@@ -6385,17 +6631,17 @@ export const receiveSupportInboundEmail = onRequest(
           finalTicketRef,
           {
             ...ticketRecord,
-            status: decision.nextTicketStatus,
-            resolution_state: decision.nextResolutionState,
-            resolution_reason: decision.nextResolutionReason,
-            latest_message_id: messageRef.id,
-            latest_message_at: clean(receivedEmail.createdAt) ?? new Date().toISOString(),
+            ...updateSupportTicketForCustomerMessage({
+              currentTicket,
+              nextStatus: decision.nextTicketStatus,
+              nextResolutionState: decision.nextResolutionState,
+              nextResolutionReason: decision.nextResolutionReason,
+              latestMessageId: messageRef.id,
+              actorUid,
+              actorRole: 'customer',
+              now,
+            }),
             summary: messageBody,
-            last_actor_uid: actorUid,
-            last_actor_role: 'customer',
-            updated_at: new Date().toISOString(),
-            resolved_at: null,
-            closed_at: null,
           },
           { merge: true }
         );
@@ -6548,6 +6794,7 @@ export const sendOfficeSupportReply = onRequest(
     const replyBody = clean(stringValue(body?.body));
     const action = normalizeSupportReplyAction(clean(stringValue(body?.action)));
     const resolutionReason = normalizeSupportResolutionReason(clean(stringValue(body?.resolutionReason)));
+    const expectedTicketUpdatedAt = normalizeSupportViewedAt(clean(stringValue(body?.expectedTicketUpdatedAt)));
 
     if (!workspaceId || !supportCaseId || !ticketId || !replyBody) {
       response.status(400).json({ ok: false, error: 'support_reply_required' });
@@ -6603,6 +6850,20 @@ export const sendOfficeSupportReply = onRequest(
       }
       if (transition.resolutionReasonRequired && !resolutionReason) {
         response.status(400).json({ ok: false, error: 'support_reply_resolution_reason_required' });
+        return;
+      }
+      const allowed = await enforceSupportActionRateLimit({
+        actor: adminUser,
+        access: adminAccess,
+        rateLimitKey: 'support_reply',
+        endpoint: 'sendOfficeSupportReply',
+        requestedAction: `send_support_reply:${action}`,
+        workspaceId,
+        supportCaseId,
+        ticketId,
+      });
+      if (!allowed) {
+        response.status(429).json({ ok: false, error: 'support_rate_limited' });
         return;
       }
 
@@ -6669,6 +6930,7 @@ export const sendOfficeSupportReply = onRequest(
 
         const currentCase = caseSnapshot.exists ? caseSnapshot.data() ?? {} : {};
         const freshTicket = freshTicketSnapshot.data() ?? {};
+        assertSupportTicketFresh(freshTicket, expectedTicketUpdatedAt);
         const freshQueueId = normalizeSupportQueueId(clean(stringValue(freshTicket.queue_id))) ?? 'general';
         if (!canSupportRoleMutateQueue(adminAccess.role, freshQueueId)) {
           throw new Error('support_reply_not_allowed');
@@ -6681,6 +6943,12 @@ export const sendOfficeSupportReply = onRequest(
           transition.resolutionReasonRequired
             ? resolutionReason
             : transition.nextResolutionReason;
+        const currentPriority = clean(stringValue(freshTicket.priority));
+        const nextSlaTargets = buildSupportSlaTargets({ priority: currentPriority, now });
+        const operatorFirstRepliedAt =
+          transition.customerVisibleMessage
+            ? clean(stringValue(freshTicket.operator_first_replied_at)) ?? now.toISOString()
+            : clean(stringValue(freshTicket.operator_first_replied_at)) ?? null;
         nextStatus = transition.nextCaseStatus;
 
         transaction.set(
@@ -6711,6 +6979,13 @@ export const sendOfficeSupportReply = onRequest(
             last_actor_uid: adminUser.uid,
             last_actor_role: adminAccess.role,
             updated_at: now.toISOString(),
+            first_response_due_at:
+              clean(stringValue(freshTicket.first_response_due_at)) ?? nextSlaTargets.firstResponseDueAt,
+            sla_due_at:
+              transition.nextTicketStatus === 'closed' || transition.nextTicketStatus === 'resolved'
+                ? clean(stringValue(freshTicket.sla_due_at)) ?? nextSlaTargets.slaDueAt
+                : clean(stringValue(freshTicket.sla_due_at)) ?? nextSlaTargets.slaDueAt,
+            operator_first_replied_at: operatorFirstRepliedAt,
             resolved_at:
               transition.nextTicketStatus === 'resolved' || transition.nextTicketStatus === 'closed'
                 ? now.toISOString()
@@ -6881,6 +7156,10 @@ export const sendOfficeSupportReply = onRequest(
         response.status(404).json({ ok: false, error: 'support_ticket_not_found' });
         return;
       }
+      if (error instanceof Error && error.message === 'support_ticket_conflict') {
+        response.status(409).json({ ok: false, error: 'support_ticket_conflict' });
+        return;
+      }
       logger.error('sendOfficeSupportReply failed', { workspaceId, supportCaseId, ticketId, action, error });
       response.status(500).json({ ok: false, error: 'support_reply_failed' });
     }
@@ -6928,9 +7207,23 @@ export const queueSupportCaseFollowUpEmail = onRequest(
     const recipientEmail = clean(stringValue(body?.recipientEmail));
     const subject = clean(stringValue(body?.subject));
     const emailBody = clean(stringValue(body?.body));
+    const expectedTicketUpdatedAt = normalizeSupportViewedAt(clean(stringValue(body?.expectedTicketUpdatedAt)));
 
     if (!workspaceId || !supportCaseId || !recipientEmail || !subject || !emailBody || !isValidEmailAddress(recipientEmail)) {
       response.status(400).json({ ok: false, error: 'support_case_email_required' });
+      return;
+    }
+    const allowed = await enforceSupportActionRateLimit({
+      actor: adminUser,
+      access: adminAccess,
+      rateLimitKey: 'support_follow_up_email',
+      endpoint: 'queueSupportCaseFollowUpEmail',
+      requestedAction: 'queue_support_follow_up_email',
+      workspaceId,
+      supportCaseId,
+    });
+    if (!allowed) {
+      response.status(429).json({ ok: false, error: 'support_rate_limited' });
       return;
     }
 
@@ -6956,6 +7249,9 @@ export const queueSupportCaseFollowUpEmail = onRequest(
       }
       const linkedTicketSnapshot = await workspaceRef.collection('support_tickets').where('support_case_id', '==', supportCaseId).limit(1).get();
       const linkedTicket = linkedTicketSnapshot.docs[0]?.data() ?? null;
+      if (linkedTicket) {
+        assertSupportTicketFresh(linkedTicket, expectedTicketUpdatedAt);
+      }
       const linkedQueueId = normalizeSupportQueueId(clean(stringValue(linkedTicket?.queue_id))) ?? null;
       if (linkedQueueId && !canSupportRoleMutateQueue(adminAccess.role, linkedQueueId)) {
         await auditPlatformAdminPermissionAttempt({
@@ -7040,6 +7336,10 @@ export const queueSupportCaseFollowUpEmail = onRequest(
               : 'Support follow-up email could not be sent.',
       });
     } catch (error) {
+      if (error instanceof Error && error.message === 'support_ticket_conflict') {
+        response.status(409).json({ ok: false, error: 'support_ticket_conflict' });
+        return;
+      }
       logger.error('queueSupportCaseFollowUpEmail failed', { workspaceId, supportCaseId, error });
       response.status(500).json({ ok: false, error: 'support_case_email_failed' });
     }
@@ -7224,6 +7524,9 @@ export const submitFounderSafeSupportRequest = onRequest(
           existingQueueId: queueId,
           existingSource: normalizeSupportTicketSource(clean(stringValue(currentTicket.source))),
           existingCreatedAt: clean(stringValue(currentTicket.created_at)),
+          existingFirstResponseDueAt: clean(stringValue(currentTicket.first_response_due_at)),
+          existingSlaDueAt: clean(stringValue(currentTicket.sla_due_at)),
+          existingOperatorFirstRepliedAt: clean(stringValue(currentTicket.operator_first_replied_at)),
           currentAssignmentId: clean(stringValue(currentTicket.current_assignment_id)),
           now,
         });
@@ -7242,11 +7545,17 @@ export const submitFounderSafeSupportRequest = onRequest(
           ticketRef,
           {
             ...ticketRecord,
-            status: decision.nextTicketStatus,
-            resolution_state: decision.nextResolutionState,
-            resolution_reason: decision.nextResolutionReason,
-            resolved_at: null,
-            closed_at: null,
+            ...updateSupportTicketForCustomerMessage({
+              currentTicket,
+              nextStatus: decision.nextTicketStatus,
+              nextResolutionState: decision.nextResolutionState,
+              nextResolutionReason: decision.nextResolutionReason,
+              latestMessageId: messageRef.id,
+              actorUid: user.uid,
+              actorRole: 'customer',
+              now,
+            }),
+            summary: sanitizedMessage,
           },
           { merge: true }
         );
@@ -10956,6 +11265,67 @@ async function enforcePlatformAdminRateLimit(input: {
   return allowed;
 }
 
+async function enforceSupportActionRateLimit(input: {
+  actor: VerifiedRequestUser;
+  access: PlatformAdminRegistryData;
+  rateLimitKey: SupportActionRateLimitKey;
+  endpoint: string;
+  requestedAction: string;
+  workspaceId: string | null;
+  supportCaseId?: string | null;
+  ticketId?: string | null;
+}) {
+  const policy = SUPPORT_ACTION_RATE_LIMIT_POLICIES[input.rateLimitKey];
+  const now = Date.now();
+  const windowStart = Math.floor(now / policy.windowMs) * policy.windowMs;
+  const windowEnd = windowStart + policy.windowMs;
+  const limitRef = db
+    .collection('support_action_rate_limits')
+    .doc(normalizeId(`${input.actor.uid}_${input.rateLimitKey}_${windowStart}`));
+
+  const allowed = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(limitRef);
+    const currentCount = snapshot.exists ? Math.max(0, Math.floor(numberValue(snapshot.data()?.count, 0))) : 0;
+    if (currentCount >= policy.limit) {
+      return false;
+    }
+    transaction.set(
+      limitRef,
+      {
+        actor_uid: input.actor.uid,
+        actor_email: input.actor.email ?? null,
+        actor_role: input.access.role,
+        rate_limit_key: input.rateLimitKey,
+        endpoint: input.endpoint,
+        requested_action: input.requestedAction,
+        workspace_id: input.workspaceId,
+        support_case_id: input.supportCaseId ?? null,
+        ticket_id: input.ticketId ?? null,
+        count: currentCount + 1,
+        window_started_at: new Date(windowStart).toISOString(),
+        window_ends_at: new Date(windowEnd).toISOString(),
+        updated_at: new Date(now).toISOString(),
+      },
+      { merge: true }
+    );
+    return true;
+  });
+
+  if (!allowed) {
+    await auditPlatformAdminPermissionAttempt({
+      endpoint: input.endpoint,
+      requiredPermission: 'review_support_cases',
+      actor: input.actor,
+      access: input.access,
+      requestedAction: input.requestedAction,
+      outcome: 'rate_limited',
+      reason: 'Too many support-center actions were attempted in a short window.',
+    });
+  }
+
+  return allowed;
+}
+
 export function canPlatformAdminUseFunction(
   access: PlatformAdminRegistryData,
   permission: PlatformAdminFunctionPermission
@@ -11606,6 +11976,120 @@ function normalizeSupportTicketSource(value: string | null | undefined) {
   return value === 'support_case' ? value : null;
 }
 
+export function normalizeSupportNotificationPermissionState(value: string | null | undefined) {
+  return value === 'granted' || value === 'denied' || value === 'default' ? value : null;
+}
+
+export function normalizeSupportClockTime(value: string | null | undefined): string | null {
+  const normalized = clean(value);
+  if (!normalized || !/^\d{2}:\d{2}$/.test(normalized)) {
+    return null;
+  }
+  const [hoursText, minutesText] = normalized.split(':');
+  const hours = Number(hoursText);
+  const minutes = Number(minutesText);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function parseSupportClockMinutes(value: string | null | undefined): number | null {
+  const normalized = normalizeSupportClockTime(value);
+  if (!normalized) {
+    return null;
+  }
+  const [hoursText, minutesText] = normalized.split(':');
+  return Number(hoursText) * 60 + Number(minutesText);
+}
+
+function normalizeSupportViewedAt(value: string | null | undefined): string | null {
+  const normalized = clean(value);
+  if (!normalized) {
+    return null;
+  }
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function buildDefaultSupportNotificationPreference(input: {
+  workspaceId: string;
+  adminUid: string;
+  adminRole: PlatformAdminRole;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  return {
+    version: 1,
+    workspace_id: input.workspaceId,
+    admin_uid: input.adminUid,
+    admin_role: input.adminRole,
+    mute_all: false,
+    desktop_alerts_enabled: true,
+    browser_notifications_enabled: false,
+    browser_permission_state: null,
+    sound_enabled: false,
+    quiet_hours_start: '22:00',
+    quiet_hours_end: '07:00',
+    last_viewed_support_at: null,
+    updated_at: now.toISOString(),
+  };
+}
+
+export function buildSupportNotificationPreferenceRecord(input: {
+  workspaceId: string;
+  adminUid: string;
+  adminRole: PlatformAdminRole;
+  existing?: FirebaseFirestore.DocumentData | null;
+  muteAll: boolean;
+  desktopAlertsEnabled: boolean;
+  browserNotificationsEnabled: boolean;
+  browserPermissionState: 'default' | 'denied' | 'granted' | null;
+  soundEnabled: boolean;
+  quietHoursStart: string | null;
+  quietHoursEnd: string | null;
+  lastViewedSupportAt: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const defaults = buildDefaultSupportNotificationPreference({
+    workspaceId: input.workspaceId,
+    adminUid: input.adminUid,
+    adminRole: input.adminRole,
+    now,
+  });
+  return {
+    ...defaults,
+    ...input.existing,
+    workspace_id: input.workspaceId,
+    admin_uid: input.adminUid,
+    admin_role: input.adminRole,
+    mute_all: input.muteAll,
+    desktop_alerts_enabled: input.desktopAlertsEnabled,
+    browser_notifications_enabled: input.browserNotificationsEnabled,
+    browser_permission_state: input.browserPermissionState,
+    sound_enabled: input.soundEnabled,
+    quiet_hours_start: input.quietHoursStart,
+    quiet_hours_end: input.quietHoursEnd,
+    last_viewed_support_at: input.lastViewedSupportAt,
+    updated_at: now.toISOString(),
+  };
+}
+
+function assertSupportTicketFresh(
+  currentTicket: FirebaseFirestore.DocumentData,
+  expectedUpdatedAt: string | null | undefined
+) {
+  const normalizedExpected = normalizeSupportViewedAt(expectedUpdatedAt);
+  if (!normalizedExpected) {
+    return;
+  }
+  const actualUpdatedAt = normalizeSupportViewedAt(clean(stringValue(currentTicket.updated_at)));
+  if (actualUpdatedAt && actualUpdatedAt !== normalizedExpected) {
+    throw new Error('support_ticket_conflict');
+  }
+}
+
 function customerNameFromVerifiedUser(user: VerifiedRequestUser): string | null {
   return clean(stringValue(user.claims.name)) ?? clean(stringValue(user.claims.display_name));
 }
@@ -11797,6 +12281,82 @@ function supportReplySuccessMessage(input: {
     : input.action === 'reopen_with_reply'
       ? 'Reply was saved, but delivery failed while reopening the ticket.'
       : 'Reply was saved, but delivery failed.';
+}
+
+function getSupportFirstResponseSlaHours(priority: string | null | undefined) {
+  if (priority === 'urgent') {
+    return 2;
+  }
+  if (priority === 'high') {
+    return 8;
+  }
+  if (priority === 'low') {
+    return 72;
+  }
+  return 24;
+}
+
+function getSupportResolutionSlaHours(priority: string | null | undefined) {
+  if (priority === 'urgent') {
+    return 24;
+  }
+  if (priority === 'high') {
+    return 72;
+  }
+  if (priority === 'low') {
+    return 336;
+  }
+  return 168;
+}
+
+export function buildSupportSlaTargets(input: {
+  priority: string | null | undefined;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  return {
+    firstResponseDueAt: new Date(now.getTime() + getSupportFirstResponseSlaHours(input.priority) * 3_600_000).toISOString(),
+    slaDueAt: new Date(now.getTime() + getSupportResolutionSlaHours(input.priority) * 3_600_000).toISOString(),
+  };
+}
+
+export function updateSupportTicketForCustomerMessage(input: {
+  currentTicket: FirebaseFirestore.DocumentData;
+  nextStatus: SupportCenterTicketStatus;
+  nextResolutionState: SupportCenterResolutionState;
+  nextResolutionReason: SupportCenterResolutionReason | null;
+  latestMessageId: string;
+  actorUid: string | null;
+  actorRole: 'customer';
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  const priority = clean(stringValue(input.currentTicket.priority));
+  const existingOperatorFirstRepliedAt = clean(stringValue(input.currentTicket.operator_first_replied_at));
+  const shouldResetFirstResponse = !existingOperatorFirstRepliedAt && input.nextStatus === 'opened';
+  const nextSlaTargets = buildSupportSlaTargets({ priority, now });
+
+  return {
+    status: input.nextStatus,
+    resolution_state: input.nextResolutionState,
+    resolution_reason: input.nextResolutionReason,
+    latest_message_id: input.latestMessageId,
+    latest_message_at: timestamp,
+    summary: clean(stringValue(input.currentTicket.summary)),
+    last_customer_message_at: timestamp,
+    first_response_due_at:
+      shouldResetFirstResponse
+        ? nextSlaTargets.firstResponseDueAt
+        : clean(stringValue(input.currentTicket.first_response_due_at)) ?? nextSlaTargets.firstResponseDueAt,
+    sla_due_at: clean(stringValue(input.currentTicket.sla_due_at)) ?? nextSlaTargets.slaDueAt,
+    operator_first_replied_at: existingOperatorFirstRepliedAt ?? null,
+    last_actor_uid: input.actorUid,
+    last_actor_role: input.actorRole,
+    updated_at: timestamp,
+    resolved_at: null,
+    closed_at: null,
+  };
 }
 
 type SupportInboundSenderContext = {

@@ -1615,6 +1615,7 @@ a:focus-visible {
 .ol-support-library-card p,
 .ol-support-timeline-item p,
 .ol-support-message p,
+.ol-support-notification-panel p,
 .ol-support-empty-state p {
   margin: 0;
   color: var(--text-muted);
@@ -1675,6 +1676,27 @@ a:focus-visible {
   gap: 8px;
 }
 
+.ol-support-signal-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.ol-support-notification-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(217, 227, 241, 0.92);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.ol-support-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .ol-support-case-row {
   display: grid;
   gap: 12px;
@@ -1692,6 +1714,13 @@ a:focus-visible {
 .ol-support-case-row-copy {
   display: grid;
   gap: 4px;
+}
+
+.ol-support-case-row-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .ol-support-case-row-copy strong {
@@ -1782,7 +1811,7 @@ a:focus-visible {
   font-size: 16px;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 768px) {
   .ol-support-workbench-grid,
   .ol-support-secondary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1801,6 +1830,10 @@ a:focus-visible {
   }
 
   .ol-support-audit-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ol-support-signal-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
