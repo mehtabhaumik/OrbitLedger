@@ -51,3 +51,5 @@ artifacts/
 /android
 /apps/mobile/ios
 /apps/mobile/android
+
+/.apphosting/

@@ -13,7 +13,9 @@
     "packages/*"
   ],
   "scripts": {
+    "build": "node scripts/build-web-apphosting.mjs",
     "start": "npm run start --workspace @orbit-ledger/mobile",
+    "start:web:apphosting": "npm run start --workspace @orbit-ledger/web",
     "start:dev-client": "npm run start:dev-client --workspace @orbit-ledger/mobile",
     "android": "npm run android --workspace @orbit-ledger/mobile",
     "android:local": "npm run android:local --workspace @orbit-ledger/mobile",
@@ -38,7 +40,9 @@
     "audit:razorpay-secret-mode": "node scripts/razorpay-secret-mode-audit.mjs",
     "prepare:web-production-env": "node scripts/prepare-web-production-env.mjs",
     "verify:web-production-env": "node scripts/verify-web-production-env.mjs",
-    "build:web:production": "npm run verify:web-production-env && npm run build --workspace @orbit-ledger/web",
+    "build:web:production": "npm run build",
+    "deploy:web:apphosting": "npx -y firebase-tools@15.18.0 deploy --only apphosting:orbit-ledger-web --project orbit-ledger-f41c2",
+    "deploy:production": "npx -y firebase-tools@15.18.0 deploy --only functions,apphosting:orbit-ledger-web --project orbit-ledger-f41c2",
     "smoke:live-app-check": "node scripts/smoke-live-app-check.mjs",
     "verify:app-check-readiness": "node scripts/verify-app-check-readiness.mjs",
     "qa:browser-responsive": "node scripts/browser-responsive-qa.mjs",
