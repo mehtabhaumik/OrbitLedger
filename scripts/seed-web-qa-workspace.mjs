@@ -4,7 +4,7 @@ const projectId = process.env.ORBIT_LEDGER_FIREBASE_PROJECT_ID || 'orbit-ledger-
 const apiKey =
   process.env.ORBIT_LEDGER_FIREBASE_API_KEY ||
   process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_API_KEY ||
-  'AIzaSyDE11IwIDmLsI5bbXl6j5GWHEt5FhLK25w';
+  'AIzaSyCIXghvBKtBvt-6oQDvgKSPwe2MMPj_SXE';
 const storageBucket =
   process.env.ORBIT_LEDGER_FIREBASE_STORAGE_BUCKET ||
   process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_STORAGE_BUCKET ||

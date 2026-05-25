@@ -1,7 +1,7 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 
 const defaultDevelopmentConfig = {
-  apiKey: 'AIzaSyDE11IwIDmLsI5bbXl6j5GWHEt5FhLK25w',
+  apiKey: 'AIzaSyCIXghvBKtBvt-6oQDvgKSPwe2MMPj_SXE',
   authDomain: 'orbit-ledger-f41c2.firebaseapp.com',
   projectId: 'orbit-ledger-f41c2',
   storageBucket: 'orbit-ledger-f41c2.firebasestorage.app',

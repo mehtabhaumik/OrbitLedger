@@ -5,6 +5,7 @@ const nextConfig = {
   allowedDevOrigins: ['127.0.0.1', '0.0.0.0', '::1'],
   output: 'standalone',
   trailingSlash: true,
+  skipTrailingSlashRedirect: true,
   async rewrites() {
     return [
       {

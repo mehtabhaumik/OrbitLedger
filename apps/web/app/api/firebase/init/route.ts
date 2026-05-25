@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 
 const defaultDevelopmentConfig = {
-  apiKey: 'AIzaSyDE11IwIDmLsI5bbXl6j5GWHEt5FhLK25w',
+  apiKey: 'AIzaSyCIXghvBKtBvt-6oQDvgKSPwe2MMPj_SXE',
   projectId: 'orbit-ledger-f41c2',
   storageBucket: 'orbit-ledger-f41c2.firebasestorage.app',
   messagingSenderId: '26507257397',
