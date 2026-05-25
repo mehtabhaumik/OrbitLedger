@@ -16,10 +16,14 @@ const embeddedWebViewMarkers = [
 ];
 
 export function resolveOrbitLedgerAuthDomain(configuredAuthDomain: string, hostname?: string | null) {
-  // App Hosting custom domains do not serve Firebase Auth's /__/auth/handler route.
-  // Keep the Firebase-managed authDomain so popup/redirect flows resolve to the
-  // built-in handler on *.firebaseapp.com instead of the current app hostname.
-  void hostname;
+  const normalizedHostname = hostname?.trim().toLowerCase();
+  if (
+    normalizedHostname &&
+    ORBIT_LEDGER_CUSTOM_AUTH_DOMAINS.some((domain) => domain === normalizedHostname)
+  ) {
+    return normalizedHostname;
+  }
+
   return configuredAuthDomain;
 }
 

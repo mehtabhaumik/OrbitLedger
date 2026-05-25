@@ -9,15 +9,15 @@ import {
 describe('auth domain resolution', () => {
   const firebaseDomain = 'orbit-ledger-f41c2.firebaseapp.com';
 
-  it('keeps the Firebase auth domain on the Rudraix custom domain', () => {
+  it('uses the Rudraix custom domain when the app is opened there', () => {
     expect(resolveOrbitLedgerAuthDomain(firebaseDomain, 'orbitledger.rudraix.com')).toBe(
-      firebaseDomain
+      'orbitledger.rudraix.com'
     );
   });
 
-  it('keeps the Firebase auth domain on the Bhaumik Mehta custom domain', () => {
+  it('uses the Bhaumik Mehta custom domain when the app is opened there', () => {
     expect(resolveOrbitLedgerAuthDomain(firebaseDomain, 'orbitledger.bhaumikmehta.com')).toBe(
-      firebaseDomain
+      'orbitledger.bhaumikmehta.com'
     );
   });
 
