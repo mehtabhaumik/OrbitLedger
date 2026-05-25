@@ -16,7 +16,7 @@ import {
 import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-import { isEmbeddedWebViewUserAgent } from '@/lib/auth-domain';
+import { isEmbeddedWebViewUserAgent, isOrbitLedgerCustomAuthDomain } from '@/lib/auth-domain';
 import { createGoogleProvider, getWebAuth } from '@/lib/firebase';
 import {
   WEB_AUTH_ABSOLUTE_TIMEOUT_MS,
@@ -352,7 +352,10 @@ function shouldUseGoogleRedirectFirst() {
     return false;
   }
 
-  return isEmbeddedWebViewUserAgent(window.navigator.userAgent);
+  return (
+    isEmbeddedWebViewUserAgent(window.navigator.userAgent) ||
+    isOrbitLedgerCustomAuthDomain(window.location.hostname)
+  );
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
