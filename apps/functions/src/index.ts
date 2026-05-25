@@ -576,6 +576,190 @@ const monetizationCountryPricing: Record<
 
 const db = admin.firestore();
 
+export const listUserWorkspaces = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 20,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'GET') {
+      response.set('Allow', 'GET').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const user = await verifyRequestUser(request);
+    if (!user?.uid) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    try {
+      const [ownedSnapshot, memberSnapshot] = await Promise.all([
+        db.collection('workspaces').where('owner_uid', '==', user.uid).limit(10).get(),
+        db
+          .collectionGroup('office_members')
+          .where('uid', '==', user.uid)
+          .where('status', '==', 'active')
+          .limit(10)
+          .get()
+          .catch(() => ({ docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] })),
+      ]);
+
+      const workspacesById = new Map<string, ReturnType<typeof mapFunctionWorkspaceSummary>>();
+      for (const entry of ownedSnapshot.docs) {
+        workspacesById.set(entry.id, mapFunctionWorkspaceSummary(entry.id, entry.data()));
+      }
+
+      const sharedWorkspaceRefs = memberSnapshot.docs
+        .map((entry) => entry.ref.parent.parent)
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+      const sharedWorkspaceSnapshots = await Promise.all(sharedWorkspaceRefs.map((entry) => entry.get()));
+      for (const entry of sharedWorkspaceSnapshots) {
+        if (entry.exists) {
+          workspacesById.set(entry.id, mapFunctionWorkspaceSummary(entry.id, entry.data() ?? {}));
+        }
+      }
+
+      response.status(200).json({
+        ok: true,
+        workspaces: [...workspacesById.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+      });
+    } catch (error) {
+      logger.error('listUserWorkspaces failed', { uid: user.uid, error });
+      response.status(500).json({ ok: false, error: 'workspace_list_failed' });
+    }
+  }
+);
+
+export const createUserWorkspace = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 20,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const user = await verifyRequestUser(request);
+    if (!user?.uid) {
+      response.status(401).json({ ok: false, error: 'sign_in_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const workspace = asRecord(body?.workspace);
+    const ownerId = clean(stringValue(body?.ownerId)) ?? user.uid;
+    const ownerEmail = clean(stringValue(body?.ownerEmail)) ?? user.email ?? null;
+
+    if (ownerId !== user.uid) {
+      response.status(403).json({ ok: false, error: 'workspace_create_forbidden' });
+      return;
+    }
+    if (!workspace) {
+      response.status(400).json({ ok: false, error: 'workspace_profile_required' });
+      return;
+    }
+
+    const businessName = clean(stringValue(workspace.businessName));
+    const ownerName = clean(stringValue(workspace.ownerName));
+    const phone = clean(stringValue(workspace.phone));
+    const email = clean(stringValue(workspace.email));
+    const address = clean(stringValue(workspace.address));
+    const currency = clean(stringValue(workspace.currency))?.toUpperCase();
+    const countryCode = clean(stringValue(workspace.countryCode))?.toUpperCase();
+    const stateCode = clean(stringValue(workspace.stateCode))?.toUpperCase();
+
+    if (!businessName || !ownerName || !phone || !email || !address || !currency || !countryCode || !stateCode) {
+      response.status(400).json({ ok: false, error: 'workspace_profile_required' });
+      return;
+    }
+
+    try {
+      const now = new Date().toISOString();
+      const workspaceRef = db.collection('workspaces').doc();
+      const payload = {
+        business_name: businessName,
+        ...workspaceFunctionProfileOptionalPayload(workspace),
+        owner_name: ownerName,
+        phone,
+        email,
+        address,
+        currency,
+        country_code: countryCode,
+        state_code: stateCode,
+        logo_uri: clean(stringValue(workspace.logoUri)),
+        document_watermark_type: normalizeFunctionChoice(
+          stringValue(workspace.documentWatermarkType),
+          ['none', 'text', 'logo', 'image'],
+          'none'
+        ),
+        document_watermark_text: clean(stringValue(workspace.documentWatermarkText)),
+        document_watermark_image_uri: clean(stringValue(workspace.documentWatermarkImageUri)),
+        document_watermark_opacity: normalizeFunctionWatermarkOpacity(workspace.documentWatermarkOpacity),
+        authorized_person_name: clean(stringValue(workspace.authorizedPersonName)) ?? '',
+        authorized_person_title: clean(stringValue(workspace.authorizedPersonTitle)) ?? '',
+        signature_uri: clean(stringValue(workspace.signatureUri)),
+        ...functionPaymentInstructionPayload(asRecord(workspace.paymentInstructions)),
+        owner_uid: user.uid,
+        owner_email: ownerEmail,
+        data_state: 'profile_only',
+        created_at: now,
+        updated_at: now,
+        server_revision: 1,
+      };
+
+      const batch = db.batch();
+      batch.set(workspaceRef, payload);
+      batch.set(
+        workspaceRef.collection('office_members').doc(user.uid),
+        {
+          uid: user.uid,
+          workspace_id: workspaceRef.id,
+          role: 'owner',
+          status: 'active',
+          email: ownerEmail,
+          display_name:
+            clean(stringValue(user.claims.name)) ??
+            clean(stringValue(user.claims.display_name)) ??
+            ownerName,
+          invited_by: user.uid,
+          invited_at: now,
+          accepted_at: now,
+          suspended_at: null,
+          removed_at: null,
+          last_seen_at: null,
+          created_at: now,
+          updated_at: now,
+        },
+        { merge: true }
+      );
+      await batch.commit();
+
+      response.status(200).json({
+        ok: true,
+        workspace: mapFunctionWorkspaceSummary(workspaceRef.id, payload),
+      });
+    } catch (error) {
+      logger.error('createUserWorkspace failed', { uid: user.uid, error });
+      response.status(500).json({ ok: false, error: 'workspace_create_failed' });
+    }
+  }
+);
+
 export function normalizeProviderWebhookPayload(body: unknown): ProviderWebhookPayload {
   return normalizePayload(body);
 }
@@ -14477,6 +14661,230 @@ function metadataValue(metadata: Record<string, string>, ...keys: string[]): str
     if (value) {
       return value;
     }
+  }
+  return null;
+}
+
+function mapFunctionWorkspaceSummary(id: string, data: Record<string, unknown>) {
+  return {
+    workspaceId: id,
+    businessName: clean(stringValue(data.business_name)) ?? '',
+    legalName: clean(stringValue(data.legal_name)),
+    ownerName: clean(stringValue(data.owner_name)) ?? '',
+    contactPerson: clean(stringValue(data.contact_person)),
+    businessType: clean(stringValue(data.business_type)),
+    phone: clean(stringValue(data.phone)) ?? '',
+    whatsapp: clean(stringValue(data.whatsapp)),
+    email: clean(stringValue(data.email)) ?? '',
+    website: clean(stringValue(data.website)),
+    address: clean(stringValue(data.address)) ?? '',
+    addressLine1: clean(stringValue(data.address_line_1)),
+    addressLine2: clean(stringValue(data.address_line_2)),
+    city: clean(stringValue(data.city)),
+    town: clean(stringValue(data.town)),
+    postalCode: clean(stringValue(data.postal_code)),
+    gstin: clean(stringValue(data.gstin)),
+    pan: clean(stringValue(data.pan)),
+    taxNumber: clean(stringValue(data.tax_number)),
+    registrationNumber: clean(stringValue(data.registration_number)),
+    placeOfSupply: clean(stringValue(data.place_of_supply)),
+    defaultTaxTreatment: clean(stringValue(data.default_tax_treatment)),
+    defaultPaymentTerms: clean(stringValue(data.default_payment_terms)),
+    defaultDueDays: numberOrNull(data.default_due_days),
+    defaultTaxRate: numberOrNull(data.default_tax_rate),
+    defaultInvoiceTemplate: clean(stringValue(data.default_invoice_template)),
+    defaultStatementTemplate: clean(stringValue(data.default_statement_template)),
+    defaultInvoiceNotes: clean(stringValue(data.default_invoice_notes)),
+    defaultRecurringEmailSubject: clean(stringValue(data.default_recurring_email_subject)),
+    defaultRecurringEmailBody: clean(stringValue(data.default_recurring_email_body)),
+    defaultRecurringEmailIncludePaymentLink: booleanOrNull(data.default_recurring_email_include_payment_link),
+    defaultRecurringEmailAttachPdf: booleanOrNull(data.default_recurring_email_attach_pdf),
+    defaultRecurringEmailCurrentMonthOnly: booleanOrNull(data.default_recurring_email_current_month_only),
+    defaultRecurringEmailSendDayBehavior:
+      clean(stringValue(data.default_recurring_email_send_day_behavior)) === 'custom_day' ? 'custom_day' : 'same_day',
+    defaultRecurringEmailDay: numberOrNull(data.default_recurring_email_day),
+    invoiceNumberPrefix: clean(stringValue(data.invoice_number_prefix)),
+    invoiceNumberSeparator: clean(stringValue(data.invoice_number_separator)) === '-' ? '-' : '/',
+    invoiceNumberPadding: numberOrNull(data.invoice_number_padding),
+    invoiceNumberNextSequence: numberOrNull(data.invoice_number_next_sequence),
+    invoiceNumberLastValue: clean(stringValue(data.invoice_number_last_value)),
+    documentFilenameFormat: clean(stringValue(data.document_filename_format)),
+    documentFooterPreference: clean(stringValue(data.document_footer_preference)),
+    documentBrandHeaderColor: clean(stringValue(data.document_brand_header_color)),
+    documentBrandBackgroundColor: clean(stringValue(data.document_brand_background_color)),
+    documentBrandFontColor: clean(stringValue(data.document_brand_font_color)),
+    reminderStyle: clean(stringValue(data.reminder_style)),
+    overdueAlertTiming: clean(stringValue(data.overdue_alert_timing)),
+    followUpCadenceDays: numberOrNull(data.follow_up_cadence_days),
+    paymentNoticeTone: clean(stringValue(data.payment_notice_tone)),
+    urgentPaymentStampDefault: booleanOrNull(data.urgent_payment_stamp_default),
+    backupReminderFrequency: clean(stringValue(data.backup_reminder_frequency)),
+    whatsappReminderTemplate: clean(stringValue(data.whatsapp_reminder_template)),
+    emailReminderTemplate: clean(stringValue(data.email_reminder_template)),
+    paymentThankYouTemplate: clean(stringValue(data.payment_thank_you_template)),
+    bouncedPaymentTemplate: clean(stringValue(data.bounced_payment_template)),
+    defaultLanguage: clean(stringValue(data.default_language)),
+    currency: clean(stringValue(data.currency)) ?? 'INR',
+    countryCode: clean(stringValue(data.country_code)) ?? 'IN',
+    stateCode: clean(stringValue(data.state_code)) ?? '',
+    logoUri: clean(stringValue(data.logo_uri)),
+    documentWatermarkType: normalizeFunctionChoice(
+      stringValue(data.document_watermark_type),
+      ['none', 'text', 'logo', 'image'],
+      'none'
+    ),
+    documentWatermarkText: clean(stringValue(data.document_watermark_text)),
+    documentWatermarkImageUri: clean(stringValue(data.document_watermark_image_uri)),
+    documentWatermarkOpacity: numberOrNull(data.document_watermark_opacity),
+    authorizedPersonName: clean(stringValue(data.authorized_person_name)) ?? '',
+    authorizedPersonTitle: clean(stringValue(data.authorized_person_title)) ?? '',
+    signatureUri: clean(stringValue(data.signature_uri)),
+    paymentInstructions: {
+      upiId: clean(stringValue(data.payment_upi_id)),
+      paymentPageUrl: clean(stringValue(data.payment_page_url)),
+      paymentNote: clean(stringValue(data.payment_note)),
+      bankAccountName: clean(stringValue(data.payment_bank_account_name)),
+      bankName: clean(stringValue(data.payment_bank_name)),
+      bankAccountNumber: clean(stringValue(data.payment_bank_account_number)),
+      bankIfsc: clean(stringValue(data.payment_bank_ifsc)),
+      bankBranch: clean(stringValue(data.payment_bank_branch)),
+      bankRoutingNumber: clean(stringValue(data.payment_bank_routing_number)),
+      bankSortCode: clean(stringValue(data.payment_bank_sort_code)),
+      bankIban: clean(stringValue(data.payment_bank_iban)),
+      bankSwift: clean(stringValue(data.payment_bank_swift)),
+    },
+    createdAt: isoValue(data.created_at) ?? new Date().toISOString(),
+    updatedAt: isoValue(data.updated_at) ?? new Date().toISOString(),
+    serverRevision: numberValue(data.server_revision, 0),
+    dataState:
+      clean(stringValue(data.data_state)) === 'full_dataset'
+        ? 'full_dataset'
+        : 'profile_only',
+  };
+}
+
+function workspaceFunctionProfileOptionalPayload(input: Record<string, unknown>) {
+  return {
+    legal_name: clean(stringValue(input.legalName)),
+    contact_person: clean(stringValue(input.contactPerson)),
+    business_type: clean(stringValue(input.businessType)),
+    whatsapp: clean(stringValue(input.whatsapp)),
+    website: clean(stringValue(input.website)),
+    address_line_1: clean(stringValue(input.addressLine1)),
+    address_line_2: clean(stringValue(input.addressLine2)),
+    city: clean(stringValue(input.city)),
+    town: clean(stringValue(input.town)),
+    postal_code: clean(stringValue(input.postalCode)),
+    gstin: clean(stringValue(input.gstin))?.toUpperCase() ?? null,
+    pan: clean(stringValue(input.pan))?.toUpperCase() ?? null,
+    tax_number: clean(stringValue(input.taxNumber)),
+    registration_number: clean(stringValue(input.registrationNumber)),
+    place_of_supply: clean(stringValue(input.placeOfSupply)),
+    default_tax_treatment: clean(stringValue(input.defaultTaxTreatment)),
+    default_payment_terms: clean(stringValue(input.defaultPaymentTerms)),
+    default_due_days: numberOrNull(input.defaultDueDays),
+    default_tax_rate: numberOrNull(input.defaultTaxRate),
+    default_invoice_template: clean(stringValue(input.defaultInvoiceTemplate)),
+    default_statement_template: clean(stringValue(input.defaultStatementTemplate)),
+    default_invoice_notes: clean(stringValue(input.defaultInvoiceNotes)),
+    default_recurring_email_subject: clean(stringValue(input.defaultRecurringEmailSubject)),
+    default_recurring_email_body: clean(stringValue(input.defaultRecurringEmailBody)),
+    default_recurring_email_include_payment_link: booleanOrNull(input.defaultRecurringEmailIncludePaymentLink) ?? true,
+    default_recurring_email_attach_pdf: booleanOrNull(input.defaultRecurringEmailAttachPdf) ?? true,
+    default_recurring_email_current_month_only: booleanOrNull(input.defaultRecurringEmailCurrentMonthOnly) ?? true,
+    default_recurring_email_send_day_behavior: normalizeFunctionChoice(
+      stringValue(input.defaultRecurringEmailSendDayBehavior),
+      ['same_day', 'custom_day'],
+      'same_day'
+    ),
+    default_recurring_email_day: numberOrNull(input.defaultRecurringEmailDay),
+    invoice_number_prefix: clean(stringValue(input.invoiceNumberPrefix)),
+    invoice_number_separator: clean(stringValue(input.invoiceNumberSeparator)) === '-' ? '-' : '/',
+    invoice_number_padding: numberOrNull(input.invoiceNumberPadding),
+    invoice_number_next_sequence: numberOrNull(input.invoiceNumberNextSequence),
+    document_filename_format: clean(stringValue(input.documentFilenameFormat)),
+    document_footer_preference: clean(stringValue(input.documentFooterPreference)),
+    document_brand_header_color: clean(stringValue(input.documentBrandHeaderColor)),
+    document_brand_background_color: clean(stringValue(input.documentBrandBackgroundColor)),
+    document_brand_font_color: clean(stringValue(input.documentBrandFontColor)),
+    reminder_style: normalizeFunctionChoice(stringValue(input.reminderStyle), ['soft', 'firm', 'urgent'], 'soft'),
+    overdue_alert_timing: normalizeFunctionChoice(
+      stringValue(input.overdueAlertTiming),
+      ['same_day', 'one_day_after', 'three_days_after', 'one_week_after'],
+      'one_day_after'
+    ),
+    follow_up_cadence_days: numberOrNull(input.followUpCadenceDays) ?? 7,
+    payment_notice_tone: normalizeFunctionChoice(
+      stringValue(input.paymentNoticeTone),
+      ['friendly', 'direct', 'urgent'],
+      'friendly'
+    ),
+    urgent_payment_stamp_default: booleanOrNull(input.urgentPaymentStampDefault) ?? false,
+    backup_reminder_frequency: normalizeFunctionChoice(
+      stringValue(input.backupReminderFrequency),
+      ['off', 'daily', 'weekly', 'monthly'],
+      'weekly'
+    ),
+    whatsapp_reminder_template: clean(stringValue(input.whatsappReminderTemplate)),
+    email_reminder_template: clean(stringValue(input.emailReminderTemplate)),
+    payment_thank_you_template: clean(stringValue(input.paymentThankYouTemplate)),
+    bounced_payment_template: clean(stringValue(input.bouncedPaymentTemplate)),
+    default_language: clean(stringValue(input.defaultLanguage)),
+  };
+}
+
+function functionPaymentInstructionPayload(details: Record<string, unknown> | null) {
+  return {
+    payment_upi_id: clean(stringValue(details?.upiId)),
+    payment_page_url: clean(stringValue(details?.paymentPageUrl)),
+    payment_note: clean(stringValue(details?.paymentNote)),
+    payment_bank_account_name: clean(stringValue(details?.bankAccountName)),
+    payment_bank_name: clean(stringValue(details?.bankName)),
+    payment_bank_account_number: clean(stringValue(details?.bankAccountNumber)),
+    payment_bank_ifsc: clean(stringValue(details?.bankIfsc)),
+    payment_bank_branch: clean(stringValue(details?.bankBranch)),
+    payment_bank_routing_number: clean(stringValue(details?.bankRoutingNumber)),
+    payment_bank_sort_code: clean(stringValue(details?.bankSortCode)),
+    payment_bank_iban: clean(stringValue(details?.bankIban)),
+    payment_bank_swift: clean(stringValue(details?.bankSwift)),
+  };
+}
+
+function normalizeFunctionChoice<T extends string>(
+  value: string | null,
+  options: readonly T[],
+  fallback: T
+): T {
+  const normalized = clean(value);
+  return normalized && options.includes(normalized as T) ? (normalized as T) : fallback;
+}
+
+function normalizeFunctionWatermarkOpacity(value: unknown) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return Math.min(1, Math.max(0.05, parsed));
+}
+
+function numberOrNull(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function booleanOrNull(value: unknown) {
+  return typeof value === 'boolean' ? value : null;
+}
+
+function isoValue(value: unknown) {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof (value as { toDate?: () => Date }).toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate().toISOString();
   }
   return null;
 }

@@ -3,6 +3,7 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from 'firebase/app-check';
 import {
+  type Auth,
   browserLocalPersistence,
   getAuth,
   GoogleAuthProvider,
@@ -77,6 +78,7 @@ const firebaseConfig = {
 };
 
 let persistenceInitialized = false;
+let authPersistencePromise: Promise<void> | null = null;
 let firestorePersistenceInitialized = false;
 let firestoreInstance: Firestore | null = null;
 let storageInstance: FirebaseStorage | null = null;
@@ -105,8 +107,14 @@ export function getWebAuth() {
   const auth = getAuth(getWebFirebaseApp());
   if (!persistenceInitialized) {
     persistenceInitialized = true;
-    void setPersistence(auth, browserLocalPersistence).catch(() => undefined);
+    authPersistencePromise = setPersistence(auth, browserLocalPersistence).catch(() => undefined);
   }
+  return auth;
+}
+
+export async function getWebAuthReady(): Promise<Auth> {
+  const auth = getWebAuth();
+  await authPersistencePromise;
   return auth;
 }
 

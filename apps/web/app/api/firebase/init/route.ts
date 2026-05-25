@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 
 const defaultDevelopmentConfig = {
   apiKey: 'AIzaSyCIXghvBKtBvt-6oQDvgKSPwe2MMPj_SXE',
+  authDomain: 'orbit-ledger-f41c2.firebaseapp.com',
   projectId: 'orbit-ledger-f41c2',
   storageBucket: 'orbit-ledger-f41c2.firebasestorage.app',
   messagingSenderId: '26507257397',
@@ -26,12 +27,6 @@ function resolveFirebaseEnv(value: string | undefined, key: string, developmentF
 }
 
 export async function GET(request: NextRequest) {
-  const forwardedHost = request.headers
-    .get('x-forwarded-host')
-    ?.split(',')
-    .map((value) => value.trim())
-    .find(Boolean);
-  const host = forwardedHost || request.headers.get('host')?.trim() || request.nextUrl.host;
   const payload = {
     apiKey: resolveFirebaseEnv(
       process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_API_KEY,
@@ -43,7 +38,11 @@ export async function GET(request: NextRequest) {
       'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_APP_ID',
       defaultDevelopmentConfig.appId
     ),
-    authDomain: host,
+    authDomain: resolveFirebaseEnv(
+      process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN,
+      'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN',
+      defaultDevelopmentConfig.authDomain
+    ),
     databaseURL: '',
     measurementId:
       process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_MEASUREMENT_ID || defaultDevelopmentConfig.measurementId,

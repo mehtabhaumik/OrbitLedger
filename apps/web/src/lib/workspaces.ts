@@ -2,6 +2,7 @@
 
 import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
 import { normalizeManualPaymentInstructionDetails, type ManualPaymentInstructionDetails } from '@orbit-ledger/core';
+import { onAuthStateChanged, type User } from 'firebase/auth';
 import {
   addDoc,
   collection,
@@ -21,7 +22,7 @@ import {
   where,
 } from 'firebase/firestore';
 
-import { getWebFirestore } from './firebase';
+import { getWebAuthReady, getWebFirebaseProjectId, getWebFirestore } from './firebase';
 import { buildAuditProtectedSettingsChanges } from './audit-protected-settings';
 import { buildPaymentInstructionAuditChanges } from './payment-settings-hardening';
 
@@ -193,7 +194,35 @@ type FirestoreWorkspaceDoc = {
   server_revision?: number;
 };
 
+type TrustedWorkspaceListResponse =
+  | {
+      ok: true;
+      workspaces: OrbitWorkspaceSummary[];
+    }
+  | {
+      ok: false;
+      error: string;
+      message?: string | null;
+    };
+
+type TrustedWorkspaceCreateResponse =
+  | {
+      ok: true;
+      workspace: OrbitWorkspaceSummary;
+    }
+  | {
+      ok: false;
+      error: string;
+      message?: string | null;
+    };
+
 export async function listWorkspacesForUser(userId: string): Promise<OrbitWorkspaceSummary[]> {
+  try {
+    return await listTrustedWorkspacesForUser(userId);
+  } catch {
+    // Keep the direct Firestore path as a fallback while production cutover settles.
+  }
+
   const firestore = getWebFirestore();
   const [ownedSnapshot, memberSnapshot] = await Promise.all([
     getDocs(query(collection(firestore, 'workspaces'), where('owner_uid', '==', userId), limitQuery(10))),
@@ -231,6 +260,12 @@ export async function createWorkspace(
   ownerEmail: string | null,
   input: WorkspaceProfileInput
 ): Promise<OrbitWorkspaceSummary> {
+  try {
+    return await createTrustedWorkspace(ownerId, ownerEmail, input);
+  } catch {
+    // Keep the direct Firestore path as a fallback while production cutover settles.
+  }
+
   const createdIso = new Date().toISOString();
   const payload: FirestoreWorkspaceDoc = {
     business_name: input.businessName.trim(),
@@ -266,6 +301,47 @@ export async function createWorkspace(
     created_at: createdIso,
     updated_at: createdIso,
   });
+}
+
+async function listTrustedWorkspacesForUser(userId: string): Promise<OrbitWorkspaceSummary[]> {
+  const auth = await getWebAuthReady();
+  const currentUser = auth.currentUser ?? (await waitForCurrentWebUser(auth));
+  const result = await requestTrustedWorkspaceApi<TrustedWorkspaceListResponse>(
+    getListUserWorkspacesUrl(),
+    'GET'
+  );
+
+  if (!result.ok) {
+    throw new Error(result.message ?? workspaceBootstrapErrorMessage(result.error));
+  }
+
+  return result.workspaces
+    .filter((workspace) => workspace.workspaceId && workspace.businessName)
+    .map((workspace) => enrichWorkspaceOwnership(workspace, currentUser, userId));
+}
+
+async function createTrustedWorkspace(
+  ownerId: string,
+  ownerEmail: string | null,
+  input: WorkspaceProfileInput
+): Promise<OrbitWorkspaceSummary> {
+  const auth = await getWebAuthReady();
+  const currentUser = auth.currentUser ?? (await waitForCurrentWebUser(auth));
+  const result = await requestTrustedWorkspaceApi<TrustedWorkspaceCreateResponse>(
+    getCreateUserWorkspaceUrl(),
+    'POST',
+    {
+      ownerId,
+      ownerEmail,
+      workspace: input,
+    }
+  );
+
+  if (!result.ok) {
+    throw new Error(result.message ?? workspaceBootstrapErrorMessage(result.error));
+  }
+
+  return enrichWorkspaceOwnership(result.workspace, currentUser, ownerId, true);
 }
 
 export async function updateWorkspaceProfile(
@@ -553,6 +629,119 @@ async function loadDashboardFallbackSnapshot(
 
 function safeAggregateNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function getListUserWorkspacesUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/listUserWorkspaces`;
+}
+
+function getCreateUserWorkspaceUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/createUserWorkspace`;
+}
+
+async function requestTrustedWorkspaceApi<T>(url: string, method: 'GET' | 'POST', body?: unknown): Promise<T> {
+  const auth = await getWebAuthReady();
+  if (typeof auth.authStateReady === 'function') {
+    await auth.authStateReady().catch(() => undefined);
+  }
+  const user = auth.currentUser ?? (await waitForCurrentWebUser(auth));
+  if (!user) {
+    throw new Error('Sign in before opening your workspace.');
+  }
+
+  let token = await user.getIdToken();
+  let response = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (response.status === 401) {
+    token = await user.getIdToken(true);
+    response = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  return (await response.json().catch(() => ({
+    ok: false,
+    error: 'workspace_request_failed',
+  }))) as T;
+}
+
+async function waitForCurrentWebUser(auth: Awaited<ReturnType<typeof getWebAuthReady>>): Promise<User | null> {
+  return new Promise((resolve) => {
+    let resolved = false;
+    const timeout = window.setTimeout(() => {
+      if (resolved) {
+        return;
+      }
+      resolved = true;
+      unsubscribe();
+      resolve(auth.currentUser);
+    }, 4000);
+
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+      if (resolved) {
+        return;
+      }
+      resolved = true;
+      window.clearTimeout(timeout);
+      unsubscribe();
+      resolve(nextUser);
+    });
+  });
+}
+
+function enrichWorkspaceOwnership(
+  workspace: OrbitWorkspaceSummary,
+  user: User | null,
+  fallbackOwnerUid: string,
+  forceOwner = false
+) {
+  const currentUserEmail = user?.email?.trim().toLowerCase() ?? null;
+  const workspaceEmail =
+    (workspace as OrbitWorkspaceSummary & { email?: string | null }).email?.trim().toLowerCase() ?? null;
+  const ownerUid =
+    (workspace as OrbitWorkspaceSummary & { ownerUid?: string | null }).ownerUid ??
+    ((forceOwner || (currentUserEmail !== null && workspaceEmail === currentUserEmail))
+      ? fallbackOwnerUid
+      : null);
+  const accessSource =
+    (workspace as OrbitWorkspaceSummary & { accessSource?: 'owner' | 'member' }).accessSource ??
+    (ownerUid === fallbackOwnerUid ? 'owner' : 'member');
+
+  return {
+    ...workspace,
+    ownerUid,
+    accessSource,
+  };
+}
+
+function workspaceBootstrapErrorMessage(error: string) {
+  if (error === 'sign_in_required') {
+    return 'Sign in again before opening your workspace.';
+  }
+  if (error === 'workspace_profile_required') {
+    return 'Complete the workspace details before continuing.';
+  }
+  if (error === 'workspace_create_forbidden') {
+    return 'This signed-in account could not create a workspace right now.';
+  }
+  if (error === 'workspace_request_failed') {
+    return 'Orbit Ledger could not reach the workspace service. Please retry.';
+  }
+  return 'Orbit Ledger could not open your workspace right now. Please retry.';
 }
 
 function mapWorkspace(id: string, data: FirestoreWorkspaceDoc): OrbitWorkspaceSummary {

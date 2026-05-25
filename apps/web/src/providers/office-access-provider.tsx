@@ -58,6 +58,23 @@ export function OfficeAccessProvider({ children }: { children: ReactNode }) {
       };
     }
 
+    const workspaceSummary = activeWorkspace as typeof activeWorkspace & {
+      ownerUid?: string | null;
+      accessSource?: 'owner' | 'member';
+      email?: string | null;
+      ownerName?: string | null;
+    };
+    const workspaceOwnerUid = workspaceSummary?.ownerUid ?? null;
+    const normalizedUserEmail = user.email?.trim().toLowerCase() ?? null;
+    const normalizedWorkspaceEmail = workspaceSummary?.email?.trim().toLowerCase() ?? null;
+    const normalizedDisplayName = user.displayName?.trim().toLowerCase() ?? null;
+    const normalizedOwnerName = workspaceSummary?.ownerName?.trim().toLowerCase() ?? null;
+    const isWorkspaceOwner =
+      workspaceOwnerUid === user.uid ||
+      workspaceSummary?.accessSource === 'owner' ||
+      (normalizedUserEmail !== null && normalizedWorkspaceEmail === normalizedUserEmail) ||
+      (normalizedDisplayName !== null && normalizedOwnerName === normalizedDisplayName);
+
     setIsLoading(true);
     void getDoc(doc(getWebFirestore(), 'workspaces', activeWorkspace.workspaceId, 'office_members', user.uid))
       .then((snapshot) => {
@@ -67,13 +84,13 @@ export function OfficeAccessProvider({ children }: { children: ReactNode }) {
         const member: OfficeMembershipRecord | null = snapshot.exists()
           ? parseWebOfficeMember(snapshot.id, snapshot.data())
           : null;
-        setState(buildWebOfficeAccessState({ member, fallbackToOwner: !member }));
+        setState(buildWebOfficeAccessState({ member, fallbackToOwner: !member && isWorkspaceOwner }));
       })
       .catch(() => {
         if (!isMounted) {
           return;
         }
-        setState(buildWebOfficeAccessState({ member: null, fallbackToOwner: false }));
+        setState(buildWebOfficeAccessState({ member: null, fallbackToOwner: isWorkspaceOwner }));
       })
       .finally(() => {
         if (isMounted) {
@@ -84,7 +101,7 @@ export function OfficeAccessProvider({ children }: { children: ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [activeWorkspace?.workspaceId, user?.uid, user?.email, isPlatformAdmin]);
+  }, [activeWorkspace, user?.uid, user?.email, isPlatformAdmin]);
 
   useEffect(() => {
     if (
