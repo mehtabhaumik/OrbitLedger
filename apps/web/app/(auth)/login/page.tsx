@@ -204,6 +204,7 @@ export default function LoginPage() {
       } else {
         await register(form.name, form.email, form.password);
       }
+      router.replace('/dashboard');
     } catch (nextError) {
       setIsOpeningDashboard(false);
       setError(getAuthErrorMessage(nextError));
@@ -347,6 +348,7 @@ export default function LoginPage() {
                 setIsGoogleSubmitting(true);
                 setIsOpeningDashboard(true);
                 void signInWithGoogle()
+                  .then(() => router.replace('/dashboard'))
                   .catch((nextError) => {
                     setIsOpeningDashboard(false);
                     setError(getAuthErrorMessage(nextError));

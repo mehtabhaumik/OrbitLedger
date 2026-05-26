@@ -17,7 +17,7 @@ import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { isEmbeddedWebViewUserAgent, isOrbitLedgerCustomAuthDomain } from '@/lib/auth-domain';
-import { createGoogleProvider, getWebAuth, getWebAuthReady } from '@/lib/firebase';
+import { createGoogleProvider, getWebAuth } from '@/lib/firebase';
 import {
   WEB_AUTH_ABSOLUTE_TIMEOUT_MS,
   WEB_AUTH_IDLE_TIMEOUT_MS,
@@ -71,86 +71,64 @@ export function AuthProvider({
   useEffect(() => {
     let isMounted = true;
     let hasResolvedAuthState = false;
-    let loadingFallback: number | null = null;
-    let unsubscribe: () => void = () => {};
+    const auth = getWebAuth();
+    const shouldResolveRedirect = shouldResolveGoogleRedirectResult();
+    if (shouldResolveRedirect) {
+      void withTimeout(getRedirectResult(auth), GOOGLE_REDIRECT_RESULT_TIMEOUT_MS)
+        .catch(() => undefined)
+        .finally(() => {
+          clearGoogleRedirectPending();
+        });
+    }
 
-    void (async () => {
-      const auth = await getWebAuthReady();
+    const loadingFallback =
+      typeof window !== 'undefined'
+        ? window.setTimeout(() => {
+            if (!isMounted || hasResolvedAuthState) {
+              return;
+            }
+
+            hasResolvedAuthState = true;
+            clearGoogleRedirectPending();
+
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+              const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), currentUser.uid);
+              writeWebAuthSession(nextSession);
+            } else {
+              clearWebAuthSession();
+            }
+
+            setUser(currentUser);
+            setIsLoading(false);
+          }, AUTH_STATE_READY_TIMEOUT_MS)
+        : null;
+
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       if (!isMounted) {
         return;
       }
 
-      const shouldResolveRedirect = shouldResolveGoogleRedirectResult();
-      if (shouldResolveRedirect) {
-        const redirectResult = await withTimeout(getRedirectResult(auth), GOOGLE_REDIRECT_RESULT_TIMEOUT_MS)
-          .catch(() => undefined)
-          .finally(() => {
-            clearGoogleRedirectPending();
-          });
-
-        if (!isMounted) {
-          return;
-        }
-
-        if (redirectResult?.user) {
-          const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), redirectResult.user.uid);
-          writeWebAuthSession(nextSession);
-          clearSessionExpiryMessage();
-          setSessionExpiryMessage(null);
-          setUser(redirectResult.user);
-          setIsLoading(false);
-        }
+      hasResolvedAuthState = true;
+      if (loadingFallback) {
+        window.clearTimeout(loadingFallback);
       }
 
-      loadingFallback =
-        typeof window !== 'undefined'
-          ? window.setTimeout(() => {
-              if (!isMounted || hasResolvedAuthState) {
-                return;
-              }
+      const message = readSessionExpiryMessage();
+      if (message) {
+        setSessionExpiryMessage(message);
+      }
 
-              hasResolvedAuthState = true;
-              clearGoogleRedirectPending();
+      if (nextUser) {
+        const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), nextUser.uid);
+        writeWebAuthSession(nextSession);
+      } else {
+        clearWebAuthSession();
+      }
 
-              const currentUser = auth.currentUser;
-              if (currentUser) {
-                const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), currentUser.uid);
-                writeWebAuthSession(nextSession);
-              } else {
-                clearWebAuthSession();
-              }
-
-              setUser(currentUser);
-              setIsLoading(false);
-            }, AUTH_STATE_READY_TIMEOUT_MS)
-          : null;
-
-      unsubscribe = onAuthStateChanged(auth, (nextUser) => {
-        if (!isMounted) {
-          return;
-        }
-
-        hasResolvedAuthState = true;
-        if (loadingFallback) {
-          window.clearTimeout(loadingFallback);
-        }
-
-        const message = readSessionExpiryMessage();
-        if (message) {
-          setSessionExpiryMessage(message);
-        }
-
-        if (nextUser) {
-          const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), nextUser.uid);
-          writeWebAuthSession(nextSession);
-        } else {
-          clearWebAuthSession();
-        }
-
-        setUser(nextUser);
-        setIsLoading(false);
-      });
-    })();
+      setUser(nextUser);
+      setIsLoading(false);
+    });
 
     return () => {
       isMounted = false;
@@ -225,22 +203,12 @@ export function AuthProvider({
       isLoading,
       sessionExpiryMessage,
       async signIn(email, password) {
-        const auth = await getWebAuthReady();
-        const result = await signInWithEmailAndPassword(auth, email.trim(), password);
-        const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), result.user.uid);
-        writeWebAuthSession(nextSession);
-        setUser(result.user);
-        setIsLoading(false);
+        await signInWithEmailAndPassword(getWebAuth(), email.trim(), password);
         clearSessionExpiryMessage();
         setSessionExpiryMessage(null);
       },
       async register(name, email, password) {
-        const auth = await getWebAuthReady();
-        const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), result.user.uid);
-        writeWebAuthSession(nextSession);
-        setUser(result.user);
-        setIsLoading(false);
+        const result = await createUserWithEmailAndPassword(getWebAuth(), email.trim(), password);
         clearSessionExpiryMessage();
         setSessionExpiryMessage(null);
         setWorkspaceBootstrapHint(result.user.uid);
@@ -249,11 +217,10 @@ export function AuthProvider({
         }
       },
       async sendPasswordReset(email) {
-        const auth = await getWebAuthReady();
-        await sendPasswordResetEmail(auth, email.trim());
+        await sendPasswordResetEmail(getWebAuth(), email.trim());
       },
       async signInWithGoogle() {
-        const auth = await getWebAuthReady();
+        const auth = getWebAuth();
         const provider = createGoogleProvider();
 
         if (shouldUseGoogleRedirectFirst()) {
@@ -263,11 +230,7 @@ export function AuthProvider({
         }
 
         try {
-          const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
-          const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), result.user.uid);
-          writeWebAuthSession(nextSession);
-          setUser(result.user);
-          setIsLoading(false);
+          await signInWithPopup(auth, provider, browserPopupRedirectResolver);
           clearGoogleRedirectPending();
           clearSessionExpiryMessage();
           setSessionExpiryMessage(null);
@@ -282,9 +245,7 @@ export function AuthProvider({
       },
       async signOutUser() {
         clearWebAuthSession();
-        setUser(null);
-        const auth = await getWebAuthReady();
-        await signOut(auth);
+        await signOut(getWebAuth());
       },
     }),
     [isLoading, sessionExpiryMessage, user]
