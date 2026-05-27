@@ -1134,6 +1134,46 @@ export default function OperationsConsole({ section }: { section: OperationsCons
   const showDiagnostics = section === 'diagnostics-consent';
   const showExportsReports = section === 'exports-reports';
   const showAudit = section === 'audit';
+  const operationsRouteMeta: Record<OperationsConsoleSection, { title: string; description: string }> = {
+    overview: {
+      title: 'Support center shell',
+      description: 'Scan customer support, diagnostic approvals, and hidden Office review activity in one internal workspace console.',
+    },
+    'support-inbox': {
+      title: 'Support inbox',
+      description: 'Land directly on the queue, ticket list, and detail pane without a long preamble.',
+    },
+    assignments: {
+      title: 'Assignments',
+      description: 'Route tickets faster by queue, assignee, and current workload.',
+    },
+    'access-requests': {
+      title: 'Access requests',
+      description: 'Review office access requests in a focused operator surface.',
+    },
+    'diagnostics-consent': {
+      title: 'Diagnostics and consent',
+      description: 'Open active diagnostic approvals and linked ticket context without digging through stacked cards.',
+    },
+    'exports-reports': {
+      title: 'Exports and reports',
+      description: 'Build print and export views from a tighter reporting route.',
+    },
+    audit: {
+      title: 'Audit',
+      description: 'Inspect immutable support history with filters up front and the event list immediately below.',
+    },
+  };
+  const compactSupportSignals = [
+    `${supportShellSummary[0]?.value ?? 0} open`,
+    `${unreadSupportRecords.length} unread`,
+    `${overdueSupportRows.length} overdue`,
+    `${countSupportConsents(snapshot?.supportConsents ?? [], (item) => item.isActiveForReview)} active diagnostics`,
+    quietHoursActive ? 'Quiet hours active' : 'Quiet hours inactive',
+  ];
+  const showFullSupportSidebar = section === 'support-inbox';
+  const showCompactBuckets = section === 'assignments';
+  const showCompactDiagnosticsSignals = section === 'diagnostics-consent';
 
   return (
     <>
@@ -1166,12 +1206,12 @@ export default function OperationsConsole({ section }: { section: OperationsCons
         </section>
       ) : (
         <>
-          <section className="ol-panel">
+          <section className={`ol-panel ${showOverview ? '' : 'ol-operations-route-bar'}`}>
             <div className="ol-panel-header">
               <div>
-                <div className="ol-panel-title">Support center shell</div>
+                <div className="ol-panel-title">{operationsRouteMeta[section].title}</div>
                 <p className="ol-panel-copy">
-                  Scan customer support, diagnostic approvals, and hidden Office review activity in one internal workspace console.
+                  {operationsRouteMeta[section].description}
                 </p>
               </div>
               <div className="ol-actions ol-actions--compact">
@@ -1183,32 +1223,45 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                 </button>
               </div>
             </div>
-            {error ? (
-              <div className="ol-message ol-message--danger">{error}</div>
+            {showOverview ? (
+              error ? (
+                <div className="ol-message ol-message--danger">{error}</div>
+              ) : (
+                <div className={`ol-message ${snapshot?.health.tone === 'success' ? 'ol-message--success' : 'ol-message--warning'}`}>
+                  <strong>{snapshot?.health.title ?? 'Loading Office operations'}</strong>
+                  <p>{snapshot?.health.message ?? 'Checking Office access requests for this workspace.'}</p>
+                </div>
+              )
             ) : (
-              <div className={`ol-message ${snapshot?.health.tone === 'success' ? 'ol-message--success' : 'ol-message--warning'}`}>
-                <strong>{snapshot?.health.title ?? 'Loading Office operations'}</strong>
-                <p>{snapshot?.health.message ?? 'Checking Office access requests for this workspace.'}</p>
+              <div className="ol-support-chip-row ol-support-chip-row--compact">
+                <span className="ol-chip ol-chip--premium">{supportRoleLabel(currentAdmin)}</span>
+                {compactSupportSignals.map((signal) => (
+                  <span className="ol-chip ol-chip--primary" key={signal}>
+                    {signal}
+                  </span>
+                ))}
               </div>
             )}
           </section>
 
-          <div className="ol-metric-grid">
-            {supportShellSummary.map((metric) => (
-              <article className="ol-metric-card" data-tone={metric.tone} key={metric.id}>
-                <div className="ol-metric-label">{metric.label}</div>
-                <div className="ol-metric-value">{metric.value}</div>
-                <div className="ol-metric-helper">{metric.helper}</div>
-              </article>
-            ))}
-            {(snapshot?.metrics ?? []).map((metric) => (
-              <article className="ol-metric-card" data-tone={metric.tone} key={metric.id}>
-                <div className="ol-metric-label">{metric.label}</div>
-                <div className="ol-metric-value">{metric.value}</div>
-                <div className="ol-metric-helper">{metric.helper}</div>
-              </article>
-            ))}
-          </div>
+          {showOverview ? (
+            <div className="ol-metric-grid">
+              {supportShellSummary.map((metric) => (
+                <article className="ol-metric-card" data-tone={metric.tone} key={metric.id}>
+                  <div className="ol-metric-label">{metric.label}</div>
+                  <div className="ol-metric-value">{metric.value}</div>
+                  <div className="ol-metric-helper">{metric.helper}</div>
+                </article>
+              ))}
+              {(snapshot?.metrics ?? []).map((metric) => (
+                <article className="ol-metric-card" data-tone={metric.tone} key={metric.id}>
+                  <div className="ol-metric-label">{metric.label}</div>
+                  <div className="ol-metric-value">{metric.value}</div>
+                  <div className="ol-metric-helper">{metric.helper}</div>
+                </article>
+              ))}
+            </div>
+          ) : null}
 
           {showOverview ? (
             <div className="ol-support-secondary-grid">
@@ -1278,7 +1331,9 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                 <div>
                   <div className="ol-panel-title">Queue and scope</div>
                   <p className="ol-panel-copy">
-                    Narrow the shell without changing customer data or mutating ticket history.
+                    {showFullSupportSidebar
+                      ? 'Narrow the shell without changing customer data or mutating ticket history.'
+                      : 'Keep the filters close while the main work surface stays in view.'}
                   </p>
                 </div>
                 <span className="ol-chip ol-chip--primary">Internal only</span>
@@ -1351,223 +1406,231 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                 </label>
               </div>
 
-              <div className="ol-support-rail-section">
-                <div className="ol-support-rail-label">Case buckets</div>
-                <div className="ol-support-nav-list">
-                  {SUPPORT_FILTER_OPTIONS.map((option) => {
-                    const count = countSupportCases(snapshot?.supportCases ?? [], (supportCase) =>
-                      option.value === 'all'
-                        ? true
-                        : option.value === 'active'
-                          ? supportCase.status !== 'resolved' && supportCase.status !== 'closed'
-                          : supportCase.status === option.value
-                    );
-                    return (
+              {showFullSupportSidebar || showCompactBuckets ? (
+                <div className="ol-support-rail-section">
+                  <div className="ol-support-rail-label">Case buckets</div>
+                  <div className="ol-support-nav-list">
+                    {SUPPORT_FILTER_OPTIONS.map((option) => {
+                      const count = countSupportCases(snapshot?.supportCases ?? [], (supportCase) =>
+                        option.value === 'all'
+                          ? true
+                          : option.value === 'active'
+                            ? supportCase.status !== 'resolved' && supportCase.status !== 'closed'
+                            : supportCase.status === option.value
+                      );
+                      return (
+                        <button
+                          className={`ol-support-nav-button ${supportCaseFilter === option.value ? 'ol-support-nav-button--active' : ''}`}
+                          key={option.value}
+                          onClick={() => setSupportCaseFilter(option.value)}
+                          type="button"
+                        >
+                          <span className="ol-support-nav-copy">
+                            <strong>{option.label}</strong>
+                            <span>{option.helper}</span>
+                          </span>
+                          <span className="ol-support-nav-count">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {showFullSupportSidebar ? (
+                <div className="ol-support-rail-section">
+                  <div className="ol-support-rail-label">Workstream signals</div>
+                  <div className="ol-support-queue-summary">
+                    {supportRailHighlights.map((item) => (
+                      <div className="ol-support-queue-card" key={item.id}>
+                        <strong>{item.label}</strong>
+                        <span>
+                          {item.count} {item.count === 1 ? 'case' : 'cases'}
+                        </span>
+                        <span>{item.helper}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {showFullSupportSidebar || showCompactDiagnosticsSignals ? (
+                <div className="ol-support-rail-section">
+                  <div className="ol-support-rail-label">Support signals</div>
+                  <div className="ol-support-chip-row">
+                    <span className="ol-chip ol-chip--premium">{countSupportConsents(snapshot?.supportConsents ?? [], (item) => item.isActiveForReview)} active diagnostics</span>
+                    <span className="ol-chip ol-chip--warning">{snapshot?.supportCaseEmailRequests.length ?? 0} follow-up emails</span>
+                    <span className="ol-chip ol-chip--primary">{filteredReviewQueue.length} Office review items</span>
+                  </div>
+                </div>
+              ) : null}
+
+              {showFullSupportSidebar ? (
+                <div className="ol-support-rail-section">
+                  <div className="ol-support-rail-label">Alerts and SLAs</div>
+                  <div className="ol-support-signal-grid">
+                    <article className="ol-support-detail-card">
+                      <span className="ol-review-label">Unread</span>
+                      <strong className="ol-review-value">{unreadSupportRecords.length}</strong>
+                      <span className="ol-list-text">{unreadCustomerRecords.length} customer follow-up{unreadCustomerRecords.length === 1 ? '' : 's'}</span>
+                    </article>
+                    <article className="ol-support-detail-card">
+                      <span className="ol-review-label">Overdue</span>
+                      <strong className="ol-review-value">{overdueSupportRows.length}</strong>
+                      <span className="ol-list-text">{dueSoonSupportRows.length} due soon</span>
+                    </article>
+                    <article className="ol-support-detail-card">
+                      <span className="ol-review-label">Urgent</span>
+                      <strong className="ol-review-value">{urgentSupportRows.length}</strong>
+                      <span className="ol-list-text">{quietHoursActive ? 'Quiet hours active now' : 'Quiet hours inactive'}</span>
+                    </article>
+                  </div>
+
+                  <div className="ol-support-notification-panel">
+                    <label className="ol-checkbox-row">
+                      <input
+                        checked={notificationPreference?.muteAll === true}
+                        className="ol-checkbox"
+                        onChange={(event) =>
+                          setNotificationPreferences((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  muteAll: event.target.checked,
+                                }
+                              : current
+                          )
+                        }
+                        type="checkbox"
+                      />
+                      <span>Mute all support alerts</span>
+                    </label>
+                    <label className="ol-checkbox-row">
+                      <input
+                        checked={notificationPreference?.desktopAlertsEnabled === true}
+                        className="ol-checkbox"
+                        onChange={(event) =>
+                          setNotificationPreferences((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  desktopAlertsEnabled: event.target.checked,
+                                }
+                              : current
+                          )
+                        }
+                        type="checkbox"
+                      />
+                      <span>Enable in-app desktop alerts</span>
+                    </label>
+                    <label className="ol-checkbox-row">
+                      <input
+                        checked={notificationPreference?.browserNotificationsEnabled === true}
+                        className="ol-checkbox"
+                        disabled={notificationPreference?.browserPermissionState === 'denied'}
+                        onChange={(event) =>
+                          setNotificationPreferences((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  browserNotificationsEnabled: event.target.checked,
+                                }
+                              : current
+                          )
+                        }
+                        type="checkbox"
+                      />
+                      <span>Enable browser notifications</span>
+                    </label>
+                    <label className="ol-checkbox-row">
+                      <input
+                        checked={notificationPreference?.soundEnabled === true}
+                        className="ol-checkbox"
+                        onChange={(event) =>
+                          setNotificationPreferences((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  soundEnabled: event.target.checked,
+                                }
+                              : current
+                          )
+                        }
+                        type="checkbox"
+                      />
+                      <span>Enable support sound chime</span>
+                    </label>
+                    <div className="ol-form-band-grid">
+                      <label className="ol-field">
+                        <span className="ol-field-label">Quiet hours start</span>
+                        <input
+                          className="ol-input"
+                          onChange={(event) =>
+                            setNotificationPreferences((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    quietHoursStart: event.target.value || null,
+                                  }
+                                : current
+                            )
+                          }
+                          type="time"
+                          value={notificationPreference?.quietHoursStart ?? ''}
+                        />
+                      </label>
+                      <label className="ol-field">
+                        <span className="ol-field-label">Quiet hours end</span>
+                        <input
+                          className="ol-input"
+                          onChange={(event) =>
+                            setNotificationPreferences((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    quietHoursEnd: event.target.value || null,
+                                  }
+                                : current
+                            )
+                          }
+                          type="time"
+                          value={notificationPreference?.quietHoursEnd ?? ''}
+                        />
+                      </label>
+                    </div>
+                    <div className="ol-support-inline-actions">
+                      <button className="ol-button-secondary" onClick={() => void requestBrowserNotificationPermission()} type="button">
+                        Request browser permission
+                      </button>
+                      <button className="ol-button-secondary" onClick={() => playSupportNotificationTone()} type="button">
+                        Test sound
+                      </button>
+                      <button className="ol-button-secondary" onClick={() => markCurrentSupportActivitySeen()} type="button">
+                        Mark current activity seen
+                      </button>
                       <button
-                        className={`ol-support-nav-button ${supportCaseFilter === option.value ? 'ol-support-nav-button--active' : ''}`}
-                        key={option.value}
-                        onClick={() => setSupportCaseFilter(option.value)}
+                        className="ol-button"
+                        disabled={!notificationPreference || isSavingNotificationPreferences}
+                        onClick={() => void saveSupportNotificationPreferences()}
                         type="button"
                       >
-                        <span className="ol-support-nav-copy">
-                          <strong>{option.label}</strong>
-                          <span>{option.helper}</span>
-                        </span>
-                        <span className="ol-support-nav-count">{count}</span>
+                        {isSavingNotificationPreferences ? 'Saving settings' : 'Save notification settings'}
                       </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="ol-support-rail-section">
-                <div className="ol-support-rail-label">Workstream signals</div>
-                <div className="ol-support-queue-summary">
-                  {supportRailHighlights.map((item) => (
-                    <div className="ol-support-queue-card" key={item.id}>
-                      <strong>{item.label}</strong>
-                      <span>
-                        {item.count} {item.count === 1 ? 'case' : 'cases'}
-                      </span>
-                      <span>{item.helper}</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="ol-support-rail-section">
-                <div className="ol-support-rail-label">Support signals</div>
-                <div className="ol-support-chip-row">
-                  <span className="ol-chip ol-chip--premium">{countSupportConsents(snapshot?.supportConsents ?? [], (item) => item.isActiveForReview)} active diagnostics</span>
-                  <span className="ol-chip ol-chip--warning">{snapshot?.supportCaseEmailRequests.length ?? 0} follow-up emails</span>
-                  <span className="ol-chip ol-chip--primary">{filteredReviewQueue.length} Office review items</span>
-                </div>
-              </div>
-
-              <div className="ol-support-rail-section">
-                <div className="ol-support-rail-label">Alerts and SLAs</div>
-                <div className="ol-support-signal-grid">
-                  <article className="ol-support-detail-card">
-                    <span className="ol-review-label">Unread</span>
-                    <strong className="ol-review-value">{unreadSupportRecords.length}</strong>
-                    <span className="ol-list-text">{unreadCustomerRecords.length} customer follow-up{unreadCustomerRecords.length === 1 ? '' : 's'}</span>
-                  </article>
-                  <article className="ol-support-detail-card">
-                    <span className="ol-review-label">Overdue</span>
-                    <strong className="ol-review-value">{overdueSupportRows.length}</strong>
-                    <span className="ol-list-text">{dueSoonSupportRows.length} due soon</span>
-                  </article>
-                  <article className="ol-support-detail-card">
-                    <span className="ol-review-label">Urgent</span>
-                    <strong className="ol-review-value">{urgentSupportRows.length}</strong>
-                    <span className="ol-list-text">{quietHoursActive ? 'Quiet hours active now' : 'Quiet hours inactive'}</span>
-                  </article>
-                </div>
-
-                <div className="ol-support-notification-panel">
-                  <label className="ol-checkbox-row">
-                    <input
-                      checked={notificationPreference?.muteAll === true}
-                      className="ol-checkbox"
-                      onChange={(event) =>
-                        setNotificationPreferences((current) =>
-                          current
-                            ? {
-                                ...current,
-                                muteAll: event.target.checked,
-                              }
-                            : current
-                        )
-                      }
-                      type="checkbox"
-                    />
-                    <span>Mute all support alerts</span>
-                  </label>
-                  <label className="ol-checkbox-row">
-                    <input
-                      checked={notificationPreference?.desktopAlertsEnabled === true}
-                      className="ol-checkbox"
-                      onChange={(event) =>
-                        setNotificationPreferences((current) =>
-                          current
-                            ? {
-                                ...current,
-                                desktopAlertsEnabled: event.target.checked,
-                              }
-                            : current
-                        )
-                      }
-                      type="checkbox"
-                    />
-                    <span>Enable in-app desktop alerts</span>
-                  </label>
-                  <label className="ol-checkbox-row">
-                    <input
-                      checked={notificationPreference?.browserNotificationsEnabled === true}
-                      className="ol-checkbox"
-                      disabled={notificationPreference?.browserPermissionState === 'denied'}
-                      onChange={(event) =>
-                        setNotificationPreferences((current) =>
-                          current
-                            ? {
-                                ...current,
-                                browserNotificationsEnabled: event.target.checked,
-                              }
-                            : current
-                        )
-                      }
-                      type="checkbox"
-                    />
-                    <span>Enable browser notifications</span>
-                  </label>
-                  <label className="ol-checkbox-row">
-                    <input
-                      checked={notificationPreference?.soundEnabled === true}
-                      className="ol-checkbox"
-                      onChange={(event) =>
-                        setNotificationPreferences((current) =>
-                          current
-                            ? {
-                                ...current,
-                                soundEnabled: event.target.checked,
-                              }
-                            : current
-                        )
-                      }
-                      type="checkbox"
-                    />
-                    <span>Enable support sound chime</span>
-                  </label>
-                  <div className="ol-form-band-grid">
-                    <label className="ol-field">
-                      <span className="ol-field-label">Quiet hours start</span>
-                      <input
-                        className="ol-input"
-                        onChange={(event) =>
-                          setNotificationPreferences((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  quietHoursStart: event.target.value || null,
-                                }
-                              : current
-                          )
-                        }
-                        type="time"
-                        value={notificationPreference?.quietHoursStart ?? ''}
-                      />
-                    </label>
-                    <label className="ol-field">
-                      <span className="ol-field-label">Quiet hours end</span>
-                      <input
-                        className="ol-input"
-                        onChange={(event) =>
-                          setNotificationPreferences((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  quietHoursEnd: event.target.value || null,
-                                }
-                              : current
-                          )
-                        }
-                        type="time"
-                        value={notificationPreference?.quietHoursEnd ?? ''}
-                      />
-                    </label>
-                  </div>
-                  <div className="ol-support-inline-actions">
-                    <button className="ol-button-secondary" onClick={() => void requestBrowserNotificationPermission()} type="button">
-                      Request browser permission
-                    </button>
-                    <button className="ol-button-secondary" onClick={() => playSupportNotificationTone()} type="button">
-                      Test sound
-                    </button>
-                    <button className="ol-button-secondary" onClick={() => markCurrentSupportActivitySeen()} type="button">
-                      Mark current activity seen
-                    </button>
-                    <button
-                      className="ol-button"
-                      disabled={!notificationPreference || isSavingNotificationPreferences}
-                      onClick={() => void saveSupportNotificationPreferences()}
-                      type="button"
-                    >
-                      {isSavingNotificationPreferences ? 'Saving settings' : 'Save notification settings'}
-                    </button>
-                  </div>
-                  <div className="ol-support-chip-row">
-                    <span className={`ol-chip ${notificationPreference?.muteAll ? 'ol-chip--warning' : 'ol-chip--success'}`}>
-                      {notificationPreference?.muteAll ? 'Muted' : 'Alerts active'}
-                    </span>
-                    <span className={`ol-chip ${quietHoursActive ? 'ol-chip--warning' : 'ol-chip--primary'}`}>
-                      {quietHoursActive ? 'Quiet hours active' : 'Quiet hours inactive'}
-                    </span>
-                    <span className="ol-chip ol-chip--primary">
-                      Browser {notificationPreference?.browserPermissionState ?? 'unknown'}
-                    </span>
+                    <div className="ol-support-chip-row">
+                      <span className={`ol-chip ${notificationPreference?.muteAll ? 'ol-chip--warning' : 'ol-chip--success'}`}>
+                        {notificationPreference?.muteAll ? 'Muted' : 'Alerts active'}
+                      </span>
+                      <span className={`ol-chip ${quietHoursActive ? 'ol-chip--warning' : 'ol-chip--primary'}`}>
+                        {quietHoursActive ? 'Quiet hours active' : 'Quiet hours inactive'}
+                      </span>
+                      <span className="ol-chip ol-chip--primary">
+                        Browser {notificationPreference?.browserPermissionState ?? 'unknown'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : null}
             </aside>
 
             <section className="ol-panel ol-support-center-listpane">

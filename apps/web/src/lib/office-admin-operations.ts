@@ -28,7 +28,7 @@ import {
 } from 'firebase/firestore';
 
 import { getWebAuth, getWebFirebaseProjectId, getWebFirestore } from './firebase';
-import { getWebPlatformAdminEmailAllowlist } from './platform-admin-access';
+import { getWebOperationsEmailAllowlist, getWebPlatformAdminEmailAllowlist } from './platform-admin-access';
 
 export type WebOfficeAdminQueueRecord = {
   id: string;
@@ -2230,7 +2230,7 @@ function isConsentExpired(value: string | null) {
 }
 
 function parseInternalAdminEmailAllowlist(): string[] {
-  return getWebPlatformAdminEmailAllowlist();
+  return Array.from(new Set([...getWebOperationsEmailAllowlist(), ...getWebPlatformAdminEmailAllowlist()]));
 }
 
 function getResolveOfficeAccessRequestUrl() {

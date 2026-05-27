@@ -17,11 +17,13 @@ import {
   WEB_PLATFORM_ADMIN_REPORT_DEFINITIONS,
 } from './platform-admin';
 import {
+  getWebOperationsEmailAllowlist,
   getWebPlatformAdminEmailAllowlist,
   isWebPlatformAdminAllowed,
   normalizePlatformAdminEmail,
   ORBIT_LEDGER_EMERGENCY_ADMIN_EMAILS,
 } from './platform-admin-access';
+import { isWebOfficeOperationsAllowed } from './office-admin-operations';
 
 const baseUser: WebPlatformAdminUser = {
   uid: 'user_1',
@@ -67,6 +69,39 @@ describe('platform admin registry helpers', () => {
     expect(isWebPlatformAdminAllowed(' BVMEHTA1980@gmail.com ')).toBe(true);
     expect(isWebPlatformAdminAllowed('normal@example.com')).toBe(false);
     expect(normalizePlatformAdminEmail(' UI.BHAUMIK@gmail.com ')).toBe('ui.bhaumik@gmail.com');
+  });
+
+  it('separates platform allowlist from operations allowlist while still letting platform admins enter operations', () => {
+    const originalPlatform = process.env.NEXT_PUBLIC_ORBIT_LEDGER_PLATFORM_ADMIN_EMAILS;
+    const originalOperations = process.env.NEXT_PUBLIC_ORBIT_LEDGER_OPERATIONS_EMAILS;
+    const originalInternal = process.env.NEXT_PUBLIC_ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS;
+    try {
+      expect(
+        getWebPlatformAdminEmailAllowlist(
+          'super-admin@example.com',
+          'legacy-admin@example.com,operations-only@example.com'
+        )
+      ).toContain('super-admin@example.com');
+      expect(
+        getWebOperationsEmailAllowlist(
+          'operations-only@example.com,super-admin@example.com',
+          'legacy-admin@example.com'
+        )
+      ).toContain('operations-only@example.com');
+
+      process.env.NEXT_PUBLIC_ORBIT_LEDGER_PLATFORM_ADMIN_EMAILS = 'super-admin@example.com';
+      process.env.NEXT_PUBLIC_ORBIT_LEDGER_OPERATIONS_EMAILS = 'operations-only@example.com,super-admin@example.com';
+      process.env.NEXT_PUBLIC_ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS = 'legacy-admin@example.com';
+
+      expect(isWebPlatformAdminAllowed('super-admin@example.com')).toBe(true);
+      expect(isWebPlatformAdminAllowed('operations-only@example.com')).toBe(false);
+      expect(isWebOfficeOperationsAllowed('operations-only@example.com')).toBe(true);
+      expect(isWebOfficeOperationsAllowed('super-admin@example.com')).toBe(true);
+    } finally {
+      process.env.NEXT_PUBLIC_ORBIT_LEDGER_PLATFORM_ADMIN_EMAILS = originalPlatform;
+      process.env.NEXT_PUBLIC_ORBIT_LEDGER_OPERATIONS_EMAILS = originalOperations;
+      process.env.NEXT_PUBLIC_ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS = originalInternal;
+    }
   });
 
   it('summarizes registered users without counting disabled accounts as missing workspace', () => {

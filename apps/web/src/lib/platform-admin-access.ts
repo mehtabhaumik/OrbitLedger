@@ -10,14 +10,29 @@ export function normalizePlatformAdminEmail(email: string | null | undefined): s
 }
 
 export function getWebPlatformAdminEmailAllowlist(
-  rawAllowlist = process.env.NEXT_PUBLIC_ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS
+  rawPlatformAllowlist = process.env.NEXT_PUBLIC_ORBIT_LEDGER_PLATFORM_ADMIN_EMAILS,
+  rawFallbackAllowlist = process.env.NEXT_PUBLIC_ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS
 ): string[] {
-  const configuredEmails = (rawAllowlist ?? '')
+  const effectiveAllowlist = rawPlatformAllowlist?.trim() ? rawPlatformAllowlist : rawFallbackAllowlist;
+  const configuredEmails = (effectiveAllowlist ?? '')
     .split(',')
     .map((email) => normalizePlatformAdminEmail(email))
     .filter((email): email is string => Boolean(email));
 
   return Array.from(new Set([...ORBIT_LEDGER_EMERGENCY_ADMIN_EMAILS, ...configuredEmails]));
+}
+
+export function getWebOperationsEmailAllowlist(
+  rawOperationsAllowlist = process.env.NEXT_PUBLIC_ORBIT_LEDGER_OPERATIONS_EMAILS,
+  rawFallbackAllowlist = process.env.NEXT_PUBLIC_ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS
+): string[] {
+  const effectiveAllowlist = rawOperationsAllowlist?.trim() ? rawOperationsAllowlist : rawFallbackAllowlist;
+  const configuredEmails = (effectiveAllowlist ?? '')
+    .split(',')
+    .map((email) => normalizePlatformAdminEmail(email))
+    .filter((email): email is string => Boolean(email));
+
+  return Array.from(new Set(configuredEmails));
 }
 
 export function isWebPlatformAdminAllowed(email: string | null | undefined): boolean {

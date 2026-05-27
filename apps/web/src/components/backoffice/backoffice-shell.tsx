@@ -31,6 +31,8 @@ const platformNavItems: Array<{ href: Route; label: string }> = [
   { href: '/backoffice/platform/audit' as Route, label: 'Audit' },
 ];
 
+type BackofficeArea = 'operations' | 'platform';
+
 type BackofficeShellProps = {
   children: ReactNode;
 };
@@ -48,6 +50,34 @@ export function BackofficeShell({ children }: BackofficeShellProps) {
   const accountLabel = user?.displayName || user?.email || 'Operator';
   const accountInitial = accountLabel.trim().charAt(0).toUpperCase() || 'O';
   const routeCopy = useMemo(() => getBackofficeRouteCopy(pathname), [pathname]);
+  const activeArea = useMemo<BackofficeArea>(() => getBackofficeArea(pathname), [pathname]);
+  const activeNavItems = activeArea === 'platform' ? platformNavItems : operationsNavItems;
+  const activeAreaCopy = activeArea === 'platform' ? getPlatformAreaCopy() : getOperationsAreaCopy();
+  const visibleAreas = useMemo(() => {
+    const areas: Array<{
+      area: BackofficeArea;
+      href: Route;
+      label: string;
+      caption: string;
+    }> = [];
+    if (hasOperationsAccess) {
+      areas.push({
+        area: 'operations',
+        href: '/backoffice/operations/overview' as Route,
+        label: 'Operations',
+        caption: 'Support, access, diagnostics',
+      });
+    }
+    if (hasPlatformAccess) {
+      areas.push({
+        area: 'platform',
+        href: '/backoffice/platform/overview' as Route,
+        label: 'Platform Admin',
+        caption: 'Users, billing, safety',
+      });
+    }
+    return areas;
+  }, [hasOperationsAccess, hasPlatformAccess]);
 
   useEffect(() => {
     function updateOnlineState() {
@@ -80,10 +110,11 @@ export function BackofficeShell({ children }: BackofficeShellProps) {
     };
   }, [isMobileNavOpen]);
 
-  function renderNavGroup(title: string, items: Array<{ href: Route; label: string }>) {
+  function renderNavGroup(title: string, description: string, items: Array<{ href: Route; label: string }>) {
     return (
       <div className="ol-backoffice-nav-group">
         <span className="ol-backoffice-nav-label">{title}</span>
+        <p className="ol-backoffice-nav-helper">{description}</p>
         <nav className="ol-backoffice-nav-list">
           {items.map((item) => {
             const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
@@ -103,29 +134,60 @@ export function BackofficeShell({ children }: BackofficeShellProps) {
     );
   }
 
+  function renderAreaSwitcher() {
+    if (visibleAreas.length <= 1) {
+      return null;
+    }
+
+    return (
+      <div className="ol-backoffice-nav-group">
+        <span className="ol-backoffice-nav-label">Workspace</span>
+        <div className="ol-backoffice-area-switcher">
+          {visibleAreas.map((area) => {
+            const isActive = area.area === activeArea;
+            return (
+              <Link
+                aria-current={isActive ? 'page' : undefined}
+                className={`ol-backoffice-area-card${isActive ? ' is-active' : ''}`}
+                href={area.href}
+                key={area.area}
+              >
+                <strong>{area.label}</strong>
+                <span>{area.caption}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   function renderNavigation() {
     return (
       <>
-        <div className="ol-backoffice-status-card">
-          <span className="ol-backoffice-nav-label">Session</span>
-          <strong>{isOnline ? 'Connected' : 'Offline'}</strong>
-          <p>
-            {activeWorkspace
-              ? `Workspace context: ${activeWorkspace.businessName}`
-              : 'Platform-level review can work without a workspace, but operations modules expect one.'}
-          </p>
-        </div>
+        <div className="ol-backoffice-sidebar-scroll">
+          <div className="ol-backoffice-status-card">
+            <span className="ol-backoffice-nav-label">Session</span>
+            <strong>{isOnline ? 'Connected' : 'Offline'}</strong>
+            <p>
+              {activeWorkspace
+                ? `Workspace context: ${activeWorkspace.businessName}`
+                : 'No workspace selected. Platform work is still available, and operations routes can be entered once a workspace is chosen.'}
+            </p>
+          </div>
 
-        {hasOperationsAccess ? renderNavGroup('Operations', operationsNavItems) : null}
-        {hasPlatformAccess ? renderNavGroup('Platform Admin', platformNavItems) : null}
+          {renderAreaSwitcher()}
 
-        <div className="ol-backoffice-nav-group">
-          <span className="ol-backoffice-nav-label">Workspace app</span>
-          <nav className="ol-backoffice-nav-list">
-            <Link className="ol-backoffice-nav-link" href="/dashboard">
-              Return to user area
-            </Link>
-          </nav>
+          {renderNavGroup(activeAreaCopy.title, activeAreaCopy.description, activeNavItems)}
+
+          <div className="ol-backoffice-nav-group">
+            <span className="ol-backoffice-nav-label">Workspace app</span>
+            <nav className="ol-backoffice-nav-list">
+              <Link className="ol-backoffice-nav-link" href="/dashboard">
+                Return to user area
+              </Link>
+            </nav>
+          </div>
         </div>
       </>
     );
@@ -321,5 +383,26 @@ function getBackofficeRouteCopy(pathname: string | null) {
     kicker: 'Operations',
     title: 'Operations Overview',
     subtitle: 'Support, access review, diagnostics, and export readiness in a separate back-office product.',
+  };
+}
+
+function getBackofficeArea(pathname: string | null): BackofficeArea {
+  if (pathname?.startsWith('/backoffice/platform')) {
+    return 'platform';
+  }
+  return 'operations';
+}
+
+function getOperationsAreaCopy() {
+  return {
+    title: 'Operations',
+    description: 'Support, access review, diagnostics, exports, and audit in one focused operator workspace.',
+  };
+}
+
+function getPlatformAreaCopy() {
+  return {
+    title: 'Platform Admin',
+    description: 'Users, admins, billing, safety controls, reports, and audit in a separate platform console.',
   };
 }

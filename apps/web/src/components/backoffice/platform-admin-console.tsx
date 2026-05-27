@@ -914,28 +914,74 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
   const showSafetyControls = section === 'safety-controls';
   const showReports = section === 'reports';
   const showAudit = section === 'audit';
+  const platformRouteMeta: Record<PlatformAdminConsoleSection, { title: string; description: string }> = {
+    overview: {
+      title: 'Platform operations',
+      description: 'Users, admins, offers, access signals, and audit readiness in one review surface.',
+    },
+    users: {
+      title: 'Registered user registry',
+      description: 'Scan users by role, workspace footprint, subscription state, and sign-in method.',
+    },
+    admins: {
+      title: 'Admin registry',
+      description: 'Manage privileged accounts without dragging user-registry controls into the flow.',
+    },
+    'billing-offers': {
+      title: 'Billing and offers',
+      description: 'Review pricing, active offers, and operator actions in a tighter route-specific surface.',
+    },
+    'safety-controls': {
+      title: 'Safety controls',
+      description: 'Session policy, MFA readiness, and abuse guardrails without unrelated registry chrome.',
+    },
+    reports: {
+      title: 'Reports',
+      description: 'Build export and print views from a focused reporting route.',
+    },
+    audit: {
+      title: 'Audit',
+      description: 'Inspect platform history with the event list and route-specific filters up front.',
+    },
+  };
+  const showRouteBar = !showOverview;
 
   return (
     <main className="ol-platform-admin-page">
       <section className="ol-platform-admin-shell">
-        <header className="ol-platform-admin-hero">
-          <div>
-            <p className="ol-chip">Internal platform admin</p>
-            <h1>Registered user registry</h1>
-            <p>
-              Firebase Auth users, workspace ownership, and Office membership visibility for approved Orbit Ledger
-              administrators.
-            </p>
-          </div>
-          <div className="ol-platform-admin-hero-actions">
-            <Link className="ol-button-secondary" href="/dashboard">
-              Open dashboard
-            </Link>
-            <button className="ol-button" type="button" onClick={handleRefresh} disabled={isLoading}>
-              {isLoading ? 'Refreshing...' : 'Refresh registry'}
-            </button>
-          </div>
-        </header>
+        {showRouteBar ? (
+          <header className="ol-platform-admin-route-bar">
+            <div className="ol-platform-admin-route-copy">
+              <p className="ol-chip">Internal platform admin</p>
+              <h1>{platformRouteMeta[section].title}</h1>
+              <p>{platformRouteMeta[section].description}</p>
+            </div>
+            <div className="ol-platform-admin-route-actions">
+              <Link className="ol-button-secondary" href="/dashboard">
+                Open dashboard
+              </Link>
+              <button className="ol-button" type="button" onClick={handleRefresh} disabled={isLoading}>
+                {isLoading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+          </header>
+        ) : (
+          <header className="ol-platform-admin-hero">
+            <div>
+              <p className="ol-chip">Internal platform admin</p>
+              <h1>{platformRouteMeta.overview.title}</h1>
+              <p>{platformRouteMeta.overview.description}</p>
+            </div>
+            <div className="ol-platform-admin-hero-actions">
+              <Link className="ol-button-secondary" href="/dashboard">
+                Open dashboard
+              </Link>
+              <button className="ol-button" type="button" onClick={handleRefresh} disabled={isLoading}>
+                {isLoading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+          </header>
+        )}
 
         {error ? (
           <div className="ol-message" data-tone="danger">
@@ -1090,115 +1136,24 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
             </section>
             ) : null}
 
-            <section className="ol-panel ol-platform-admin-control-panel">
-              <div className="ol-platform-admin-status">
-                <div>
-                  <span className="ol-muted">Role</span>
-                  <strong>
+            {!showOverview && !showUsers ? (
+              <section className="ol-panel ol-platform-admin-route-status-card">
+                <div className="ol-platform-admin-status-strip">
+                  <span className="ol-platform-admin-status-pill" data-tone="premium">
                     {snapshot?.adminAccess ? `${adminRoleLabel} · ${snapshot.adminAccess.roleSource}` : 'Emergency allowlist'}
-                  </strong>
+                  </span>
+                  <span className="ol-platform-admin-status-pill" data-tone={snapshot?.adminAccess?.customClaimsReady ? 'success' : 'warning'}>
+                    {snapshot?.adminAccess?.customClaimsReady ? 'Custom claims active' : 'Allowlist fallback'}
+                  </span>
+                  <span className="ol-platform-admin-status-pill" data-tone="default">
+                    {formatPlatformAdminDate(snapshot?.generatedAt)}
+                  </span>
+                  <span className="ol-platform-admin-status-pill" data-tone="default">
+                    {user.email}
+                  </span>
                 </div>
-                <div>
-                  <span className="ol-muted">Claims readiness</span>
-                  <strong>{snapshot?.adminAccess?.customClaimsReady ? 'Custom claims active' : 'Allowlist fallback'}</strong>
-                </div>
-                <div>
-                  <span className="ol-muted">Admin account</span>
-                  <strong>{user.email}</strong>
-                </div>
-                <div>
-                  <span className="ol-muted">Generated</span>
-                  <strong>{formatPlatformAdminDate(snapshot?.generatedAt)}</strong>
-                </div>
-                <div>
-                  <span className="ol-muted">Page state</span>
-                  <strong>{snapshot?.hasMore ? 'More users available' : 'Current page loaded'}</strong>
-                </div>
-              </div>
-              <div className="ol-platform-admin-search">
-                <label className="ol-field-label" htmlFor="platform-admin-search">
-                  Search users
-                </label>
-                <input
-                  id="platform-admin-search"
-                  className="ol-input"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Email, name, uid, workspace, or role"
-                />
-              </div>
-              <div className="ol-platform-admin-user-filters">
-                <label className="ol-form-field">
-                  <span>Platform role</span>
-                  <select
-                    className="ol-select"
-                    value={userFilters.role}
-                    onChange={(event) =>
-                      setUserFilters((current) => ({
-                        ...current,
-                        role: event.target.value as WebPlatformAdminUserRoleFilter,
-                      }))
-                    }
-                  >
-                    <option value="all">All roles</option>
-                    {PLATFORM_ADMIN_ROLES.map((role) => (
-                      <option key={role} value={role}>
-                        {getPlatformAdminRoleDefinition(role).label}
-                      </option>
-                    ))}
-                    <option value="no_platform_role">No platform role</option>
-                  </select>
-                </label>
-                <label className="ol-form-field">
-                  <span>Office access</span>
-                  <select
-                    className="ol-select"
-                    value={userFilters.officeAccess}
-                    onChange={(event) =>
-                      setUserFilters((current) => ({
-                        ...current,
-                        officeAccess: event.target.value as WebPlatformAdminUserOfficeFilter,
-                      }))
-                    }
-                  >
-                    <option value="all">All users</option>
-                    <option value="has_office_access">Has Office access</option>
-                    <option value="no_office_access">No Office access</option>
-                  </select>
-                </label>
-                <label className="ol-form-field">
-                  <span>Sign-in method</span>
-                  <select
-                    className="ol-select"
-                    value={userFilters.provider}
-                    onChange={(event) =>
-                      setUserFilters((current) => ({
-                        ...current,
-                        provider: event.target.value as WebPlatformAdminUserProviderFilter,
-                      }))
-                    }
-                  >
-                    <option value="all">All methods</option>
-                    <option value="google">Google</option>
-                    <option value="password">Email and password</option>
-                    <option value="multi_provider">Multiple providers</option>
-                    <option value="no_provider">No provider</option>
-                  </select>
-                </label>
-                <div className="ol-platform-admin-filter-summary">
-                  <span className="ol-platform-admin-sidebar-label">Visible users</span>
-                  <strong>
-                    {users.length.toLocaleString('en-IN')} shown from {(snapshot?.users.length ?? 0).toLocaleString('en-IN')} loaded
-                  </strong>
-                  <p>
-                    Filter by admin role, Office access, and sign-in method before exporting or opening user details.
-                  </p>
-                </div>
-              </div>
-              <p className="ol-panel-copy">
-                This registry never shows passwords, provider secrets, payment secrets, or customer ledger data.
-              </p>
-            </section>
+              </section>
+            ) : null}
 
             {showSafetyControls ? (
             <section className="ol-platform-admin-table-card" id="settings">
@@ -1946,6 +1901,99 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
               {(snapshot?.metrics.userCount ?? 0).toLocaleString('en-IN')} total platform user{snapshot?.metrics.userCount === 1 ? '' : 's'}
             </span>
           </div>
+          <div className="ol-platform-admin-user-toolbar">
+            <div className="ol-platform-admin-user-toolbar-grid">
+              <label className="ol-form-field ol-platform-admin-user-toolbar-search">
+                <span>Search users</span>
+                <input
+                  id="platform-admin-search"
+                  className="ol-input"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Email, name, uid, workspace, or role"
+                />
+              </label>
+              <label className="ol-form-field">
+                <span>Platform role</span>
+                <select
+                  className="ol-select"
+                  value={userFilters.role}
+                  onChange={(event) =>
+                    setUserFilters((current) => ({
+                      ...current,
+                      role: event.target.value as WebPlatformAdminUserRoleFilter,
+                    }))
+                  }
+                >
+                  <option value="all">All roles</option>
+                  {PLATFORM_ADMIN_ROLES.map((role) => (
+                    <option key={role} value={role}>
+                      {getPlatformAdminRoleDefinition(role).label}
+                    </option>
+                  ))}
+                  <option value="no_platform_role">No platform role</option>
+                </select>
+              </label>
+              <label className="ol-form-field">
+                <span>Office access</span>
+                <select
+                  className="ol-select"
+                  value={userFilters.officeAccess}
+                  onChange={(event) =>
+                    setUserFilters((current) => ({
+                      ...current,
+                      officeAccess: event.target.value as WebPlatformAdminUserOfficeFilter,
+                    }))
+                  }
+                >
+                  <option value="all">All users</option>
+                  <option value="has_office_access">Has Office access</option>
+                  <option value="no_office_access">No Office access</option>
+                </select>
+              </label>
+              <label className="ol-form-field">
+                <span>Sign-in method</span>
+                <select
+                  className="ol-select"
+                  value={userFilters.provider}
+                  onChange={(event) =>
+                    setUserFilters((current) => ({
+                      ...current,
+                      provider: event.target.value as WebPlatformAdminUserProviderFilter,
+                    }))
+                  }
+                >
+                  <option value="all">All methods</option>
+                  <option value="google">Google</option>
+                  <option value="password">Email and password</option>
+                  <option value="multi_provider">Multiple providers</option>
+                  <option value="no_provider">No provider</option>
+                </select>
+              </label>
+            </div>
+            <div className="ol-platform-admin-user-toolbar-meta">
+              <div className="ol-platform-admin-status-strip">
+                <span className="ol-platform-admin-status-pill" data-tone="premium">
+                  {snapshot?.adminAccess ? `${adminRoleLabel} · ${snapshot.adminAccess.roleSource}` : 'Emergency allowlist'}
+                </span>
+                <span className="ol-platform-admin-status-pill" data-tone={snapshot?.adminAccess?.customClaimsReady ? 'success' : 'warning'}>
+                  {snapshot?.adminAccess?.customClaimsReady ? 'Custom claims active' : 'Allowlist fallback'}
+                </span>
+                <span className="ol-platform-admin-status-pill" data-tone="default">
+                  {users.length.toLocaleString('en-IN')} shown
+                </span>
+                <span className="ol-platform-admin-status-pill" data-tone="default">
+                  {(snapshot?.users.length ?? 0).toLocaleString('en-IN')} loaded
+                </span>
+                <span className="ol-platform-admin-status-pill" data-tone="default">
+                  {snapshot?.hasMore ? 'More users available' : 'Current page loaded'}
+                </span>
+              </div>
+              <p className="ol-platform-admin-user-toolbar-note">
+                Existing passwords are never shown. Raw UIDs stay in the inspector while the table stays focused on role, workspace footprint, sign-in, and account state.
+              </p>
+            </div>
+          </div>
           {isLoading && !snapshot ? (
             <div className="ol-platform-admin-empty">
               <div className="ol-loading-orbit" aria-label="Loading users">
@@ -1956,14 +2004,6 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
           ) : users.length ? (
             <div className="ol-platform-admin-user-registry-layout">
               <div className="ol-platform-admin-user-registry-surface">
-                <div className="ol-platform-admin-user-registry-note">
-                  <p className="ol-chip">Operator table</p>
-                  <h2>Find the exact user quickly</h2>
-                  <p>
-                    Platform role, Office role, workspace footprint, sign-in method, and account state are visible in one
-                    scan line. Raw UIDs stay in the inspector instead of cluttering the main table.
-                  </p>
-                </div>
                 <div className="ol-platform-admin-user-table-wrap">
                   <table className="ol-platform-admin-user-table">
                     <thead>
@@ -1973,7 +2013,8 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                         <th>Office role</th>
                         <th>Workspaces</th>
                         <th>Sign-in</th>
-                        <th>Status</th>
+                        <th>Subscription</th>
+                        <th>Last sign-in</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -2049,11 +2090,8 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                         {formatPlatformAdminDate(selectedUserRecord.lastSignInAt)}
                       </span>
                       <span>
-                        <strong>Warnings / risk</strong>
-                        {selectedUserRecord.platformUserWarningCount
-                          ? `${selectedUserRecord.platformUserWarningCount} warning(s)`
-                          : 'No warnings'}{' '}
-                        · {selectedUserRecord.platformUserRiskStatus ?? 'No active risk flag'}
+                        <strong>Risk state</strong>
+                        {summarizeUserRisk(selectedUserRecord)}
                       </span>
                       <span className="ol-platform-admin-selected-summary--wide">
                         <strong>Workspace names</strong>
@@ -2731,23 +2769,33 @@ function UserTableRow({
     : 'No platform role';
   const officeRoleSummary = user.officeRoles.length ? user.officeRoles.join(', ') : 'No Office role';
   const workspaceSummary = `${user.ownedWorkspaceCount} owned · ${user.officeWorkspaceCount} Office`;
-  const workspaceNamesSummary = user.workspaceNames.length ? user.workspaceNames.join(', ') : 'No workspace names';
+  const workspaceNamesSummary = user.workspaceNames.length ? user.workspaceNames.slice(0, 2).join(', ') : 'No workspace names';
   const signInSummary = user.providerIds.length ? user.providerIds.join(', ') : 'No provider';
+  const riskBadges = buildUserRiskBadges(user);
 
   return (
     <tr className="ol-platform-admin-user-table-row" data-selected={isSelected ? 'true' : 'false'}>
       <td>
         <button className="ol-platform-admin-user-table-user" type="button" onClick={() => onSelect(user)}>
           <span className="ol-platform-admin-avatar">{initials(title)}</span>
-          <span>
+          <span className="ol-platform-admin-user-cell">
             <strong>{title}</strong>
             <em>{user.email ?? 'No email saved'}</em>
+            {riskBadges.length ? (
+              <span className="ol-platform-admin-user-inline-badges">
+                {riskBadges.map((badge) => (
+                  <span className="ol-platform-admin-status-pill" data-tone={badge.tone} key={badge.label}>
+                    {badge.label}
+                  </span>
+                ))}
+              </span>
+            ) : null}
           </span>
         </button>
       </td>
       <td>
         <strong>{platformRoleLabel}</strong>
-        <span>{user.platformAdminRole ? `Source: ${user.platformAdminRoleSource ?? 'registry'}` : 'Standard user account'}</span>
+        <span>{user.platformAdminRole ? `Source: ${user.platformAdminRoleSource ?? 'registry'}` : 'Standard user'}</span>
       </td>
       <td>
         <strong>{officeRoleSummary}</strong>
@@ -2759,32 +2807,15 @@ function UserTableRow({
       </td>
       <td>
         <strong>{signInSummary}</strong>
-        <span>Last sign-in {formatPlatformAdminDate(user.lastSignInAt)}</span>
+        <span>{user.emailVerified ? 'Verified email' : 'Email not verified'}</span>
       </td>
       <td>
-        <div className="ol-platform-admin-user-table-statuses">
-          <StatusPill user={user} />
-          {user.platformUserRiskStatus === 'under_review' ? (
-            <span className="ol-platform-admin-status-pill" data-tone="warning">
-              Under review
-            </span>
-          ) : null}
-          {user.platformUserWarningCount ? (
-            <span className="ol-platform-admin-status-pill" data-tone="warning">
-              {user.platformUserWarningCount} warning{user.platformUserWarningCount === 1 ? '' : 's'}
-            </span>
-          ) : null}
-          {user.isQaUser ? (
-            <span className="ol-platform-admin-status-pill" data-tone="warning">
-              QA user
-            </span>
-          ) : null}
-          {user.hasActiveSubscription ? (
-            <span className="ol-platform-admin-status-pill" data-tone="success">
-              Active subscription
-            </span>
-          ) : null}
-        </div>
+        <strong>{user.hasActiveSubscription ? 'Active' : 'None'}</strong>
+        <span>{user.hasActiveSubscription ? 'Billing live' : 'No active plan'}</span>
+      </td>
+      <td>
+        <strong>{formatPlatformAdminDate(user.lastSignInAt)}</strong>
+        <span>{summarizeAccountState(user)}</span>
       </td>
       <td>
         <div className="ol-platform-admin-user-table-actions">
@@ -2819,6 +2850,58 @@ function StatusPill({ user }: { user: WebPlatformAdminUser }) {
       {label}
     </span>
   );
+}
+
+function buildUserRiskBadges(user: WebPlatformAdminUser): Array<{ label: string; tone: 'warning' | 'danger' | 'success' }> {
+  const badges: Array<{ label: string; tone: 'warning' | 'danger' | 'success' }> = [];
+  if (user.disabled) {
+    badges.push({ label: 'Disabled', tone: 'danger' });
+  }
+  if (user.platformUserRiskStatus === 'under_review') {
+    badges.push({ label: 'Under review', tone: 'warning' });
+  } else if (user.platformUserRiskStatus && user.platformUserRiskStatus !== 'clear') {
+    badges.push({ label: humanizeRiskLabel(user.platformUserRiskStatus), tone: 'warning' });
+  }
+  if (user.platformUserWarningCount > 0) {
+    badges.push({ label: user.platformUserWarningCount === 1 ? 'Warning' : `${user.platformUserWarningCount} warnings`, tone: 'warning' });
+  }
+  if (user.isQaUser) {
+    badges.push({ label: 'QA', tone: 'warning' });
+  }
+  return badges;
+}
+
+function summarizeUserRisk(user: WebPlatformAdminUser) {
+  if (user.platformUserRiskStatus === 'under_review') {
+    return user.platformUserWarningCount > 0
+      ? `Under review · ${user.platformUserWarningCount} warning${user.platformUserWarningCount === 1 ? '' : 's'}`
+      : 'Under review';
+  }
+  if (user.platformUserRiskStatus && user.platformUserRiskStatus !== 'clear') {
+    return humanizeRiskLabel(user.platformUserRiskStatus);
+  }
+  if (user.platformUserWarningCount > 0) {
+    return `${user.platformUserWarningCount} warning${user.platformUserWarningCount === 1 ? '' : 's'}`;
+  }
+  return 'No active risk signal';
+}
+
+function summarizeAccountState(user: WebPlatformAdminUser) {
+  if (user.disabled) {
+    return 'Disabled';
+  }
+  if (user.status === 'no_workspace') {
+    return 'No workspace attached';
+  }
+  return 'Active account';
+}
+
+function humanizeRiskLabel(value: string) {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function initials(value: string) {

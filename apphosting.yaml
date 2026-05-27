@@ -61,3 +61,13 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_ORBIT_LEDGER_PLATFORM_ADMIN_EMAILS
+    value: support.phase.20260522.phase4@example.com
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_ORBIT_LEDGER_OPERATIONS_EMAILS
+    value: support.phase.20260522.phase4@example.com,phase6.owner.20260522@example.com
+    availability:
+      - BUILD
+      - RUNTIME

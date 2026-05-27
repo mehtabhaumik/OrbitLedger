@@ -166,6 +166,24 @@ a:focus-visible {
   overflow: hidden;
 }
 
+.ol-backoffice-sidebar-scroll {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.ol-backoffice-sidebar-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ol-backoffice-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(137, 178, 255, 0.28);
+  border-radius: 999px;
+}
+
 .ol-backoffice-brand {
   display: flex;
   align-items: center;
@@ -217,6 +235,13 @@ a:focus-visible {
   text-transform: uppercase;
 }
 
+.ol-backoffice-nav-helper {
+  margin: -2px 4px 0;
+  color: rgba(219, 234, 254, 0.68);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
 .ol-backoffice-nav-list {
   display: grid;
   gap: 8px;
@@ -224,14 +249,16 @@ a:focus-visible {
 
 .ol-backoffice-nav-link {
   display: flex;
-  align-items: center;
-  min-height: 48px;
-  padding: 0 14px;
+  align-items: flex-start;
+  min-height: 0;
+  padding: 12px 14px;
   border-radius: 14px;
   color: rgba(241, 245, 249, 0.88);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid transparent;
   font-weight: 700;
+  line-height: 1.35;
+  white-space: normal;
   transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 
@@ -267,6 +294,45 @@ a:focus-visible {
   color: rgba(226, 232, 240, 0.82);
   font-size: 0.93rem;
   line-height: 1.5;
+}
+
+.ol-backoffice-area-switcher {
+  display: grid;
+  gap: 10px;
+}
+
+.ol-backoffice-area-card {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(118, 149, 197, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(241, 245, 249, 0.92);
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.ol-backoffice-area-card strong {
+  font-size: 0.98rem;
+  line-height: 1.25;
+}
+
+.ol-backoffice-area-card span {
+  color: rgba(219, 234, 254, 0.74);
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+
+.ol-backoffice-area-card:hover,
+.ol-backoffice-area-card:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(137, 178, 255, 0.3);
+  transform: translateX(1px);
+}
+
+.ol-backoffice-area-card.is-active {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.18) 0%, rgba(147, 197, 253, 0.12) 100%);
+  border-color: rgba(96, 165, 250, 0.46);
 }
 
 .ol-backoffice-main {
@@ -335,9 +401,41 @@ a:focus-visible {
 }
 
 .ol-backoffice-mobile-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
   background:
-    linear-gradient(180deg, rgba(21, 29, 43, 0.98) 0%, rgba(27, 39, 59, 0.98) 100%);
+    linear-gradient(180deg, rgba(15, 23, 38, 0.99) 0%, rgba(21, 32, 52, 0.985) 100%) !important;
   color: #eff6ff;
+}
+
+.ol-backoffice-mobile-panel .ol-backoffice-nav-label,
+.ol-backoffice-mobile-panel .ol-backoffice-nav-helper,
+.ol-backoffice-mobile-panel .ol-backoffice-status-card p,
+.ol-backoffice-mobile-panel .ol-backoffice-area-card span {
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.ol-backoffice-mobile-panel .ol-backoffice-brand,
+.ol-backoffice-mobile-panel .ol-backoffice-status-card,
+.ol-backoffice-mobile-panel .ol-backoffice-area-card,
+.ol-backoffice-mobile-panel .ol-backoffice-nav-link {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(137, 178, 255, 0.28);
+}
+
+.ol-backoffice-mobile-panel .ol-backoffice-status-card strong,
+.ol-backoffice-mobile-panel .ol-backoffice-area-card strong,
+.ol-backoffice-mobile-panel .ol-backoffice-nav-link,
+.ol-backoffice-mobile-panel .ol-backoffice-badge {
+  color: #f8fbff;
+}
+
+.ol-backoffice-mobile-panel .ol-backoffice-area-card.is-active,
+.ol-backoffice-mobile-panel .ol-backoffice-nav-link.is-active {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.28) 0%, rgba(147, 197, 253, 0.18) 100%);
+  border-color: rgba(96, 165, 250, 0.56);
 }
 
 .ol-sidebar {
@@ -1874,6 +1972,19 @@ a:focus-visible {
   gap: 8px;
 }
 
+.ol-support-chip-row--compact .ol-chip {
+  min-height: 34px;
+  padding: 8px 12px;
+}
+
+.ol-operations-route-bar {
+  gap: 14px;
+}
+
+.ol-operations-route-bar .ol-panel-header {
+  margin-bottom: 0;
+}
+
 .ol-support-signal-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -2051,8 +2162,8 @@ a:focus-visible {
   position: relative;
   display: grid;
   gap: 10px;
-  min-height: 148px;
-  padding: 20px;
+  min-height: 128px;
+  padding: 18px;
   border-radius: var(--radius-lg);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(250, 252, 255, 0.94) 100%);
   border: 1px solid var(--border);
@@ -3707,6 +3818,7 @@ a:focus-visible {
 }
 
 .ol-platform-admin-hero,
+.ol-platform-admin-route-bar,
 .ol-platform-admin-table-card {
   border: 1px solid rgba(191, 205, 225, 0.86);
   border-radius: 24px;
@@ -3719,15 +3831,15 @@ a:focus-visible {
   justify-content: space-between;
   align-items: flex-start;
   gap: 24px;
-  padding: clamp(22px, 4vw, 40px);
+  padding: clamp(18px, 3vw, 28px);
 }
 
 .ol-platform-admin-hero h1,
 .ol-platform-admin-empty h1 {
-  margin: 14px 0 10px;
+  margin: 10px 0 8px;
   color: var(--text);
-  font-size: clamp(32px, 5vw, 62px);
-  line-height: 0.98;
+  font-size: clamp(28px, 4vw, 46px);
+  line-height: 1.02;
   letter-spacing: -0.04em;
 }
 
@@ -3736,8 +3848,45 @@ a:focus-visible {
   max-width: 780px;
   margin: 0;
   color: var(--text-muted);
-  font-size: clamp(16px, 2vw, 20px);
-  line-height: 1.55;
+  font-size: clamp(14px, 1.4vw, 17px);
+  line-height: 1.5;
+}
+
+.ol-platform-admin-route-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px;
+}
+
+.ol-platform-admin-route-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ol-platform-admin-route-copy h1 {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.ol-platform-admin-route-copy p:last-child {
+  margin: 0;
+  max-width: 760px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ol-platform-admin-route-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .ol-platform-admin-hero-actions,
@@ -4212,6 +4361,14 @@ a:focus-visible {
   gap: 18px;
 }
 
+.ol-platform-admin-control-panel--compact {
+  gap: 14px;
+}
+
+.ol-platform-admin-route-status-card {
+  padding: 16px 18px;
+}
+
 .ol-platform-admin-status {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4233,6 +4390,18 @@ a:focus-visible {
   color: var(--text);
   font-size: 16px;
   line-height: 1.35;
+}
+
+.ol-platform-admin-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ol-platform-admin-status-strip .ol-platform-admin-status-pill {
+  min-height: 34px;
+  padding: 8px 12px;
+  overflow-wrap: anywhere;
 }
 
 .ol-platform-admin-search {
@@ -4686,7 +4855,7 @@ a:focus-visible {
 
 .ol-platform-admin-user-registry-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   padding: 18px;
 }
@@ -4701,23 +4870,56 @@ a:focus-visible {
 
 .ol-platform-admin-user-registry-note,
 .ol-platform-admin-user-inspector {
-  padding: 18px;
+  padding: 16px;
   border: 1px solid rgba(191, 205, 225, 0.78);
   border-radius: 20px;
   background: rgba(248, 251, 255, 0.92);
 }
 
-.ol-platform-admin-user-registry-note h2 {
-  margin: 10px 0 6px;
+.ol-platform-admin-user-registry-note strong {
+  display: block;
+  margin: 8px 0 6px;
   color: var(--text);
-  font-size: clamp(22px, 2.4vw, 28px);
-  line-height: 1.08;
+  font-size: 16px;
+  line-height: 1.3;
 }
 
 .ol-platform-admin-user-registry-note p:last-child {
   margin: 0;
   color: var(--text-muted);
   font-size: 13px;
+  font-weight: 760;
+  line-height: 1.5;
+}
+
+.ol-platform-admin-user-toolbar {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px 18px;
+  border-bottom: 1px solid rgba(191, 205, 225, 0.78);
+  background: rgba(248, 251, 255, 0.84);
+}
+
+.ol-platform-admin-user-toolbar-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.35fr) repeat(3, minmax(0, 0.75fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.ol-platform-admin-user-toolbar-search {
+  min-width: 0;
+}
+
+.ol-platform-admin-user-toolbar-meta {
+  display: grid;
+  gap: 10px;
+}
+
+.ol-platform-admin-user-toolbar-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
   font-weight: 760;
   line-height: 1.5;
 }
@@ -4735,7 +4937,7 @@ a:focus-visible {
 
 .ol-platform-admin-user-table {
   width: 100%;
-  min-width: 1320px;
+  min-width: 1380px;
   border-collapse: collapse;
 }
 
@@ -4800,6 +5002,19 @@ a:focus-visible {
   min-width: 0;
 }
 
+.ol-platform-admin-user-cell {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ol-platform-admin-user-inline-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
 .ol-platform-admin-user-table-statuses,
 .ol-platform-admin-user-table-actions {
   display: flex;
@@ -4815,6 +5030,7 @@ a:focus-visible {
 .ol-platform-admin-user-table-actions .ol-button-ghost {
   min-height: 36px;
   padding: 0 12px;
+  white-space: nowrap;
 }
 
 .ol-platform-admin-user-inspector-head {
@@ -5078,6 +5294,14 @@ a:focus-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .ol-platform-admin-user-toolbar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ol-platform-admin-user-toolbar-search {
+    grid-column: 1 / -1;
+  }
+
   .ol-platform-admin-admin-row {
     grid-template-columns: minmax(260px, 1.2fr) minmax(180px, 0.8fr) minmax(220px, 1fr) minmax(190px, auto);
   }
@@ -5126,6 +5350,7 @@ a:focus-visible {
   }
 
   .ol-platform-admin-hero,
+  .ol-platform-admin-route-bar,
   .ol-platform-admin-section-head,
   .ol-platform-admin-status,
   .ol-platform-admin-metrics,
@@ -5141,6 +5366,10 @@ a:focus-visible {
   }
 
   .ol-platform-admin-hero {
+    display: grid;
+  }
+
+  .ol-platform-admin-route-bar {
     display: grid;
   }
 
@@ -5170,6 +5399,11 @@ a:focus-visible {
   .ol-platform-admin-table-head {
     display: grid;
     align-items: start;
+  }
+
+  .ol-platform-admin-user-toolbar,
+  .ol-platform-admin-user-toolbar-grid {
+    grid-template-columns: 1fr;
   }
 
   .ol-platform-admin-metrics {
@@ -10574,18 +10808,31 @@ a:focus-visible {
     position: absolute;
     inset: 0 auto 0 0;
     width: min(86vw, 340px);
-    display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 18px;
     padding: 18px;
     border-right: 1px solid rgba(183, 197, 219, 0.72);
     background: rgba(248, 251, 255, 0.98);
     box-shadow: 24px 0 60px rgba(20, 32, 51, 0.18);
-    overflow: auto;
+    overflow-y: auto;
   }
 
   .ol-mobile-nav-panel .ol-sidebar-nav-group {
     overflow: visible;
+    min-height: auto;
+  }
+
+  .ol-mobile-nav-panel .ol-sidebar-group {
+    gap: 12px;
+  }
+
+  .ol-mobile-nav-panel .ol-nav-link {
+    align-items: flex-start;
+    min-height: 0;
+    padding: 12px 14px;
+    line-height: 1.35;
+    white-space: normal;
   }
 
   .ol-loading-shell,
@@ -15011,6 +15258,10 @@ a:focus-visible {
 
   .ol-backoffice-topbar-actions {
     display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .ol-backoffice-area-switcher {
     grid-template-columns: 1fr;
   }
 
