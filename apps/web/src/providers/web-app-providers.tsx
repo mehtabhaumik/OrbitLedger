@@ -30,6 +30,12 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
       return;
     }
 
+    // App Hosting is not reliably serving the repo public/ service worker yet,
+    // so keep production service worker registration off until that path is stable.
+    if (process.env.NEXT_PUBLIC_ORBIT_LEDGER_ENABLE_SERVICE_WORKER !== '1') {
+      return;
+    }
+
     let hasReloadedForServiceWorkerUpdate = false;
     function handleServiceWorkerControllerChange() {
       if (hasReloadedForServiceWorkerUpdate) {

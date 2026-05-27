@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 import { BrandOrbitalLoader } from '@/components/brand-loader';
+import { OrbitLedgerLogo } from '@/components/orbit-ledger-logo';
 import { validateEmail, validateName } from '@/lib/form-validation';
 import { WEB_BETA_TO_PAID_POLICY } from '@/lib/web-monetization';
 import { useAuth } from '@/providers/auth-provider';
@@ -103,10 +104,8 @@ export default function LoginPage() {
       <main className="ol-auth-page">
         <div className="ol-auth-loading-card" role="status" aria-live="polite">
           <Link className="ol-auth-logo-link" href="/">
-            <img
+            <OrbitLedgerLogo
               className="ol-brand-logo ol-brand-logo--md"
-              alt="Orbit Ledger"
-              src="/branding/orbit-ledger-logo-transparent.png"
               width={180}
               height={38}
             />
@@ -242,10 +241,8 @@ export default function LoginPage() {
       <div className="ol-auth-grid ol-auth-grid--premium">
         <div className="ol-brand-header">
           <Link className="ol-auth-logo-link" href="/" aria-label="Go to Orbit Ledger home">
-            <img
+            <OrbitLedgerLogo
               className="ol-brand-logo"
-              alt="Orbit Ledger"
-              src="/branding/orbit-ledger-logo-transparent.png"
             />
           </Link>
           <Link className="ol-brand-header-copy" href="/">

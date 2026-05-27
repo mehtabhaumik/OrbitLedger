@@ -17,7 +17,7 @@ import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { isEmbeddedWebViewUserAgent, isOrbitLedgerCustomAuthDomain } from '@/lib/auth-domain';
-import { createGoogleProvider, getWebAuth } from '@/lib/firebase';
+import { createGoogleProvider, getWebAuth, getWebAuthReady } from '@/lib/firebase';
 import {
   WEB_AUTH_ABSOLUTE_TIMEOUT_MS,
   WEB_AUTH_IDLE_TIMEOUT_MS,
@@ -71,64 +71,77 @@ export function AuthProvider({
   useEffect(() => {
     let isMounted = true;
     let hasResolvedAuthState = false;
-    const auth = getWebAuth();
-    const shouldResolveRedirect = shouldResolveGoogleRedirectResult();
-    if (shouldResolveRedirect) {
-      void withTimeout(getRedirectResult(auth), GOOGLE_REDIRECT_RESULT_TIMEOUT_MS)
-        .catch(() => undefined)
-        .finally(() => {
-          clearGoogleRedirectPending();
-        });
-    }
+    let loadingFallback: number | null = null;
+    let unsubscribe: () => void = () => {};
 
-    const loadingFallback =
-      typeof window !== 'undefined'
-        ? window.setTimeout(() => {
-            if (!isMounted || hasResolvedAuthState) {
-              return;
-            }
-
-            hasResolvedAuthState = true;
-            clearGoogleRedirectPending();
-
-            const currentUser = auth.currentUser;
-            if (currentUser) {
-              const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), currentUser.uid);
-              writeWebAuthSession(nextSession);
-            } else {
-              clearWebAuthSession();
-            }
-
-            setUser(currentUser);
-            setIsLoading(false);
-          }, AUTH_STATE_READY_TIMEOUT_MS)
-        : null;
-
-    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+    void (async () => {
+      const auth = await getWebAuthReady();
       if (!isMounted) {
         return;
       }
 
-      hasResolvedAuthState = true;
-      if (loadingFallback) {
-        window.clearTimeout(loadingFallback);
+      const shouldResolveRedirect = shouldResolveGoogleRedirectResult();
+      if (shouldResolveRedirect) {
+        await withTimeout(getRedirectResult(auth), GOOGLE_REDIRECT_RESULT_TIMEOUT_MS)
+          .catch(() => undefined)
+          .finally(() => {
+            clearGoogleRedirectPending();
+          });
       }
 
-      const message = readSessionExpiryMessage();
-      if (message) {
-        setSessionExpiryMessage(message);
+      if (!isMounted) {
+        return;
       }
 
-      if (nextUser) {
-        const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), nextUser.uid);
-        writeWebAuthSession(nextSession);
-      } else {
-        clearWebAuthSession();
-      }
+      loadingFallback =
+        typeof window !== 'undefined'
+          ? window.setTimeout(() => {
+              if (!isMounted || hasResolvedAuthState) {
+                return;
+              }
 
-      setUser(nextUser);
-      setIsLoading(false);
-    });
+              hasResolvedAuthState = true;
+              clearGoogleRedirectPending();
+
+              const currentUser = auth.currentUser;
+              if (currentUser) {
+                const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), currentUser.uid);
+                writeWebAuthSession(nextSession);
+              } else {
+                clearWebAuthSession();
+              }
+
+              setUser(currentUser);
+              setIsLoading(false);
+            }, AUTH_STATE_READY_TIMEOUT_MS)
+          : null;
+
+      unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+        if (!isMounted) {
+          return;
+        }
+
+        hasResolvedAuthState = true;
+        if (loadingFallback) {
+          window.clearTimeout(loadingFallback);
+        }
+
+        const message = readSessionExpiryMessage();
+        if (message) {
+          setSessionExpiryMessage(message);
+        }
+
+        if (nextUser) {
+          const nextSession = createOrResumeWebAuthSession(readWebAuthSession(), nextUser.uid);
+          writeWebAuthSession(nextSession);
+        } else {
+          clearWebAuthSession();
+        }
+
+        setUser(nextUser);
+        setIsLoading(false);
+      });
+    })();
 
     return () => {
       isMounted = false;
@@ -217,10 +230,10 @@ export function AuthProvider({
         }
       },
       async sendPasswordReset(email) {
-        await sendPasswordResetEmail(getWebAuth(), email.trim());
+        await sendPasswordResetEmail(await getWebAuthReady(), email.trim());
       },
       async signInWithGoogle() {
-        const auth = getWebAuth();
+        const auth = await getWebAuthReady();
         const provider = createGoogleProvider();
 
         if (shouldUseGoogleRedirectFirst()) {
@@ -245,7 +258,7 @@ export function AuthProvider({
       },
       async signOutUser() {
         clearWebAuthSession();
-        await signOut(getWebAuth());
+        await signOut(await getWebAuthReady());
       },
     }),
     [isLoading, sessionExpiryMessage, user]

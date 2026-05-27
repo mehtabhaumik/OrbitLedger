@@ -9,8 +9,10 @@ const webRoot = path.join(repoRoot, 'apps', 'web');
 const webNextDir = path.join(webRoot, '.next');
 const webStandaloneDir = path.join(webNextDir, 'standalone');
 const webStandaloneAppDir = path.join(webStandaloneDir, 'apps', 'web');
+const webPublicDir = path.join(webRoot, 'public');
 const rootNextDir = path.join(repoRoot, '.next');
 const rootStandaloneDir = path.join(rootNextDir, 'standalone');
+const rootPublicDir = path.join(repoRoot, 'public');
 
 execFileSync('npm', ['run', 'build', '--workspace', '@orbit-ledger/web'], {
   cwd: repoRoot,
@@ -36,3 +38,9 @@ for (const entry of readdirSync(webStandaloneAppDir, { withFileTypes: true })) {
 }
 
 rmSync(path.join(rootStandaloneDir, 'apps'), { recursive: true, force: true });
+
+rmSync(rootPublicDir, { recursive: true, force: true });
+if (existsSync(webPublicDir)) {
+  cpSync(webPublicDir, rootPublicDir, { recursive: true });
+  cpSync(webPublicDir, path.join(rootStandaloneDir, 'public'), { recursive: true });
+}
