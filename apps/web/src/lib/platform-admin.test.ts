@@ -8,6 +8,7 @@ import {
   filterWebPlatformAdminAuditRecords,
   filterWebPlatformAdminOffers,
   filterWebPlatformAdminUsers,
+  filterWebPlatformAdminUsersWithFilters,
   formatPlatformAdminDate,
   type WebPlatformAdminAuditRecord,
   type WebPlatformAdminOffer,
@@ -434,6 +435,10 @@ describe('platform admin registry helpers', () => {
       label: 'Launch Offer',
       targets: 'All eligible users',
     });
+    expect(reports.find((report) => report.type === 'user_registry')?.rows[0]).toMatchObject({
+      platformRole: 'No platform role',
+      officeRoles: 'No Office role',
+    });
     expect(reports.find((report) => report.type === 'support_cases')?.rows[0]).toMatchObject({
       case: 'case_1',
       reason: 'Support consent review',
@@ -476,6 +481,70 @@ describe('platform admin registry helpers', () => {
       )
     ).toHaveLength(1);
     expect(filterWebPlatformAdminUsers(users, 'missing')).toHaveLength(0);
+  });
+
+  it('filters users by platform role, office access, and provider type', () => {
+    const users = [
+      {
+        ...baseUser,
+        uid: 'super-admin',
+        email: 'super-admin@example.com',
+        platformAdminRole: 'super_admin' as const,
+        platformAdminStatus: 'active' as const,
+        platformAdminRoleSource: 'registry' as const,
+      },
+      {
+        ...baseUser,
+        uid: 'support-admin',
+        email: 'support-admin@example.com',
+        platformAdminRole: 'support_admin' as const,
+        platformAdminStatus: 'active' as const,
+        platformAdminRoleSource: 'custom_claim' as const,
+        officeWorkspaceCount: 1,
+        officeRoles: ['support_reviewer'],
+        providerIds: ['password'],
+      },
+      {
+        ...baseUser,
+        uid: 'standard-user',
+        email: 'user@example.com',
+        platformAdminRole: null,
+        platformAdminStatus: null,
+        platformAdminRoleSource: null,
+        officeWorkspaceCount: 0,
+        officeRoles: [],
+        providerIds: [],
+      },
+    ];
+
+    expect(
+      filterWebPlatformAdminUsersWithFilters(users, '', {
+        role: 'support_admin',
+        officeAccess: 'all',
+        provider: 'all',
+      })
+    ).toHaveLength(1);
+    expect(
+      filterWebPlatformAdminUsersWithFilters(users, '', {
+        role: 'all',
+        officeAccess: 'has_office_access',
+        provider: 'all',
+      })
+    ).toHaveLength(1);
+    expect(
+      filterWebPlatformAdminUsersWithFilters(users, '', {
+        role: 'all',
+        officeAccess: 'all',
+        provider: 'password',
+      })
+    ).toHaveLength(1);
+    expect(
+      filterWebPlatformAdminUsersWithFilters(users, '', {
+        role: 'no_platform_role',
+        officeAccess: 'no_office_access',
+        provider: 'no_provider',
+      })
+    ).toHaveLength(1);
   });
 
   it('formats missing and valid dates safely', () => {

@@ -182,6 +182,16 @@ export type WebPlatformAdminMetrics = {
   subscribedUserCount: number;
 };
 
+export type WebPlatformAdminUserRoleFilter = PlatformAdminRole | 'all' | 'no_platform_role';
+export type WebPlatformAdminUserOfficeFilter = 'all' | 'has_office_access' | 'no_office_access';
+export type WebPlatformAdminUserProviderFilter = 'all' | 'google' | 'password' | 'multi_provider' | 'no_provider';
+
+export type WebPlatformAdminUserFilters = {
+  role: WebPlatformAdminUserRoleFilter;
+  officeAccess: WebPlatformAdminUserOfficeFilter;
+  provider: WebPlatformAdminUserProviderFilter;
+};
+
 export type WebPlatformAdminSnapshot = {
   generatedAt: string;
   nextPageToken: string | null;
@@ -318,9 +328,11 @@ export function buildWebPlatformAdminReport(input: {
         { key: 'name', label: 'Name' },
         { key: 'email', label: 'Email' },
         { key: 'status', label: 'Status' },
+        { key: 'platformRole', label: 'Platform role' },
         { key: 'providers', label: 'Providers' },
         { key: 'workspaces', label: 'Workspaces' },
-        { key: 'office', label: 'Office' },
+        { key: 'officeRoles', label: 'Office roles' },
+        { key: 'office', label: 'Office access' },
         { key: 'risk', label: 'Risk' },
         { key: 'warnings', label: 'Warnings' },
         { key: 'lastSignIn', label: 'Last sign-in' },
@@ -329,9 +341,11 @@ export function buildWebPlatformAdminReport(input: {
         name: user.displayName ?? user.uid,
         email: user.email ?? 'No email saved',
         status: user.disabled ? 'Disabled' : user.status,
+        platformRole: user.platformAdminRole ? user.platformAdminRole.replaceAll('_', ' ') : 'No platform role',
         providers: user.providerIds.join(', ') || 'No provider',
         workspaces: user.workspaceNames.join(', ') || String(user.ownedWorkspaceCount),
-        office: user.officeWorkspaceCount ? `${user.officeWorkspaceCount} workspace(s) · ${user.officeRoles.join(', ')}` : 'No Office access',
+        officeRoles: user.officeRoles.join(', ') || 'No Office role',
+        office: user.officeWorkspaceCount ? `${user.officeWorkspaceCount} workspace(s)` : 'No Office access',
         risk: user.platformUserRiskStatus ?? 'No risk flag',
         warnings: String(user.platformUserWarningCount),
         lastSignIn: formatPlatformAdminDate(user.lastSignInAt),
@@ -619,33 +633,77 @@ function formatMonthLabel(key: string): string {
 }
 
 export function filterWebPlatformAdminUsers(users: WebPlatformAdminUser[], searchTerm: string): WebPlatformAdminUser[] {
+  return filterWebPlatformAdminUsersWithFilters(users, searchTerm, {
+    role: 'all',
+    officeAccess: 'all',
+    provider: 'all',
+  });
+}
+
+export function filterWebPlatformAdminUsersWithFilters(
+  users: WebPlatformAdminUser[],
+  searchTerm: string,
+  filters: WebPlatformAdminUserFilters
+): WebPlatformAdminUser[] {
   const search = searchTerm.trim().toLowerCase();
-  if (!search) {
-    return users;
-  }
   return users.filter((user) =>
-    [
-      user.uid,
-      user.email ?? '',
-      user.displayName ?? '',
-      user.status,
-      ...user.providerIds,
-      ...user.workspaceNames,
-      ...user.officeRoles,
-      user.platformAdminRole ?? '',
-      user.platformAdminStatus ?? '',
-      user.platformAdminRoleSource ?? '',
-      user.platformUserStatus ?? '',
-      user.platformUserRiskStatus ?? '',
-      String(user.platformUserWarningCount),
-      user.platformUserLastAdminAction ?? '',
-      user.platformUserLastAdminReason ?? '',
-      user.platformUserLastInternalNotePreview ?? '',
-    ]
-      .join(' ')
-      .toLowerCase()
-      .includes(search)
+    matchesPlatformAdminRoleFilter(user, filters.role) &&
+    matchesOfficeAccessFilter(user, filters.officeAccess) &&
+    matchesProviderFilter(user, filters.provider) &&
+    (!search ||
+      [
+        user.uid,
+        user.email ?? '',
+        user.displayName ?? '',
+        user.status,
+        ...user.providerIds,
+        ...user.workspaceNames,
+        ...user.officeRoles,
+        user.platformAdminRole ?? '',
+        user.platformAdminStatus ?? '',
+        user.platformAdminRoleSource ?? '',
+        user.platformUserStatus ?? '',
+        user.platformUserRiskStatus ?? '',
+        String(user.platformUserWarningCount),
+        user.platformUserLastAdminAction ?? '',
+        user.platformUserLastAdminReason ?? '',
+        user.platformUserLastInternalNotePreview ?? '',
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(search))
   );
+}
+
+function matchesPlatformAdminRoleFilter(user: WebPlatformAdminUser, role: WebPlatformAdminUserRoleFilter): boolean {
+  if (role === 'all') {
+    return true;
+  }
+  if (role === 'no_platform_role') {
+    return user.platformAdminRole == null;
+  }
+  return user.platformAdminRole === role;
+}
+
+function matchesOfficeAccessFilter(user: WebPlatformAdminUser, officeAccess: WebPlatformAdminUserOfficeFilter): boolean {
+  if (officeAccess === 'all') {
+    return true;
+  }
+  const hasOfficeAccess = user.officeWorkspaceCount > 0 || user.officeRoles.length > 0;
+  return officeAccess === 'has_office_access' ? hasOfficeAccess : !hasOfficeAccess;
+}
+
+function matchesProviderFilter(user: WebPlatformAdminUser, provider: WebPlatformAdminUserProviderFilter): boolean {
+  if (provider === 'all') {
+    return true;
+  }
+  if (provider === 'no_provider') {
+    return user.providerIds.length === 0;
+  }
+  if (provider === 'multi_provider') {
+    return user.providerIds.length > 1;
+  }
+  return user.providerIds.includes(provider === 'google' ? 'google.com' : 'password');
 }
 
 export function filterWebPlatformAdminAuditRecords(

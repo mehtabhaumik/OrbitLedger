@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -16,7 +17,7 @@ import {
   buildWebPlatformAdminSaasHealthCharts,
   filterWebPlatformAdminAuditRecords,
   filterWebPlatformAdminOffers,
-  filterWebPlatformAdminUsers,
+  filterWebPlatformAdminUsersWithFilters,
   formatPlatformAdminDate,
   loadWebPlatformAdminAuditTrail,
   loadWebPlatformAdminSnapshot,
@@ -36,6 +37,10 @@ import {
   type WebPlatformAdminReportType,
   type WebPlatformAdminRegistryRecord,
   type WebPlatformAdminSnapshot,
+  type WebPlatformAdminUserFilters,
+  type WebPlatformAdminUserOfficeFilter,
+  type WebPlatformAdminUserProviderFilter,
+  type WebPlatformAdminUserRoleFilter,
   type WebPlatformAdminUser,
   type WebPlatformAdminUserAction,
   WEB_PLATFORM_ADMIN_REPORT_DEFINITIONS,
@@ -138,19 +143,20 @@ const DEFAULT_AUDIT_FILTERS: WebPlatformAdminAuditFilters = {
   toDate: '',
 };
 
-const PLATFORM_ADMIN_NAV_ITEMS = [
-  { href: '#overview', label: 'Overview' },
-  { href: '#saas-health', label: 'SaaS Health' },
-  { href: '#settings', label: 'Safety' },
-  { href: '#users', label: 'Users' },
-  { href: '#admins', label: 'Admins' },
-  { href: '#offers', label: 'Billing & Offers' },
-  { href: '#office', label: 'Office' },
-  { href: '#support', label: 'Support' },
-  { href: '#live-collections', label: 'Live Collections' },
-  { href: '#reports', label: 'Reports' },
-  { href: '#audit', label: 'Audit' },
-] as const;
+const DEFAULT_USER_FILTERS: WebPlatformAdminUserFilters = {
+  role: 'all',
+  officeAccess: 'all',
+  provider: 'all',
+};
+
+export type PlatformAdminConsoleSection =
+  | 'overview'
+  | 'users'
+  | 'admins'
+  | 'billing-offers'
+  | 'safety-controls'
+  | 'reports'
+  | 'audit';
 
 const MFA_READINESS_COPY: Record<
   PlatformAdminRole,
@@ -181,13 +187,15 @@ const MFA_READINESS_COPY: Record<
   },
 };
 
-export default function PlatformAdminPage() {
+export default function PlatformAdminConsole({ section }: { section: PlatformAdminConsoleSection }) {
   const { user, isLoading: isAuthLoading } = useAuth();
+  const router = useRouter();
   const { confirm, prompt } = useConfirmDialog();
   const [snapshot, setSnapshot] = useState<WebPlatformAdminSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [userFilters, setUserFilters] = useState<WebPlatformAdminUserFilters>(DEFAULT_USER_FILTERS);
   const [pageTokens, setPageTokens] = useState<Array<string | null>>([null]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [adminActionMessage, setAdminActionMessage] = useState<string | null>(null);
@@ -212,7 +220,10 @@ export default function PlatformAdminPage() {
   const [offerForm, setOfferForm] = useState<OfferFormState>(DEFAULT_OFFER_FORM);
   const [reportType, setReportType] = useState<WebPlatformAdminReportType>('user_registry');
   const [reportPreviewPage, setReportPreviewPage] = useState(0);
-  const users = useMemo(() => filterWebPlatformAdminUsers(snapshot?.users ?? [], search), [search, snapshot?.users]);
+  const users = useMemo(
+    () => filterWebPlatformAdminUsersWithFilters(snapshot?.users ?? [], search, userFilters),
+    [search, snapshot?.users, userFilters]
+  );
   const visibleOffers = useMemo(
     () => filterWebPlatformAdminOffers(snapshot?.offers ?? [], offerSearch),
     [offerSearch, snapshot?.offers]
@@ -284,6 +295,9 @@ export default function PlatformAdminPage() {
     () =>
       [
         search.trim() ? `User search: ${search.trim()}` : '',
+        userFilters.role !== 'all' ? `Platform role: ${humanizeUserRoleFilter(userFilters.role)}` : '',
+        userFilters.officeAccess !== 'all' ? `Office access: ${humanizeOfficeAccessFilter(userFilters.officeAccess)}` : '',
+        userFilters.provider !== 'all' ? `Provider: ${humanizeProviderFilter(userFilters.provider)}` : '',
         offerSearch.trim() ? `Offer search: ${offerSearch.trim()}` : '',
         auditSearch.trim() ? `Audit search: ${auditSearch.trim()}` : '',
         auditFilters.action.trim() ? `Audit action: ${auditFilters.action.trim()}` : '',
@@ -293,7 +307,7 @@ export default function PlatformAdminPage() {
         auditFilters.fromDate ? `From: ${auditFilters.fromDate}` : '',
         auditFilters.toDate ? `To: ${auditFilters.toDate}` : '',
       ].filter(Boolean),
-    [auditFilters, auditSearch, offerSearch, search]
+    [auditFilters, auditSearch, offerSearch, search, userFilters]
   );
   const selectedReport = useMemo(() => {
     if (!snapshot) {
@@ -412,12 +426,6 @@ export default function PlatformAdminPage() {
     void refresh(null, { nextPageIndex: 0, rememberedTokens: [null] });
   }
 
-  function scrollToAdminSection(sectionId: string) {
-    window.setTimeout(() => {
-      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 0);
-  }
-
   function openCreateAdminForm() {
     setAdminActionError(null);
     setAdminActionMessage(null);
@@ -425,18 +433,16 @@ export default function PlatformAdminPage() {
   }
 
   function openCreateAdminFromOverview() {
-    openCreateAdminForm();
-    scrollToAdminSection('admins');
+    router.push('/backoffice/platform/admins');
   }
 
   function focusUserSearchFromOverview() {
-    scrollToAdminSection('users');
-    window.setTimeout(() => document.getElementById('platform-admin-search')?.focus(), 160);
+    router.push('/backoffice/platform/users');
   }
 
   function reviewWarningsFromOverview() {
     setSearch('under_review');
-    scrollToAdminSection('user-controls');
+    router.push('/backoffice/platform/users');
   }
 
   function openManageAdminForm(admin: WebPlatformAdminRegistryRecord, action: WebPlatformAdminAccountAction = 'change_role') {
@@ -624,12 +630,11 @@ export default function PlatformAdminPage() {
   }
 
   function openCreateOfferFromOverview() {
-    openCreateOfferForm();
-    scrollToAdminSection('offers');
+    router.push('/backoffice/platform/billing-offers');
   }
 
   function openReportsFromOverview() {
-    scrollToAdminSection('reports');
+    router.push('/backoffice/platform/reports');
   }
 
   async function confirmOfferFormSubmission() {
@@ -873,6 +878,14 @@ export default function PlatformAdminPage() {
     );
   }
 
+  const showOverview = section === 'overview';
+  const showUsers = section === 'users';
+  const showAdmins = section === 'admins';
+  const showBillingOffers = section === 'billing-offers';
+  const showSafetyControls = section === 'safety-controls';
+  const showReports = section === 'reports';
+  const showAudit = section === 'audit';
+
   return (
     <main className="ol-platform-admin-page">
       <section className="ol-platform-admin-shell">
@@ -901,23 +914,10 @@ export default function PlatformAdminPage() {
           </div>
         ) : null}
 
-        <div className="ol-platform-admin-layout">
-          <aside className="ol-platform-admin-sidebar" aria-label="Platform admin navigation">
-            <div>
-              <span className="ol-platform-admin-sidebar-label">Admin navigation</span>
-              <strong>Control center</strong>
-            </div>
-            <nav>
-              {PLATFORM_ADMIN_NAV_ITEMS.map((item) => (
-                <a key={item.href} href={item.href}>
-                  {item.label}
-                </a>
-              ))}
-            </nav>
-          </aside>
-
+        <div className="ol-platform-admin-layout ol-platform-admin-layout--single">
           <div className="ol-platform-admin-workspace">
-            <section className="ol-platform-admin-overview" id="overview">
+            {showOverview ? (
+            <section className="ol-platform-admin-overview">
               <div className="ol-platform-admin-section-head">
                 <div>
                   <p className="ol-chip">Overview</p>
@@ -1010,42 +1010,42 @@ export default function PlatformAdminPage() {
                       subtitle="Last six months"
                       data={saasHealthCharts.newUsersTrend}
                       actionLabel="Open users"
-                      actionHref="#users"
+                      actionHref="/backoffice/platform/users"
                     />
                     <AdminDonutChart
                       title="User status"
                       subtitle="Active, not onboarded, disabled"
                       data={saasHealthCharts.userStatusMix}
                       actionLabel="Review users"
-                      actionHref="#users"
+                      actionHref="/backoffice/platform/users"
                     />
                     <AdminStackedChart
                       title="Workspace adoption"
                       subtitle="Workspace and Office activation"
                       data={saasHealthCharts.workspaceAdoption}
-                      actionLabel="Open Office"
-                      actionHref="#office"
+                      actionLabel="Open user registry"
+                      actionHref="/backoffice/platform/users"
                     />
                     <AdminStackedChart
                       title="Offer status"
                       subtitle="Pricing exposure by lifecycle"
                       data={saasHealthCharts.offerStatusMix}
                       actionLabel="Open offers"
-                      actionHref="#offers"
+                      actionHref="/backoffice/platform/billing-offers"
                     />
                     <AdminHorizontalBars
                       title="Audit severity"
                       subtitle="Loaded audit events"
                       data={saasHealthCharts.auditSeverityMix}
                       actionLabel="Open audit"
-                      actionHref="#audit"
+                      actionHref="/backoffice/platform/audit"
                     />
                     <AdminHorizontalBars
                       title="Admin roles"
                       subtitle="Registry role distribution"
                       data={saasHealthCharts.adminRoleMix}
                       actionLabel="Open admins"
-                      actionHref="#admins"
+                      actionHref="/backoffice/platform/admins"
                     />
                   </div>
                 </section>
@@ -1059,6 +1059,7 @@ export default function PlatformAdminPage() {
                 <AdminAreaCard title="Settings" value={snapshot?.adminAccess?.customClaimsReady ? 'Claims active' : 'Allowlist fallback'} detail="Admin session, permissions, and sensitive controls." />
               </section>
             </section>
+            ) : null}
 
             <section className="ol-panel ol-platform-admin-control-panel">
               <div className="ol-platform-admin-status">
@@ -1097,11 +1098,80 @@ export default function PlatformAdminPage() {
                   placeholder="Email, name, uid, workspace, or role"
                 />
               </div>
+              <div className="ol-platform-admin-user-filters">
+                <label className="ol-form-field">
+                  <span>Platform role</span>
+                  <select
+                    className="ol-select"
+                    value={userFilters.role}
+                    onChange={(event) =>
+                      setUserFilters((current) => ({
+                        ...current,
+                        role: event.target.value as WebPlatformAdminUserRoleFilter,
+                      }))
+                    }
+                  >
+                    <option value="all">All roles</option>
+                    {PLATFORM_ADMIN_ROLES.map((role) => (
+                      <option key={role} value={role}>
+                        {getPlatformAdminRoleDefinition(role).label}
+                      </option>
+                    ))}
+                    <option value="no_platform_role">No platform role</option>
+                  </select>
+                </label>
+                <label className="ol-form-field">
+                  <span>Office access</span>
+                  <select
+                    className="ol-select"
+                    value={userFilters.officeAccess}
+                    onChange={(event) =>
+                      setUserFilters((current) => ({
+                        ...current,
+                        officeAccess: event.target.value as WebPlatformAdminUserOfficeFilter,
+                      }))
+                    }
+                  >
+                    <option value="all">All users</option>
+                    <option value="has_office_access">Has Office access</option>
+                    <option value="no_office_access">No Office access</option>
+                  </select>
+                </label>
+                <label className="ol-form-field">
+                  <span>Sign-in method</span>
+                  <select
+                    className="ol-select"
+                    value={userFilters.provider}
+                    onChange={(event) =>
+                      setUserFilters((current) => ({
+                        ...current,
+                        provider: event.target.value as WebPlatformAdminUserProviderFilter,
+                      }))
+                    }
+                  >
+                    <option value="all">All methods</option>
+                    <option value="google">Google</option>
+                    <option value="password">Email and password</option>
+                    <option value="multi_provider">Multiple providers</option>
+                    <option value="no_provider">No provider</option>
+                  </select>
+                </label>
+                <div className="ol-platform-admin-filter-summary">
+                  <span className="ol-platform-admin-sidebar-label">Visible users</span>
+                  <strong>
+                    {users.length.toLocaleString('en-IN')} shown from {(snapshot?.users.length ?? 0).toLocaleString('en-IN')} loaded
+                  </strong>
+                  <p>
+                    Filter by admin role, Office access, and sign-in method before exporting or opening user details.
+                  </p>
+                </div>
+              </div>
               <p className="ol-panel-copy">
                 This registry never shows passwords, provider secrets, payment secrets, or customer ledger data.
               </p>
             </section>
 
+            {showSafetyControls ? (
             <section className="ol-platform-admin-table-card" id="settings">
               <div className="ol-platform-admin-table-head">
                 <div>
@@ -1136,7 +1206,9 @@ export default function PlatformAdminPage() {
                 </article>
               </div>
             </section>
+            ) : null}
 
+            {showReports ? (
             <section className="ol-platform-admin-table-card ol-platform-admin-report-card" id="reports">
               <div className="ol-platform-admin-table-head">
                 <div>
@@ -1255,7 +1327,9 @@ export default function PlatformAdminPage() {
                 </div>
               </div>
             </section>
+            ) : null}
 
+        {showAdmins ? (
         <section className="ol-platform-admin-table-card" id="admins">
           <div className="ol-platform-admin-table-head">
             <div>
@@ -1408,7 +1482,9 @@ export default function PlatformAdminPage() {
             ) : null}
           </div>
         </section>
+        ) : null}
 
+        {showBillingOffers ? (
         <section className="ol-platform-admin-table-card" id="offers">
           <div className="ol-platform-admin-table-head">
             <div>
@@ -1681,7 +1757,9 @@ export default function PlatformAdminPage() {
             ) : null}
           </div>
         </section>
+        ) : null}
 
+        {showAudit ? (
         <section className="ol-platform-admin-table-card ol-platform-admin-audit-card" id="audit">
           <div className="ol-platform-admin-table-head">
             <div>
@@ -1822,8 +1900,9 @@ export default function PlatformAdminPage() {
             </div>
           )}
         </section>
+        ) : null}
 
-        {canControlUsers ? (
+        {showUsers && canControlUsers ? (
           <section className="ol-platform-admin-table-card" id="user-controls">
             <div className="ol-platform-admin-table-head">
               <div>
@@ -1961,12 +2040,19 @@ export default function PlatformAdminPage() {
           </section>
         ) : null}
 
+        {showUsers ? (
         <section className="ol-platform-admin-table-card" id="users">
           <div className="ol-platform-admin-table-head">
-            <strong>Users</strong>
+            <div>
+              <strong>Users</strong>
+              <span>
+                {users.length.toLocaleString('en-IN')} shown · {(snapshot?.users.length ?? 0).toLocaleString('en-IN')} loaded on page{' '}
+                {currentPageIndex + 1}
+                {snapshot ? ` of ${snapshot.hasMore ? `${currentPageIndex + 2}+` : currentPageIndex + 1}` : ''}
+              </span>
+            </div>
             <span>
-              {users.length.toLocaleString('en-IN')} shown · page {currentPageIndex + 1}
-              {snapshot ? ` of ${snapshot.hasMore ? `${currentPageIndex + 2}+` : currentPageIndex + 1}` : ''}
+              {(snapshot?.metrics.userCount ?? 0).toLocaleString('en-IN')} total platform user{snapshot?.metrics.userCount === 1 ? '' : 's'}
             </span>
           </div>
           {isLoading && !snapshot ? (
@@ -1978,6 +2064,13 @@ export default function PlatformAdminPage() {
             </div>
           ) : users.length ? (
             <div className="ol-platform-admin-user-list">
+              <div className="ol-platform-admin-user-list-head" aria-hidden="true">
+                <span>Name</span>
+                <span>Role and access</span>
+                <span>Account state</span>
+                <span>Workspaces</span>
+                <span>Actions</span>
+              </div>
               {users.map((item) => (
                 <UserRow
                   key={item.uid}
@@ -2006,6 +2099,7 @@ export default function PlatformAdminPage() {
             </button>
           </div>
         </section>
+        ) : null}
           </div>
         </div>
       </section>
@@ -2426,6 +2520,38 @@ function summarizeOfferTargets(offer: WebPlatformAdminOffer): string {
   return 'Selected targets';
 }
 
+function humanizeUserRoleFilter(role: WebPlatformAdminUserRoleFilter): string {
+  if (role === 'all') {
+    return 'All roles';
+  }
+  if (role === 'no_platform_role') {
+    return 'No platform role';
+  }
+  return getPlatformAdminRoleDefinition(role).label;
+}
+
+function humanizeOfficeAccessFilter(filter: WebPlatformAdminUserOfficeFilter): string {
+  if (filter === 'all') {
+    return 'All users';
+  }
+  return filter === 'has_office_access' ? 'Has Office access' : 'No Office access';
+}
+
+function humanizeProviderFilter(filter: WebPlatformAdminUserProviderFilter): string {
+  switch (filter) {
+    case 'google':
+      return 'Google';
+    case 'password':
+      return 'Email and password';
+    case 'multi_provider':
+      return 'Multiple providers';
+    case 'no_provider':
+      return 'No provider';
+    default:
+      return 'All methods';
+  }
+}
+
 function UserRow({
   user,
   canControl,
@@ -2438,6 +2564,10 @@ function UserRow({
   onManage: (user: WebPlatformAdminUser, action?: WebPlatformAdminUserAction) => void;
 }) {
   const title = user.displayName || user.email || user.uid;
+  const platformRoleLabel = user.platformAdminRole
+    ? getPlatformAdminRoleDefinition(user.platformAdminRole).label
+    : 'No platform role';
+  const officeRoleSummary = user.officeRoles.length ? user.officeRoles.join(', ') : 'No Office role';
   const workspaceSummary = user.ownedWorkspaceCount
     ? `${user.ownedWorkspaceCount} owned workspace${user.ownedWorkspaceCount === 1 ? '' : 's'}${
         user.workspaceNames.length ? ` · ${user.workspaceNames.join(', ')}` : ''
@@ -2459,7 +2589,16 @@ function UserRow({
           <code>{user.uid}</code>
         </div>
       </div>
+      <div className="ol-platform-admin-user-meta ol-platform-admin-user-meta--roles">
+        <span className="ol-platform-admin-user-meta-label">Platform role</span>
+        <strong>{platformRoleLabel}</strong>
+        <span>{user.platformAdminRole ? `Source: ${user.platformAdminRoleSource ?? 'registry'}` : 'Standard user account'}</span>
+        <span className="ol-platform-admin-user-meta-label">Office roles</span>
+        <strong>{officeRoleSummary}</strong>
+        <span>{user.officeWorkspaceCount ? `${user.officeWorkspaceCount} Office workspace(s)` : 'No Office access'}</span>
+      </div>
       <div className="ol-platform-admin-user-meta">
+        <span className="ol-platform-admin-user-meta-label">Account state</span>
         <StatusPill user={user} />
         {user.platformUserRiskStatus === 'under_review' ? (
           <span className="ol-platform-admin-status-pill" data-tone="warning">
@@ -2469,11 +2608,6 @@ function UserRow({
         {user.platformUserWarningCount ? (
           <span className="ol-platform-admin-status-pill" data-tone="warning">
             {user.platformUserWarningCount} warning{user.platformUserWarningCount === 1 ? '' : 's'}
-          </span>
-        ) : null}
-        {user.platformAdminRole ? (
-          <span>
-            {getPlatformAdminRoleDefinition(user.platformAdminRole).label} · {user.platformAdminRoleSource ?? 'registry'}
           </span>
         ) : null}
         {user.isQaUser ? (
@@ -2487,12 +2621,11 @@ function UserRow({
           </span>
         ) : null}
         <span>{user.providerIds.length ? user.providerIds.join(', ') : 'No provider'}</span>
-      </div>
-      <div className="ol-platform-admin-user-meta">
         <span>Created {formatPlatformAdminDate(user.createdAt)}</span>
         <span>Last sign-in {formatPlatformAdminDate(user.lastSignInAt)}</span>
       </div>
       <div className="ol-platform-admin-user-meta">
+        <span className="ol-platform-admin-user-meta-label">Workspace footprint</span>
         <span>{workspaceSummary}</span>
         <span>{officeSummary}</span>
         {user.platformUserLastAdminReason ? <span>Last action: {user.platformUserLastAdminReason}</span> : null}

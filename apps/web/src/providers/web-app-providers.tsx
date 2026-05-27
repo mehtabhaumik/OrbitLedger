@@ -23,6 +23,7 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
   const isLandingRoute = pathname === '/';
   const isPublicPreviewRoute = pathname === '/template-preview';
   const isPlatformAdminRoute = pathname?.startsWith('/platform-admin');
+  const isBackofficeRoute = pathname?.startsWith('/backoffice');
   const isPublicMarketingRoute = isLandingRoute || isPublicPreviewRoute;
 
   useEffect(() => {
@@ -78,15 +79,27 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
     return <AuthProvider>{children}</AuthProvider>;
   }
 
-  if (isPlatformAdminRoute) {
+  if (isPlatformAdminRoute || isBackofficeRoute) {
     return (
       <AuthProvider
         absoluteTimeoutMs={WEB_PLATFORM_ADMIN_ABSOLUTE_TIMEOUT_MS}
         idleTimeoutMs={WEB_PLATFORM_ADMIN_IDLE_TIMEOUT_MS}
       >
-        <ToastProvider>
-          <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
-        </ToastProvider>
+        <WorkspaceProvider>
+          <OfficeAccessProvider>
+            <SubscriptionProvider>
+              <DeviceSettingsProvider>
+                <WebLockProvider>
+                  <ToastProvider>
+                    <LiveCollectionsFeedProvider>
+                      <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+                    </LiveCollectionsFeedProvider>
+                  </ToastProvider>
+                </WebLockProvider>
+              </DeviceSettingsProvider>
+            </SubscriptionProvider>
+          </OfficeAccessProvider>
+        </WorkspaceProvider>
       </AuthProvider>
     );
   }

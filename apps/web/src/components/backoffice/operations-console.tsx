@@ -13,7 +13,6 @@ import {
   type SupportSlaState,
 } from '@orbit-ledger/core';
 
-import { AppShell } from '@/components/app-shell';
 import {
   buildWebSupportAuditRecords,
   buildWebSupportPrintHtml,
@@ -71,6 +70,15 @@ type SupportTimelineEntry = {
   meta: string;
   badge: string;
 };
+
+export type OperationsConsoleSection =
+  | 'overview'
+  | 'support-inbox'
+  | 'assignments'
+  | 'access-requests'
+  | 'diagnostics-consent'
+  | 'exports-reports'
+  | 'audit';
 
 const SUPPORT_FILTER_OPTIONS = [
   {
@@ -158,7 +166,7 @@ const SUPPORT_REPLY_ACTION_OPTIONS: Array<{ value: WebSupportReplyAction; label:
   { value: 'reopen_with_reply', label: 'Reopen and reply', helper: 'Reopens the ticket and sends the customer a new reply.' },
 ];
 
-export default function OfficeOperationsPage() {
+export default function OperationsConsole({ section }: { section: OperationsConsoleSection }) {
   const { user } = useAuth();
   const { activeWorkspace } = useWorkspace();
   const { showToast } = useToast();
@@ -1115,11 +1123,20 @@ export default function OfficeOperationsPage() {
     }
   }
 
+  const showOverview = section === 'overview';
+  const showSupportConsole =
+    section === 'support-inbox' ||
+    section === 'assignments' ||
+    section === 'diagnostics-consent' ||
+    section === 'audit';
+  const showAssignments = section === 'assignments';
+  const showAccessRequests = section === 'access-requests';
+  const showDiagnostics = section === 'diagnostics-consent';
+  const showExportsReports = section === 'exports-reports';
+  const showAudit = section === 'audit';
+
   return (
-    <AppShell
-      title="Support operations"
-      subtitle="Internal support center shell for workspace-safe review, diagnostics, and Office follow-up."
-    >
+    <>
       {!isAllowed ? (
         <section className="ol-panel">
           <div className="ol-panel-header">
@@ -1133,6 +1150,18 @@ export default function OfficeOperationsPage() {
           </div>
           <div className="ol-message ol-message--warning">
             Your account is not enabled for Office operations review.
+          </div>
+        </section>
+      ) : !activeWorkspace ? (
+        <section className="ol-panel">
+          <div className="ol-panel-header">
+            <div>
+              <div className="ol-panel-title">Workspace context required</div>
+              <p className="ol-panel-copy">
+                Operations modules work against a selected workspace. Pick a workspace from the back-office switcher to continue.
+              </p>
+            </div>
+            <span className="ol-chip ol-chip--warning">Select workspace</span>
           </div>
         </section>
       ) : (
@@ -1181,6 +1210,68 @@ export default function OfficeOperationsPage() {
             ))}
           </div>
 
+          {showOverview ? (
+            <div className="ol-support-secondary-grid">
+              <section className="ol-panel">
+                <div className="ol-panel-header">
+                  <div>
+                    <div className="ol-panel-title">Operations overview</div>
+                    <p className="ol-panel-copy">
+                      Route support, watch queue pressure, and spot diagnostics or Office review risks without opening a single endless page.
+                    </p>
+                  </div>
+                  <span className="ol-chip ol-chip--primary">{supportShellRows.length} active case view</span>
+                </div>
+                <div className="ol-support-queue-summary">
+                  {supportRailHighlights.map((item) => (
+                    <div className="ol-support-queue-card" key={item.id}>
+                      <strong>{item.label}</strong>
+                      <span>
+                        {item.count} {item.count === 1 ? 'case' : 'cases'}
+                      </span>
+                      <span>{item.helper}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="ol-panel">
+                <div className="ol-panel-header">
+                  <div>
+                    <div className="ol-panel-title">Queue watch</div>
+                    <p className="ol-panel-copy">
+                      Current support scope, Office review load, and notification state in a compact operational snapshot.
+                    </p>
+                  </div>
+                  <span className="ol-chip ol-chip--success">{supportRoleLabel(currentAdmin)}</span>
+                </div>
+                <div className="ol-support-detail-grid">
+                  <article className="ol-support-detail-card">
+                    <span className="ol-review-label">Allowed queues</span>
+                    <strong className="ol-review-value">{supportQueues.length}</strong>
+                    <span className="ol-list-text">{supportAllowedQueueSummary(currentAdmin, supportQueues)}</span>
+                  </article>
+                  <article className="ol-support-detail-card">
+                    <span className="ol-review-label">Unread</span>
+                    <strong className="ol-review-value">{unreadSupportRecords.length}</strong>
+                    <span className="ol-list-text">{unreadCustomerRecords.length} customer follow-up items</span>
+                  </article>
+                  <article className="ol-support-detail-card">
+                    <span className="ol-review-label">Office queue</span>
+                    <strong className="ol-review-value">{filteredReviewQueue.length}</strong>
+                    <span className="ol-list-text">Needs-action review items in current scope</span>
+                  </article>
+                  <article className="ol-support-detail-card">
+                    <span className="ol-review-label">Diagnostics</span>
+                    <strong className="ol-review-value">{countSupportConsents(snapshot?.supportConsents ?? [], (item) => item.isActiveForReview)}</strong>
+                    <span className="ol-list-text">Active customer-approved diagnostic packs</span>
+                  </article>
+                </div>
+              </section>
+            </div>
+          ) : null}
+
+          {showSupportConsole ? (
           <div className="ol-support-center-shell">
             <aside className="ol-panel-dark ol-support-center-sidebar">
               <div className="ol-panel-header">
@@ -1662,6 +1753,7 @@ export default function OfficeOperationsPage() {
                     </article>
                   </div>
 
+                  {section === 'support-inbox' || showAssignments ? (
                   <div className="ol-support-thread-section">
                     <div className="ol-support-section-heading">
                       <div>
@@ -1760,7 +1852,9 @@ export default function OfficeOperationsPage() {
                       </article>
                     </div>
                   </div>
+                  ) : null}
 
+                  {section === 'support-inbox' || showAudit ? (
                   <div className="ol-support-thread-section">
                     <div className="ol-support-section-heading">
                       <div>
@@ -1802,7 +1896,9 @@ export default function OfficeOperationsPage() {
                       </div>
                     )}
                   </div>
+                  ) : null}
 
+                  {section === 'support-inbox' || showAssignments ? (
                   <div className="ol-support-thread-section">
                     <div className="ol-support-section-heading">
                       <div>
@@ -1829,7 +1925,9 @@ export default function OfficeOperationsPage() {
                       </article>
                     </div>
                   </div>
+                  ) : null}
 
+                  {section === 'support-inbox' || showAudit ? (
                   <div className="ol-support-thread-section">
                     <div className="ol-support-section-heading">
                       <div>
@@ -1860,7 +1958,9 @@ export default function OfficeOperationsPage() {
                       </div>
                     )}
                   </div>
+                  ) : null}
 
+                  {section === 'support-inbox' || showDiagnostics ? (
                   <div className="ol-support-thread-section">
                     <div className="ol-support-section-heading">
                       <div>
@@ -1894,6 +1994,7 @@ export default function OfficeOperationsPage() {
                       </div>
                     )}
                   </div>
+                  ) : null}
                 </>
               ) : (
                 <div className="ol-support-empty-state">
@@ -1903,7 +2004,9 @@ export default function OfficeOperationsPage() {
               )}
             </section>
           </div>
+          ) : null}
 
+          {showExportsReports ? (
           <section className="ol-panel">
             <div className="ol-panel-header">
               <div>
@@ -2042,8 +2145,11 @@ export default function OfficeOperationsPage() {
               </div>
             ) : null}
           </section>
+          ) : null}
 
+          {showAccessRequests || showAssignments ? (
           <div className="ol-support-workbench-grid">
+            {showAccessRequests ? (
             <section className="ol-panel">
               <div className="ol-panel-header">
                 <div>
@@ -2109,7 +2215,9 @@ export default function OfficeOperationsPage() {
                 ))}
               </div>
             </section>
+            ) : null}
 
+            {showAssignments ? (
             <section className="ol-panel">
               <div className="ol-panel-header">
                 <div>
@@ -2192,7 +2300,9 @@ export default function OfficeOperationsPage() {
                 </div>
               </div>
             </section>
+            ) : null}
 
+            {showAssignments ? (
             <section className="ol-panel">
               <div className="ol-panel-header">
                 <div>
@@ -2295,9 +2405,13 @@ export default function OfficeOperationsPage() {
                 </div>
               )}
             </section>
+            ) : null}
           </div>
+          ) : null}
 
+          {showDiagnostics || showAccessRequests ? (
           <div className="ol-support-secondary-grid">
+            {showDiagnostics ? (
             <section className="ol-panel">
               <div className="ol-panel-header">
                 <div>
@@ -2362,7 +2476,9 @@ export default function OfficeOperationsPage() {
                 </div>
               )}
             </section>
+            ) : null}
 
+            {showAccessRequests ? (
             <section className="ol-panel">
               <div className="ol-panel-header">
                 <div>
@@ -2415,8 +2531,11 @@ export default function OfficeOperationsPage() {
                 </div>
               )}
             </section>
+            ) : null}
           </div>
+          ) : null}
 
+          {showOverview ? (
           <div className="ol-support-secondary-grid">
             <section className="ol-panel">
               <div className="ol-panel-header">
@@ -2462,9 +2581,10 @@ export default function OfficeOperationsPage() {
               </div>
             </section>
           </div>
+          ) : null}
         </>
       )}
-    </AppShell>
+    </>
   );
 }
 
