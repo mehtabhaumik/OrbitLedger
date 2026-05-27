@@ -348,7 +348,6 @@ export default function LoginPage() {
                 setIsGoogleSubmitting(true);
                 setIsOpeningDashboard(true);
                 void signInWithGoogle()
-                  .then(() => router.replace('/dashboard'))
                   .catch((nextError) => {
                     setIsOpeningDashboard(false);
                     setError(getAuthErrorMessage(nextError));
