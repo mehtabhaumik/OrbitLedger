@@ -6,11 +6,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import { isWebPlatformAdminAllowed } from '@/lib/platform-admin-access';
+import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useAuth } from '@/providers/auth-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
-const navItems: Array<{ href: Route; label: string }> = [
+const workspaceNavItems: Array<{ href: Route; label: string }> = [
   { href: '/dashboard', label: 'Home' },
   { href: '/customers', label: 'Customers' },
   { href: '/transactions', label: 'Transactions' },
@@ -39,6 +41,7 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOutUser } = useAuth();
+  const officeAccess = useOfficeAccess();
   const { status: subscriptionStatus } = useWebSubscription();
   const { activeWorkspace, workspaces, selectWorkspace } = useWorkspace();
   const [isOnline, setIsOnline] = useState(true);
@@ -46,6 +49,24 @@ export function AppShell({
   const accountLabel = user?.displayName || user?.email || 'Owner';
   const visibleAccountLabel = user?.displayName || 'Account';
   const accountInitial = accountLabel.trim().charAt(0).toUpperCase() || 'O';
+  const hasOperationsAccess = officeAccess.can('manage_billing_entitlement');
+  const hasPlatformAdminAccess = isWebPlatformAdminAllowed(user?.email);
+  const adminNavItems = useMemo<Array<{ href: Route; label: string }>>(() => {
+    const items: Array<{ href: Route; label: string }> = [];
+
+    if (hasOperationsAccess) {
+      items.push({
+        href: '/office-operations' as Route,
+        label: hasPlatformAdminAccess ? 'Office operations' : 'Operations',
+      });
+    }
+
+    if (hasPlatformAdminAccess) {
+      items.push({ href: '/platform-admin' as Route, label: 'Platform admin' });
+    }
+
+    return items;
+  }, [hasOperationsAccess, hasPlatformAdminAccess]);
   const syncBadge = useMemo(() => {
     if (!activeWorkspace) {
       return 'No business selected';
@@ -100,7 +121,7 @@ export function AppShell({
         <div className="ol-sidebar-group ol-sidebar-nav-group">
           <div className="ol-sidebar-group-label">Navigation</div>
           <nav className="ol-nav">
-            {navItems.map((item) => {
+            {workspaceNavItems.map((item) => {
               const active = isActiveRoute(pathname, item.href);
               return (
                 <Link
@@ -115,6 +136,27 @@ export function AppShell({
             })}
           </nav>
         </div>
+
+        {adminNavItems.length ? (
+          <div className="ol-sidebar-group ol-sidebar-nav-group">
+            <div className="ol-sidebar-group-label">Admin</div>
+            <nav className="ol-nav">
+              {adminNavItems.map((item) => {
+                const active = isActiveRoute(pathname, item.href);
+                return (
+                  <Link
+                    aria-current={active ? 'page' : undefined}
+                    href={item.href}
+                    key={item.href}
+                    className={`ol-nav-link${active ? ' is-active' : ''}`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        ) : null}
       </>
     );
   }
