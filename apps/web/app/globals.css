@@ -3989,6 +3989,10 @@ a:focus-visible {
   color: var(--warning-strong);
 }
 
+.ol-platform-admin-metric[data-tone="success"] strong {
+  color: var(--success);
+}
+
 .ol-platform-admin-metric[data-tone="danger"] strong {
   color: var(--danger);
 }

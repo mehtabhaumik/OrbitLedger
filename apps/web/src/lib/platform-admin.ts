@@ -33,6 +33,8 @@ export type WebPlatformAdminUser = {
   platformUserLastAdminReason: string | null;
   platformUserLastInternalNoteAt: string | null;
   platformUserLastInternalNotePreview: string | null;
+  isQaUser: boolean;
+  hasActiveSubscription: boolean;
   status: WebPlatformAdminUserStatus;
 };
 
@@ -169,12 +171,15 @@ export type WebPlatformAdminMetrics = {
   verifiedEmailCount: number;
   googleUserCount: number;
   passwordUserCount: number;
+  usersWithWorkspaceCount: number;
   workspaceOwnerCount: number;
   officeMemberCount: number;
   usersWithoutWorkspaceCount: number;
   platformAdminCount: number;
   activePlatformAdminCount: number;
   emergencyAllowlistAdminCount: number;
+  qaUserCount: number;
+  subscribedUserCount: number;
 };
 
 export type WebPlatformAdminSnapshot = {
@@ -273,6 +278,7 @@ export function buildWebPlatformAdminMetrics(users: WebPlatformAdminUser[]): Web
     verifiedEmailCount: users.filter((user) => user.emailVerified).length,
     googleUserCount: users.filter((user) => user.providerIds.includes('google.com')).length,
     passwordUserCount: users.filter((user) => user.providerIds.includes('password')).length,
+    usersWithWorkspaceCount: users.filter((user) => user.ownedWorkspaceCount > 0 || user.officeWorkspaceCount > 0).length,
     workspaceOwnerCount: users.filter((user) => user.ownedWorkspaceCount > 0).length,
     officeMemberCount: users.filter((user) => user.officeWorkspaceCount > 0).length,
     usersWithoutWorkspaceCount: users.filter(
@@ -281,6 +287,8 @@ export function buildWebPlatformAdminMetrics(users: WebPlatformAdminUser[]): Web
     platformAdminCount: users.filter((user) => Boolean(user.platformAdminRole)).length,
     activePlatformAdminCount: users.filter((user) => user.platformAdminStatus === 'active').length,
     emergencyAllowlistAdminCount: users.filter((user) => user.platformAdminRoleSource === 'allowlist').length,
+    qaUserCount: users.filter((user) => user.isQaUser).length,
+    subscribedUserCount: users.filter((user) => user.hasActiveSubscription).length,
   };
 }
 

@@ -4026,18 +4026,22 @@ export const getPlatformAdminSnapshot = onRequest(
     try {
       const [
         authResult,
+        allAuthUsers,
         workspaceSnapshot,
         memberSnapshot,
         platformAdminSnapshot,
         platformUserSnapshot,
         platformOfferSnapshot,
+        subscriptionEntitlementSnapshot,
       ] = await Promise.all([
         admin.auth().listUsers(requestedLimit, pageToken ?? undefined),
+        listAllPlatformAdminAuthUsers(),
         db.collection('workspaces').limit(3000).get(),
         db.collectionGroup('office_members').limit(3000).get(),
         db.collection('platform_admins').limit(1000).get(),
         db.collection('platform_users').limit(3000).get(),
         db.collection('platform_offers').limit(1000).get(),
+        db.collectionGroup('subscription_entitlements').get(),
       ]);
 
       const platformAdminByUid = new Map<string, PlatformAdminRegistryData>();
@@ -4059,11 +4063,28 @@ export const getPlatformAdminSnapshot = onRequest(
           names: string[];
           countries: string[];
           latestUpdatedAt: string | null;
+          qaWorkspaceCount: number;
         }
       >();
+      const qaWorkspaceIds = new Set<string>();
 
       for (const workspaceDoc of workspaceSnapshot.docs) {
         const data = workspaceDoc.data();
+        const workspaceId = workspaceDoc.id;
+        const businessName =
+          clean(stringValue(data.business_name)) ??
+          clean(stringValue(data.legal_business_name)) ??
+          clean(stringValue(data.owner_name));
+        const isQaWorkspace = isPlatformQaWorkspace({
+          workspaceId,
+          businessName,
+          legalName: clean(stringValue(data.legal_business_name)),
+          ownerName: clean(stringValue(data.owner_name)),
+          ownerEmail: clean(stringValue(data.owner_email)),
+        });
+        if (isQaWorkspace) {
+          qaWorkspaceIds.add(workspaceId);
+        }
         const ownerUid = clean(stringValue(data.owner_uid));
         if (!ownerUid) {
           continue;
@@ -4075,12 +4096,9 @@ export const getPlatformAdminSnapshot = onRequest(
             names: [],
             countries: [],
             latestUpdatedAt: null,
+            qaWorkspaceCount: 0,
           };
         current.count += 1;
-        const businessName =
-          clean(stringValue(data.business_name)) ??
-          clean(stringValue(data.legal_business_name)) ??
-          clean(stringValue(data.owner_name));
         if (businessName && current.names.length < 4) {
           current.names.push(businessName);
         }
@@ -4092,23 +4110,42 @@ export const getPlatformAdminSnapshot = onRequest(
         if (updatedAt && (!current.latestUpdatedAt || updatedAt > current.latestUpdatedAt)) {
           current.latestUpdatedAt = updatedAt;
         }
+        if (isQaWorkspace) {
+          current.qaWorkspaceCount += 1;
+        }
         workspaceByOwner.set(ownerUid, current);
       }
 
-      const officeMembershipByUser = new Map<string, { count: number; roles: string[] }>();
+      const officeMembershipByUser = new Map<string, { count: number; roles: string[]; qaWorkspaceCount: number }>();
       for (const memberDoc of memberSnapshot.docs) {
         const data = memberDoc.data();
         if (clean(stringValue(data.status)) !== 'active') {
           continue;
         }
         const uid = clean(stringValue(data.uid)) ?? memberDoc.id;
-        const current = officeMembershipByUser.get(uid) ?? { count: 0, roles: [] };
+        const current = officeMembershipByUser.get(uid) ?? { count: 0, roles: [], qaWorkspaceCount: 0 };
         current.count += 1;
         const role = clean(stringValue(data.role));
         if (role && !current.roles.includes(role)) {
           current.roles.push(role);
         }
+        const workspaceId = memberDoc.ref.parent.parent?.id ?? null;
+        if (workspaceId && qaWorkspaceIds.has(workspaceId)) {
+          current.qaWorkspaceCount += 1;
+        }
         officeMembershipByUser.set(uid, current);
+      }
+
+      const activeSubscribedUserIds = new Set<string>();
+      for (const entitlementDoc of subscriptionEntitlementSnapshot.docs) {
+        const data = entitlementDoc.data();
+        const validUntil = clean(stringValue(data.valid_until));
+        const planId = clean(stringValue(data.plan_id));
+        const userId = entitlementDoc.ref.parent.parent?.id ?? null;
+        if (!userId || !planId || !validUntil || validUntil <= generatedAt) {
+          continue;
+        }
+        activeSubscribedUserIds.add(userId);
       }
 
       const actorRegistry = adminAccess;
@@ -4116,14 +4153,15 @@ export const getPlatformAdminSnapshot = onRequest(
 
       const registryBatch = db.batch();
       registryBatch.set(db.collection('platform_admins').doc(adminUser.uid), actorRegistry, { merge: true });
-      const users = authResult.users.map((authUser) => {
+      const buildSnapshotUser = (authUser: admin.auth.UserRecord, persistRegistry: boolean) => {
         const workspaceSummary = workspaceByOwner.get(authUser.uid) ?? {
           count: 0,
           names: [],
           countries: [],
           latestUpdatedAt: null,
+          qaWorkspaceCount: 0,
         };
-        const officeSummary = officeMembershipByUser.get(authUser.uid) ?? { count: 0, roles: [] };
+        const officeSummary = officeMembershipByUser.get(authUser.uid) ?? { count: 0, roles: [], qaWorkspaceCount: 0 };
         const providerIds = authUser.providerData.map((provider) => provider.providerId).filter(Boolean).sort();
         const customClaims = asRecord(authUser.customClaims) ?? {};
         const customClaimsRole = normalizePlatformAdminRole(stringValue(customClaims.platform_admin_role));
@@ -4138,6 +4176,14 @@ export const getPlatformAdminSnapshot = onRequest(
         const platformUserLastInternalNoteAt = clean(stringValue(platformUserRecord.last_internal_note_at));
         const platformUserLastInternalNotePreview = clean(stringValue(platformUserRecord.last_internal_note_preview));
         const status = authUser.disabled ? 'disabled' : workspaceSummary.count > 0 || officeSummary.count > 0 ? 'active' : 'no_workspace';
+        const isQaUser = isPlatformQaUser({
+          email: authUser.email ?? null,
+          displayName: authUser.displayName ?? null,
+          workspaceNames: workspaceSummary.names,
+          ownedQaWorkspaceCount: workspaceSummary.qaWorkspaceCount,
+          officeQaWorkspaceCount: officeSummary.qaWorkspaceCount,
+        });
+        const hasActiveSubscription = !authUser.disabled && !isQaUser && activeSubscribedUserIds.has(authUser.uid);
         const registryRecord = {
           uid: authUser.uid,
           email: authUser.email ?? null,
@@ -4166,12 +4212,16 @@ export const getPlatformAdminSnapshot = onRequest(
           last_admin_reason: platformUserLastAdminReason ?? null,
           last_internal_note_at: platformUserLastInternalNoteAt ?? null,
           last_internal_note_preview: platformUserLastInternalNotePreview ?? null,
+          is_qa_user: isQaUser,
+          has_active_subscription: hasActiveSubscription,
           status,
           synced_at: generatedAt,
           synced_by_uid: adminUser.uid,
           synced_by_email: adminUser.email ?? null,
         };
-        registryBatch.set(db.collection('platform_users').doc(authUser.uid), registryRecord, { merge: true });
+        if (persistRegistry) {
+          registryBatch.set(db.collection('platform_users').doc(authUser.uid), registryRecord, { merge: true });
+        }
         return {
           uid: authUser.uid,
           email: authUser.email ?? null,
@@ -4200,12 +4250,17 @@ export const getPlatformAdminSnapshot = onRequest(
           platformUserLastAdminReason: platformUserLastAdminReason ?? null,
           platformUserLastInternalNoteAt: platformUserLastInternalNoteAt ?? null,
           platformUserLastInternalNotePreview: platformUserLastInternalNotePreview ?? null,
+          isQaUser,
+          hasActiveSubscription,
           status,
         };
-      });
+      };
 
-      const authUserByUid = new Map(authResult.users.map((authUser) => [authUser.uid, authUser]));
-      const metrics = buildPlatformAdminMetrics(users);
+      const users = authResult.users.map((authUser) => buildSnapshotUser(authUser, true));
+      const metricUsers = allAuthUsers.map((authUser) => buildSnapshotUser(authUser, false));
+
+      const authUserByUid = new Map(allAuthUsers.map((authUser) => [authUser.uid, authUser]));
+      const metrics = buildPlatformAdminMetrics(metricUsers);
       const admins = Array.from(platformAdminByUid.values())
         .sort((left, right) => {
           const leftUpdated = left.updated_at ?? left.created_at ?? '';
@@ -11847,6 +11902,8 @@ function buildPlatformAdminMetrics(
     ownedWorkspaceCount: number;
     officeWorkspaceCount: number;
     providerIds: string[];
+    isQaUser?: boolean;
+    hasActiveSubscription?: boolean;
     platformAdminRole?: PlatformAdminRole | null;
     platformAdminStatus?: PlatformAdminStatus | null;
     platformAdminRoleSource?: PlatformAdminRoleSource | null;
@@ -11858,6 +11915,7 @@ function buildPlatformAdminMetrics(
     verifiedEmailCount: users.filter((user) => user.emailVerified).length,
     googleUserCount: users.filter((user) => user.providerIds.includes('google.com')).length,
     passwordUserCount: users.filter((user) => user.providerIds.includes('password')).length,
+    usersWithWorkspaceCount: users.filter((user) => user.ownedWorkspaceCount > 0 || user.officeWorkspaceCount > 0).length,
     workspaceOwnerCount: users.filter((user) => user.ownedWorkspaceCount > 0).length,
     officeMemberCount: users.filter((user) => user.officeWorkspaceCount > 0).length,
     usersWithoutWorkspaceCount: users.filter(
@@ -11866,7 +11924,84 @@ function buildPlatformAdminMetrics(
     platformAdminCount: users.filter((user) => Boolean(user.platformAdminRole)).length,
     activePlatformAdminCount: users.filter((user) => user.platformAdminStatus === 'active').length,
     emergencyAllowlistAdminCount: users.filter((user) => user.platformAdminRoleSource === 'allowlist').length,
+    qaUserCount: users.filter((user) => user.isQaUser === true).length,
+    subscribedUserCount: users.filter((user) => user.hasActiveSubscription === true).length,
   };
+}
+
+async function listAllPlatformAdminAuthUsers() {
+  const users: admin.auth.UserRecord[] = [];
+  let nextPageToken: string | undefined;
+
+  do {
+    const page = await admin.auth().listUsers(1000, nextPageToken);
+    users.push(...page.users);
+    nextPageToken = page.pageToken;
+  } while (nextPageToken);
+
+  return users;
+}
+
+function isPlatformQaWorkspace(input: {
+  workspaceId: string;
+  businessName: string | null;
+  legalName: string | null;
+  ownerName: string | null;
+  ownerEmail: string | null;
+}) {
+  return [
+    input.workspaceId,
+    input.businessName,
+    input.legalName,
+    input.ownerName,
+    input.ownerEmail,
+  ].some((value) => hasQaMarker(value));
+}
+
+function isPlatformQaUser(input: {
+  email: string | null;
+  displayName: string | null;
+  workspaceNames: string[];
+  ownedQaWorkspaceCount: number;
+  officeQaWorkspaceCount: number;
+}) {
+  if (input.ownedQaWorkspaceCount > 0 || input.officeQaWorkspaceCount > 0) {
+    return true;
+  }
+
+  const normalizedEmail = normalizeEmailAddress(input.email);
+  if (normalizedEmail) {
+    const [, domain = ''] = normalizedEmail.split('@');
+    if ((domain === 'example.com' || domain === 'example.invalid') && hasQaMarker(normalizedEmail)) {
+      return true;
+    }
+  }
+
+  if (hasQaMarker(input.displayName)) {
+    return true;
+  }
+
+  return input.workspaceNames.some((name) => hasQaMarker(name));
+}
+
+function hasQaMarker(value: string | null | undefined) {
+  const normalized = clean(value)?.toLowerCase() ?? '';
+  if (!normalized) {
+    return false;
+  }
+
+  if (
+    normalized.startsWith('qa_') ||
+    normalized.includes('qa-') ||
+    normalized.includes('_qa_') ||
+    normalized.includes(' qa ') ||
+    normalized.includes('qa workspace') ||
+    normalized.includes('qa traders')
+  ) {
+    return true;
+  }
+
+  return /(^|[^a-z0-9])(qa|test|demo|sample)([^a-z0-9]|$)/i.test(normalized);
 }
 
 function getExpectedWebhookSecret(): string {

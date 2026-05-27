@@ -188,7 +188,8 @@ export default function PlatformAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [pageToken, setPageToken] = useState<string | null>(null);
+  const [pageTokens, setPageTokens] = useState<Array<string | null>>([null]);
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [adminActionMessage, setAdminActionMessage] = useState<string | null>(null);
   const [adminActionError, setAdminActionError] = useState<string | null>(null);
   const [isSavingAdmin, setIsSavingAdmin] = useState(false);
@@ -210,6 +211,7 @@ export default function PlatformAdminPage() {
   const [isSavingOffer, setIsSavingOffer] = useState(false);
   const [offerForm, setOfferForm] = useState<OfferFormState>(DEFAULT_OFFER_FORM);
   const [reportType, setReportType] = useState<WebPlatformAdminReportType>('user_registry');
+  const [reportPreviewPage, setReportPreviewPage] = useState(0);
   const users = useMemo(() => filterWebPlatformAdminUsers(snapshot?.users ?? [], search), [search, snapshot?.users]);
   const visibleOffers = useMemo(
     () => filterWebPlatformAdminOffers(snapshot?.offers ?? [], offerSearch),
@@ -310,6 +312,15 @@ export default function PlatformAdminPage() {
       loadedFilterSummary: reportFilterSummary,
     });
   }, [adminRoleLabel, reportFilterSummary, reportType, snapshot, user?.email, users, visibleAuditRecords, visibleOffers]);
+  const reportPreviewPageSize = 8;
+  const reportPreviewPageCount = selectedReport ? Math.max(1, Math.ceil(selectedReport.rows.length / reportPreviewPageSize)) : 1;
+  const visibleReportRows = selectedReport
+    ? selectedReport.rows.slice(
+        reportPreviewPage * reportPreviewPageSize,
+        reportPreviewPage * reportPreviewPageSize + reportPreviewPageSize
+      )
+    : [];
+  const currentPageToken = pageTokens[currentPageIndex] ?? null;
   const auditTrailReport = useMemo(() => {
     if (!snapshot) {
       return null;
@@ -332,17 +343,26 @@ export default function PlatformAdminPage() {
     if (isAuthLoading || !user) {
       return;
     }
+    setPageTokens([null]);
+    setCurrentPageIndex(0);
     void refresh(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthLoading, user?.uid]);
 
-  async function refresh(nextPageToken: string | null) {
+  useEffect(() => {
+    setReportPreviewPage(0);
+  }, [reportType, search, offerSearch, auditSearch, auditFilters, snapshot?.generatedAt]);
+
+  async function refresh(nextPageToken: string | null, options?: { nextPageIndex?: number; rememberedTokens?: Array<string | null> }) {
     setIsLoading(true);
     setError(null);
     try {
       const nextSnapshot = await loadWebPlatformAdminSnapshot({ pageToken: nextPageToken });
       setSnapshot(nextSnapshot);
-      setPageToken(nextPageToken);
+      if (options?.rememberedTokens) {
+        setPageTokens(options.rememberedTokens);
+      }
+      setCurrentPageIndex(options?.nextPageIndex ?? 0);
       void refreshAudit(auditFilters);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Platform admin registry could not be loaded.');
@@ -369,18 +389,27 @@ export default function PlatformAdminPage() {
   }
 
   function handleRefresh() {
-    void refresh(pageToken);
+    void refresh(currentPageToken, { nextPageIndex: currentPageIndex, rememberedTokens: pageTokens });
   }
 
   function handlePreviousPage() {
-    void refresh(null);
+    const nextPageIndex = Math.max(0, currentPageIndex - 1);
+    const nextPageToken = pageTokens[nextPageIndex] ?? null;
+    void refresh(nextPageToken, { nextPageIndex, rememberedTokens: pageTokens });
   }
 
   async function handleNextPage() {
     if (!snapshot?.nextPageToken) {
       return;
     }
-    await refresh(snapshot.nextPageToken);
+    const nextPageIndex = currentPageIndex + 1;
+    const nextTokens = [...pageTokens];
+    nextTokens[nextPageIndex] = snapshot.nextPageToken;
+    await refresh(snapshot.nextPageToken, { nextPageIndex, rememberedTokens: nextTokens });
+  }
+
+  function handleFirstPage() {
+    void refresh(null, { nextPageIndex: 0, rememberedTokens: [null] });
   }
 
   function scrollToAdminSection(sectionId: string) {
@@ -483,7 +512,7 @@ export default function PlatformAdminPage() {
         reason: adminForm.reason,
       });
       setAdminActionMessage('Platform admin access was updated and recorded for audit.');
-      await refresh(pageToken);
+      await refresh(currentPageToken, { nextPageIndex: currentPageIndex, rememberedTokens: pageTokens });
       await refreshAudit(auditFilters);
       if (adminForm.action === 'create') {
         setAdminForm(DEFAULT_ADMIN_FORM);
@@ -552,7 +581,7 @@ export default function PlatformAdminPage() {
         riskLabel: userControlForm.riskLabel,
       });
       setUserControlMessage('User control action was completed and recorded for audit.');
-      await refresh(pageToken);
+      await refresh(currentPageToken, { nextPageIndex: currentPageIndex, rememberedTokens: pageTokens });
       await refreshAudit(auditFilters);
       setUserControlForm((current) => ({ ...current, reason: '', message: '', riskLabel: '' }));
     } catch (submitError) {
@@ -674,7 +703,7 @@ export default function PlatformAdminPage() {
         reason: offerForm.reason,
       });
       setOfferMessage('Offer change was saved and recorded for audit.');
-      await refresh(pageToken);
+      await refresh(currentPageToken, { nextPageIndex: currentPageIndex, rememberedTokens: pageTokens });
       await refreshAudit(auditFilters);
       setOfferForm((current) => (current.action === 'create' ? DEFAULT_OFFER_FORM : { ...current, reason: '' }));
     } catch (submitError) {
@@ -902,9 +931,16 @@ export default function PlatformAdminPage() {
 
               <section className="ol-platform-admin-metrics" aria-label="Platform user metrics">
                 <MetricCard label="Registered users" value={snapshot?.metrics.userCount ?? 0} />
-                <MetricCard label="Verified emails" value={snapshot?.metrics.verifiedEmailCount ?? 0} />
+                <MetricCard label="Google users" value={snapshot?.metrics.googleUserCount ?? 0} />
+                <MetricCard label="Email/password users" value={snapshot?.metrics.passwordUserCount ?? 0} />
+                <MetricCard label="Users with workspace" value={snapshot?.metrics.usersWithWorkspaceCount ?? 0} />
                 <MetricCard label="Workspace owners" value={snapshot?.metrics.workspaceOwnerCount ?? 0} />
-                <MetricCard label="Platform admins" value={snapshot?.metrics.activePlatformAdminCount ?? 0} tone="premium" />
+                <MetricCard label="Office members" value={snapshot?.metrics.officeMemberCount ?? 0} />
+                <MetricCard label="Total admin users" value={snapshot?.metrics.platformAdminCount ?? 0} tone="premium" />
+                <MetricCard label="Active admin users" value={snapshot?.metrics.activePlatformAdminCount ?? 0} tone="premium" />
+                <MetricCard label="QA users" value={snapshot?.metrics.qaUserCount ?? 0} tone="warning" />
+                <MetricCard label="Subscribed users" value={snapshot?.metrics.subscribedUserCount ?? 0} tone="success" />
+                <MetricCard label="Verified emails" value={snapshot?.metrics.verifiedEmailCount ?? 0} />
                 <MetricCard label="No workspace" value={snapshot?.metrics.usersWithoutWorkspaceCount ?? 0} tone="warning" />
                 <MetricCard label="Disabled users" value={snapshot?.metrics.disabledCount ?? 0} tone="danger" />
               </section>
@@ -965,7 +1001,7 @@ export default function PlatformAdminPage() {
                       <p>Compact charts for user growth, activation, offer exposure, admin role mix, and audit severity.</p>
                     </div>
                     <span className="ol-platform-admin-status-pill" data-tone="premium">
-                      {snapshot?.users.length ?? 0} user record(s) loaded
+                      {(snapshot?.users.length ?? 0).toLocaleString('en-IN')} of {(snapshot?.metrics.userCount ?? 0).toLocaleString('en-IN')} user record(s) loaded
                     </span>
                   </div>
                   <div className="ol-platform-admin-chart-grid">
@@ -1151,6 +1187,9 @@ export default function PlatformAdminPage() {
                         </div>
                         <div className="ol-platform-admin-report-meta">
                           <span>{selectedReport.rows.length.toLocaleString('en-IN')} row(s)</span>
+                          <span>
+                            Preview page {Math.min(reportPreviewPage + 1, reportPreviewPageCount)} of {reportPreviewPageCount}
+                          </span>
                           <span>{selectedReport.adminRole}</span>
                           <span>Generated by {selectedReport.generatedBy}</span>
                           <span>{formatPlatformAdminDate(selectedReport.generatedAt)}</span>
@@ -1175,8 +1214,8 @@ export default function PlatformAdminPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {selectedReport.rows.slice(0, 8).map((row, rowIndex) => (
-                              <tr key={`${selectedReport.type}-${rowIndex}`}>
+                            {visibleReportRows.map((row, rowIndex) => (
+                              <tr key={`${selectedReport.type}-${reportPreviewPage}-${rowIndex}`}>
                                 {selectedReport.columns.map((column) => (
                                   <td key={column.key}>{row[column.key] ?? ''}</td>
                                 ))}
@@ -1185,11 +1224,27 @@ export default function PlatformAdminPage() {
                           </tbody>
                         </table>
                       </div>
-                      {selectedReport.rows.length > 8 ? (
-                        <p className="ol-platform-admin-report-note">
-                          Preview shows 8 rows. CSV and print include all loaded rows.
-                        </p>
-                      ) : null}
+                      <div className="ol-platform-admin-pagination">
+                        <button
+                          className="ol-button-secondary"
+                          type="button"
+                          onClick={() => setReportPreviewPage((current) => Math.max(0, current - 1))}
+                          disabled={reportPreviewPage === 0}
+                        >
+                          Previous preview page
+                        </button>
+                        <button
+                          className="ol-button-secondary"
+                          type="button"
+                          onClick={() => setReportPreviewPage((current) => Math.min(reportPreviewPageCount - 1, current + 1))}
+                          disabled={reportPreviewPage >= reportPreviewPageCount - 1}
+                        >
+                          Next preview page
+                        </button>
+                      </div>
+                      <p className="ol-platform-admin-report-note">
+                        Preview shows {visibleReportRows.length.toLocaleString('en-IN')} row(s) from the current report page. CSV and print include {selectedReport.rows.length.toLocaleString('en-IN')} loaded row(s).
+                      </p>
                     </>
                   ) : (
                     <div className="ol-platform-admin-empty ol-platform-admin-empty-compact">
@@ -1909,7 +1964,10 @@ export default function PlatformAdminPage() {
         <section className="ol-platform-admin-table-card" id="users">
           <div className="ol-platform-admin-table-head">
             <strong>Users</strong>
-            <span>{users.length} shown</span>
+            <span>
+              {users.length.toLocaleString('en-IN')} shown · page {currentPageIndex + 1}
+              {snapshot ? ` of ${snapshot.hasMore ? `${currentPageIndex + 2}+` : currentPageIndex + 1}` : ''}
+            </span>
           </div>
           {isLoading && !snapshot ? (
             <div className="ol-platform-admin-empty">
@@ -1937,8 +1995,11 @@ export default function PlatformAdminPage() {
             </div>
           )}
           <div className="ol-platform-admin-pagination">
-            <button className="ol-button-secondary" type="button" onClick={handlePreviousPage} disabled={isLoading || !pageToken}>
+            <button className="ol-button-secondary" type="button" onClick={handleFirstPage} disabled={isLoading || currentPageIndex === 0}>
               First page
+            </button>
+            <button className="ol-button-secondary" type="button" onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0}>
+              Previous page
             </button>
             <button className="ol-button-secondary" type="button" onClick={handleNextPage} disabled={isLoading || !snapshot?.hasMore}>
               Next page
@@ -1959,7 +2020,7 @@ function MetricCard({
 }: {
   label: string;
   value: number;
-  tone?: 'default' | 'warning' | 'danger' | 'premium';
+  tone?: 'default' | 'success' | 'warning' | 'danger' | 'premium';
 }) {
   return (
     <article className="ol-platform-admin-metric" data-tone={tone}>
@@ -2377,11 +2438,11 @@ function UserRow({
   onManage: (user: WebPlatformAdminUser, action?: WebPlatformAdminUserAction) => void;
 }) {
   const title = user.displayName || user.email || user.uid;
-  const workspaceSummary = user.workspaceNames.length
-    ? user.workspaceNames.join(', ')
-    : user.ownedWorkspaceCount > 0
-      ? `${user.ownedWorkspaceCount} workspace${user.ownedWorkspaceCount === 1 ? '' : 's'}`
-      : 'No owned workspace';
+  const workspaceSummary = user.ownedWorkspaceCount
+    ? `${user.ownedWorkspaceCount} owned workspace${user.ownedWorkspaceCount === 1 ? '' : 's'}${
+        user.workspaceNames.length ? ` · ${user.workspaceNames.join(', ')}` : ''
+      }`
+    : 'No owned workspace';
   const officeSummary = user.officeWorkspaceCount
     ? `${user.officeWorkspaceCount} Office workspace${user.officeWorkspaceCount === 1 ? '' : 's'}${
         user.officeRoles.length ? ` · ${user.officeRoles.join(', ')}` : ''
@@ -2413,6 +2474,16 @@ function UserRow({
         {user.platformAdminRole ? (
           <span>
             {getPlatformAdminRoleDefinition(user.platformAdminRole).label} · {user.platformAdminRoleSource ?? 'registry'}
+          </span>
+        ) : null}
+        {user.isQaUser ? (
+          <span className="ol-platform-admin-status-pill" data-tone="warning">
+            QA user
+          </span>
+        ) : null}
+        {user.hasActiveSubscription ? (
+          <span className="ol-platform-admin-status-pill" data-tone="success">
+            Active subscription
           </span>
         ) : null}
         <span>{user.providerIds.length ? user.providerIds.join(', ') : 'No provider'}</span>

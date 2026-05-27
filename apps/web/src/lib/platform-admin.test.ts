@@ -50,6 +50,8 @@ const baseUser: WebPlatformAdminUser = {
   platformUserLastAdminReason: null,
   platformUserLastInternalNoteAt: null,
   platformUserLastInternalNotePreview: null,
+  isQaUser: false,
+  hasActiveSubscription: false,
   status: 'active',
 };
 
@@ -98,6 +100,8 @@ describe('platform admin registry helpers', () => {
         ownedWorkspaceCount: 0,
         officeWorkspaceCount: 0,
         workspaceNames: [],
+        isQaUser: true,
+        hasActiveSubscription: true,
         platformAdminRole: 'super_admin',
         platformAdminStatus: 'active',
         platformAdminRoleSource: 'allowlist',
@@ -113,12 +117,15 @@ describe('platform admin registry helpers', () => {
       verifiedEmailCount: 2,
       googleUserCount: 2,
       passwordUserCount: 1,
+      usersWithWorkspaceCount: 2,
       workspaceOwnerCount: 1,
       officeMemberCount: 1,
       usersWithoutWorkspaceCount: 1,
       platformAdminCount: 1,
       activePlatformAdminCount: 1,
       emergencyAllowlistAdminCount: 1,
+      qaUserCount: 1,
+      subscribedUserCount: 1,
     });
   });
 
