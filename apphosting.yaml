@@ -17,7 +17,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_API_KEY
-    value: AIzaSyCIXghvBKtBvt-6oQDvgKSPwe2MMPj_SXE
+    value: AIzaSyDE11IwIDmLsI5bbXl6j5GWHEt5FhLK25w
     availability:
       - BUILD
       - RUNTIME
