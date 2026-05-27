@@ -1,5 +1,7 @@
 import type { NextRequest } from 'next/server';
 
+import { resolveOrbitLedgerAuthDomain } from '@/lib/auth-domain';
+
 const defaultDevelopmentConfig = {
   apiKey: 'AIzaSyDE11IwIDmLsI5bbXl6j5GWHEt5FhLK25w',
   authDomain: 'orbit-ledger-f41c2.firebaseapp.com',
@@ -27,6 +29,13 @@ function resolveFirebaseEnv(value: string | undefined, key: string, developmentF
 }
 
 export async function GET(request: NextRequest) {
+  const requestHost = request.headers.get('x-forwarded-host') ?? request.headers.get('host');
+  const normalizedHost = requestHost?.split(',')[0]?.trim().split(':')[0]?.trim() ?? null;
+  const configuredAuthDomain = resolveFirebaseEnv(
+    process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN,
+    'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN',
+    defaultDevelopmentConfig.authDomain
+  );
   const payload = {
     apiKey: resolveFirebaseEnv(
       process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_API_KEY,
@@ -38,11 +47,7 @@ export async function GET(request: NextRequest) {
       'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_APP_ID',
       defaultDevelopmentConfig.appId
     ),
-    authDomain: resolveFirebaseEnv(
-      process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN,
-      'NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN',
-      defaultDevelopmentConfig.authDomain
-    ),
+    authDomain: resolveOrbitLedgerAuthDomain(configuredAuthDomain, normalizedHost),
     databaseURL: '',
     measurementId:
       process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_MEASUREMENT_ID || defaultDevelopmentConfig.measurementId,

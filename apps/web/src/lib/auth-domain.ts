@@ -16,7 +16,14 @@ const embeddedWebViewMarkers = [
 ];
 
 export function resolveOrbitLedgerAuthDomain(configuredAuthDomain: string, hostname?: string | null) {
-  void hostname;
+  const normalizedHostname = hostname?.trim().toLowerCase();
+  if (
+    normalizedHostname &&
+    ORBIT_LEDGER_CUSTOM_AUTH_DOMAINS.some((domain) => domain === normalizedHostname)
+  ) {
+    return normalizedHostname;
+  }
+
   return configuredAuthDomain.trim();
 }
 
