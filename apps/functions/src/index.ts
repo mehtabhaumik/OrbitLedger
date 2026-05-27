@@ -4034,7 +4034,7 @@ export const getPlatformAdminSnapshot = onRequest(
       ] = await Promise.all([
         admin.auth().listUsers(requestedLimit, pageToken ?? undefined),
         db.collection('workspaces').limit(3000).get(),
-        db.collectionGroup('office_members').where('status', '==', 'active').limit(3000).get(),
+        db.collectionGroup('office_members').limit(3000).get(),
         db.collection('platform_admins').limit(1000).get(),
         db.collection('platform_users').limit(3000).get(),
         db.collection('platform_offers').limit(1000).get(),
@@ -4098,6 +4098,9 @@ export const getPlatformAdminSnapshot = onRequest(
       const officeMembershipByUser = new Map<string, { count: number; roles: string[] }>();
       for (const memberDoc of memberSnapshot.docs) {
         const data = memberDoc.data();
+        if (clean(stringValue(data.status)) !== 'active') {
+          continue;
+        }
         const uid = clean(stringValue(data.uid)) ?? memberDoc.id;
         const current = officeMembershipByUser.get(uid) ?? { count: 0, roles: [] };
         current.count += 1;
