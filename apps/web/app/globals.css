@@ -4684,6 +4684,169 @@ a:focus-visible {
   scrollbar-width: thin;
 }
 
+.ol-platform-admin-user-registry-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.9fr);
+  gap: 18px;
+  padding: 18px;
+}
+
+.ol-platform-admin-user-registry-surface,
+.ol-platform-admin-user-inspector {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.ol-platform-admin-user-registry-note,
+.ol-platform-admin-user-inspector {
+  padding: 18px;
+  border: 1px solid rgba(191, 205, 225, 0.78);
+  border-radius: 20px;
+  background: rgba(248, 251, 255, 0.92);
+}
+
+.ol-platform-admin-user-registry-note h2 {
+  margin: 10px 0 6px;
+  color: var(--text);
+  font-size: clamp(22px, 2.4vw, 28px);
+  line-height: 1.08;
+}
+
+.ol-platform-admin-user-registry-note p:last-child {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.5;
+}
+
+.ol-platform-admin-user-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: rgba(56, 111, 222, 0.48) rgba(238, 244, 251, 0.98);
+  scrollbar-width: thin;
+  border: 1px solid rgba(191, 205, 225, 0.78);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.ol-platform-admin-user-table {
+  width: 100%;
+  min-width: 1320px;
+  border-collapse: collapse;
+}
+
+.ol-platform-admin-user-table th,
+.ol-platform-admin-user-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(191, 205, 225, 0.66);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ol-platform-admin-user-table th {
+  background: rgba(248, 251, 255, 0.94);
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ol-platform-admin-user-table td strong {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.ol-platform-admin-user-table td span,
+.ol-platform-admin-user-table td em {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 760;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.ol-platform-admin-user-table tr:last-child td {
+  border-bottom: none;
+}
+
+.ol-platform-admin-user-table-row[data-selected='true'] td {
+  background: rgba(239, 244, 255, 0.82);
+}
+
+.ol-platform-admin-user-table-user {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ol-platform-admin-user-table-user > span:last-child {
+  min-width: 0;
+}
+
+.ol-platform-admin-user-table-statuses,
+.ol-platform-admin-user-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ol-platform-admin-user-table-actions {
+  justify-content: flex-start;
+}
+
+.ol-platform-admin-user-table-actions .ol-button-secondary,
+.ol-platform-admin-user-table-actions .ol-button-ghost {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.ol-platform-admin-user-inspector-head {
+  display: grid;
+  gap: 14px;
+}
+
+.ol-platform-admin-user-inspector-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ol-platform-admin-user-action-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ol-platform-admin-user-action-strip .ol-button-secondary,
+.ol-platform-admin-user-action-strip .ol-button-ghost {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.ol-platform-admin-user-action-form {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
 .ol-platform-admin-user-list-head {
   display: grid;
   grid-template-columns:
@@ -4906,7 +5069,8 @@ a:focus-visible {
   .ol-platform-admin-offer-management,
   .ol-platform-admin-report-builder,
   .ol-platform-admin-user-control,
-  .ol-platform-admin-audit-filters {
+  .ol-platform-admin-audit-filters,
+  .ol-platform-admin-user-registry-layout {
     grid-template-columns: 1fr;
   }
 
@@ -5020,7 +5184,9 @@ a:focus-visible {
   .ol-platform-admin-chart-card,
   .ol-platform-admin-report-builder,
   .ol-platform-admin-report-preview,
-  .ol-platform-admin-safety-grid {
+  .ol-platform-admin-safety-grid,
+  .ol-platform-admin-user-registry-note,
+  .ol-platform-admin-user-inspector {
     padding: 14px;
   }
 
@@ -5036,6 +5202,10 @@ a:focus-visible {
   .ol-platform-admin-report-table td {
     padding: 8px;
     font-size: 12px;
+  }
+
+  .ol-platform-admin-user-table {
+    min-width: 1200px;
   }
 
   .ol-platform-admin-chart-title,
@@ -5066,6 +5236,10 @@ a:focus-visible {
 
   .ol-platform-admin-user-list-head {
     display: none;
+  }
+
+  .ol-platform-admin-user-action-strip {
+    display: grid;
   }
 }
 
