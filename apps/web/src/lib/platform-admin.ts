@@ -5,6 +5,14 @@ export { isWebPlatformAdminAllowed } from './platform-admin-access';
 
 export type WebPlatformAdminUserStatus = 'active' | 'disabled' | 'no_workspace';
 
+export type WebPlatformAdminUserWorkspaceContext = {
+  workspaceId: string;
+  businessName: string;
+  accessSource: 'owner' | 'member';
+  officeRole: string | null;
+  ownerUid: string | null;
+};
+
 export type WebPlatformAdminUser = {
   uid: string;
   email: string | null;
@@ -18,6 +26,7 @@ export type WebPlatformAdminUser = {
   officeWorkspaceCount: number;
   workspaceNames: string[];
   workspaceCountries: string[];
+  workspaceContexts: WebPlatformAdminUserWorkspaceContext[];
   officeRoles: string[];
   latestWorkspaceUpdatedAt: string | null;
   platformAdminRole: PlatformAdminRole | null;

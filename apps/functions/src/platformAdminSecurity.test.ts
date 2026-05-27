@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildAllowlistPlatformAdminRegistryData,
+  canPlatformAdminStartUserContextSession,
   canPlatformAdminUseFunction,
   canPlatformAdminUseUserAction,
 } from './index';
@@ -80,8 +81,11 @@ describe('platform admin server security helpers', () => {
     expect(canPlatformAdminUseFunction(supportAccess, 'manage_offers')).toBe(false);
     expect(canPlatformAdminUseUserAction(supportAccess, 'send_warning')).toBe(true);
     expect(canPlatformAdminUseUserAction(supportAccess, 'suspend_user')).toBe(false);
+    expect(canPlatformAdminStartUserContextSession(supportAccess, 'view_as_user')).toBe(true);
+    expect(canPlatformAdminStartUserContextSession(supportAccess, 'act_as_user')).toBe(false);
     expect(canPlatformAdminUseFunction(readOnlyAccess, 'manage_admin_accounts')).toBe(false);
     expect(canPlatformAdminUseFunction(readOnlyAccess, 'manage_user_controls')).toBe(false);
+    expect(canPlatformAdminUseFunction(readOnlyAccess, 'manage_user_context_sessions')).toBe(false);
     expect(canPlatformAdminUseFunction(readOnlyAccess, 'manage_offers')).toBe(false);
     expect(canPlatformAdminUseFunction(readOnlyAccess, 'download_admin_reports')).toBe(true);
   });

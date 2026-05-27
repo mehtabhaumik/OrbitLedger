@@ -15,6 +15,7 @@ import {
   type WebOfficeAccessState,
 } from '@/lib/web-office-access';
 import { useAuth } from './auth-provider';
+import { useUserContext } from './user-context-provider';
 import { useWorkspace } from './workspace-provider';
 
 type OfficeAccessContextValue = WebOfficeAccessState & {
@@ -33,6 +34,7 @@ const OfficeAccessContext = createContext<OfficeAccessContextValue | null>(null)
 
 export function OfficeAccessProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { session: userContextSession, isUserAreaSession } = useUserContext();
   const { activeWorkspace } = useWorkspace();
   const isPlatformAdmin = isWebPlatformAdminAllowed(user?.email);
   const [state, setState] = useState<WebOfficeAccessState>(fallbackOfficeAccess);
@@ -44,6 +46,39 @@ export function OfficeAccessProvider({ children }: { children: ReactNode }) {
 
     if (!user || !activeWorkspace) {
       setState(buildWebOfficeAccessState({ member: null, fallbackToOwner: false, platformAdmin: isPlatformAdmin }));
+      setIsLoading(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    if (isUserAreaSession && userContextSession) {
+      const sessionState =
+        userContextSession.mode === 'open_workspace'
+          ? buildWebOfficeAccessState({ member: null, fallbackToOwner: false, platformAdmin: false })
+          : buildWebOfficeAccessState({
+              member:
+                userContextSession.targetIsOwner || !userContextSession.targetOfficeRole
+                  ? null
+                  : {
+                      uid: userContextSession.targetUid,
+                      workspaceId: userContextSession.targetWorkspaceId,
+                      role: userContextSession.targetOfficeRole as OfficeMembershipRecord['role'],
+                      status: 'active',
+                      email: userContextSession.targetEmail,
+                      displayName: userContextSession.targetDisplayName,
+                      invitedBy: null,
+                      invitedAt: null,
+                      acceptedAt: userContextSession.startedAt,
+                      suspendedAt: null,
+                      removedAt: null,
+                      lastSeenAt: null,
+                      createdAt: userContextSession.startedAt ?? new Date().toISOString(),
+                      updatedAt: userContextSession.startedAt ?? new Date().toISOString(),
+                    },
+              fallbackToOwner: userContextSession.targetIsOwner,
+            });
+      setState(sessionState);
       setIsLoading(false);
       return () => {
         isMounted = false;
@@ -101,7 +136,7 @@ export function OfficeAccessProvider({ children }: { children: ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [activeWorkspace, user?.uid, user?.email, isPlatformAdmin]);
+  }, [activeWorkspace, isPlatformAdmin, isUserAreaSession, user?.uid, user?.email, userContextSession]);
 
   useEffect(() => {
     if (
@@ -159,7 +194,15 @@ export function OfficeAccessProvider({ children }: { children: ReactNode }) {
     };
   }, [activeWorkspace?.workspaceId, state.member?.status, state.source, user?.uid]);
 
-  const can = useCallback((permission: OfficePermission) => canUseWebOfficePermission(state, permission), [state]);
+  const can = useCallback(
+    (permission: OfficePermission) => {
+      if (isUserAreaSession && userContextSession && userContextSession.mode !== 'act_as_user') {
+        return permission.startsWith('view_') || permission.startsWith('export_');
+      }
+      return canUseWebOfficePermission(state, permission);
+    },
+    [isUserAreaSession, state, userContextSession]
+  );
 
   const value = useMemo<OfficeAccessContextValue>(
     () => ({

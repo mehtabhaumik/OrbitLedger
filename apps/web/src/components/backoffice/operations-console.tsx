@@ -46,6 +46,7 @@ import {
   type WebSupportReportType,
   type WebSupportTicketRecord,
 } from '@/lib/office-admin-operations';
+import { startWebUserContextSession, type WebUserContextMode } from '@/lib/user-context';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -211,6 +212,10 @@ export default function OperationsConsole({ section }: { section: OperationsCons
   const [assignmentRole, setAssignmentRole] = useState<PlatformAdminRole>('support_admin');
   const [assignmentAdminEmail, setAssignmentAdminEmail] = useState('');
   const [assignmentReason, setAssignmentReason] = useState('');
+  const [userContextReason, setUserContextReason] = useState('');
+  const [userContextError, setUserContextError] = useState<string | null>(null);
+  const [userContextMessage, setUserContextMessage] = useState<string | null>(null);
+  const [isStartingUserContext, setIsStartingUserContext] = useState(false);
   const previousUnreadCountRef = useRef(0);
   const isAllowed = useMemo(() => isWebOfficeOperationsAllowed(user?.email), [user?.email]);
 
@@ -221,6 +226,9 @@ export default function OperationsConsole({ section }: { section: OperationsCons
     return new Map(entries);
   }, [snapshot?.supportTickets]);
   const currentAdmin = snapshot?.currentAdmin ?? null;
+  const canStartReadOnlyUserContext =
+    currentAdmin?.role === 'super_admin' || currentAdmin?.role === 'admin' || currentAdmin?.role === 'support_admin';
+  const canStartActionEnabledUserContext = currentAdmin?.role === 'super_admin' || currentAdmin?.role === 'admin';
   const supportQueues = snapshot?.supportQueues ?? [];
   const notificationPreference = notificationPreferences ?? snapshot?.supportNotificationPreference ?? null;
   const supportAssignmentById = useMemo(
@@ -704,6 +712,9 @@ export default function OperationsConsole({ section }: { section: OperationsCons
     setEmailBody('');
     setReplyAction('reply');
     setReplyResolutionReason('');
+    setUserContextReason('');
+    setUserContextError(null);
+    setUserContextMessage(null);
   }, [selectedSupportRow]);
 
   useEffect(() => {
@@ -967,6 +978,45 @@ export default function OperationsConsole({ section }: { section: OperationsCons
   function prepareSupportReview(supportCase: WebSupportCaseRecord) {
     setSupportCaseId(supportCase.supportCaseId);
     setSupportReason('');
+  }
+
+  async function launchUserContext(mode: WebUserContextMode) {
+    if (!selectedSupportRow?.ticket?.customerEmail || !activeWorkspace?.workspaceId || userContextReason.trim().length < 10) {
+      showToast('Add a clear reason and pick a support case with a customer email before opening the user area.', 'info');
+      return;
+    }
+    if (mode === 'act_as_user' && !canStartActionEnabledUserContext) {
+      showToast('Only Admin or Super Admin can start an action-enabled user session.', 'danger');
+      return;
+    }
+    if (!canStartReadOnlyUserContext) {
+      showToast('This role cannot open user-context debugging sessions.', 'danger');
+      return;
+    }
+
+    setIsStartingUserContext(true);
+    setUserContextError(null);
+    setUserContextMessage(null);
+    try {
+      await startWebUserContextSession({
+        mode,
+        reason: userContextReason.trim(),
+        targetEmail: selectedSupportRow.ticket.customerEmail,
+        targetWorkspaceId: activeWorkspace.workspaceId,
+      });
+      setUserContextMessage(
+        mode === 'act_as_user'
+          ? 'Action-enabled user session started. The workspace is opening in a new tab.'
+          : 'Read-only debug session started. The workspace is opening in a new tab.'
+      );
+      window.open('/dashboard', '_blank', 'noopener,noreferrer');
+    } catch (sessionError) {
+      const message = sessionError instanceof Error ? sessionError.message : 'The user area could not be opened.';
+      setUserContextError(message);
+      showToast(message, 'danger');
+    } finally {
+      setIsStartingUserContext(false);
+    }
   }
 
   async function saveTicketAssignment() {
@@ -1815,6 +1865,54 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                       </span>
                     </article>
                   </div>
+
+                  {canStartReadOnlyUserContext ? (
+                    <section className="ol-panel ol-user-context-operator-card">
+                      <div className="ol-panel-header">
+                        <div>
+                          <div className="ol-panel-title">Debug user area</div>
+                          <p className="ol-panel-copy">
+                            Open the affected workspace in a new tab, or launch a bannered user-context session for this
+                            support case.
+                          </p>
+                        </div>
+                        <span className="ol-chip ol-chip--warning">Audited</span>
+                      </div>
+                      {userContextMessage ? (
+                        <div className="ol-message" data-tone="success">
+                          {userContextMessage}
+                        </div>
+                      ) : null}
+                      {userContextError ? (
+                        <div className="ol-message" data-tone="danger">
+                          {userContextError}
+                        </div>
+                      ) : null}
+                      <label className="ol-form-field">
+                        <span>Reason</span>
+                        <textarea
+                          className="ol-input ol-textarea"
+                          value={userContextReason}
+                          onChange={(event) => setUserContextReason(event.target.value)}
+                          placeholder="Explain the customer issue or reproduction path for this debug session."
+                          rows={3}
+                        />
+                      </label>
+                      <div className="ol-actions">
+                        <button className="ol-button-secondary" type="button" disabled={isStartingUserContext} onClick={() => void launchUserContext('open_workspace')}>
+                          Open workspace
+                        </button>
+                        <button className="ol-button-secondary" type="button" disabled={isStartingUserContext} onClick={() => void launchUserContext('view_as_user')}>
+                          View as user
+                        </button>
+                        {canStartActionEnabledUserContext ? (
+                          <button className="ol-button" type="button" disabled={isStartingUserContext} onClick={() => void launchUserContext('act_as_user')}>
+                            Act as user
+                          </button>
+                        ) : null}
+                      </div>
+                    </section>
+                  ) : null}
 
                   {section === 'support-inbox' || showAssignments ? (
                   <div className="ol-support-thread-section">

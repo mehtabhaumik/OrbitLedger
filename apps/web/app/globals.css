@@ -942,6 +942,35 @@ a:focus-visible {
   min-width: 0;
 }
 
+.ol-user-context-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(47, 131, 247, 0.22);
+  background: linear-gradient(135deg, rgba(47, 131, 247, 0.12), rgba(255, 255, 255, 0.96));
+}
+
+.ol-user-context-banner strong {
+  display: block;
+  color: #17305f;
+  font-size: 0.98rem;
+}
+
+.ol-user-context-banner p {
+  margin: 6px 0 0;
+  color: #4f638b;
+  line-height: 1.45;
+}
+
+.ol-user-context-banner[data-mode="act_as_user"] {
+  border-color: rgba(180, 57, 82, 0.28);
+  background: linear-gradient(135deg, rgba(180, 57, 82, 0.12), rgba(255, 255, 255, 0.96));
+}
+
 .ol-topbar-actions .ol-topbar-select {
   width: auto;
   min-width: 180px;
@@ -3824,6 +3853,16 @@ a:focus-visible {
   border-radius: 24px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 251, 254, 0.94) 100%);
   box-shadow: 0 22px 46px rgba(36, 54, 82, 0.08);
+}
+
+.ol-platform-admin-user-context-card,
+.ol-user-context-operator-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(191, 205, 225, 0.86);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 251, 254, 0.94) 100%);
 }
 
 .ol-platform-admin-hero {
@@ -13462,6 +13501,18 @@ a:focus-visible {
 
   .ol-topbar-actions {
     grid-template-columns: 1fr;
+  }
+
+  .ol-user-context-banner {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .ol-user-context-banner,
+  .ol-platform-admin-user-context-card,
+  .ol-user-context-operator-card {
+    padding: 16px;
   }
 
   .ol-mobile-nav-panel {

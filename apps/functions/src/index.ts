@@ -56,6 +56,7 @@ type PlatformAdminFunctionPermission =
   | 'manage_admin_accounts'
   | 'view_audit_trail'
   | 'manage_user_controls'
+  | 'manage_user_context_sessions'
   | 'manage_offers'
   | 'download_admin_reports'
   | 'review_office_access'
@@ -68,6 +69,34 @@ type PlatformAdminUserAction =
   | 'add_internal_note'
   | 'mark_under_review'
   | 'clear_under_review';
+const BACKOFFICE_USER_CONTEXT_MODES = ['open_workspace', 'view_as_user', 'act_as_user'] as const;
+const BACKOFFICE_USER_CONTEXT_STATUSES = ['active', 'ended', 'expired'] as const;
+type BackofficeUserContextMode = (typeof BACKOFFICE_USER_CONTEXT_MODES)[number];
+type BackofficeUserContextStatus = (typeof BACKOFFICE_USER_CONTEXT_STATUSES)[number];
+type BackofficeUserContextAction = 'get' | 'start' | 'end';
+type BackofficeUserContextSessionData = {
+  session_id: string;
+  status: BackofficeUserContextStatus;
+  mode: BackofficeUserContextMode;
+  reason: string;
+  actor_uid: string;
+  actor_email: string | null;
+  actor_role: PlatformAdminRole;
+  target_uid: string;
+  target_email: string | null;
+  target_display_name: string | null;
+  target_workspace_id: string;
+  target_workspace_name: string;
+  target_access_source: 'owner' | 'member';
+  target_office_role: string | null;
+  target_is_owner: boolean;
+  read_only: boolean;
+  allow_actions: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+  expires_at: FirebaseFirestore.Timestamp | null;
+  ended_at: string | null;
+};
 const PLATFORM_OFFER_SCOPES = [
   'sitewide',
   'selected_users',
@@ -121,11 +150,15 @@ type PlatformAdminRegistryData = {
 };
 
 const PLATFORM_ADMIN_RATE_LIMIT_POLICIES: Record<
-  Extract<PlatformAdminFunctionPermission, 'manage_admin_accounts' | 'manage_user_controls' | 'manage_offers' | 'download_admin_reports'>,
+  Extract<
+    PlatformAdminFunctionPermission,
+    'manage_admin_accounts' | 'manage_user_controls' | 'manage_user_context_sessions' | 'manage_offers' | 'download_admin_reports'
+  >,
   { limit: number; windowMs: number }
 > = {
   manage_admin_accounts: { limit: 6, windowMs: 10 * 60 * 1000 },
   manage_user_controls: { limit: 20, windowMs: 10 * 60 * 1000 },
+  manage_user_context_sessions: { limit: 18, windowMs: 10 * 60 * 1000 },
   manage_offers: { limit: 12, windowMs: 10 * 60 * 1000 },
   download_admin_reports: { limit: 30, windowMs: 10 * 60 * 1000 },
 };
@@ -3986,6 +4019,164 @@ export const resolveOfficeAccessRequest = onRequest(
   }
 );
 
+function normalizeBackofficeUserContextSessionData(
+  data: FirebaseFirestore.DocumentData | null | undefined
+): BackofficeUserContextSessionData | null {
+  if (!data) {
+    return null;
+  }
+  const mode = normalizeBackofficeUserContextMode(clean(stringValue(data.mode)));
+  const status = BACKOFFICE_USER_CONTEXT_STATUSES.includes(clean(stringValue(data.status)) as BackofficeUserContextStatus)
+    ? (clean(stringValue(data.status)) as BackofficeUserContextStatus)
+    : null;
+  const workspaceId = clean(stringValue(data.target_workspace_id));
+  const targetUid = clean(stringValue(data.target_uid));
+  const actorUid = clean(stringValue(data.actor_uid));
+  const sessionId = clean(stringValue(data.session_id));
+  const workspaceName = clean(stringValue(data.target_workspace_name));
+  const accessSource = clean(stringValue(data.target_access_source));
+  if (
+    !mode ||
+    !status ||
+    !workspaceId ||
+    !targetUid ||
+    !actorUid ||
+    !sessionId ||
+    !workspaceName ||
+    (accessSource !== 'owner' && accessSource !== 'member')
+  ) {
+    return null;
+  }
+  return {
+    session_id: sessionId,
+    status,
+    mode,
+    reason: clean(stringValue(data.reason)) ?? '',
+    actor_uid: actorUid,
+    actor_email: clean(stringValue(data.actor_email)),
+    actor_role: normalizePlatformAdminRole(clean(stringValue(data.actor_role))) ?? 'support_admin',
+    target_uid: targetUid,
+    target_email: clean(stringValue(data.target_email)),
+    target_display_name: clean(stringValue(data.target_display_name)),
+    target_workspace_id: workspaceId,
+    target_workspace_name: workspaceName,
+    target_access_source: accessSource,
+    target_office_role: clean(stringValue(data.target_office_role)),
+    target_is_owner: data.target_is_owner === true,
+    read_only: data.read_only === true,
+    allow_actions: data.allow_actions === true,
+    created_at: clean(stringValue(data.created_at)),
+    updated_at: clean(stringValue(data.updated_at)),
+    expires_at: data.expires_at instanceof admin.firestore.Timestamp ? data.expires_at : null,
+    ended_at: clean(stringValue(data.ended_at)),
+  };
+}
+
+function serializeBackofficeUserContextSession(session: BackofficeUserContextSessionData | null) {
+  if (!session) {
+    return null;
+  }
+  return {
+    sessionId: session.session_id,
+    status: session.status,
+    mode: session.mode,
+    reason: session.reason,
+    actorUid: session.actor_uid,
+    actorEmail: session.actor_email,
+    actorRole: session.actor_role,
+    targetUid: session.target_uid,
+    targetEmail: session.target_email,
+    targetDisplayName: session.target_display_name,
+    targetWorkspaceId: session.target_workspace_id,
+    targetWorkspaceName: session.target_workspace_name,
+    targetAccessSource: session.target_access_source,
+    targetOfficeRole: session.target_office_role,
+    targetIsOwner: session.target_is_owner,
+    readOnly: session.read_only,
+    allowActions: session.allow_actions,
+    startedAt: session.created_at,
+    expiresAt: session.expires_at?.toDate().toISOString() ?? null,
+    endedAt: session.ended_at,
+  };
+}
+
+async function resolveBackofficeUserContextTarget(input: {
+  targetUid: string | null;
+  targetEmail: string | null;
+  targetWorkspaceId: string;
+}) {
+  let targetUser: admin.auth.UserRecord | null = null;
+  if (input.targetUid) {
+    targetUser = await admin
+      .auth()
+      .getUser(input.targetUid)
+      .catch((error: unknown) => {
+        if (isFirebaseAuthUserNotFound(error)) {
+          return null;
+        }
+        throw error;
+      });
+  }
+  if (!targetUser && input.targetEmail) {
+    targetUser = await admin
+      .auth()
+      .getUserByEmail(input.targetEmail)
+      .catch((error: unknown) => {
+        if (isFirebaseAuthUserNotFound(error)) {
+          return null;
+        }
+        throw error;
+      });
+  }
+  if (!targetUser) {
+    return null;
+  }
+
+  const workspaceRef = db.collection('workspaces').doc(input.targetWorkspaceId);
+  const workspaceSnapshot = await workspaceRef.get();
+  if (!workspaceSnapshot.exists) {
+    return { targetUser, workspace: null, membership: null };
+  }
+  const workspace = workspaceSnapshot.data() ?? {};
+  const membershipSnapshot = await workspaceRef.collection('office_members').doc(targetUser.uid).get();
+  const membership = membershipSnapshot.exists ? membershipSnapshot.data() ?? {} : null;
+  return { targetUser, workspace, membership };
+}
+
+function canTargetUserAccessWorkspace(input: {
+  targetUser: admin.auth.UserRecord;
+  workspace: FirebaseFirestore.DocumentData | null;
+  membership: FirebaseFirestore.DocumentData | null;
+}) {
+  if (!input.workspace) {
+    return null;
+  }
+  const targetEmail = normalizeEmailAddress(input.targetUser.email ?? null);
+  const ownerUid = clean(stringValue(input.workspace.owner_uid));
+  const ownerEmail = normalizeEmailAddress(clean(stringValue(input.workspace.owner_email)));
+  if (ownerUid === input.targetUser.uid || (targetEmail && ownerEmail === targetEmail)) {
+    return {
+      accessSource: 'owner' as const,
+      officeRole: 'owner',
+      isOwner: true,
+    };
+  }
+
+  if (
+    input.membership &&
+    clean(stringValue(input.membership.status)) === 'active' &&
+    clean(stringValue(input.membership.uid)) === input.targetUser.uid
+  ) {
+    return {
+      accessSource: 'member' as const,
+      officeRole: clean(stringValue(input.membership.role)),
+      isOwner: false,
+    };
+  }
+
+  return null;
+}
+
 export const getPlatformAdminSnapshot = onRequest(
   {
     region: 'asia-south1',
@@ -4062,6 +4253,7 @@ export const getPlatformAdminSnapshot = onRequest(
           count: number;
           names: string[];
           countries: string[];
+          contexts: Array<{ workspaceId: string; businessName: string; accessSource: 'owner'; officeRole: null; ownerUid: string | null }>;
           latestUpdatedAt: string | null;
           qaWorkspaceCount: number;
         }
@@ -4095,6 +4287,7 @@ export const getPlatformAdminSnapshot = onRequest(
             count: 0,
             names: [],
             countries: [],
+            contexts: [],
             latestUpdatedAt: null,
             qaWorkspaceCount: 0,
           };
@@ -4106,6 +4299,13 @@ export const getPlatformAdminSnapshot = onRequest(
         if (country && !current.countries.includes(country)) {
           current.countries.push(country);
         }
+        current.contexts.push({
+          workspaceId,
+          businessName: businessName ?? workspaceId,
+          accessSource: 'owner',
+          officeRole: null,
+          ownerUid,
+        });
         const updatedAt = clean(stringValue(data.updated_at)) ?? clean(stringValue(data.created_at));
         if (updatedAt && (!current.latestUpdatedAt || updatedAt > current.latestUpdatedAt)) {
           current.latestUpdatedAt = updatedAt;
@@ -4116,20 +4316,43 @@ export const getPlatformAdminSnapshot = onRequest(
         workspaceByOwner.set(ownerUid, current);
       }
 
-      const officeMembershipByUser = new Map<string, { count: number; roles: string[]; qaWorkspaceCount: number }>();
+      const officeMembershipByUser = new Map<
+        string,
+        {
+          count: number;
+          roles: string[];
+          qaWorkspaceCount: number;
+          contexts: Array<{ workspaceId: string; businessName: string; accessSource: 'member'; officeRole: string | null; ownerUid: string | null }>;
+        }
+      >();
       for (const memberDoc of memberSnapshot.docs) {
         const data = memberDoc.data();
         if (clean(stringValue(data.status)) !== 'active') {
           continue;
         }
         const uid = clean(stringValue(data.uid)) ?? memberDoc.id;
-        const current = officeMembershipByUser.get(uid) ?? { count: 0, roles: [], qaWorkspaceCount: 0 };
+        const current = officeMembershipByUser.get(uid) ?? { count: 0, roles: [], qaWorkspaceCount: 0, contexts: [] };
         current.count += 1;
         const role = clean(stringValue(data.role));
         if (role && !current.roles.includes(role)) {
           current.roles.push(role);
         }
         const workspaceId = memberDoc.ref.parent.parent?.id ?? null;
+        const workspaceDoc = workspaceId ? workspaceSnapshot.docs.find((doc) => doc.id === workspaceId) : null;
+        const workspaceData = workspaceDoc?.data() ?? null;
+        const businessName =
+          clean(stringValue(workspaceData?.business_name)) ??
+          clean(stringValue(workspaceData?.legal_business_name)) ??
+          clean(stringValue(workspaceData?.owner_name)) ??
+          workspaceId ??
+          'Orbit Ledger workspace';
+        current.contexts.push({
+          workspaceId: workspaceId ?? `workspace_${uid}`,
+          businessName,
+          accessSource: 'member',
+          officeRole: role ?? null,
+          ownerUid: clean(stringValue(workspaceData?.owner_uid)),
+        });
         if (workspaceId && qaWorkspaceIds.has(workspaceId)) {
           current.qaWorkspaceCount += 1;
         }
@@ -4158,10 +4381,11 @@ export const getPlatformAdminSnapshot = onRequest(
           count: 0,
           names: [],
           countries: [],
+          contexts: [],
           latestUpdatedAt: null,
           qaWorkspaceCount: 0,
         };
-        const officeSummary = officeMembershipByUser.get(authUser.uid) ?? { count: 0, roles: [], qaWorkspaceCount: 0 };
+        const officeSummary = officeMembershipByUser.get(authUser.uid) ?? { count: 0, roles: [], qaWorkspaceCount: 0, contexts: [] };
         const providerIds = authUser.providerData.map((provider) => provider.providerId).filter(Boolean).sort();
         const customClaims = asRecord(authUser.customClaims) ?? {};
         const customClaimsRole = normalizePlatformAdminRole(stringValue(customClaims.platform_admin_role));
@@ -4197,6 +4421,7 @@ export const getPlatformAdminSnapshot = onRequest(
           office_workspace_count: officeSummary.count,
           workspace_names: workspaceSummary.names,
           workspace_countries: workspaceSummary.countries,
+          workspace_contexts: [...workspaceSummary.contexts, ...officeSummary.contexts],
           office_roles: officeSummary.roles,
           latest_workspace_updated_at: workspaceSummary.latestUpdatedAt,
           platform_admin_role: registryAdmin?.role ?? customClaimsRole,
@@ -4235,6 +4460,7 @@ export const getPlatformAdminSnapshot = onRequest(
           officeWorkspaceCount: officeSummary.count,
           workspaceNames: workspaceSummary.names,
           workspaceCountries: workspaceSummary.countries,
+          workspaceContexts: [...workspaceSummary.contexts, ...officeSummary.contexts],
           officeRoles: officeSummary.roles,
           latestWorkspaceUpdatedAt: workspaceSummary.latestUpdatedAt,
           platformAdminRole: registryAdmin?.role ?? customClaimsRole,
@@ -4872,6 +5098,217 @@ export const managePlatformAdminUser = onRequest(
       logger.error('managePlatformAdminUser failed', { action, targetUid, targetEmail, error });
       response.status(500).json({ ok: false, error: 'platform_user_update_failed' });
     }
+  }
+);
+
+export const manageBackofficeUserContextSession = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 5,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    const body = asRecord(request.body);
+    const action = normalizeBackofficeUserContextAction(clean(stringValue(body?.action)));
+
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'manage_user_context_sessions')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'manageBackofficeUserContextSession',
+        requiredPermission: 'manage_user_context_sessions',
+        actor: adminUser,
+        access: adminAccess,
+        requestedAction: clean(stringValue(body?.action)),
+        targetUid: clean(stringValue(body?.targetUid)),
+        targetEmail: clean(stringValue(body?.targetEmail)),
+        outcome: 'denied',
+        reason: 'Only authorized Orbit Ledger operators can open user-context debugging sessions.',
+      });
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const sessionRef = db.collection('operator_user_context_sessions').doc(adminUser.uid);
+    const now = new Date();
+    const nowIso = now.toISOString();
+
+    if (action === 'get') {
+      const snapshot = await sessionRef.get();
+      const session = normalizeBackofficeUserContextSessionData(snapshot.data());
+      if (!session) {
+        response.json({ ok: true, session: null });
+        return;
+      }
+      if (session.status !== 'active' || !session.expires_at || session.expires_at.toMillis() <= now.getTime()) {
+        await sessionRef.set(
+          {
+            status: 'expired',
+            ended_at: nowIso,
+            updated_at: nowIso,
+          },
+          { merge: true }
+        );
+        response.json({ ok: true, session: null });
+        return;
+      }
+      response.json({ ok: true, session: serializeBackofficeUserContextSession(session) });
+      return;
+    }
+
+    if (action === 'end') {
+      const existing = await sessionRef.get();
+      const existingSession = normalizeBackofficeUserContextSessionData(existing.data());
+      if (existingSession) {
+        await Promise.all([
+          sessionRef.set(
+            {
+              status: 'ended',
+              ended_at: nowIso,
+              updated_at: nowIso,
+            },
+            { merge: true }
+          ),
+          db.collection('platform_admin_audit').doc(normalizeId(`user_context_end_${adminUser.uid}_${Date.now()}`)).set({
+            action: 'backoffice_user_context_ended',
+            actor_uid: adminUser.uid,
+            actor_email: adminUser.email ?? null,
+            actor_role: adminAccess.role,
+            target_uid: existingSession.target_uid,
+            target_email: existingSession.target_email,
+            workspace_id: existingSession.target_workspace_id,
+            reason: existingSession.reason,
+            affected_summary: `${existingSession.mode} · ${existingSession.target_workspace_name}`,
+            risk_level: existingSession.allow_actions ? 'high' : 'medium',
+            created_at: nowIso,
+          }),
+        ]);
+      }
+      response.json({ ok: true, session: null });
+      return;
+    }
+
+    const mode = normalizeBackofficeUserContextMode(clean(stringValue(body?.mode)));
+    const reason = clean(stringValue(body?.reason));
+    const targetWorkspaceId = clean(stringValue(body?.targetWorkspaceId));
+    const targetUid = clean(stringValue(body?.targetUid));
+    const targetEmail = normalizeEmailAddress(clean(stringValue(body?.targetEmail)));
+
+    if (!mode) {
+      response.status(400).json({ ok: false, error: 'user_context_action_not_allowed' });
+      return;
+    }
+    if (!targetWorkspaceId) {
+      response.status(400).json({ ok: false, error: 'user_context_workspace_required' });
+      return;
+    }
+    if (!reason || reason.length < 10) {
+      response.status(400).json({ ok: false, error: 'user_context_reason_required' });
+      return;
+    }
+    if (!targetUid && !targetEmail) {
+      response.status(400).json({ ok: false, error: 'user_context_target_required' });
+      return;
+    }
+    if (!canPlatformAdminStartUserContextSession(adminAccess, mode)) {
+      response.status(403).json({ ok: false, error: 'user_context_action_not_allowed' });
+      return;
+    }
+    if (
+      !(await enforcePlatformAdminRateLimit({
+        actor: adminUser,
+        access: adminAccess,
+        permission: 'manage_user_context_sessions',
+        endpoint: 'manageBackofficeUserContextSession',
+        requestedAction: mode,
+        targetUid,
+        targetEmail,
+      }))
+    ) {
+      response.status(429).json({ ok: false, error: 'user_context_rate_limit_exceeded' });
+      return;
+    }
+
+    const resolved = await resolveBackofficeUserContextTarget({
+      targetUid,
+      targetEmail,
+      targetWorkspaceId,
+    });
+    if (!resolved?.targetUser) {
+      response.status(404).json({ ok: false, error: 'user_context_target_not_found' });
+      return;
+    }
+    if (!resolved.workspace) {
+      response.status(404).json({ ok: false, error: 'user_context_workspace_not_found' });
+      return;
+    }
+    const targetWorkspaceAccess = canTargetUserAccessWorkspace(resolved);
+    if (!targetWorkspaceAccess) {
+      response.status(409).json({ ok: false, error: 'user_context_target_not_in_workspace' });
+      return;
+    }
+
+    const sessionId = normalizeId(`user_context_${mode}_${adminUser.uid}_${Date.now()}`);
+    const expiresAt = admin.firestore.Timestamp.fromDate(
+      new Date(now.getTime() + (mode === 'act_as_user' ? 15 : 30) * 60 * 1000)
+    );
+    const targetWorkspaceName =
+      clean(stringValue(resolved.workspace.business_name)) ??
+      clean(stringValue(resolved.workspace.legal_business_name)) ??
+      'Orbit Ledger workspace';
+    const allowActions = mode === 'act_as_user';
+    const sessionData: BackofficeUserContextSessionData = {
+      session_id: sessionId,
+      status: 'active',
+      mode,
+      reason,
+      actor_uid: adminUser.uid,
+      actor_email: adminUser.email ?? null,
+      actor_role: adminAccess.role,
+      target_uid: resolved.targetUser.uid,
+      target_email: normalizeEmailAddress(resolved.targetUser.email ?? targetEmail),
+      target_display_name: resolved.targetUser.displayName ?? null,
+      target_workspace_id: targetWorkspaceId,
+      target_workspace_name: targetWorkspaceName,
+      target_access_source: targetWorkspaceAccess.accessSource,
+      target_office_role: targetWorkspaceAccess.officeRole,
+      target_is_owner: targetWorkspaceAccess.isOwner,
+      read_only: !allowActions,
+      allow_actions: allowActions,
+      created_at: nowIso,
+      updated_at: nowIso,
+      expires_at: expiresAt,
+      ended_at: null,
+    };
+
+    await Promise.all([
+      sessionRef.set(sessionData, { merge: true }),
+      db.collection('platform_admin_audit').doc(normalizeId(`user_context_start_${adminUser.uid}_${Date.now()}`)).set({
+        action: `backoffice_user_context_${mode}_started`,
+        actor_uid: adminUser.uid,
+        actor_email: adminUser.email ?? null,
+        actor_role: adminAccess.role,
+        target_uid: resolved.targetUser.uid,
+        target_email: normalizeEmailAddress(resolved.targetUser.email ?? targetEmail),
+        workspace_id: targetWorkspaceId,
+        reason,
+        affected_summary: `${targetWorkspaceName} · ${mode.replaceAll('_', ' ')}`,
+        risk_level: allowActions ? 'high' : 'medium',
+        created_at: nowIso,
+      }),
+    ]);
+
+    response.json({ ok: true, session: serializeBackofficeUserContextSession(sessionData) });
   }
 );
 
@@ -11449,7 +11886,7 @@ async function enforcePlatformAdminRateLimit(input: {
   access: PlatformAdminRegistryData;
   permission: Extract<
     PlatformAdminFunctionPermission,
-    'manage_admin_accounts' | 'manage_user_controls' | 'manage_offers' | 'download_admin_reports'
+    'manage_admin_accounts' | 'manage_user_controls' | 'manage_user_context_sessions' | 'manage_offers' | 'download_admin_reports'
   >;
   endpoint: string;
   requestedAction?: string | null;
@@ -11596,6 +12033,10 @@ export function canPlatformAdminUseFunction(
     return access.role === 'admin' || access.role === 'support_admin';
   }
 
+  if (permission === 'manage_user_context_sessions') {
+    return access.role === 'admin' || access.role === 'support_admin';
+  }
+
   if (permission === 'manage_offers') {
     return access.role === 'finance_admin';
   }
@@ -11683,6 +12124,25 @@ export function canPlatformAdminUseUserAction(access: PlatformAdminRegistryData,
   return false;
 }
 
+export function canPlatformAdminStartUserContextSession(
+  access: PlatformAdminRegistryData,
+  mode: BackofficeUserContextMode
+): boolean {
+  if (!canPlatformAdminUseFunction(access, 'manage_user_context_sessions')) {
+    return false;
+  }
+
+  if (access.role === 'super_admin' || access.role === 'admin') {
+    return true;
+  }
+
+  if (access.role === 'support_admin') {
+    return mode === 'open_workspace' || mode === 'view_as_user';
+  }
+
+  return false;
+}
+
 function normalizePlatformAdminAccountAction(value: string | null): PlatformAdminAccountAction | null {
   if (
     value === 'create' ||
@@ -11708,6 +12168,16 @@ function normalizePlatformAdminUserAction(value: string | null): PlatformAdminUs
     return value;
   }
   return null;
+}
+
+function normalizeBackofficeUserContextMode(value: string | null): BackofficeUserContextMode | null {
+  return BACKOFFICE_USER_CONTEXT_MODES.includes(value as BackofficeUserContextMode)
+    ? (value as BackofficeUserContextMode)
+    : null;
+}
+
+function normalizeBackofficeUserContextAction(value: string | null): BackofficeUserContextAction | null {
+  return value === 'get' || value === 'start' || value === 'end' ? value : null;
 }
 
 function normalizePlatformAdminReportType(value: string | null): PlatformAdminReportType | null {

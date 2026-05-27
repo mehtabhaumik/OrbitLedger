@@ -15,6 +15,7 @@ import {
 } from '@/lib/session-security';
 import { ToastProvider } from './toast-provider';
 import { SubscriptionProvider } from './subscription-provider';
+import { UserContextProvider } from './user-context-provider';
 import { WebLockProvider } from './web-lock-provider';
 import { WorkspaceProvider } from './workspace-provider';
 
@@ -85,6 +86,30 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
         absoluteTimeoutMs={WEB_PLATFORM_ADMIN_ABSOLUTE_TIMEOUT_MS}
         idleTimeoutMs={WEB_PLATFORM_ADMIN_IDLE_TIMEOUT_MS}
       >
+        <UserContextProvider>
+          <WorkspaceProvider>
+            <OfficeAccessProvider>
+              <SubscriptionProvider>
+                <DeviceSettingsProvider>
+                  <WebLockProvider>
+                    <ToastProvider>
+                      <LiveCollectionsFeedProvider>
+                        <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+                      </LiveCollectionsFeedProvider>
+                    </ToastProvider>
+                  </WebLockProvider>
+                </DeviceSettingsProvider>
+              </SubscriptionProvider>
+            </OfficeAccessProvider>
+          </WorkspaceProvider>
+        </UserContextProvider>
+      </AuthProvider>
+    );
+  }
+
+  return (
+    <AuthProvider>
+      <UserContextProvider>
         <WorkspaceProvider>
           <OfficeAccessProvider>
             <SubscriptionProvider>
@@ -100,27 +125,7 @@ export function WebAppProviders({ children }: { children: ReactNode }) {
             </SubscriptionProvider>
           </OfficeAccessProvider>
         </WorkspaceProvider>
-      </AuthProvider>
-    );
-  }
-
-  return (
-    <AuthProvider>
-      <WorkspaceProvider>
-        <OfficeAccessProvider>
-          <SubscriptionProvider>
-            <DeviceSettingsProvider>
-              <WebLockProvider>
-                <ToastProvider>
-                  <LiveCollectionsFeedProvider>
-                    <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
-                  </LiveCollectionsFeedProvider>
-                </ToastProvider>
-              </WebLockProvider>
-            </DeviceSettingsProvider>
-          </SubscriptionProvider>
-        </OfficeAccessProvider>
-      </WorkspaceProvider>
+      </UserContextProvider>
     </AuthProvider>
   );
 }

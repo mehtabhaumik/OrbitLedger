@@ -587,6 +587,74 @@ describe('Firestore workspace rules', () => {
     await assertFails(staff.collection('live_payment_event_raw').doc('event-1').get());
     await assertFails(staff.collection('live_payment_audit').doc('audit-1').get());
   });
+
+  it('allows read-only user-context sessions to inspect a target workspace without granting writes', async () => {
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'viewer-1', 'viewer');
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const firestore = context.firestore();
+      await firestore.collection('workspaces').doc('workspace-1').collection('customers').doc('customer-1').set({
+        name: 'Orbit Customer',
+      });
+      await firestore.collection('operator_user_context_sessions').doc('support-admin-1').set({
+        session_id: 'session-1',
+        status: 'active',
+        mode: 'view_as_user',
+        actor_uid: 'support-admin-1',
+        actor_role: 'support_admin',
+        target_uid: 'viewer-1',
+        target_workspace_id: 'workspace-1',
+        target_workspace_name: 'Orbit Store',
+        target_access_source: 'member',
+        target_office_role: 'viewer',
+        target_is_owner: false,
+        read_only: true,
+        allow_actions: false,
+        expires_at: new Date('2030-01-01T00:00:00.000Z'),
+      });
+    });
+
+    const operator = testEnv.authenticatedContext('support-admin-1').firestore();
+    const workspace = operator.collection('workspaces').doc('workspace-1');
+    const customer = workspace.collection('customers').doc('customer-1');
+
+    await assertSucceeds(workspace.get());
+    await assertSucceeds(customer.get());
+    await assertFails(customer.set({ name: 'Blocked write' }));
+  });
+
+  it('lets act-as-user sessions inherit the target role write scope', async () => {
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'manager-1', 'manager');
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const firestore = context.firestore();
+      await firestore.collection('operator_user_context_sessions').doc('admin-operator-1').set({
+        session_id: 'session-2',
+        status: 'active',
+        mode: 'act_as_user',
+        actor_uid: 'admin-operator-1',
+        actor_role: 'admin',
+        target_uid: 'manager-1',
+        target_workspace_id: 'workspace-1',
+        target_workspace_name: 'Orbit Store',
+        target_access_source: 'member',
+        target_office_role: 'manager',
+        target_is_owner: false,
+        read_only: false,
+        allow_actions: true,
+        expires_at: new Date('2030-01-01T00:00:00.000Z'),
+      });
+    });
+
+    const operator = testEnv.authenticatedContext('admin-operator-1').firestore();
+    const workspace = operator.collection('workspaces').doc('workspace-1');
+    const customer = workspace.collection('customers').doc('customer-1');
+
+    await assertSucceeds(customer.set({ name: 'Allowed via act-as-user' }));
+    await assertFails(
+      workspace.update({
+        business_name: 'Manager cannot change company profile',
+      })
+    );
+  });
 });
 
 async function seedWorkspace(workspaceId: string, ownerUid: string) {

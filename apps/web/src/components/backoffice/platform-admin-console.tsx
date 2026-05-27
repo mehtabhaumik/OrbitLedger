@@ -43,8 +43,10 @@ import {
   type WebPlatformAdminUserRoleFilter,
   type WebPlatformAdminUser,
   type WebPlatformAdminUserAction,
+  type WebPlatformAdminUserWorkspaceContext,
   WEB_PLATFORM_ADMIN_REPORT_DEFINITIONS,
 } from '@/lib/platform-admin';
+import { startWebUserContextSession, type WebUserContextMode } from '@/lib/user-context';
 import {
   WEB_PLATFORM_ADMIN_ABSOLUTE_TIMEOUT_MS,
   WEB_PLATFORM_ADMIN_IDLE_TIMEOUT_MS,
@@ -207,6 +209,11 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
   const [isSavingUserControl, setIsSavingUserControl] = useState(false);
   const [userControlForm, setUserControlForm] = useState<UserControlFormState>(DEFAULT_USER_CONTROL_FORM);
   const [selectedUser, setSelectedUser] = useState<WebPlatformAdminUser | null>(null);
+  const [userContextWorkspaceId, setUserContextWorkspaceId] = useState('');
+  const [userContextReason, setUserContextReason] = useState('');
+  const [isStartingUserContext, setIsStartingUserContext] = useState(false);
+  const [userContextMessage, setUserContextMessage] = useState<string | null>(null);
+  const [userContextError, setUserContextError] = useState<string | null>(null);
   const [auditTrail, setAuditTrail] = useState<WebPlatformAdminAuditRecord[]>([]);
   const [auditGeneratedAt, setAuditGeneratedAt] = useState<string | null>(null);
   const [auditError, setAuditError] = useState<string | null>(null);
@@ -242,6 +249,8 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
     snapshot?.adminAccess?.role === 'admin' ||
     snapshot?.adminAccess?.role === 'support_admin';
   const canSuspendUsers = snapshot?.adminAccess?.role === 'super_admin' || snapshot?.adminAccess?.role === 'admin';
+  const canStartReadOnlyUserContext = canControlUsers;
+  const canStartActionEnabledUserContext = snapshot?.adminAccess?.role === 'super_admin' || snapshot?.adminAccess?.role === 'admin';
   const canDownloadReports = adminRole ? canPlatformAdminRole(adminRole, 'download_admin_reports') : true;
   const mfaEnrolledCount = getUserMfaEnrollmentCount(user);
   const mfaRequirement = adminRole ? MFA_READINESS_COPY[adminRole] : null;
@@ -376,6 +385,15 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
   useEffect(() => {
     setReportPreviewPage(0);
   }, [reportType, search, offerSearch, auditSearch, auditFilters, snapshot?.generatedAt]);
+
+  useEffect(() => {
+    const nextWorkspaceId = selectedUserRecord?.workspaceContexts[0]?.workspaceId ?? '';
+    setUserContextWorkspaceId((current) =>
+      selectedUserRecord?.workspaceContexts.some((workspace) => workspace.workspaceId === current) ? current : nextWorkspaceId
+    );
+    setUserContextMessage(null);
+    setUserContextError(null);
+  }, [selectedUserRecord]);
 
   async function refresh(nextPageToken: string | null, options?: { nextPageIndex?: number; rememberedTokens?: Array<string | null> }) {
     setIsLoading(true);
@@ -623,6 +641,36 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
       setUserControlError(submitError instanceof Error ? submitError.message : 'Platform user control action failed.');
     } finally {
       setIsSavingUserControl(false);
+    }
+  }
+
+  async function launchUserContext(mode: WebUserContextMode) {
+    if (!selectedUserRecord || !userContextWorkspaceId || userContextReason.trim().length < 10) {
+      setUserContextError('Choose a workspace and add a clear reason with at least 10 characters before opening the user area.');
+      return;
+    }
+
+    setIsStartingUserContext(true);
+    setUserContextError(null);
+    setUserContextMessage(null);
+    try {
+      await startWebUserContextSession({
+        mode,
+        reason: userContextReason.trim(),
+        targetUid: selectedUserRecord.uid,
+        targetEmail: selectedUserRecord.email,
+        targetWorkspaceId: userContextWorkspaceId,
+      });
+      setUserContextMessage(
+        mode === 'act_as_user'
+          ? 'Action-enabled user session started. The user area is opening in a new tab with a visible debug banner.'
+          : 'Read-only user session started. The user area is opening in a new tab with a visible debug banner.'
+      );
+      window.open('/dashboard', '_blank', 'noopener,noreferrer');
+    } catch (sessionError) {
+      setUserContextError(sessionError instanceof Error ? sessionError.message : 'The user area could not be opened.');
+    } finally {
+      setIsStartingUserContext(false);
     }
   }
 
@@ -2107,6 +2155,97 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                       ) : null}
                     </div>
 
+                    {canStartReadOnlyUserContext ? (
+                      <section className="ol-platform-admin-user-context-card">
+                        <div className="ol-platform-admin-section-head">
+                          <div>
+                            <h2>Debug user area</h2>
+                            <p>
+                              Open the real user workspace in a new tab, or start a bannered user-context session for
+                              support debugging. Existing passwords are never shown or used here.
+                            </p>
+                          </div>
+                          <span className="ol-chip ol-chip--warning">Audited</span>
+                        </div>
+                        {userContextMessage ? (
+                          <div className="ol-message" data-tone="success">
+                            {userContextMessage}
+                          </div>
+                        ) : null}
+                        {userContextError ? (
+                          <div className="ol-message" data-tone="danger">
+                            {userContextError}
+                          </div>
+                        ) : null}
+                        <div className="ol-platform-admin-form-grid">
+                          <label className="ol-form-field">
+                            <span>Workspace</span>
+                            <select
+                              className="ol-select"
+                              value={userContextWorkspaceId}
+                              onChange={(event) => setUserContextWorkspaceId(event.target.value)}
+                            >
+                              {selectedUserRecord.workspaceContexts.length ? (
+                                selectedUserRecord.workspaceContexts.map((workspace) => (
+                                  <option key={workspace.workspaceId} value={workspace.workspaceId}>
+                                    {workspace.businessName} · {workspace.accessSource === 'owner' ? 'Owner' : workspace.officeRole ?? 'Member'}
+                                  </option>
+                                ))
+                              ) : (
+                                <option value="">No workspace available</option>
+                              )}
+                            </select>
+                          </label>
+                          <label className="ol-form-field">
+                            <span>Target access</span>
+                            <input
+                              className="ol-input"
+                              value={summarizeWorkspaceContexts(selectedUserRecord.workspaceContexts)}
+                              readOnly
+                            />
+                          </label>
+                        </div>
+                        <label className="ol-form-field">
+                          <span>Reason</span>
+                          <textarea
+                            className="ol-input ol-textarea"
+                            value={userContextReason}
+                            onChange={(event) => setUserContextReason(event.target.value)}
+                            placeholder="Explain the customer issue, workflow bug, or debug purpose for this session."
+                            rows={3}
+                          />
+                        </label>
+                        <div className="ol-actions">
+                          <button
+                            className="ol-button-secondary"
+                            type="button"
+                            disabled={isStartingUserContext || !selectedUserRecord.workspaceContexts.length}
+                            onClick={() => void launchUserContext('open_workspace')}
+                          >
+                            Open workspace
+                          </button>
+                          <button
+                            className="ol-button-secondary"
+                            type="button"
+                            disabled={isStartingUserContext || !selectedUserRecord.workspaceContexts.length}
+                            onClick={() => void launchUserContext('view_as_user')}
+                          >
+                            View as user
+                          </button>
+                          {canStartActionEnabledUserContext ? (
+                            <button
+                              className="ol-button"
+                              type="button"
+                              disabled={isStartingUserContext || !selectedUserRecord.workspaceContexts.length}
+                              onClick={() => void launchUserContext('act_as_user')}
+                            >
+                              Act as user
+                            </button>
+                          ) : null}
+                        </div>
+                      </section>
+                    ) : null}
+
                     {canControlUsers ? (
                       <>
                         <div className="ol-platform-admin-user-action-strip">
@@ -2902,6 +3041,17 @@ function humanizeRiskLabel(value: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function summarizeWorkspaceContexts(workspaces: WebPlatformAdminUserWorkspaceContext[]) {
+  if (!workspaces.length) {
+    return 'No workspace attached';
+  }
+  if (workspaces.length === 1) {
+    const workspace = workspaces[0];
+    return workspace.accessSource === 'owner' ? 'Owner access' : workspace.officeRole ?? 'Office member';
+  }
+  return `${workspaces.length} workspace contexts available`;
 }
 
 function initials(value: string) {

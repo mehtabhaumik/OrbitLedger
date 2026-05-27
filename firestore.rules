@@ -18,11 +18,37 @@ service cloud.firestore {
 
     function ownsWorkspaceDocument() {
       return signedIn() &&
+        resource != null &&
+        resource.data.owner_uid is string &&
         resource.data.owner_uid == request.auth.uid;
     }
 
     function officeMemberRef(workspaceId, userId) {
       return /databases/$(database)/documents/workspaces/$(workspaceId)/office_members/$(userId);
+    }
+
+    function userContextSessionRef() {
+      return /databases/$(database)/documents/operator_user_context_sessions/$(request.auth.uid);
+    }
+
+    function hasActiveUserContextSession(workspaceId, modes) {
+      return signedIn() &&
+        exists(userContextSessionRef()) &&
+        get(userContextSessionRef()).data.status == 'active' &&
+        get(userContextSessionRef()).data.target_workspace_id == workspaceId &&
+        get(userContextSessionRef()).data.mode in modes &&
+        get(userContextSessionRef()).data.expires_at is timestamp &&
+        get(userContextSessionRef()).data.expires_at > request.time;
+    }
+
+    function sessionTargetIsOwner(workspaceId) {
+      return hasActiveUserContextSession(workspaceId, ['act_as_user']) &&
+        get(userContextSessionRef()).data.target_is_owner == true;
+    }
+
+    function sessionTargetHasRole(workspaceId, roles) {
+      return hasActiveUserContextSession(workspaceId, ['act_as_user']) &&
+        get(userContextSessionRef()).data.target_office_role in roles;
     }
 
     function hasActiveOfficeMembership(workspaceId) {
@@ -37,15 +63,22 @@ service cloud.firestore {
     }
 
     function canReadWorkspace(workspaceId) {
-      return ownsWorkspace(workspaceId) || hasActiveOfficeMembership(workspaceId);
+      return ownsWorkspace(workspaceId) ||
+        hasActiveOfficeMembership(workspaceId) ||
+        hasActiveUserContextSession(workspaceId, ['open_workspace', 'view_as_user', 'act_as_user']);
     }
 
     function canReadWorkspaceDocument(workspaceId) {
-      return ownsWorkspaceDocument() || hasActiveOfficeMembership(workspaceId);
+      return ownsWorkspaceDocument() ||
+        hasActiveOfficeMembership(workspaceId) ||
+        hasActiveUserContextSession(workspaceId, ['open_workspace', 'view_as_user', 'act_as_user']);
     }
 
     function canManageWorkspaceProfile(workspaceId) {
-      return ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin']);
+      return ownsWorkspace(workspaceId) ||
+        hasOfficeRole(workspaceId, ['admin']) ||
+        sessionTargetIsOwner(workspaceId) ||
+        sessionTargetHasRole(workspaceId, ['admin']);
     }
 
     function canWriteWorkspaceCollection(workspaceId, collectionName) {
@@ -73,6 +106,33 @@ service cloud.firestore {
             'payment_provider_events'
           ] &&
           hasOfficeRole(workspaceId, ['admin', 'manager'])
+        ) ||
+        (
+          sessionTargetIsOwner(workspaceId) ||
+          (
+            collectionName in [
+              'customers',
+              'customer_timeline_notes',
+              'payment_reminders',
+              'payment_promises',
+              'transactions',
+              'products',
+              'invoices',
+              'invoice_items',
+              'invoice_versions',
+              'payment_allocations'
+            ] &&
+            sessionTargetHasRole(workspaceId, ['admin', 'manager', 'staff'])
+          ) ||
+          (
+            collectionName in [
+              'payment_reversals',
+              'recurring_invoice_rules',
+              'email_queue',
+              'payment_provider_events'
+            ] &&
+            sessionTargetHasRole(workspaceId, ['admin', 'manager'])
+          )
         );
     }
 
@@ -95,6 +155,27 @@ service cloud.firestore {
             'email_queue'
           ] &&
           hasOfficeRole(workspaceId, ['admin'])
+        ) ||
+        (
+          sessionTargetIsOwner(workspaceId) ||
+          (
+            collectionName in [
+              'customers',
+              'customer_timeline_notes',
+              'payment_reminders',
+              'payment_promises',
+              'transactions',
+              'products',
+              'invoices',
+              'invoice_items',
+              'invoice_versions',
+              'payment_allocations',
+              'payment_reversals',
+              'recurring_invoice_rules',
+              'email_queue'
+            ] &&
+            sessionTargetHasRole(workspaceId, ['admin'])
+          )
         );
     }
 

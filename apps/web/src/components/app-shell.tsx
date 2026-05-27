@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { isWebPlatformAdminAllowed } from '@/lib/platform-admin-access';
 import { isWebOfficeOperationsAllowed } from '@/lib/office-admin-operations';
 import { useAuth } from '@/providers/auth-provider';
+import { useUserContext } from '@/providers/user-context-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
@@ -41,6 +42,7 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOutUser } = useAuth();
+  const { session: userContextSession, isUserAreaSession, endSession } = useUserContext();
   const { status: subscriptionStatus } = useWebSubscription();
   const { activeWorkspace, workspaces, selectWorkspace } = useWorkspace();
   const [isOnline, setIsOnline] = useState(true);
@@ -50,7 +52,20 @@ export function AppShell({
   const accountInitial = accountLabel.trim().charAt(0).toUpperCase() || 'O';
   const hasOperationsAccess = isWebOfficeOperationsAllowed(user?.email);
   const hasPlatformAdminAccess = isWebPlatformAdminAllowed(user?.email);
-  const hasBackofficeAccess = hasOperationsAccess || hasPlatformAdminAccess;
+  const hasBackofficeAccess = !isUserAreaSession && (hasOperationsAccess || hasPlatformAdminAccess);
+  const userContextExpiryLabel = useMemo(() => {
+    if (!userContextSession?.expiresAt) {
+      return null;
+    }
+    const parsed = new Date(userContextSession.expiresAt);
+    if (Number.isNaN(parsed.getTime())) {
+      return userContextSession.expiresAt;
+    }
+    return parsed.toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  }, [userContextSession?.expiresAt]);
   const syncBadge = useMemo(() => {
     if (!activeWorkspace) {
       return 'No business selected';
@@ -217,7 +232,34 @@ export function AppShell({
             </button>
           </div>
         </header>
-        <main className="ol-page-content">{children}</main>
+        <main className="ol-page-content">
+          {isUserAreaSession && userContextSession ? (
+            <section className="ol-user-context-banner" data-mode={userContextSession.mode}>
+              <div>
+                <strong>
+                  {userContextSession.mode === 'act_as_user'
+                    ? `Acting as ${userContextSession.targetDisplayName ?? userContextSession.targetEmail ?? 'user'}`
+                    : userContextSession.mode === 'view_as_user'
+                      ? `Viewing Orbit Ledger as ${userContextSession.targetDisplayName ?? userContextSession.targetEmail ?? 'user'}`
+                      : `Opened ${userContextSession.targetWorkspaceName} as operator`}
+                </strong>
+                <p>
+                  {userContextSession.targetWorkspaceName} · {userContextSession.readOnly ? 'Read-only debug session' : 'Action-enabled debug session'}
+                  {userContextExpiryLabel ? ` · Expires ${userContextExpiryLabel}` : ''}
+                </p>
+              </div>
+              <div className="ol-actions">
+                <span className={`ol-chip ${userContextSession.readOnly ? 'ol-chip--warning' : 'ol-chip--danger'}`}>
+                  {userContextSession.mode.replaceAll('_', ' ')}
+                </span>
+                <button className="ol-button-secondary" type="button" onClick={() => void endSession()}>
+                  Exit user view
+                </button>
+              </div>
+            </section>
+          ) : null}
+          {children}
+        </main>
       </div>
       {isMobileNavOpen ? (
         <div className="ol-mobile-nav-layer" id="workspace-mobile-nav" role="dialog" aria-modal="true" aria-label="Navigation menu">

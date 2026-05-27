@@ -38,6 +38,15 @@ const baseUser: WebPlatformAdminUser = {
   officeWorkspaceCount: 0,
   workspaceNames: ['Rudraix Private Limited'],
   workspaceCountries: ['IN'],
+  workspaceContexts: [
+    {
+      workspaceId: 'workspace_1',
+      businessName: 'Rudraix Private Limited',
+      accessSource: 'owner',
+      officeRole: null,
+      ownerUid: 'user_1',
+    },
+  ],
   officeRoles: [],
   latestWorkspaceUpdatedAt: '2026-05-21T12:00:00.000Z',
   platformAdminRole: null,

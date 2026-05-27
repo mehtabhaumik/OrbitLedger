@@ -12,6 +12,7 @@ import {
   type WorkspaceProfileInput,
 } from '@/lib/workspaces';
 import { useAuth } from './auth-provider';
+import { useUserContext } from './user-context-provider';
 
 type WorkspaceContextValue = {
   workspaces: OrbitWorkspaceSummary[];
@@ -157,6 +158,7 @@ function writeWorkspaceCache(
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user, isLoading: authLoading } = useAuth();
+  const { session: userContextSession, isUserAreaSession } = useUserContext();
   const [workspaces, setWorkspaces] = useState<OrbitWorkspaceSummary[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -176,6 +178,48 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setActiveWorkspaceId(null);
       setDashboardSnapshot(null);
       setWorkspaceLookupError(null);
+      setIsLoading(false);
+      return;
+    }
+    if (isUserAreaSession && userContextSession) {
+      const contextWorkspace = {
+        workspaceId: userContextSession.targetWorkspaceId,
+        businessName: userContextSession.targetWorkspaceName,
+        ownerName: userContextSession.targetDisplayName ?? userContextSession.targetEmail ?? 'Workspace owner',
+        email: userContextSession.targetEmail ?? '',
+        phone: '',
+        address: '',
+        currency: 'INR',
+        countryCode: 'IN',
+        stateCode: '',
+        logoUri: null,
+        updatedAt: userContextSession.startedAt ?? new Date().toISOString(),
+        dataState: 'full_dataset',
+        paymentInstructions: {
+          upiId: null,
+          paymentPageUrl: null,
+          paymentNote: null,
+          bankAccountName: null,
+          bankName: null,
+          bankAccountNumber: null,
+          bankIfsc: null,
+          bankBranch: null,
+          bankRoutingNumber: null,
+          bankSortCode: null,
+          bankIban: null,
+          bankSwift: null,
+        },
+      } as OrbitWorkspaceSummary & {
+        ownerUid: string | null;
+        ownerEmail: string | null;
+        accessSource: 'owner' | 'member';
+      };
+      contextWorkspace.ownerUid = userContextSession.targetUid;
+      contextWorkspace.ownerEmail = userContextSession.targetEmail;
+      contextWorkspace.accessSource = userContextSession.targetAccessSource;
+      setWorkspaceLookupError(null);
+      setWorkspaces([contextWorkspace]);
+      setActiveWorkspaceId(contextWorkspace.workspaceId);
       setIsLoading(false);
       return;
     }
@@ -272,7 +316,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       return;
     }
     void refresh();
-  }, [authLoading, user]);
+  }, [authLoading, isUserAreaSession, user, userContextSession?.sessionId]);
 
   useEffect(() => {
     if (!activeWorkspaceId) {
