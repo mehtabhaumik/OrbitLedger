@@ -839,7 +839,26 @@ export async function loadWebPlatformAdminSnapshot(input: {
     metrics: result.metrics,
     admins: result.admins ?? [],
     offers: result.offers ?? [],
-    users: result.users,
+    users: Array.isArray(result.users) ? result.users.map(normalizeWebPlatformAdminUser) : [],
+  };
+}
+
+export function normalizeWebPlatformAdminUser(user: WebPlatformAdminUser): WebPlatformAdminUser {
+  return {
+    ...user,
+    providerIds: Array.isArray(user.providerIds) ? user.providerIds : [],
+    workspaceNames: Array.isArray(user.workspaceNames) ? user.workspaceNames : [],
+    workspaceCountries: Array.isArray(user.workspaceCountries) ? user.workspaceCountries : [],
+    workspaceContexts: Array.isArray(user.workspaceContexts)
+      ? user.workspaceContexts.map((workspace) => ({
+          workspaceId: workspace.workspaceId,
+          businessName: workspace.businessName,
+          accessSource: workspace.accessSource,
+          officeRole: workspace.officeRole ?? null,
+          ownerUid: workspace.ownerUid ?? null,
+        }))
+      : [],
+    officeRoles: Array.isArray(user.officeRoles) ? user.officeRoles : [],
   };
 }
 

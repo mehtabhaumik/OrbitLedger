@@ -10,6 +10,7 @@ import {
   filterWebPlatformAdminUsers,
   filterWebPlatformAdminUsersWithFilters,
   formatPlatformAdminDate,
+  normalizeWebPlatformAdminUser,
   type WebPlatformAdminAuditRecord,
   type WebPlatformAdminOffer,
   type WebPlatformAdminSnapshot,
@@ -172,6 +173,23 @@ describe('platform admin registry helpers', () => {
       qaUserCount: 1,
       subscribedUserCount: 1,
     });
+  });
+
+  it('normalizes missing legacy array fields in platform users so the UI stays backward compatible', () => {
+    const normalized = normalizeWebPlatformAdminUser({
+      ...baseUser,
+      providerIds: undefined as unknown as string[],
+      workspaceNames: undefined as unknown as string[],
+      workspaceCountries: undefined as unknown as string[],
+      workspaceContexts: undefined as unknown as WebPlatformAdminUser['workspaceContexts'],
+      officeRoles: undefined as unknown as string[],
+    });
+
+    expect(normalized.providerIds).toEqual([]);
+    expect(normalized.workspaceNames).toEqual([]);
+    expect(normalized.workspaceCountries).toEqual([]);
+    expect(normalized.workspaceContexts).toEqual([]);
+    expect(normalized.officeRoles).toEqual([]);
   });
 
   it('builds SaaS health chart datasets from users, offers, admins, and audit records', () => {
