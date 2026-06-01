@@ -9,14 +9,18 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       allow: ['/', '/template-preview'],
       disallow: [
+        '/__',
+        '/api',
         '/backup',
         '/backoffice',
         '/customers',
         '/dashboard',
         '/documents',
         '/invoices',
+        '/login',
         '/market',
         '/office-operations',
+        '/pay',
         '/payments',
         '/platform-admin',
         '/products',

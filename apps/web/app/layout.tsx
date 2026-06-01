@@ -6,7 +6,8 @@ import { WebAppProviders } from '@/providers/web-app-providers';
 
 const siteUrl = process.env.NEXT_PUBLIC_ORBIT_LEDGER_SITE_URL ?? 'https://orbitledger.rudraix.com';
 const landingDescription =
-  'Orbit Ledger helps small businesses track receivables, invoices, payments, reminders, and daily review from one calm web workspace.';
+  'Orbit Ledger helps small businesses collect faster, track receivables, manage invoices and payments, follow up on customers, and close each day with confidence.';
+const siteName = 'Orbit Ledger';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -15,28 +16,37 @@ export const metadata: Metadata = {
     template: '%s | Orbit Ledger',
   },
   description: landingDescription,
-  applicationName: 'Orbit Ledger',
+  applicationName: siteName,
   authors: [{ name: 'Rudraix' }],
   creator: 'Rudraix',
   publisher: 'Rudraix',
+  category: 'Business software',
   alternates: {
     canonical: '/',
+    languages: {
+      'en-IN': '/',
+    },
   },
   keywords: [
     'Orbit Ledger',
+    'daily money control',
     'small business ledger',
     'invoice software',
+    'invoice templates',
     'receivables',
+    'accounts receivable software',
     'payment reminders',
+    'payment follow up',
     'GST invoice',
     'business dashboard',
     'customer ledger',
+    'small business payments',
   ],
   openGraph: {
-    title: 'Orbit Ledger',
+    title: 'Orbit Ledger | Collect Faster And Close Each Day With Confidence',
     description: landingDescription,
     url: '/',
-    siteName: 'Orbit Ledger',
+    siteName,
     images: [
       {
         url: '/icons/icon-512.png',
@@ -61,7 +71,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary',
-    title: 'Orbit Ledger',
+    title: 'Orbit Ledger | Small Business Receivables Workspace',
     description: landingDescription,
     images: ['/icons/icon-512.png'],
   },

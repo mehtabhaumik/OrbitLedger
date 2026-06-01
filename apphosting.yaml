@@ -12,7 +12,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_ORBIT_LEDGER_SITE_URL
-    value: https://orbitledger.bhaumikmehta.com
+    value: https://orbitledger.rudraix.com
     availability:
       - BUILD
       - RUNTIME

@@ -95,11 +95,61 @@ const productFlow = [
   ['Close the day', 'Review collections, pending work, and tomorrow’s follow-ups.'],
 ] as const;
 
+const siteUrl = process.env.NEXT_PUBLIC_ORBIT_LEDGER_SITE_URL ?? 'https://orbitledger.rudraix.com';
+
+const landingStructuredData = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'Orbit Ledger',
+    url: siteUrl,
+    logo: `${siteUrl}/icons/icon-512.png`,
+    parentOrganization: {
+      '@type': 'Organization',
+      name: 'Rudraix',
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Orbit Ledger',
+    url: siteUrl,
+    publisher: {
+      '@type': 'Organization',
+      name: 'Rudraix',
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Orbit Ledger',
+    applicationCategory: 'BusinessApplication',
+    operatingSystem: 'Web',
+    url: siteUrl,
+    description:
+      'Orbit Ledger helps small businesses collect faster, track receivables, manage invoices and payments, follow up on customers, and close each day with confidence.',
+    offers: {
+      '@type': 'Offer',
+      category: 'Public beta',
+      price: '0',
+      priceCurrency: 'USD',
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Rudraix',
+    },
+  },
+];
+
 export default function LandingPage() {
   const appCtaHref = '/login' as Route;
 
   return (
     <main className="ol-landing-page">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(landingStructuredData) }}
+      />
       <div className="ol-enterprise-ledger-bg" aria-hidden="true">
         <div className="ol-ledger-bg-sheet ol-ledger-bg-sheet--primary">
           {[
