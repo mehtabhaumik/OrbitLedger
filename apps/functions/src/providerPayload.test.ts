@@ -37,6 +37,7 @@ import {
   buildLiveCollectionsReconciledEventUpdate,
   buildLiveCollectionsReconciliationAuditRecord,
   buildResendEmailPayload,
+  buildResendSupportEmailEventUpdate,
   buildBillingPortalSessionRecord,
   buildRazorpayCheckoutPayload,
   buildSubscriptionBillingMetadata,
@@ -46,6 +47,7 @@ import {
   buildSubscriptionRenewalChangeRecord,
   normalizeMonetizationWebhookPayload,
   normalizeRazorpayLiveCollectionsPayload,
+  normalizeResendSupportEmailEventStatus,
   normalizeProviderWebhookPayload,
   resolveSubscriptionCheckoutPricing,
   resolveSubscriptionCheckoutPricingFromRecord,
@@ -1262,13 +1264,29 @@ describe('provider webhook payload mapping', () => {
       sent_at: '2026-05-06T12:02:00.000Z',
     });
 
+    expect(normalizeResendSupportEmailEventStatus('email.delivered')).toBe('delivered');
+    expect(normalizeResendSupportEmailEventStatus('email.opened')).toBeNull();
+    expect(buildResendSupportEmailEventUpdate({
+      eventType: 'email.bounced',
+      providerMessageId: 'email_123',
+      eventCreatedAt: '2026-05-06T12:03:00.000Z',
+      now,
+    })).toMatchObject({
+      delivery_status: 'bounced',
+      email_provider_status: 'bounced',
+      provider_message_id: 'email_123',
+      provider_event_type: 'email.bounced',
+      provider_event_at: '2026-05-06T12:03:00.000Z',
+      failure_reason: 'email.bounced',
+    });
+
     expect(buildResendEmailPayload({
       to: [' owner@example.com ', 'not-an-email'],
       subject: 'Sample Orbit Ledger email',
       html: '<p>Sample</p>',
       text: 'Sample',
     })).toMatchObject({
-      from: 'Orbit Ledger <no-reply@orbitledger.rudraix.com>',
+      from: 'Orbit Ledger Support <support@orbitledger.rudraix.com>',
       to: ['owner@example.com'],
       subject: 'Sample Orbit Ledger email',
     });

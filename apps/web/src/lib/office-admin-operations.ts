@@ -160,7 +160,16 @@ export type WebSupportCaseEmailRequestRecord = {
   subject: string;
   body: string;
   replyAction: 'reply' | 'close_with_reply' | 'close_silently' | 'reopen_with_reply';
-  deliveryStatus: 'queued' | 'pending_provider_connection' | 'sent' | 'failed';
+  deliveryStatus:
+    | 'queued'
+    | 'pending_provider_connection'
+    | 'sent'
+    | 'delivered'
+    | 'delivery_delayed'
+    | 'bounced'
+    | 'failed'
+    | 'complained'
+    | 'suppressed';
   queuedByEmail: string | null;
   queuedAt: string | null;
   sentAt: string | null;
@@ -1090,9 +1099,12 @@ export function buildWebSupportAuditRecords(input: {
     ...input.supportCaseEmailRequests.map((request) => {
       const ticket = ticketByCaseId.get(request.supportCaseId) ?? null;
       const tone: WebSupportAuditRecord['tone'] =
-        request.deliveryStatus === 'failed'
+        request.deliveryStatus === 'failed' ||
+        request.deliveryStatus === 'bounced' ||
+        request.deliveryStatus === 'complained' ||
+        request.deliveryStatus === 'suppressed'
           ? 'warning'
-          : request.deliveryStatus === 'sent'
+          : request.deliveryStatus === 'sent' || request.deliveryStatus === 'delivered'
             ? 'success'
             : 'default';
       return {
@@ -2355,7 +2367,16 @@ function officeReviewErrorMessage(error: string) {
 }
 
 function supportEmailDeliveryStatus(value: unknown): WebSupportCaseEmailRequestRecord['deliveryStatus'] {
-  return value === 'queued' || value === 'sent' || value === 'failed' ? value : 'pending_provider_connection';
+  return value === 'queued' ||
+    value === 'sent' ||
+    value === 'delivered' ||
+    value === 'delivery_delayed' ||
+    value === 'bounced' ||
+    value === 'failed' ||
+    value === 'complained' ||
+    value === 'suppressed'
+    ? value
+    : 'pending_provider_connection';
 }
 
 function supportNotificationPermissionState(

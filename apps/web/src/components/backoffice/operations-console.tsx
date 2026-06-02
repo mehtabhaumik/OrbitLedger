@@ -2549,7 +2549,15 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                     <article className="ol-support-library-card" key={request.id}>
                       <div className="ol-support-timeline-head">
                         <strong>{request.subject}</strong>
-                        <span className={`ol-chip ${request.deliveryStatus === 'sent' ? 'ol-chip--success' : 'ol-chip--warning'}`}>
+                        <span
+                          className={`ol-chip ${
+                            request.deliveryStatus === 'sent' || request.deliveryStatus === 'delivered'
+                              ? 'ol-chip--success'
+                              : request.deliveryStatus === 'queued' || request.deliveryStatus === 'pending_provider_connection'
+                                ? ''
+                                : 'ol-chip--warning'
+                          }`}
+                        >
                           {request.deliveryStatus === 'pending_provider_connection' ? 'delivery pending' : request.deliveryStatus}
                         </span>
                       </div>

@@ -20,11 +20,11 @@ import {
 } from './supportCenterBridge';
 import {
   buildSupportInboundMessageBody,
-  buildSupportReplyToAddress,
   extractMailboxAddress,
   extractSupportInboundHeaderValue,
   extractSupportInboundMessageReferences,
   inferSupportKindFromInboundEmail,
+  normalizeSupportInboundCaseId,
   parseSupportInboundRoute,
 } from './supportInbound';
 
@@ -447,7 +447,16 @@ type SupportCaseAction =
   | 'resolve'
   | 'close'
   | 'reopen';
-type SupportCaseEmailDeliveryStatus = 'queued' | 'pending_provider_connection' | 'sent' | 'failed';
+type SupportCaseEmailDeliveryStatus =
+  | 'queued'
+  | 'pending_provider_connection'
+  | 'sent'
+  | 'delivered'
+  | 'delivery_delayed'
+  | 'bounced'
+  | 'failed'
+  | 'complained'
+  | 'suppressed';
 type SupportReplyAction = 'reply' | 'close_with_reply' | 'close_silently' | 'reopen_with_reply';
 type BillingEmailDeliveryResult = {
   status: BillingEmailDeliveryStatus;
@@ -469,6 +478,7 @@ type ResendReceivedEmailWebhookEvent = {
   created_at?: string | null;
   data?: {
     email_id?: string | null;
+    id?: string | null;
     created_at?: string | null;
     from?: string | null;
     to?: string[] | null;
@@ -1356,21 +1366,84 @@ export function buildSupportCaseEmailDeliveryUpdate(input: {
 }) {
   const now = input.now ?? new Date();
   const timestamp = now.toISOString();
+  const providerStatus =
+    input.status === 'pending_provider_connection'
+      ? 'pending_connection'
+      : input.status === 'queued'
+        ? 'queued'
+        : input.status;
   return {
     delivery_status: input.status,
-    email_provider_status:
-      input.status === 'sent'
-        ? 'sent'
-        : input.status === 'failed'
-          ? 'failed'
-          : input.status === 'pending_provider_connection'
-            ? 'pending_connection'
-            : 'queued',
+    email_provider_status: providerStatus,
     provider_message_id: clean(input.providerMessageId),
-    sent_at: input.status === 'sent' ? input.sentAt ?? timestamp : null,
+    sent_at:
+      input.status === 'sent' || input.status === 'delivered'
+        ? input.sentAt ?? timestamp
+        : null,
     failure_reason: clean(input.failureReason),
     updated_at: timestamp,
   };
+}
+
+export function normalizeResendSupportEmailEventStatus(
+  eventType: string | null | undefined
+): SupportCaseEmailDeliveryStatus | null {
+  switch (eventType) {
+    case 'email.sent':
+      return 'sent';
+    case 'email.delivered':
+      return 'delivered';
+    case 'email.delivery_delayed':
+      return 'delivery_delayed';
+    case 'email.bounced':
+      return 'bounced';
+    case 'email.failed':
+      return 'failed';
+    case 'email.complained':
+      return 'complained';
+    case 'email.suppressed':
+      return 'suppressed';
+    default:
+      return null;
+  }
+}
+
+export function buildResendSupportEmailEventUpdate(input: {
+  eventType: string | null | undefined;
+  providerMessageId: string;
+  eventCreatedAt?: string | null;
+  now?: Date;
+}) {
+  const status = normalizeResendSupportEmailEventStatus(input.eventType);
+  if (!status) {
+    return null;
+  }
+  const now = input.now ?? new Date();
+  const timestamp = now.toISOString();
+  const eventAt = clean(input.eventCreatedAt) ?? timestamp;
+  const failureReason =
+    status === 'bounced' ||
+    status === 'failed' ||
+    status === 'complained' ||
+    status === 'suppressed'
+      ? input.eventType ?? status
+      : null;
+  const update: Record<string, string | null> = {
+    delivery_status: status,
+    email_provider_status: status,
+    provider_message_id: clean(input.providerMessageId),
+    provider_event_type: clean(input.eventType),
+    provider_event_at: eventAt,
+    failure_reason: failureReason,
+    updated_at: timestamp,
+  };
+  if (status === 'sent') {
+    update.sent_at = eventAt;
+  }
+  if (status === 'delivered') {
+    update.delivered_at = eventAt;
+  }
+  return update;
 }
 
 export function buildOfficeOwnerMemberRecord(input: {
@@ -7092,7 +7165,8 @@ export const receiveSupportInboundEmail = onRequest(
     }
 
     if (event.type !== 'email.received') {
-      response.status(200).json({ ok: true, ignored: true, type: event.type ?? 'unknown' });
+      const result = await recordResendSupportEmailProviderEvent(event);
+      response.status(200).json({ ok: true, type: event.type ?? 'unknown', ...result });
       return;
     }
 
@@ -7133,6 +7207,11 @@ export const receiveSupportInboundEmail = onRequest(
       const inferredSupportKind = inferSupportKindFromInboundEmail(receivedEmail.subject, messageBody);
       const messageReferences = extractSupportInboundMessageReferences(receivedEmail.headers);
       const receivedMessageId = receivedEmail.messageId ?? messageReferences[0] ?? resendEmailId;
+      const fallbackSupportCaseId =
+        normalizeSupportInboundCaseId(extractSupportInboundHeaderValue(receivedEmail.headers, 'x-support-case-id')) ??
+        normalizeSupportInboundCaseId(receivedEmail.subject) ??
+        normalizeSupportInboundCaseId(messageBody);
+      const routedSupportCaseId = inboundRoute.supportCaseId ?? fallbackSupportCaseId;
 
       let workspaceRef: FirebaseFirestore.DocumentReference | null = null;
       let ticketRef: FirebaseFirestore.DocumentReference | null = null;
@@ -7141,10 +7220,10 @@ export const receiveSupportInboundEmail = onRequest(
       let actorName: string | null = null;
       let senderRole: 'customer' | 'owner' | 'member' = 'customer';
 
-      if (inboundRoute.supportCaseId) {
+      if (routedSupportCaseId) {
         const ticketSnapshot = await db
           .collectionGroup('support_tickets')
-          .where('support_case_id', '==', inboundRoute.supportCaseId)
+          .where('support_case_id', '==', routedSupportCaseId)
           .limit(2)
           .get();
         if (ticketSnapshot.docs.length === 1) {
@@ -7167,7 +7246,7 @@ export const receiveSupportInboundEmail = onRequest(
             await recordSupportInboundPermissionDenied({
               workspaceRef,
               ticketRef,
-              supportCaseId: inboundRoute.supportCaseId,
+              supportCaseId: routedSupportCaseId,
               queueId: normalizeSupportQueueId(clean(stringValue(existingTicket.queue_id))) ?? 'general',
               senderEmail,
               senderName: supportInboundDisplayName(senderHeader, senderEmail),
@@ -7192,7 +7271,7 @@ export const receiveSupportInboundEmail = onRequest(
           logger.warn('support inbound workspace unresolved', {
             resendEmailId,
             senderEmail,
-            supportCaseId: inboundRoute.supportCaseId,
+            supportCaseId: routedSupportCaseId,
           });
           response.status(202).json({ ok: true, ignored: true, reason: 'workspace_unresolved' });
           return;
@@ -7207,7 +7286,7 @@ export const receiveSupportInboundEmail = onRequest(
         new Date(),
         Date.now() + Math.floor(Math.random() * 1_679_616)
       );
-      const supportCaseId = inboundRoute.supportCaseId ?? clean(stringValue(existingTicket?.support_case_id)) ?? generatedSupportCaseId;
+      const supportCaseId = routedSupportCaseId ?? clean(stringValue(existingTicket?.support_case_id)) ?? generatedSupportCaseId;
       const finalTicketRef =
         ticketRef ?? workspaceRef.collection('support_tickets').doc(normalizeId(`support_ticket_${supportCaseId}`));
       const caseRef = workspaceRef.collection('support_cases').doc(normalizeId(supportCaseId));
@@ -7429,6 +7508,80 @@ export const receiveSupportInboundEmail = onRequest(
   }
 );
 
+async function recordResendSupportEmailProviderEvent(event: ResendReceivedEmailWebhookEvent) {
+  const providerMessageId =
+    clean(stringValue(event.data?.email_id)) ??
+    clean(stringValue(event.data?.id));
+  const update = providerMessageId
+    ? buildResendSupportEmailEventUpdate({
+        eventType: event.type,
+        providerMessageId,
+        eventCreatedAt: clean(stringValue(event.created_at)) ?? clean(stringValue(event.data?.created_at)),
+      })
+    : null;
+  if (!providerMessageId || !update) {
+    return {
+      ignored: true,
+      reason: 'unsupported_email_event',
+      updatedEmailRequests: 0,
+      updatedMessages: 0,
+    };
+  }
+
+  const [emailRequestSnapshot, messageSnapshot] = await Promise.all([
+    db
+      .collectionGroup('support_case_email_requests')
+      .where('provider_message_id', '==', providerMessageId)
+      .limit(10)
+      .get(),
+    db
+      .collectionGroup('support_messages')
+      .where('provider_message_id', '==', providerMessageId)
+      .limit(10)
+      .get(),
+  ]);
+
+  if (emailRequestSnapshot.empty && messageSnapshot.empty) {
+    logger.info('Resend support email provider event did not match a support record', {
+      providerMessageId,
+      eventType: event.type,
+    });
+    return {
+      ignored: true,
+      reason: 'support_email_record_not_found',
+      providerMessageId,
+      updatedEmailRequests: 0,
+      updatedMessages: 0,
+    };
+  }
+
+  const batch = db.batch();
+  for (const doc of emailRequestSnapshot.docs) {
+    batch.set(doc.ref, update, { merge: true });
+  }
+  for (const doc of messageSnapshot.docs) {
+    batch.set(
+      doc.ref,
+      {
+        provider_delivery_status: update.delivery_status,
+        provider_event_type: update.provider_event_type,
+        provider_event_at: update.provider_event_at,
+        updated_at: update.updated_at,
+      },
+      { merge: true }
+    );
+  }
+  await batch.commit();
+
+  return {
+    ignored: false,
+    providerMessageId,
+    deliveryStatus: update.delivery_status,
+    updatedEmailRequests: emailRequestSnapshot.size,
+    updatedMessages: messageSnapshot.size,
+  };
+}
+
 export const sendOfficeSupportReply = onRequest(
   {
     region: 'asia-south1',
@@ -7576,7 +7729,7 @@ export const sendOfficeSupportReply = onRequest(
             queuedByEmail: adminUser.email,
             replyAction: action,
             emailThreadId,
-            replyToEmail: buildSupportReplyToAddress(getSupportInboundInboxAddress(), supportCaseId),
+            replyToEmail: getSupportInboundInboxAddress(),
             threadMessageId: latestThreadMessageId,
             threadReferences: latestThreadMessageId ? [latestThreadMessageId] : [],
             now,
@@ -14308,9 +14461,10 @@ async function deliverSupportCaseEmailRequest(
   const body = clean(stringValue(request.body));
   const supportCaseId = clean(stringValue(request.support_case_id));
   const emailThreadId = clean(stringValue(request.email_thread_id)) ?? supportCaseId;
+  const supportInboxAddress = getSupportInboundInboxAddress();
   const replyToEmail =
     extractMailboxAddress(clean(stringValue(request.reply_to_email))) ??
-    buildSupportReplyToAddress(getSupportInboundInboxAddress(), supportCaseId ?? '');
+    supportInboxAddress;
   const threadMessageId = clean(stringValue(request.thread_message_id));
   const threadReferences = sanitizeStringList(request.thread_references).filter(Boolean);
   if (!recipientEmail || !isValidEmailAddress(recipientEmail) || !subject || !body) {
@@ -14633,7 +14787,7 @@ async function retrieveResendReceivedEmail(apiKey: string, emailId: string): Pro
 }
 
 function getOrbitLedgerFromAddress() {
-  return process.env.ORBIT_LEDGER_FROM_EMAIL?.trim() || 'Orbit Ledger <no-reply@orbitledger.rudraix.com>';
+  return process.env.ORBIT_LEDGER_FROM_EMAIL?.trim() || 'Orbit Ledger Support <support@orbitledger.rudraix.com>';
 }
 
 function buildRecurringInvoicePaymentLink(
@@ -14689,7 +14843,7 @@ function getOfficeInvitationFromAddress() {
 }
 
 function getSupportEmailFromAddress() {
-  return process.env.ORBIT_LEDGER_SUPPORT_FROM_EMAIL?.trim() || getOrbitLedgerFromAddress();
+  return process.env.ORBIT_LEDGER_SUPPORT_FROM_EMAIL?.trim() || 'Orbit Ledger Support <support@orbitledger.rudraix.com>';
 }
 
 function getSupportInboundInboxAddress() {
