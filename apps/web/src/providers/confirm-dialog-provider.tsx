@@ -123,13 +123,28 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
             {activeDialog.detail ? <p className="ol-confirm-detail">{activeDialog.detail}</p> : null}
             {activeDialog.kind === 'prompt' ? (
               <label className="ol-field">
-                <span>{activeDialog.inputLabel ?? 'Reason'}</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">
+                    {activeDialog.inputLabel ?? 'Reason'}
+                    {activeDialog.required ? <span className="ol-required-badge">Required</span> : null}
+                  </span>
+                  <ConfirmDialogFieldHelp
+                    help={
+                      activeDialog.required
+                        ? 'Required before continuing. This note explains why the audited action was taken.'
+                        : 'Optional. Add context if it will help your team understand this action later.'
+                    }
+                    label={activeDialog.inputLabel ?? 'Reason'}
+                  />
+                </span>
                 <textarea
+                  aria-required={activeDialog.required || undefined}
                   autoFocus
                   className={promptError ? 'ol-input ol-input--error' : 'ol-input'}
                   onChange={(event) => setPromptValue(event.target.value)}
                   onBlur={() => setPromptTouched(true)}
                   placeholder={activeDialog.placeholder}
+                  required={activeDialog.required}
                   rows={4}
                   value={promptValue}
                 />
@@ -161,4 +176,13 @@ export function useConfirmDialog() {
     throw new Error('useConfirmDialog must be used inside ConfirmDialogProvider.');
   }
   return context;
+}
+
+function ConfirmDialogFieldHelp({ help, label }: { help: string; label: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label={`What is ${label}?`}>?</summary>
+      <span>{help}</span>
+    </details>
+  );
 }

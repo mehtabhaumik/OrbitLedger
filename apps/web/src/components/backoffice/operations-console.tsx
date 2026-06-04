@@ -1889,12 +1889,20 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                         </div>
                       ) : null}
                       <label className="ol-form-field">
-                        <span>Reason</span>
+                        <span className="ol-field-label ol-field-label--with-meta">
+                          <span className="ol-field-label-text">
+                            Reason
+                            <span className="ol-required-badge">Required</span>
+                          </span>
+                          <OperationsFieldHelp text="Required for audit. Explain the customer issue or reproduction path before opening any user-context session." />
+                        </span>
                         <textarea
+                          aria-required="true"
                           className="ol-input ol-textarea"
                           value={userContextReason}
                           onChange={(event) => setUserContextReason(event.target.value)}
                           placeholder="Explain the customer issue or reproduction path for this debug session."
+                          required
                           rows={3}
                         />
                       </label>
@@ -1928,10 +1936,18 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                     <div className="ol-form-band">
                       <div className="ol-form-band-grid">
                         <label className="ol-field">
-                          <span className="ol-field-label">Queue</span>
+                          <span className="ol-field-label ol-field-label--with-meta">
+                            <span className="ol-field-label-text">
+                              Queue
+                              <span className="ol-required-badge">Required</span>
+                            </span>
+                            <OperationsFieldHelp text="Choose the support queue responsible for the selected ticket." />
+                          </span>
                           <select
+                            aria-required="true"
                             className="ol-select"
                             disabled={!canAssignSelectedTicket}
+                            required
                             value={assignmentQueueId}
                             onChange={(event) => setAssignmentQueueId(event.target.value)}
                           >
@@ -1943,10 +1959,18 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                           </select>
                         </label>
                         <label className="ol-field">
-                          <span className="ol-field-label">Assigned role</span>
+                          <span className="ol-field-label ol-field-label--with-meta">
+                            <span className="ol-field-label-text">
+                              Assigned role
+                              <span className="ol-required-badge">Required</span>
+                            </span>
+                            <OperationsFieldHelp text="Choose the operator role responsible for the ticket inside that queue." />
+                          </span>
                           <select
+                            aria-required="true"
                             className="ol-select"
                             disabled={!canAssignSelectedTicket}
+                            required
                             value={assignmentRole}
                             onChange={(event) => setAssignmentRole(event.target.value as PlatformAdminRole)}
                           >
@@ -1958,7 +1982,10 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                           </select>
                         </label>
                         <label className="ol-field">
-                          <span className="ol-field-label">Assigned admin email</span>
+                          <span className="ol-field-label ol-field-label--with-meta">
+                            <span className="ol-field-label-text">Assigned admin email</span>
+                            <OperationsFieldHelp text="Optional. Add a specific owner email when one operator should be responsible for follow-up." />
+                          </span>
                           <input
                             className="ol-input"
                             disabled={!canAssignSelectedTicket}
@@ -1968,12 +1995,20 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                           />
                         </label>
                         <label className="ol-field ol-field--span-2">
-                          <span className="ol-field-label">Assignment reason</span>
+                          <span className="ol-field-label ol-field-label--with-meta">
+                            <span className="ol-field-label-text">
+                              Assignment reason
+                              <span className="ol-required-badge">Required</span>
+                            </span>
+                            <OperationsFieldHelp text="Required for audit. Explain why this queue, role, or owner should take the ticket." />
+                          </span>
                           <textarea
+                            aria-required="true"
                             className="ol-textarea"
                             disabled={!canAssignSelectedTicket}
                             onChange={(event) => setAssignmentReason(event.target.value)}
                             placeholder="Explain why this queue or owner should take the ticket."
+                            required
                             rows={3}
                             value={assignmentReason}
                           />
@@ -2327,7 +2362,10 @@ export default function OperationsConsole({ section }: { section: OperationsCons
               <div className="ol-form-band ol-support-band-spacing">
                 <div className="ol-form-band-grid">
                   <label className="ol-field">
-                    <span className="ol-field-label">Support case</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">Support case</span>
+                      <OperationsFieldHelp text="Optional. Add the case number when available so the review record is easier to trace." />
+                    </span>
                     <input
                       className="ol-input"
                       onChange={(event) => setSupportCaseId(event.target.value)}
@@ -2336,11 +2374,19 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                     />
                   </label>
                   <label className="ol-field">
-                    <span className="ol-field-label">Review reason</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">
+                        Review reason
+                        <span className="ol-required-badge">Required</span>
+                      </span>
+                      <OperationsFieldHelp text="Required before recording review. Explain why support is reviewing this workspace or Office setup." />
+                    </span>
                     <input
+                      aria-required="true"
                       className="ol-input"
                       onChange={(event) => setSupportReason(event.target.value)}
                       placeholder="Example: Customer asked us to review Office setup"
+                      required
                       value={supportReason}
                     />
                   </label>
@@ -2394,18 +2440,34 @@ export default function OperationsConsole({ section }: { section: OperationsCons
               <div className="ol-form-band">
                 <div className="ol-form-band-grid">
                   <label className="ol-field">
-                    <span className="ol-field-label">Support case</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">
+                        Support case
+                        <span className="ol-required-badge">Required</span>
+                      </span>
+                      <OperationsFieldHelp text="Required to save a case update. Use the selected support case or enter the exact case number." />
+                    </span>
                     <input
+                      aria-required="true"
                       className="ol-input"
                       onChange={(event) => setCaseIdForUpdate(event.target.value)}
                       placeholder="CASE-2001"
+                      required
                       value={caseIdForUpdate}
                     />
                   </label>
                   <label className="ol-field">
-                    <span className="ol-field-label">Action</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">
+                        Action
+                        <span className="ol-required-badge">Required</span>
+                      </span>
+                      <OperationsFieldHelp text="Choose the ticket status action to record in the case history." />
+                    </span>
                     <select
+                      aria-required="true"
                       className="ol-select"
+                      required
                       value={caseAction}
                       onChange={(event) => setCaseAction(event.target.value as OfficeSupportCaseAction)}
                     >
@@ -2417,9 +2479,17 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                     </select>
                   </label>
                   <label className="ol-field">
-                    <span className="ol-field-label">Outcome reason</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">
+                        Outcome reason
+                        {requiresResolutionReason(caseAction) ? <span className="ol-required-badge">Required</span> : null}
+                      </span>
+                      <OperationsFieldHelp text="Required only for resolved or closed outcomes. It helps reports explain why the ticket ended." />
+                    </span>
                     <select
+                      aria-required={requiresResolutionReason(caseAction) || undefined}
                       className="ol-select"
+                      required={requiresResolutionReason(caseAction)}
                       value={caseResolutionReason}
                       onChange={(event) => setCaseResolutionReason(event.target.value as SupportResolutionReason | '')}
                     >
@@ -2432,11 +2502,19 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                     </select>
                   </label>
                   <label className="ol-field ol-field--span-2">
-                    <span className="ol-field-label">Internal note</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">
+                        Internal note
+                        <span className="ol-required-badge">Required</span>
+                      </span>
+                      <OperationsFieldHelp text="Required for case updates so the audit trail explains what changed and why." />
+                    </span>
                     <textarea
+                      aria-required="true"
                       className="ol-textarea"
                       onChange={(event) => setCaseNote(event.target.value)}
                       placeholder="Short operator note visible in the audit trail"
+                      required
                       value={caseNote}
                       rows={4}
                     />
@@ -2477,44 +2555,80 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                 </span>
               </div>
               <div className="ol-form-band">
-                <div className="ol-form-band-grid">
-                  <label className="ol-field">
-                    <span className="ol-field-label">Reply action</span>
-                    <select className="ol-select" disabled={!canPrepareFollowUp} value={replyAction} onChange={(event) => setReplyAction(event.target.value as WebSupportReplyAction)}>
-                      {SUPPORT_REPLY_ACTION_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
+	                <div className="ol-form-band-grid">
+	                  <label className="ol-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Reply action
+	                        <span className="ol-required-badge">Required</span>
+	                      </span>
+	                      <OperationsFieldHelp text="Choose whether this sends a reply, closes the ticket, or reopens the customer thread." />
+	                    </span>
+	                    <select aria-required="true" className="ol-select" disabled={!canPrepareFollowUp} required value={replyAction} onChange={(event) => setReplyAction(event.target.value as WebSupportReplyAction)}>
+	                      {SUPPORT_REPLY_ACTION_OPTIONS.map((option) => (
+	                        <option key={option.value} value={option.value}>
+	                          {option.label}
+                        </option>
+                      ))}
+	                    </select>
+	                  </label>
+	                  <label className="ol-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Support case
+	                        <span className="ol-required-badge">Required</span>
+	                      </span>
+	                      <OperationsFieldHelp text="Required so the reply, note, and delivery history attach to the correct support thread." />
+	                    </span>
+	                    <input aria-required="true" className="ol-input" disabled={!canPrepareFollowUp} required value={emailCaseId} onChange={(event) => setEmailCaseId(event.target.value)} placeholder="CASE-2001" />
+	                  </label>
+	                  <label className="ol-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Recipient email
+	                        {replyActionNeedsDelivery ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <OperationsFieldHelp text="Required only when a customer email will be sent. Silent closures keep this optional and disabled." />
+	                    </span>
+	                    <input aria-required={replyActionNeedsDelivery || undefined} className="ol-input" disabled={!canPrepareFollowUp || !replyActionNeedsDelivery} required={replyActionNeedsDelivery} value={emailRecipient} onChange={(event) => setEmailRecipient(event.target.value)} placeholder="customer@example.com" />
+	                  </label>
+	                  <label className="ol-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Outcome reason
+	                        {replyActionNeedsResolution ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <OperationsFieldHelp text="Required for close actions so reports show why the case was resolved or closed." />
+	                    </span>
+	                    <select aria-required={replyActionNeedsResolution || undefined} className="ol-select" disabled={!canPrepareFollowUp || !replyActionNeedsResolution} required={replyActionNeedsResolution} value={replyResolutionReason} onChange={(event) => setReplyResolutionReason(event.target.value as SupportResolutionReason | '')}>
+	                      <option value="">Not needed</option>
+	                      {SUPPORT_RESOLUTION_REASON_OPTIONS.map((option) => (
+	                        <option key={option.value} value={option.value}>
                           {option.label}
                         </option>
                       ))}
-                    </select>
-                  </label>
-                  <label className="ol-field">
-                    <span className="ol-field-label">Support case</span>
-                    <input className="ol-input" disabled={!canPrepareFollowUp} value={emailCaseId} onChange={(event) => setEmailCaseId(event.target.value)} placeholder="CASE-2001" />
-                  </label>
-                  <label className="ol-field">
-                    <span className="ol-field-label">Recipient email</span>
-                    <input className="ol-input" disabled={!canPrepareFollowUp || !replyActionNeedsDelivery} value={emailRecipient} onChange={(event) => setEmailRecipient(event.target.value)} placeholder="customer@example.com" />
-                  </label>
-                  <label className="ol-field">
-                    <span className="ol-field-label">Outcome reason</span>
-                    <select className="ol-select" disabled={!canPrepareFollowUp || !replyActionNeedsResolution} value={replyResolutionReason} onChange={(event) => setReplyResolutionReason(event.target.value as SupportResolutionReason | '')}>
-                      <option value="">Not needed</option>
-                      {SUPPORT_RESOLUTION_REASON_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="ol-field ol-field--span-2">
-                    <span className="ol-field-label">Subject</span>
-                    <input className="ol-input" disabled={!canPrepareFollowUp || !replyActionNeedsDelivery} value={emailSubject} onChange={(event) => setEmailSubject(event.target.value)} placeholder="Update on CASE-2001" />
-                  </label>
-                  <label className="ol-field ol-field--span-2">
-                    <span className="ol-field-label">{replyAction === 'close_silently' ? 'Internal closure note' : 'Customer reply'}</span>
-                    <textarea className="ol-textarea" disabled={!canPrepareFollowUp} value={emailBody} onChange={(event) => setEmailBody(event.target.value)} placeholder={replyAction === 'close_silently' ? 'Explain why this ticket is closing without a customer email.' : 'Write a clear customer-safe reply message.'} rows={4} />
-                  </label>
+	                    </select>
+	                  </label>
+	                  <label className="ol-field ol-field--span-2">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Subject
+	                        {replyActionNeedsDelivery ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <OperationsFieldHelp text="Required for customer emails. Keep it short and tied to the support case so the thread stays recognizable." />
+	                    </span>
+	                    <input aria-required={replyActionNeedsDelivery || undefined} className="ol-input" disabled={!canPrepareFollowUp || !replyActionNeedsDelivery} required={replyActionNeedsDelivery} value={emailSubject} onChange={(event) => setEmailSubject(event.target.value)} placeholder="Update on CASE-2001" />
+	                  </label>
+	                  <label className="ol-field ol-field--span-2">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        {replyAction === 'close_silently' ? 'Internal closure note' : 'Customer reply'}
+	                        <span className="ol-required-badge">Required</span>
+	                      </span>
+	                      <OperationsFieldHelp text={replyAction === 'close_silently' ? 'Required. This records why the ticket closed without a customer email.' : 'Required. Write a customer-safe reply that will be saved into the ticket thread.'} />
+	                    </span>
+	                    <textarea aria-required="true" className="ol-textarea" disabled={!canPrepareFollowUp} required value={emailBody} onChange={(event) => setEmailBody(event.target.value)} placeholder={replyAction === 'close_silently' ? 'Explain why this ticket is closing without a customer email.' : 'Write a clear customer-safe reply message.'} rows={4} />
+	                  </label>
                   <div className="ol-field ol-field--action">
                     <span className="ol-field-label">Action</span>
                     <button
@@ -2814,6 +2928,15 @@ function supportSlaChipClass(state: SupportSlaState) {
     return 'ol-chip--premium';
   }
   return 'ol-chip--success';
+}
+
+function OperationsFieldHelp({ text }: { text: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label="Field help">?</summary>
+      <span>{text}</span>
+    </details>
+  );
 }
 
 function supportNotificationToneLabel(tone: WebSupportTicketRecord['notificationTone'] | null | undefined) {

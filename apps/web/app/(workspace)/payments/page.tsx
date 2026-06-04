@@ -794,7 +794,9 @@ export default function PaymentsPage() {
           <span>Review</span>
           <span>Action</span>
         </div>
-        {reviewEvents.map((event) => (
+        {reviewEvents.map((event) => {
+          const invoiceRequiredForApply = !event.applied && !event.reversed && event.status === 'succeeded';
+          return (
           <div className="ol-table-row" key={event.id} style={{ gridTemplateColumns: '0.72fr 0.9fr 0.7fr 1fr 1.2fr' }}>
             <span>
               <strong>{event.reversed ? 'Reversed' : event.applied ? 'Applied' : formatEventStatus(event)}</strong>
@@ -820,9 +822,25 @@ export default function PaymentsPage() {
               )}
             </span>
             <span>
+              <span className="ol-field-label ol-field-label--with-meta">
+                <span className="ol-field-label-text">
+                  Invoice
+                  {invoiceRequiredForApply ? <span className="ol-required-badge">Required</span> : null}
+                </span>
+                <PaymentsFieldHelp
+                  help={
+                    invoiceRequiredForApply
+                      ? 'Required before applying this successful payment event so the money is allocated to the correct invoice.'
+                      : 'Optional unless this event is being applied. Choose an invoice only when this payment should reduce that invoice balance.'
+                  }
+                  label="Invoice"
+                />
+              </span>
               <select
+                aria-required={invoiceRequiredForApply || undefined}
                 className="ol-select"
                 disabled={(event.applied && event.status !== 'refunded') || event.reversed}
+                required={invoiceRequiredForApply}
                 value={selectedInvoices[event.id] ?? ''}
                 onChange={(input) =>
                   setSelectedInvoices((current) => ({ ...current, [event.id]: input.target.value }))
@@ -835,11 +853,14 @@ export default function PaymentsPage() {
                   </option>
                 ))}
               </select>
+              <span className="ol-field-label ol-field-label--with-meta" style={{ marginTop: 8 }}>
+                <span className="ol-field-label-text">Review note</span>
+                <PaymentsFieldHelp help="Optional. Add context such as reconciliation notes, provider clues, or why this event was manually reviewed." label="Review note" />
+              </span>
               <input
                 className="ol-input"
                 disabled={event.reversed}
                 placeholder="Review note"
-                style={{ marginTop: 8 }}
                 value={reviewNotes[event.id] ?? ''}
                 onChange={(input) =>
                   setReviewNotes((current) => ({ ...current, [event.id]: input.target.value }))
@@ -873,7 +894,8 @@ export default function PaymentsPage() {
               </button>
             </span>
           </div>
-        ))}
+          );
+        })}
         {!isLoading && !reviewEvents.length ? (
           <div className="ol-empty">No payment events need attention right now.</div>
         ) : null}
@@ -966,6 +988,15 @@ function Review({ label, value }: { label: string; value: string }) {
       <div className="ol-review-label">{label}</div>
       <div className="ol-review-value">{value}</div>
     </div>
+  );
+}
+
+function PaymentsFieldHelp({ help, label }: { help: string; label: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label={`What is ${label}?`}>?</summary>
+      <span>{help}</span>
+    </details>
   );
 }
 

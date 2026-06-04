@@ -509,7 +509,10 @@ export default function TransactionsPage() {
             </div>
             <div className="ol-fast-entry-capture">
               <label className="ol-field">
-                <span className="ol-field-label">Quick note</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">Quick note</span>
+                  <TransactionFieldHelp help="Optional. Paste a WhatsApp-style note here when you want Orbit Ledger to prepare a review draft before saving." label="Quick note" />
+                </span>
                 <textarea
                   className="ol-textarea"
                   placeholder="Example: North Star Retail paid 1500 by UPI"
@@ -536,9 +539,17 @@ export default function TransactionsPage() {
             </div>
             <div className="ol-form-band-grid">
               <label className={`ol-field${errors.customerId ? ' is-invalid' : ''}`}>
-                <span className="ol-field-label">Customer</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">
+                    Customer
+                    <span className="ol-required-badge">Required</span>
+                  </span>
+                  <TransactionFieldHelp help="Every ledger entry must belong to a customer so balances, statements, and follow-ups stay accurate." label="Customer" />
+                </span>
                 <select
+                  aria-required="true"
                   className="ol-select"
+                  required
                   value={customerId}
                   onBlur={() => {
                     setTouched((current) => ({ ...current, customerId: true }));
@@ -566,17 +577,28 @@ export default function TransactionsPage() {
                 {errors.customerId ? <span className="ol-field-error">{errors.customerId}</span> : null}
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Entry type</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">Entry type</span>
+                  <TransactionFieldHelp help="Payment records money received. Credit records an adjustment or credit given to the customer." label="Entry type" />
+                </span>
                 <select className="ol-select" value={type} onChange={(event) => setType(event.target.value as 'credit' | 'payment')}>
                   <option value="payment">Payment</option>
                   <option value="credit">Credit</option>
                 </select>
               </label>
               <label className={`ol-field${errors.amount ? ' is-invalid' : ''}`}>
-                <span className="ol-field-label">Amount</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">
+                    Amount
+                    <span className="ol-required-badge">Required</span>
+                  </span>
+                  <TransactionFieldHelp help="The amount changes the customer balance, so it must be a valid positive number." label="Amount" />
+                </span>
                 <input
+                  aria-required="true"
                   className="ol-input ol-amount"
                   inputMode="decimal"
+                  required
                   value={amount}
                   onBlur={() => {
                     setTouched((current) => ({ ...current, amount: true }));
@@ -590,7 +612,10 @@ export default function TransactionsPage() {
                 {errors.amount ? <span className="ol-field-error">{errors.amount}</span> : null}
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Date</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">Date</span>
+                  <TransactionFieldHelp help="Defaults to today. Change it only if the payment or credit happened on another date." label="Date" />
+                </span>
                 <input
                   className="ol-input"
                   type="date"
@@ -612,7 +637,10 @@ export default function TransactionsPage() {
                 </div>
                 <div className="ol-form-band-grid ol-form-band-grid--compact">
                   <label className="ol-field">
-                    <span className="ol-field-label">Payment mode</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">Payment mode</span>
+                      <TransactionFieldHelp help="Helps you later review how the customer paid, such as UPI, cash, bank transfer, card, or cheque." label="Payment mode" />
+                    </span>
                     <select
                       className="ol-select"
                       value={paymentMode}
@@ -634,7 +662,10 @@ export default function TransactionsPage() {
                   </label>
                   <PaymentModeFields details={paymentDetails} mode={paymentMode} onChange={setPaymentDetails} />
                   <label className="ol-field">
-                    <span className="ol-field-label">Match from</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">Match from</span>
+                      <TransactionFieldHelp help="Optional. Choose the source when you want payment matching and reconciliation notes to be clearer." label="Match from" />
+                    </span>
                     <select
                       className="ol-select"
                       value={providerSource}
@@ -649,7 +680,10 @@ export default function TransactionsPage() {
                     </select>
                   </label>
                   <label className="ol-field">
-                    <span className="ol-field-label">Payment reference</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">Payment reference</span>
+                      <TransactionFieldHelp help="Optional but useful. Add bank, UPI, gateway, or app reference numbers to make future payment checks easier." label="Payment reference" />
+                    </span>
                     <input
                       className="ol-input"
                       placeholder="Reference from app or bank"
@@ -658,7 +692,10 @@ export default function TransactionsPage() {
                     />
                   </label>
                   <label className="ol-field">
-                    <span className="ol-field-label">Paid by</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">Paid by</span>
+                      <TransactionFieldHelp help="Optional. Add the payer name when someone other than the customer contact made the payment." label="Paid by" />
+                    </span>
                     <input
                       className="ol-input"
                       placeholder="Optional payer name"
@@ -697,7 +734,10 @@ export default function TransactionsPage() {
                     </div>
                   ) : null}
                   <label className="ol-field">
-                    <span className="ol-field-label">Apply payment</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">Apply payment</span>
+                      <TransactionFieldHelp help="Choose whether this payment only updates the customer ledger or should reduce one or more invoices." label="Apply payment" />
+                    </span>
                     <select
                       className="ol-select"
                       value={allocationStrategy}
@@ -712,7 +752,10 @@ export default function TransactionsPage() {
                   </label>
                   {allocationStrategy === 'selected_invoice' ? (
                     <label className="ol-field">
-                      <span className="ol-field-label">Invoice</span>
+                      <span className="ol-field-label ol-field-label--with-meta">
+                        <span className="ol-field-label-text">Invoice</span>
+                        <TransactionFieldHelp help="Choose the invoice only when this payment should be applied to one specific unpaid invoice." label="Invoice" />
+                      </span>
                       <select
                         className="ol-select"
                         value={selectedInvoiceId}
@@ -728,7 +771,10 @@ export default function TransactionsPage() {
                     </label>
                   ) : null}
                   <label className="ol-field">
-                    <span className="ol-field-label">Verification</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">Verification</span>
+                      <TransactionFieldHelp help="Use this to separate received, pending, cleared, or disputed payments for cleaner finance review." label="Verification" />
+                    </span>
                     <select
                       className="ol-select"
                       value={paymentClearanceStatus}
@@ -753,7 +799,10 @@ export default function TransactionsPage() {
           <div className="ol-form-band">
             <div className="ol-form-band-grid ol-form-band-grid--wide">
               <label className="ol-field">
-                <span className="ol-field-label">Note</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">Note</span>
+                  <TransactionFieldHelp help="Optional. Add context that will help you remember why this entry was recorded." label="Note" />
+                </span>
                 <input className="ol-input" value={note} onChange={(event) => setNote(event.target.value)} />
               </label>
               <div className="ol-form-band-actions">
@@ -1037,6 +1086,15 @@ function formatCurrency(value: number, currency: string) {
     currency,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function TransactionFieldHelp({ help, label }: { help: string; label: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label={`What is ${label}?`}>?</summary>
+      <span>{help}</span>
+    </details>
+  );
 }
 
 function formatInvoiceDueLabel(invoice: WorkspaceInvoice, currency: string) {

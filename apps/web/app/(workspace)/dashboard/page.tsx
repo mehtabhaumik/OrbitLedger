@@ -1034,11 +1034,19 @@ function OwnerClosingRitualDialog({
               <p className="ol-panel-copy">Count today’s cash and compare it with recorded payments.</p>
             </div>
             <label className="ol-field">
-              <span className="ol-field-label">Cash counted</span>
+              <span className="ol-field-label ol-field-label--with-meta">
+                <span className="ol-field-label-text">
+                  Cash counted
+                  <span className="ol-required-badge">Required</span>
+                </span>
+                <ClosingFieldHelp text="Enter the counted cash amount for today. This helps confirm recorded cash payments before saving the closing review." />
+              </span>
               <input
+                aria-required="true"
                 className="ol-input"
                 inputMode="decimal"
                 placeholder={formatCurrency(0, currency)}
+                required
                 value={countedCashInput}
                 onChange={(event) => onCountedCashChange(event.target.value)}
               />
@@ -1055,6 +1063,10 @@ function OwnerClosingRitualDialog({
                 />
                 <span>
                   <strong>{step.title}</strong>
+                  <small>
+                    Required
+                    <ClosingFieldHelp text="This check must be confirmed before saving the daily closing review." />
+                  </small>
                   <small>{step.prompt}</small>
                   <em>{step.helper}</em>
                 </span>
@@ -1121,6 +1133,15 @@ function OwnerClosingRitualDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+function ClosingFieldHelp({ text }: { text: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label="Field help">?</summary>
+      <span>{text}</span>
+    </details>
   );
 }
 

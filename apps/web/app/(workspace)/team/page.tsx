@@ -516,20 +516,34 @@ export default function TeamPage() {
         </div>
         <div className="ol-form-grid">
           <label className="ol-field">
-            <span className="ol-field-label">Email</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Email
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <TeamFieldHelp text="Use the email your teammate will use to sign in. The invitation and role access are tied to this address." />
+            </span>
             <input
+              aria-required="true"
               className="ol-input"
               disabled={!snapshot?.access.canInvite || isSaving}
               onChange={(event) => setInviteForm((current) => ({ ...current, email: event.target.value }))}
               placeholder="teammate@example.com"
+              required
               type="email"
               value={inviteForm.email}
             />
-            <span className="ol-field-help">Use the email your teammate will use to sign in.</span>
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">Role</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Role
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <TeamFieldHelp text="The role controls what this person can see and do. Choose the narrowest role that fits their work." />
+            </span>
             <select
+              aria-required="true"
               className="ol-select"
               disabled={!snapshot?.access.canInvite || isSaving}
               onChange={(event) =>
@@ -538,6 +552,7 @@ export default function TeamPage() {
                   role: event.target.value as Exclude<OfficeWorkspaceRole, 'owner'>,
                 }))
               }
+              required
               value={inviteForm.role}
             >
               {snapshot?.availableInviteRoles.length ? null : <option value="">No role available</option>}
@@ -547,10 +562,12 @@ export default function TeamPage() {
                 </option>
               ))}
             </select>
-            <span className="ol-field-help">The role controls what this person can see and do.</span>
           </label>
           <label className="ol-field ol-field--wide">
-            <span className="ol-field-label">Invite note</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">Invite note</span>
+              <TeamFieldHelp text="Optional, but useful. Add context about why they are being invited or what they should do first." />
+            </span>
             <textarea
               className="ol-textarea"
               disabled={!snapshot?.access.canInvite || isSaving}
@@ -558,7 +575,6 @@ export default function TeamPage() {
               placeholder="Invitation message"
               value={inviteForm.message}
             />
-            <span className="ol-field-help">This message is ready to send. You can edit it before creating the invitation.</span>
           </label>
         </div>
         <div className="ol-actions">
@@ -672,11 +688,19 @@ export default function TeamPage() {
         {snapshot?.access.role === 'owner' ? (
           <div className="ol-form-grid">
             <label className="ol-field">
-              <span className="ol-field-label">Receiving member</span>
+              <span className="ol-field-label ol-field-label--with-meta">
+                <span className="ol-field-label-text">
+                  Receiving member
+                  <span className="ol-required-badge">Required</span>
+                </span>
+                <TeamFieldHelp text="Choose the active member who should become the workspace owner. They must approve before ownership changes." />
+              </span>
               <select
+                aria-required="true"
                 className="ol-select"
                 disabled={!ownershipCandidates.length || Boolean(pendingOwnershipTransfer) || Boolean(busyActionId)}
                 onChange={(event) => setOwnershipTargetUid(event.target.value)}
+                required
                 value={ownershipTargetUid}
               >
                 <option value="">{ownershipCandidates.length ? 'Choose active member' : 'No eligible member yet'}</option>
@@ -969,6 +993,15 @@ function resolveOfficeInviteAdminName(displayName: string | null | undefined, em
   }
 
   return 'Workspace admin';
+}
+
+function TeamFieldHelp({ text }: { text: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label="Field help">?</summary>
+      <span>{text}</span>
+    </details>
+  );
 }
 
 function formatTeamDate(value: string) {

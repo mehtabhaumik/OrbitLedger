@@ -319,7 +319,10 @@ export default function SupportPage() {
           </div>
           <div className="ol-form-stack">
             <label className="ol-field">
-              <span className="ol-field-label">What do you need help with?</span>
+              <span className="ol-field-label ol-field-label--with-meta">
+                <span className="ol-field-label-text">What do you need help with?</span>
+                <SupportFieldHelp help="Choose the closest topic so Orbit Ledger can route your request to the right support queue." label="Support topic" />
+              </span>
               <select
                 className="ol-select"
                 value={kind}
@@ -338,8 +341,15 @@ export default function SupportPage() {
             </label>
 
             <label className="ol-field">
-              <span className="ol-field-label">Message</span>
+              <span className="ol-field-label ol-field-label--with-meta">
+                <span className="ol-field-label-text">
+                  Message
+                  <span className="ol-required-badge">Required</span>
+                </span>
+                <SupportFieldHelp help="Tell us what you tried, what happened, and what you expected. This is required so support can understand the issue." label="Message" />
+              </span>
               <textarea
+                aria-required="true"
                 className="ol-textarea"
                 onChange={(event) => {
                   setMessage(event.target.value);
@@ -347,6 +357,7 @@ export default function SupportPage() {
                 }}
                 placeholder="Tell us what you were trying to do, what happened, and what you expected."
                 rows={8}
+                required
                 value={message}
               />
               <span className="ol-field-helper">
@@ -356,7 +367,10 @@ export default function SupportPage() {
             </label>
 
             <label className="ol-field">
-              <span className="ol-field-label">Support case</span>
+              <span className="ol-field-label ol-field-label--with-meta">
+                <span className="ol-field-label-text">Support case</span>
+                <SupportFieldHelp help="Optional. Add this only if support already gave you a case number; it helps attach your follow-up to the right thread." label="Support case" />
+              </span>
               <input
                 className="ol-input"
                 onChange={(event) => setSupportCaseId(event.target.value)}
@@ -377,7 +391,10 @@ export default function SupportPage() {
                 }}
                 type="checkbox"
               />
-              Include safe diagnostic summary
+              <span>
+                Include safe diagnostic summary
+                <span className="ol-checkbox-helper">Optional, but it can help support reproduce browser, route, and workspace-context issues faster.</span>
+              </span>
             </label>
 
             {needsReview ? (
@@ -387,7 +404,10 @@ export default function SupportPage() {
                   onChange={(event) => setPrivacyReviewed(event.target.checked)}
                   type="checkbox"
                 />
-                I reviewed what will be shared
+                <span>
+                  I reviewed what will be shared
+                  <span className="ol-checkbox-helper">Required only when diagnostics are included, so you stay in control of what leaves Orbit Ledger.</span>
+                </span>
               </label>
             ) : null}
 
@@ -582,6 +602,15 @@ function formatDiagnosticLabel(value: string) {
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, (letter) => letter.toUpperCase())
     .trim();
+}
+
+function SupportFieldHelp({ help, label }: { help: string; label: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label={`What is ${label}?`}>?</summary>
+      <span>{help}</span>
+    </details>
+  );
 }
 
 function formatConsentDate(value: string | null) {

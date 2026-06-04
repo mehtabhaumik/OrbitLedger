@@ -270,6 +270,33 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
     !userControlForm.targetUid.trim() ||
     userControlForm.reason.trim().length < 10 ||
     (userControlNeedsMessage && userControlForm.message.trim().length < 10);
+  const adminRoleRequired =
+    adminForm.action === 'create' || adminForm.action === 'change_role' || adminForm.action === 'reactivate';
+  const offerNeedsId =
+    offerForm.action === 'update' || offerForm.action === 'deactivate' || offerForm.action === 'remove';
+  const offerNeedsCopy = offerForm.action === 'create' || offerForm.action === 'update';
+  const offerNeedsTargets = offerForm.scope !== 'sitewide';
+  const offerTargetValue =
+    offerForm.scope === 'selected_users'
+      ? `${offerForm.targetEmails},${offerForm.targetUids}`.replace(/^,|,$/g, '')
+      : offerForm.scope === 'selected_workspaces'
+        ? offerForm.targetWorkspaceIds
+        : offerForm.scope === 'selected_plans'
+          ? offerForm.targetPlanIds
+          : offerForm.scope === 'selected_countries'
+            ? offerForm.targetCountries
+            : '';
+  const offerSubmitDisabled =
+    isSavingOffer ||
+    offerForm.reason.trim().length < 10 ||
+    (offerNeedsId && !offerForm.offerId.trim()) ||
+    (offerNeedsCopy &&
+      (!offerForm.label.trim() ||
+        !offerForm.title.trim() ||
+        !offerForm.publicBannerMessage.trim() ||
+        !offerForm.discountValue.trim() ||
+        (!offerForm.expiresAt && !offerForm.lifetimeConfirmed) ||
+        (offerNeedsTargets && !offerTargetValue.trim())));
   const activeOfferCount = useMemo(
     () => (snapshot?.offers ?? []).filter((offer) => offer.status === 'active').length,
     [snapshot?.offers]
@@ -1419,12 +1446,20 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                   </div>
                 ) : null}
 
-                <div className="ol-platform-admin-form-grid">
-                  <label className="ol-form-field">
-                    <span>Action</span>
-                    <select
-                      className="ol-select"
-                      value={adminForm.action}
+	                <div className="ol-platform-admin-form-grid">
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Action
+	                        <span className="ol-required-badge">Required</span>
+	                      </span>
+	                      <BackofficeFieldHelp text="Choose the admin access change to perform. Every action is server-authorized and audited." />
+	                    </span>
+	                    <select
+	                      aria-required="true"
+	                      className="ol-select"
+	                      required
+	                      value={adminForm.action}
                       onChange={(event) =>
                         setAdminForm((current) => ({
                           ...current,
@@ -1438,45 +1473,72 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                       <option value="reactivate">Reactivate</option>
                       <option value="revoke">Revoke</option>
                     </select>
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Email</span>
-                    <input
-                      className="ol-input"
-                      value={adminForm.targetEmail}
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Email
+	                        {!adminForm.targetUid.trim() ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <BackofficeFieldHelp text="Required when Firebase UID is not provided. Use the admin account email that should receive or keep access." />
+	                    </span>
+	                    <input
+	                      aria-required={!adminForm.targetUid.trim() || undefined}
+	                      className="ol-input"
+	                      value={adminForm.targetEmail}
                       onChange={(event) => setAdminForm((current) => ({ ...current, targetEmail: event.target.value }))}
-                      placeholder="admin@example.com"
-                      type="email"
-                    />
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Firebase UID</span>
-                    <input
-                      className="ol-input"
-                      value={adminForm.targetUid}
+	                      placeholder="admin@example.com"
+	                      required={!adminForm.targetUid.trim()}
+	                      type="email"
+	                    />
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Firebase UID
+	                        {!adminForm.targetEmail.trim() ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <BackofficeFieldHelp text="Required only when email is not provided. UID is useful for existing admin records or exact account targeting." />
+	                    </span>
+	                    <input
+	                      aria-required={!adminForm.targetEmail.trim() || undefined}
+	                      className="ol-input"
+	                      value={adminForm.targetUid}
                       onChange={(event) => setAdminForm((current) => ({ ...current, targetUid: event.target.value }))}
-                      placeholder="Optional for existing admin"
-                    />
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Display name</span>
-                    <input
+	                      placeholder="Optional when email is provided"
+	                      required={!adminForm.targetEmail.trim()}
+	                    />
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">Display name</span>
+	                      <BackofficeFieldHelp text="Optional. Add it when creating a new admin so the registry and audit trail are easier to read." />
+	                    </span>
+	                    <input
                       className="ol-input"
                       value={adminForm.displayName}
                       onChange={(event) => setAdminForm((current) => ({ ...current, displayName: event.target.value }))}
                       placeholder="Full name"
                     />
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Role</span>
-                    <select
-                      className="ol-select"
-                      value={adminForm.role}
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Role
+	                        {adminRoleRequired ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <BackofficeFieldHelp text="Required for add, role change, and reactivate actions. Suspend/revoke keep the current record role." />
+	                    </span>
+	                    <select
+	                      aria-required={adminRoleRequired || undefined}
+	                      className="ol-select"
+	                      value={adminForm.role}
                       onChange={(event) =>
                         setAdminForm((current) => ({ ...current, role: event.target.value as PlatformAdminRole }))
-                      }
-                      disabled={adminForm.action === 'suspend' || adminForm.action === 'revoke'}
-                    >
+	                      }
+	                      disabled={adminForm.action === 'suspend' || adminForm.action === 'revoke'}
+	                      required={adminRoleRequired}
+	                    >
                       {PLATFORM_ADMIN_ROLES.map((role) => (
                         <option key={role} value={role}>
                           {getPlatformAdminRoleDefinition(role).label}
@@ -1492,15 +1554,23 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                   </div>
                 ) : null}
 
-                <label className="ol-form-field">
-                  <span>Reason</span>
-                  <textarea
-                    className="ol-input ol-textarea"
-                    value={adminForm.reason}
+	                <label className="ol-form-field">
+	                  <span className="ol-field-label ol-field-label--with-meta">
+	                    <span className="ol-field-label-text">
+	                      Reason
+	                      <span className="ol-required-badge">Required</span>
+	                    </span>
+	                    <BackofficeFieldHelp text="Required for audit. Add at least 10 characters explaining why this admin access change is needed." />
+	                  </span>
+	                  <textarea
+	                    aria-required="true"
+	                    className="ol-input ol-textarea"
+	                    value={adminForm.reason}
                     onChange={(event) => setAdminForm((current) => ({ ...current, reason: event.target.value }))}
-                    placeholder="Example: Granting support access for beta operations review."
-                    rows={4}
-                  />
+	                    placeholder="Example: Granting support access for beta operations review."
+	                    required
+	                    rows={4}
+	                  />
                 </label>
 
                 <button
@@ -1584,12 +1654,20 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                   </div>
                 ) : null}
 
-                <div className="ol-platform-admin-form-grid">
-                  <label className="ol-form-field">
-                    <span>Action</span>
-                    <select
-                      className="ol-select"
-                      value={offerForm.action}
+	                <div className="ol-platform-admin-form-grid">
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Action
+	                        <span className="ol-required-badge">Required</span>
+	                      </span>
+	                      <BackofficeFieldHelp text="Choose whether to create, update, deactivate, or remove an offer. Every change is audited." />
+	                    </span>
+	                    <select
+	                      aria-required="true"
+	                      className="ol-select"
+	                      required
+	                      value={offerForm.action}
                       onChange={(event) =>
                         setOfferForm((current) => ({ ...current, action: event.target.value as WebPlatformAdminOfferAction }))
                       }
@@ -1599,39 +1677,71 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                       <option value="deactivate">Deactivate</option>
                       <option value="remove">Remove</option>
                     </select>
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Offer ID</span>
-                    <input
-                      className="ol-input"
-                      value={offerForm.offerId}
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Offer ID
+	                        {offerNeedsId ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <BackofficeFieldHelp text="Required for update, deactivate, or remove. New offers generate an ID from the label/title." />
+	                    </span>
+	                    <input
+	                      aria-required={offerNeedsId || undefined}
+	                      className="ol-input"
+	                      value={offerForm.offerId}
                       onChange={(event) => setOfferForm((current) => ({ ...current, offerId: event.target.value }))}
-                      placeholder="Only needed for update/remove"
-                    />
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Label</span>
-                    <input
-                      className="ol-input"
-                      value={offerForm.label}
-                      onChange={(event) => setOfferForm((current) => ({ ...current, label: event.target.value }))}
-                      placeholder="Launch Offer"
-                    />
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Title</span>
-                    <input
-                      className="ol-input"
-                      value={offerForm.title}
-                      onChange={(event) => setOfferForm((current) => ({ ...current, title: event.target.value }))}
-                      placeholder="Public beta launch pricing"
-                    />
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Scope</span>
-                    <select
-                      className="ol-select"
-                      value={offerForm.scope}
+	                      placeholder="Only needed for update/deactivate/remove"
+	                      required={offerNeedsId}
+	                    />
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Label
+	                        {offerNeedsCopy ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <BackofficeFieldHelp text="Required for create/update. This short label appears in admin lists and offer summaries." />
+	                    </span>
+	                    <input
+	                      aria-required={offerNeedsCopy || undefined}
+	                      className="ol-input"
+	                      value={offerForm.label}
+	                      onChange={(event) => setOfferForm((current) => ({ ...current, label: event.target.value }))}
+	                      placeholder="Launch Offer"
+	                      required={offerNeedsCopy}
+	                    />
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Title
+	                        {offerNeedsCopy ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <BackofficeFieldHelp text="Required for create/update. Customers may see this title in offer banners or checkout context." />
+	                    </span>
+	                    <input
+	                      aria-required={offerNeedsCopy || undefined}
+	                      className="ol-input"
+	                      value={offerForm.title}
+	                      onChange={(event) => setOfferForm((current) => ({ ...current, title: event.target.value }))}
+	                      placeholder="Public beta launch pricing"
+	                      required={offerNeedsCopy}
+	                    />
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Scope
+	                        {offerNeedsCopy ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <BackofficeFieldHelp text="Required for create/update. Scope controls who is eligible for the offer." />
+	                    </span>
+	                    <select
+	                      aria-required={offerNeedsCopy || undefined}
+	                      className="ol-select"
+	                      required={offerNeedsCopy}
+	                      value={offerForm.scope}
                       onChange={(event) =>
                         setOfferForm((current) => ({ ...current, scope: event.target.value as WebPlatformAdminOfferScope }))
                       }
@@ -1642,12 +1752,20 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                       <option value="selected_plans">Selected plans</option>
                       <option value="selected_countries">Selected countries</option>
                     </select>
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Discount type</span>
-                    <select
-                      className="ol-select"
-                      value={offerForm.discountType}
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Discount type
+	                        {offerNeedsCopy ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <BackofficeFieldHelp text="Required for create/update. This determines how the discount value is interpreted." />
+	                    </span>
+	                    <select
+	                      aria-required={offerNeedsCopy || undefined}
+	                      className="ol-select"
+	                      required={offerNeedsCopy}
+	                      value={offerForm.discountType}
                       onChange={(event) =>
                         setOfferForm((current) => ({
                           ...current,
@@ -1660,62 +1778,99 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                       <option value="fixed_price">Fixed price, minor units</option>
                       <option value="custom_tier_price">Custom tier price, minor units</option>
                     </select>
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Discount value</span>
-                    <input
-                      className="ol-input"
-                      value={offerForm.discountValue}
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Discount value
+	                        {offerNeedsCopy ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <BackofficeFieldHelp text="Required for create/update. Use percent for percentage offers or minor units for amount/fixed-price offers." />
+	                    </span>
+	                    <input
+	                      aria-required={offerNeedsCopy || undefined}
+	                      className="ol-input"
+	                      value={offerForm.discountValue}
                       onChange={(event) => setOfferForm((current) => ({ ...current, discountValue: event.target.value }))}
-                      inputMode="numeric"
-                      placeholder="20 or 49900"
-                    />
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Currency lock</span>
-                    <input
+	                      inputMode="numeric"
+	                      placeholder="20 or 49900"
+	                      required={offerNeedsCopy}
+	                    />
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">Currency lock</span>
+	                      <BackofficeFieldHelp text="Optional. Add a currency only when the offer should apply to one currency, such as INR or USD." />
+	                    </span>
+	                    <input
                       className="ol-input"
                       value={offerForm.currency}
                       onChange={(event) => setOfferForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
                       placeholder="Optional: INR, USD, CAD, AUD, GBP"
                     />
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Start date</span>
-                    <input
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">Start date</span>
+	                      <BackofficeFieldHelp text="Optional. If blank, the offer starts when saved. Add a future time for scheduled launch pricing." />
+	                    </span>
+	                    <input
                       className="ol-input"
                       value={offerForm.startAt}
                       onChange={(event) => setOfferForm((current) => ({ ...current, startAt: event.target.value }))}
                       type="datetime-local"
                     />
-                  </label>
-                  <label className="ol-form-field">
-                    <span>Expiry date</span>
-                    <input
-                      className="ol-input"
-                      value={offerForm.expiresAt}
-                      onChange={(event) => setOfferForm((current) => ({ ...current, expiresAt: event.target.value }))}
-                      type="datetime-local"
-                    />
-                  </label>
+	                  </label>
+	                  <label className="ol-form-field">
+	                    <span className="ol-field-label ol-field-label--with-meta">
+	                      <span className="ol-field-label-text">
+	                        Expiry date
+	                        {offerNeedsCopy && !offerForm.lifetimeConfirmed ? <span className="ol-required-badge">Required</span> : null}
+	                      </span>
+	                      <BackofficeFieldHelp text="Required unless lifetime confirmation is checked. Expiry must be in the future." />
+	                    </span>
+	                    <input
+	                      aria-required={(offerNeedsCopy && !offerForm.lifetimeConfirmed) || undefined}
+	                      className="ol-input"
+	                      value={offerForm.expiresAt}
+	                      onChange={(event) => setOfferForm((current) => ({ ...current, expiresAt: event.target.value }))}
+	                      required={offerNeedsCopy && !offerForm.lifetimeConfirmed}
+	                      type="datetime-local"
+	                    />
+	                  </label>
                 </div>
 
-                <label className="ol-form-field">
-                  <span>Public banner message</span>
-                  <textarea
-                    className="ol-input ol-textarea"
+	                <label className="ol-form-field">
+	                  <span className="ol-field-label ol-field-label--with-meta">
+	                    <span className="ol-field-label-text">
+	                      Public banner message
+	                      {offerNeedsCopy ? <span className="ol-required-badge">Required</span> : null}
+	                    </span>
+	                    <BackofficeFieldHelp text="Required for create/update. This is the customer-facing offer copy, so keep it clear and safe." />
+	                  </span>
+	                  <textarea
+	                    aria-required={offerNeedsCopy || undefined}
+	                    className="ol-input ol-textarea"
                     value={offerForm.publicBannerMessage}
                     onChange={(event) =>
                       setOfferForm((current) => ({ ...current, publicBannerMessage: event.target.value }))
                     }
-                    placeholder="Example: Launch pricing is available for eligible workspaces until this offer expires."
-                    rows={3}
-                  />
-                </label>
-                <label className="ol-form-field">
-                  <span>Targets</span>
-                  <textarea
-                    className="ol-input ol-textarea"
+	                    placeholder="Example: Launch pricing is available for eligible workspaces until this offer expires."
+	                    required={offerNeedsCopy}
+	                    rows={3}
+	                  />
+	                </label>
+	                <label className="ol-form-field">
+	                  <span className="ol-field-label ol-field-label--with-meta">
+	                    <span className="ol-field-label-text">
+	                      Targets
+	                      {offerNeedsCopy && offerNeedsTargets ? <span className="ol-required-badge">Required</span> : null}
+	                    </span>
+	                    <BackofficeFieldHelp text="Required for selected scopes. Add comma-separated emails, UIDs, workspace IDs, plan IDs, or country codes depending on the scope." />
+	                  </span>
+	                  <textarea
+	                    aria-required={(offerNeedsCopy && offerNeedsTargets) || undefined}
+	                    className="ol-input ol-textarea"
                     value={
                       offerForm.scope === 'selected_users'
                         ? offerForm.targetEmails
@@ -1742,14 +1897,18 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                                 : {}),
                       }));
                     }}
-                    placeholder="Comma-separated emails, workspace IDs, plan IDs, or country codes depending on scope"
-                    rows={3}
-                    disabled={offerForm.scope === 'sitewide'}
-                  />
-                </label>
-                <label className="ol-form-field">
-                  <span>Internal note</span>
-                  <textarea
+	                    placeholder="Comma-separated emails, workspace IDs, plan IDs, or country codes depending on scope"
+	                    required={offerNeedsCopy && offerNeedsTargets}
+	                    rows={3}
+	                    disabled={offerForm.scope === 'sitewide'}
+	                  />
+	                </label>
+	                <label className="ol-form-field">
+	                  <span className="ol-field-label ol-field-label--with-meta">
+	                    <span className="ol-field-label-text">Internal note</span>
+	                    <BackofficeFieldHelp text="Optional. Add finance/admin context that should not appear in public offer copy." />
+	                  </span>
+	                  <textarea
                     className="ol-input ol-textarea"
                     value={offerForm.internalNote}
                     onChange={(event) => setOfferForm((current) => ({ ...current, internalNote: event.target.value }))}
@@ -1764,16 +1923,27 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                       setOfferForm((current) => ({ ...current, lifetimeConfirmed: event.target.checked }))
                     }
                     type="checkbox"
-                  />
-                  <span>I explicitly confirm this offer has no expiry date.</span>
-                </label>
+	                  />
+	                  <span>
+	                    I explicitly confirm this offer has no expiry date.
+	                    <small className="ol-checkbox-helper">Required only when no expiry date is set. This protects accidental lifetime discounts.</small>
+	                  </span>
+	                </label>
                 <label className="ol-form-field">
-                  <span>Reason</span>
+                  <span className="ol-field-label ol-field-label--with-meta">
+                    <span className="ol-field-label-text">
+                      Reason
+                      <span className="ol-required-badge">Required</span>
+                    </span>
+                    <BackofficeFieldHelp text="Required for audit. Explain why this billing or offer change is being made before saving it." />
+                  </span>
                   <textarea
+                    aria-required="true"
                     className="ol-input ol-textarea"
                     value={offerForm.reason}
                     onChange={(event) => setOfferForm((current) => ({ ...current, reason: event.target.value }))}
                     placeholder="Example: Creating a launch offer for first-wave beta conversion review."
+                    required
                     rows={4}
                   />
                 </label>
@@ -1781,8 +1951,8 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                 <button
                   className="ol-button"
                   type="submit"
-                  disabled={isSavingOffer || offerForm.reason.trim().length < 10}
-                >
+	                  disabled={offerSubmitDisabled}
+	                >
                   {isSavingOffer ? 'Saving offer...' : 'Save offer change'}
                 </button>
               </form>
@@ -2179,9 +2349,17 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                         ) : null}
                         <div className="ol-platform-admin-form-grid">
                           <label className="ol-form-field">
-                            <span>Workspace</span>
+                            <span className="ol-field-label ol-field-label--with-meta">
+                              <span className="ol-field-label-text">
+                                Workspace
+                                <span className="ol-required-badge">Required</span>
+                              </span>
+                              <BackofficeFieldHelp text="Choose the exact customer workspace to open. User-context sessions cannot start without a target workspace." />
+                            </span>
                             <select
+                              aria-required="true"
                               className="ol-select"
+                              required
                               value={userContextWorkspaceId}
                               onChange={(event) => setUserContextWorkspaceId(event.target.value)}
                             >
@@ -2197,7 +2375,10 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                             </select>
                           </label>
                           <label className="ol-form-field">
-                            <span>Target access</span>
+                            <span className="ol-field-label ol-field-label--with-meta">
+                              <span className="ol-field-label-text">Target access</span>
+                              <BackofficeFieldHelp text="Read-only summary of the user’s available workspaces. This helps confirm you are debugging the right customer context." />
+                            </span>
                             <input
                               className="ol-input"
                               value={summarizeWorkspaceContexts(selectedUserRecord.workspaceContexts)}
@@ -2206,12 +2387,20 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                           </label>
                         </div>
                         <label className="ol-form-field">
-                          <span>Reason</span>
+                          <span className="ol-field-label ol-field-label--with-meta">
+                            <span className="ol-field-label-text">
+                              Reason
+                              <span className="ol-required-badge">Required</span>
+                            </span>
+                            <BackofficeFieldHelp text="Required for audit. Explain the support issue or workflow bug before opening, viewing, or acting as a user." />
+                          </span>
                           <textarea
+                            aria-required="true"
                             className="ol-input ol-textarea"
                             value={userContextReason}
                             onChange={(event) => setUserContextReason(event.target.value)}
                             placeholder="Explain the customer issue, workflow bug, or debug purpose for this session."
+                            required
                             rows={3}
                           />
                         </label>
@@ -2309,9 +2498,17 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
 
                           <div className="ol-platform-admin-form-grid">
                             <label className="ol-form-field">
-                              <span>Action</span>
+                              <span className="ol-field-label ol-field-label--with-meta">
+                                <span className="ol-field-label-text">
+                                  Action
+                                  <span className="ol-required-badge">Required</span>
+                                </span>
+                                <BackofficeFieldHelp text="Choose the lifecycle action to record. Destructive actions remain server-authorized by role." />
+                              </span>
                               <select
+                                aria-required="true"
                                 className="ol-select"
+                                required
                                 value={selectedUserControlActive ? userControlForm.action : 'send_warning'}
                                 onChange={(event) =>
                                   setUserControlForm((current) => ({
@@ -2333,7 +2530,10 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                               </select>
                             </label>
                             <label className="ol-form-field">
-                              <span>Risk label</span>
+                              <span className="ol-field-label ol-field-label--with-meta">
+                                <span className="ol-field-label-text">Risk label</span>
+                                <BackofficeFieldHelp text="Optional. Add a short label only when the account needs special attention, such as billing risk or misuse review." />
+                              </span>
                               <input
                                 className="ol-input"
                                 value={selectedUserControlActive ? userControlForm.riskLabel : ''}
@@ -2354,10 +2554,15 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
 
                           {selectedUserControlActive && userControlNeedsMessage ? (
                             <label className="ol-form-field">
-                              <span>
-                                {userControlForm.action === 'add_internal_note' ? 'Internal note' : 'Warning message'}
+                              <span className="ol-field-label ol-field-label--with-meta">
+                                <span className="ol-field-label-text">
+                                  {userControlForm.action === 'add_internal_note' ? 'Internal note' : 'Warning message'}
+                                  <span className="ol-required-badge">Required</span>
+                                </span>
+                                <BackofficeFieldHelp text="Required for warning/note actions so the operator record contains the actual customer-facing warning or internal context." />
                               </span>
                               <textarea
+                                aria-required="true"
                                 className="ol-input ol-textarea"
                                 value={selectedUserControlActive ? userControlForm.message : ''}
                                 onChange={(event) =>
@@ -2371,14 +2576,22 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                                   }))
                                 }
                                 placeholder="Describe the user-facing warning or the internal note for the audit trail."
+                                required
                                 rows={4}
                               />
                             </label>
                           ) : null}
 
                           <label className="ol-form-field">
-                            <span>Reason</span>
+                            <span className="ol-field-label ol-field-label--with-meta">
+                              <span className="ol-field-label-text">
+                                Reason
+                                <span className="ol-required-badge">Required</span>
+                              </span>
+                              <BackofficeFieldHelp text="Required for audit. State why the selected user action is needed, ideally with ticket or support context." />
+                            </span>
                             <textarea
+                              aria-required="true"
                               className="ol-input ol-textarea"
                               value={selectedUserControlActive ? userControlForm.reason : ''}
                               onChange={(event) =>
@@ -2392,6 +2605,7 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
                                 }))
                               }
                               placeholder="State clearly why this user action is needed."
+                              required
                               rows={4}
                             />
                           </label>
@@ -3077,6 +3291,15 @@ function getUserMfaEnrollmentCount(user: object | null) {
 
 function csvCell(value: string) {
   return `"${value.replaceAll('"', '""')}"`;
+}
+
+function BackofficeFieldHelp({ text }: { text: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label="Field help">?</summary>
+      <span>{text}</span>
+    </details>
+  );
 }
 
 function buildPlatformAdminReportPrintHtml(report: WebPlatformAdminReport) {

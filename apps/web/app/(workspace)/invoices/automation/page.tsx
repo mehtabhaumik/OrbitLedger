@@ -238,17 +238,33 @@ export default function InvoiceAutomationPage() {
 
         <div className="ol-form-grid ol-form-grid--comfortable">
           <label className="ol-field">
-            <span className="ol-field-label">Rule name</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Rule name
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <AutomationFieldHelp help="Name this monthly rule so you can recognize it in queues, audits, and future edits." label="Rule name" />
+            </span>
             <input
+              aria-required="true"
               className="ol-input"
+              required
               value={form.name}
               onChange={(event) => setForm((current) => ({ ...current, name: event.target.value, approveEmailAutomation: false }))}
             />
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">Customer</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Customer
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <AutomationFieldHelp help="The rule needs a customer so invoices, email recipients, and payment follow-ups attach correctly." label="Customer" />
+            </span>
             <select
+              aria-required="true"
               className="ol-select"
+              required
               value={form.customerId}
               onChange={(event) => {
                 const customer = customers.find((entry) => entry.id === event.target.value);
@@ -269,16 +285,27 @@ export default function InvoiceAutomationPage() {
             </select>
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">Start date</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Start date
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <AutomationFieldHelp help="The date this monthly invoice rule starts from. It controls when Orbit Ledger begins preparing invoices." label="Start date" />
+            </span>
             <input
+              aria-required="true"
               className="ol-input"
+              required
               type="date"
               value={form.startDate}
               onChange={(event) => setForm((current) => ({ ...current, startDate: event.target.value, approveEmailAutomation: false }))}
             />
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">End date</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">End date</span>
+              <AutomationFieldHelp help="Optional. Add an end date for temporary retainers, subscriptions, or fixed-duration work." label="End date" />
+            </span>
             <input
               className="ol-input"
               type="date"
@@ -288,9 +315,17 @@ export default function InvoiceAutomationPage() {
             <span className="ol-helper">Leave empty to continue until you pause it.</span>
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">Prepare invoice on</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Prepare invoice on
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <AutomationFieldHelp help="The day of each month Orbit Ledger should prepare the invoice for review or approved auto email." label="Prepare invoice on" />
+            </span>
             <select
+              aria-required="true"
               className="ol-select"
+              required
               value={form.invoiceDay}
               onChange={(event) =>
                 setForm((current) => ({
@@ -310,16 +345,27 @@ export default function InvoiceAutomationPage() {
             <span className="ol-helper">Day 31 automatically becomes the last day for shorter months.</span>
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">Due days</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Due days
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <AutomationFieldHelp help="Number of days after invoice creation when payment is due. Use 0 for due immediately." label="Due days" />
+            </span>
             <input
+              aria-required="true"
               className="ol-input"
               inputMode="numeric"
+              required
               value={form.dueDays}
               onChange={(event) => setForm((current) => ({ ...current, dueDays: event.target.value.replace(/\D/g, ''), approveEmailAutomation: false }))}
             />
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">Invoice prefix</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">Invoice prefix</span>
+              <AutomationFieldHelp help="Optional. Add a prefix when you want monthly generated invoice numbers to be easier to identify." label="Invoice prefix" />
+            </span>
             <input
               className="ol-input"
               value={form.invoiceNumberPrefix}
@@ -327,7 +373,10 @@ export default function InvoiceAutomationPage() {
             />
           </label>
           <label className="ol-field ol-field--wide">
-            <span className="ol-field-label">Notes</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">Notes</span>
+              <AutomationFieldHelp help="Optional. Add recurring customer-facing notes or payment instructions for generated invoices." label="Notes" />
+            </span>
             <textarea
               className="ol-textarea"
               value={form.notes}
@@ -345,7 +394,10 @@ export default function InvoiceAutomationPage() {
           {form.items.map((item, index) => (
             <div className="ol-form-grid ol-form-grid--comfortable" key={item.id ?? index}>
               <label className="ol-field">
-                <span className="ol-field-label">Product</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">Product</span>
+                  <AutomationFieldHelp help="Optional. Pick a saved product to fill defaults faster; use Custom item if this line is unique." label="Product" />
+                </span>
                 <select className="ol-select" value={item.productId ?? ''} onChange={(event) => selectProduct(index, event.target.value)}>
                   <option value="">Custom item</option>
                   {products.map((product) => (
@@ -356,24 +408,51 @@ export default function InvoiceAutomationPage() {
                 </select>
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Item</span>
-                <input className="ol-input" value={item.name} onChange={(event) => updateItem(index, 'name', event.target.value)} />
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">
+                    Item
+                    <span className="ol-required-badge">Required</span>
+                  </span>
+                  <AutomationFieldHelp help="Customer-facing item name for the monthly invoice line." label="Item" />
+                </span>
+                <input aria-required="true" className="ol-input" required value={item.name} onChange={(event) => updateItem(index, 'name', event.target.value)} />
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Description</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">Description</span>
+                  <AutomationFieldHelp help="Optional. Add detail when the recurring item needs more context for the customer." label="Description" />
+                </span>
                 <input className="ol-input" value={item.description} onChange={(event) => updateItem(index, 'description', event.target.value)} />
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Qty</span>
-                <input className="ol-input" inputMode="decimal" value={item.quantity} onChange={(event) => updateItem(index, 'quantity', event.target.value)} />
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">
+                    Qty
+                    <span className="ol-required-badge">Required</span>
+                  </span>
+                  <AutomationFieldHelp help="Required. Quantity must be greater than zero for monthly invoice totals." label="Quantity" />
+                </span>
+                <input aria-required="true" className="ol-input" inputMode="decimal" required value={item.quantity} onChange={(event) => updateItem(index, 'quantity', event.target.value)} />
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Price</span>
-                <input className="ol-input" inputMode="decimal" value={item.price} onChange={(event) => updateItem(index, 'price', event.target.value)} />
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">
+                    Price
+                    <span className="ol-required-badge">Required</span>
+                  </span>
+                  <AutomationFieldHelp help="Required. Use zero only if this recurring line is intentionally free." label="Price" />
+                </span>
+                <input aria-required="true" className="ol-input" inputMode="decimal" required value={item.price} onChange={(event) => updateItem(index, 'price', event.target.value)} />
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Tax %</span>
-                <input className="ol-input" inputMode="decimal" value={item.taxRate} onChange={(event) => updateItem(index, 'taxRate', event.target.value)} />
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">
+                    Tax %
+                    <span className="ol-required-badge">Required</span>
+                  </span>
+                  <AutomationFieldHelp help="Required. Use 0 when no tax applies so generated invoices stay explicit." label="Tax percent" />
+                </span>
+                <input aria-required="true" className="ol-input" inputMode="decimal" required value={item.taxRate} onChange={(event) => updateItem(index, 'taxRate', event.target.value)} />
               </label>
             </div>
           ))}
@@ -416,7 +495,10 @@ export default function InvoiceAutomationPage() {
               type="checkbox"
               onChange={(event) => setForm((current) => ({ ...current, emailEnabled: event.target.checked, approveEmailAutomation: false }))}
             />
-            <span>Send invoice email automatically</span>
+            <span>
+              Send invoice email automatically
+              <span className="ol-checkbox-helper">Optional. When off, Orbit Ledger can still prepare monthly invoices for manual review.</span>
+            </span>
           </label>
           {!recurringAutoEmailAccess.allowed ? (
             <div className="ol-message ol-field--wide">
@@ -431,22 +513,36 @@ export default function InvoiceAutomationPage() {
               type="checkbox"
               onChange={(event) => setForm((current) => ({ ...current, emailCurrentMonthOnly: event.target.checked, approveEmailAutomation: false }))}
             />
-            <span>Do not email past-month catch-up invoices automatically</span>
+            <span>
+              Do not email past-month catch-up invoices automatically
+              <span className="ol-checkbox-helper">Optional safety setting. Keep it on when old catch-up invoices should stay in manual review.</span>
+            </span>
           </label>
           <div className="ol-field-help ol-field--wide" style={{ maxWidth: 'none' }}>
             Past catch-up invoices stay in review unless you send them yourself.
           </div>
           <label className="ol-field">
-            <span className="ol-field-label">Recipient email</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Recipient email
+                {form.emailEnabled ? <span className="ol-required-badge">Required</span> : null}
+              </span>
+              <AutomationFieldHelp help="Required only when automatic email is enabled. It defaults from the selected customer when an email is saved." label="Recipient email" />
+            </span>
             <input
+              aria-required={form.emailEnabled || undefined}
               className="ol-input"
               disabled={!recurringAutoEmailAccess.allowed}
+              required={form.emailEnabled}
               value={form.emailRecipient}
               onChange={(event) => setForm((current) => ({ ...current, emailRecipient: event.target.value, approveEmailAutomation: false }))}
             />
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">Send email on</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">Send email on</span>
+              <AutomationFieldHelp help="Choose the monthly day Orbit Ledger should send the approved invoice email." label="Send email on" />
+            </span>
             <select
               className="ol-select"
               disabled={!recurringAutoEmailAccess.allowed}
@@ -469,7 +565,10 @@ export default function InvoiceAutomationPage() {
               type="checkbox"
               onChange={(event) => setForm((current) => ({ ...current, emailAttachPdf: event.target.checked, approveEmailAutomation: false }))}
             />
-            <span>Attach invoice PDF</span>
+            <span>
+              Attach invoice PDF
+              <span className="ol-checkbox-helper">Optional, but helpful when customers expect the document in the email itself.</span>
+            </span>
           </label>
           <label className="ol-checkbox-row">
             <input
@@ -479,22 +578,41 @@ export default function InvoiceAutomationPage() {
               type="checkbox"
               onChange={(event) => setForm((current) => ({ ...current, emailIncludePaymentLink: event.target.checked, approveEmailAutomation: false }))}
             />
-            <span>Include payment link</span>
+            <span>
+              Include payment link
+              <span className="ol-checkbox-helper">Optional. Include it when you want the customer to pay directly from the email.</span>
+            </span>
           </label>
           <label className="ol-field ol-field--wide">
-            <span className="ol-field-label">Email subject</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Email subject
+                {form.emailEnabled ? <span className="ol-required-badge">Required</span> : null}
+              </span>
+              <AutomationFieldHelp help="Required only when automatic email is enabled. Tokens keep each monthly message personalized." label="Email subject" />
+            </span>
             <input
+              aria-required={form.emailEnabled || undefined}
               className="ol-input"
               disabled={!recurringAutoEmailAccess.allowed}
+              required={form.emailEnabled}
               value={form.emailSubject}
               onChange={(event) => setForm((current) => ({ ...current, emailSubject: event.target.value, approveEmailAutomation: false }))}
             />
           </label>
           <label className="ol-field ol-field--wide">
-            <span className="ol-field-label">Email body</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Email body
+                {form.emailEnabled ? <span className="ol-required-badge">Required</span> : null}
+              </span>
+              <AutomationFieldHelp help="Required only when automatic email is enabled. Use tokens so each generated email contains the right invoice and payment details." label="Email body" />
+            </span>
             <textarea
+              aria-required={form.emailEnabled || undefined}
               className="ol-textarea"
               disabled={!recurringAutoEmailAccess.allowed}
+              required={form.emailEnabled}
               rows={8}
               value={form.emailBody}
               onChange={(event) => setForm((current) => ({ ...current, emailBody: event.target.value, approveEmailAutomation: false }))}
@@ -515,7 +633,10 @@ export default function InvoiceAutomationPage() {
             type="checkbox"
             onChange={(event) => setForm((current) => ({ ...current, approveEmailAutomation: event.target.checked }))}
           />
-          <span>I approve this customer&apos;s automatic monthly invoice email.</span>
+          <span>
+            I approve this customer&apos;s automatic monthly invoice email.
+            <span className="ol-checkbox-helper">Required only to enable automatic sending. Without approval, the rule can still prepare invoices for review.</span>
+          </span>
         </label>
         <p className="ol-helper" style={{ marginTop: 8 }}>
           Automatic emails pause after meaningful changes until this approval is renewed.
@@ -708,6 +829,15 @@ function recurringFormToInput(
 function parseNumber(value: string): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function AutomationFieldHelp({ help, label }: { help: string; label: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label={`What is ${label}?`}>?</summary>
+      <span>{help}</span>
+    </details>
+  );
 }
 
 function monthlyDayOptions(): number[] {

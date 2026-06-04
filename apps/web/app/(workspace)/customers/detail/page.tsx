@@ -927,11 +927,28 @@ function CustomerDetailContent() {
               <div className="ol-form-stack">
                 <div className="ol-form-band">
                   <div className="ol-form-band-grid">
-                    <CustomerField label="Display name" value={profileDraft.name} onChange={(value) => updateProfileField('name', value)} />
-                    <CustomerField label="Legal / business name" value={profileDraft.legalName} onChange={(value) => updateProfileField('legalName', value)} />
+                    <CustomerField
+                      help="The short name Orbit Ledger shows in lists, invoices, statements, and follow-up screens."
+                      label="Display name"
+                      required
+                      value={profileDraft.name}
+                      onChange={(value) => updateProfileField('name', value)}
+                    />
+                    <CustomerField
+                      help="Use the official business or legal name when it differs from the display name."
+                      label="Legal / business name"
+                      value={profileDraft.legalName}
+                      onChange={(value) => updateProfileField('legalName', value)}
+                    />
                     <label className="ol-field">
-                      <span className="ol-field-label">Customer type</span>
-                      <select className="ol-select" value={profileDraft.customerType} onChange={(event) => updateProfileField('customerType', event.target.value)}>
+                      <span className="ol-field-label ol-field-label--with-meta">
+                        <span className="ol-field-label-text">
+                          Customer type
+                          <span className="ol-required-badge">Required</span>
+                        </span>
+                        <CustomerFieldHelp help="Required because customer type helps Orbit Ledger format records, tax context, and follow-up language correctly." label="Customer type" />
+                      </span>
+                      <select aria-required="true" className="ol-select" required value={profileDraft.customerType} onChange={(event) => updateProfileField('customerType', event.target.value)}>
                         <option value="business">Business</option>
                         <option value="individual">Individual</option>
                       </select>
@@ -939,7 +956,7 @@ function CustomerDetailContent() {
                     <CustomerField label="Contact person" value={profileDraft.contactPerson} onChange={(value) => updateProfileField('contactPerson', value)} />
                     <CustomerField label="Phone" value={profileDraft.phone} onChange={(value) => updateProfileField('phone', value)} />
                     <CustomerField label="WhatsApp" value={profileDraft.whatsapp} onChange={(value) => updateProfileField('whatsapp', value)} />
-                    <CustomerField label="Email" value={profileDraft.email} onChange={(value) => updateProfileField('email', value)} />
+                    <CustomerField help="Used for invoice delivery, statements, reminders, and support context when available." label="Email" value={profileDraft.email} onChange={(value) => updateProfileField('email', value)} />
                   </div>
                 </div>
                 <div className="ol-form-band">
@@ -947,14 +964,26 @@ function CustomerDetailContent() {
                     <CustomerField label="Billing address" value={profileDraft.billingAddress} onChange={(value) => updateProfileField('billingAddress', value)} />
                     <CustomerField label="Shipping address" value={profileDraft.shippingAddress} onChange={(value) => updateProfileField('shippingAddress', value)} />
                     <label className="ol-field">
-                      <span className="ol-field-label">Country</span>
-                      <select className="ol-select" disabled value={INDIA_COUNTRY.code}>
+                      <span className="ol-field-label ol-field-label--with-meta">
+                        <span className="ol-field-label-text">
+                          Country
+                          <span className="ol-required-badge">Required</span>
+                        </span>
+                        <CustomerFieldHelp help="Required for launch tax and location defaults. India is active now; more country packs are planned." label="Country" />
+                      </span>
+                      <select aria-required="true" className="ol-select" disabled required value={INDIA_COUNTRY.code}>
                         <option value={INDIA_COUNTRY.code}>{INDIA_COUNTRY.name}</option>
                       </select>
                     </label>
                     <label className="ol-field">
-                      <span className="ol-field-label">State</span>
-                      <select className="ol-select" value={profileDraft.stateCode || 'GJ'} onChange={(event) => updateProfileField('stateCode', event.target.value)}>
+                      <span className="ol-field-label ol-field-label--with-meta">
+                        <span className="ol-field-label-text">
+                          State
+                          <span className="ol-required-badge">Required</span>
+                        </span>
+                        <CustomerFieldHelp help="Required for India-first customer records, tax context, and city defaults." label="State" />
+                      </span>
+                      <select aria-required="true" className="ol-select" required value={profileDraft.stateCode || 'GJ'} onChange={(event) => updateProfileField('stateCode', event.target.value)}>
                         {INDIAN_STATES.map((state) => (
                           <option key={state.code} value={state.code}>
                             {state.name}
@@ -963,8 +992,14 @@ function CustomerDetailContent() {
                       </select>
                     </label>
                     <label className="ol-field">
-                      <span className="ol-field-label">City</span>
-                      <select className="ol-select" value={profileDraft.city || getDefaultIndianCity(profileDraft.stateCode || 'GJ')} onChange={(event) => updateProfileField('city', event.target.value)}>
+                      <span className="ol-field-label ol-field-label--with-meta">
+                        <span className="ol-field-label-text">
+                          City
+                          <span className="ol-required-badge">Required</span>
+                        </span>
+                        <CustomerFieldHelp help="Required so billing records, statements, and location filters have a clear city value." label="City" />
+                      </span>
+                      <select aria-required="true" className="ol-select" required value={profileDraft.city || getDefaultIndianCity(profileDraft.stateCode || 'GJ')} onChange={(event) => updateProfileField('city', event.target.value)}>
                         {getIndianCityOptions(profileDraft.stateCode || 'GJ').map((city) => (
                           <option key={city} value={city}>
                             {city}
@@ -978,20 +1013,25 @@ function CustomerDetailContent() {
                 </div>
                 <div className="ol-form-band">
                   <div className="ol-form-band-grid">
-                    <CustomerField label="GSTIN" value={profileDraft.gstin} onChange={(value) => updateProfileField('gstin', value.toUpperCase())} />
-                    <CustomerField label="PAN" value={profileDraft.pan} onChange={(value) => updateProfileField('pan', value.toUpperCase())} />
-                    <CustomerField label="VAT / tax number" value={profileDraft.taxNumber} onChange={(value) => updateProfileField('taxNumber', value)} />
-                    <CustomerField label="Registration number" value={profileDraft.registrationNumber} onChange={(value) => updateProfileField('registrationNumber', value)} />
-                    <CustomerField label="Place of supply" value={profileDraft.placeOfSupply} onChange={(value) => updateProfileField('placeOfSupply', value)} />
-                    <CustomerField label="Tax treatment" value={profileDraft.defaultTaxTreatment} onChange={(value) => updateProfileField('defaultTaxTreatment', value)} />
+                    <CustomerField help="Customer GST number used on tax-ready invoices and exports." label="GSTIN" value={profileDraft.gstin} onChange={(value) => updateProfileField('gstin', value.toUpperCase())} />
+                    <CustomerField help="Customer PAN for Indian tax/reference records when you need it." label="PAN" value={profileDraft.pan} onChange={(value) => updateProfileField('pan', value.toUpperCase())} />
+                    <CustomerField help="Use this for VAT, sales tax, or local tax IDs outside GST/PAN workflows." label="VAT / tax number" value={profileDraft.taxNumber} onChange={(value) => updateProfileField('taxNumber', value)} />
+                    <CustomerField help="Optional company registration or business identification number for records." label="Registration number" value={profileDraft.registrationNumber} onChange={(value) => updateProfileField('registrationNumber', value)} />
+                    <CustomerField help="Tax location used for invoice and place-of-supply context." label="Place of supply" value={profileDraft.placeOfSupply} onChange={(value) => updateProfileField('placeOfSupply', value)} />
+                    <CustomerField help="Default tax category for this customer when creating documents." label="Tax treatment" value={profileDraft.defaultTaxTreatment} onChange={(value) => updateProfileField('defaultTaxTreatment', value)} />
                   </div>
                 </div>
                 <div className="ol-form-band">
                   <div className="ol-form-band-grid">
-                    <CustomerField label="Opening balance" value={profileDraft.openingBalance} onChange={(value) => updateProfileField('openingBalance', value)} />
-                    <CustomerField label="Credit limit" value={profileDraft.creditLimit} onChange={(value) => updateProfileField('creditLimit', value)} />
-                    <CustomerField label="Payment terms" value={profileDraft.paymentTerms} onChange={(value) => updateProfileField('paymentTerms', value)} />
-                    <CustomerField label="Preferred payment mode" value={profileDraft.preferredPaymentMode} onChange={(value) => updateProfileField('preferredPaymentMode', value)} />
+                    <CustomerField help="Existing amount this customer already owed or had as credit before you started using Orbit Ledger." label="Opening balance" value={profileDraft.openingBalance} onChange={(value) => updateProfileField('openingBalance', value)} />
+                    <CustomerField help="Optional internal limit for how much unpaid balance you are comfortable allowing for this customer." label="Credit limit" value={profileDraft.creditLimit} onChange={(value) => updateProfileField('creditLimit', value)} />
+                    <CustomerField
+                      help="How soon this customer is expected to pay after an invoice. For example, Net 15 means payment is due 15 days after the invoice date."
+                      label="Payment terms"
+                      value={profileDraft.paymentTerms}
+                      onChange={(value) => updateProfileField('paymentTerms', value)}
+                    />
+                    <CustomerField help="The payment method this customer usually uses, such as UPI, bank transfer, cash, or cheque." label="Preferred payment mode" value={profileDraft.preferredPaymentMode} onChange={(value) => updateProfileField('preferredPaymentMode', value)} />
                     <CustomerTemplateSelect
                       isPro={subscription.isPro}
                       label="Preferred invoice template"
@@ -999,12 +1039,15 @@ function CustomerDetailContent() {
                       value={profileDraft.preferredInvoiceTemplate}
                       onChange={(value) => updateProfileField('preferredInvoiceTemplate', value)}
                     />
-                    <CustomerField label="Preferred language" value={profileDraft.preferredLanguage} onChange={(value) => updateProfileField('preferredLanguage', value)} />
-                    <CustomerField label="Tags" value={profileDraft.tags} onChange={(value) => updateProfileField('tags', value)} />
+                    <CustomerField help="Preferred language for customer-facing document context when templates support it." label="Preferred language" value={profileDraft.preferredLanguage} onChange={(value) => updateProfileField('preferredLanguage', value)} />
+                    <CustomerField help="Internal labels for filtering or grouping customers, such as VIP, wholesale, or follow-up." label="Tags" value={profileDraft.tags} onChange={(value) => updateProfileField('tags', value)} />
                   </div>
                 </div>
                 <label className="ol-field">
-                  <span className="ol-field-label">Notes</span>
+                  <span className="ol-field-label ol-field-label--with-meta">
+                    <span className="ol-field-label-text">Notes</span>
+                    <CustomerFieldHelp help="Optional. Add internal customer context such as billing preferences, follow-up instructions, or relationship notes when useful." label="Notes" />
+                  </span>
                   <textarea className="ol-textarea" value={profileDraft.notes} onChange={(event) => updateProfileField('notes', event.target.value)} />
                 </label>
               </div>
@@ -1036,15 +1079,34 @@ function CustomerDetailContent() {
               <div className="ol-form-band" style={{ marginBottom: 16 }}>
                 <div className="ol-form-band-grid">
                   <label className="ol-field">
-                    <span className="ol-field-label">Note type</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">
+                        Note type
+                        <span className="ol-required-badge">Required</span>
+                      </span>
+                      <CustomerFieldHelp help="Required so the timeline records whether this is a general customer note or a dispute item for follow-up." label="Note type" />
+                    </span>
                     <select className="ol-select" value={noteKind} onChange={(event) => setNoteKind(event.target.value as 'note' | 'dispute')}>
                       <option value="note">Note</option>
                       <option value="dispute">Dispute</option>
                     </select>
                   </label>
                   <label className="ol-field">
-                    <span className="ol-field-label">Important note</span>
-                    <input className="ol-input" value={noteBody} onChange={(event) => setNoteBody(event.target.value)} placeholder="What should the business remember?" />
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">
+                        Important note
+                        <span className="ol-required-badge">Required</span>
+                      </span>
+                      <CustomerFieldHelp help="Required before saving. Add the exact detail your team should remember for collections, support, or dispute handling." label="Important note" />
+                    </span>
+                    <input
+                      aria-required="true"
+                      className="ol-input"
+                      required
+                      value={noteBody}
+                      onChange={(event) => setNoteBody(event.target.value)}
+                      placeholder="What should the business remember?"
+                    />
                   </label>
                   <div className="ol-field ol-field--action">
                     <span className="ol-field-label">Action</span>
@@ -1081,12 +1143,36 @@ function CustomerDetailContent() {
               <div className="ol-form-stack">
                 <div className="ol-form-band">
                   <div className="ol-form-band-grid">
-                    <CustomerField label="Promised amount" value={promiseAmount} onChange={setPromiseAmount} />
+                    <CustomerField
+                      help="Required to save a promise. Enter the amount the customer committed to pay so the follow-up history stays precise."
+                      label="Promised amount"
+                      required
+                      value={promiseAmount}
+                      onChange={setPromiseAmount}
+                    />
                     <label className="ol-field">
-                      <span className="ol-field-label">Promised date</span>
-                      <input className="ol-input" type="date" value={promiseDate} onChange={(event) => setPromiseDate(event.target.value)} />
+                      <span className="ol-field-label ol-field-label--with-meta">
+                        <span className="ol-field-label-text">
+                          Promised date
+                          <span className="ol-required-badge">Required</span>
+                        </span>
+                        <CustomerFieldHelp help="Required to save a promise. This is the date your team will use for reminders and customer follow-up." label="Promised date" />
+                      </span>
+                      <input
+                        aria-required="true"
+                        className="ol-input"
+                        required
+                        type="date"
+                        value={promiseDate}
+                        onChange={(event) => setPromiseDate(event.target.value)}
+                      />
                     </label>
-                    <CustomerField label="Promise note" value={promiseNote} onChange={setPromiseNote} />
+                    <CustomerField
+                      help="Optional. Add context like payment mode, partial-payment plan, or who confirmed the promise if it helps your team follow up."
+                      label="Promise note"
+                      value={promiseNote}
+                      onChange={setPromiseNote}
+                    />
                     <div className="ol-field ol-field--action">
                       <span className="ol-field-label">Action</span>
                       <button className="ol-button" type="button" disabled={isSavingFollowUp || !officeAccess.can('manage_customers')} onClick={() => void savePaymentPromise()}>
@@ -1303,19 +1389,38 @@ function TrustMemoryCard({ card }: { card: CustomerTrustMemorySummaryCard }) {
 }
 
 function CustomerField({
+  help,
   label,
   value,
   onChange,
+  required = false,
 }: {
+  help?: string;
   label: string;
   value: string;
   onChange(value: string): void;
+  required?: boolean;
 }) {
   return (
     <label className="ol-field">
-      <span className="ol-field-label">{label}</span>
-      <input className="ol-input" value={value} onChange={(event) => onChange(event.target.value)} />
+      <span className="ol-field-label ol-field-label--with-meta">
+        <span className="ol-field-label-text">
+          {label}
+          {required ? <span className="ol-required-badge">Required</span> : null}
+        </span>
+        {help ? <CustomerFieldHelp help={help} label={label} /> : null}
+      </span>
+      <input aria-required={required || undefined} className="ol-input" required={required} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
+  );
+}
+
+function CustomerFieldHelp({ help, label }: { help: string; label: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label={`What is ${label}?`}>?</summary>
+      <span>{help}</span>
+    </details>
   );
 }
 

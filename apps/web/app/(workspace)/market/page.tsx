@@ -1101,12 +1101,20 @@ export default function MarketPage() {
               <div className="ol-message">
                 Subject: {WEB_OFFICE_INVITATION_SUBJECT}
               </div>
-              <div className="ol-form-grid ol-form-grid--comfortable">
-                <label className={`ol-field${officeInvitationErrors.fullName ? ' is-invalid' : ''}`}>
-                  <span className="ol-field-label">Full name</span>
-                  <input
-                    className="ol-input"
-                    value={officeInvitation.fullName}
+	              <div className="ol-form-grid ol-form-grid--comfortable">
+	                <label className={`ol-field${officeInvitationErrors.fullName ? ' is-invalid' : ''}`}>
+	                  <span className="ol-field-label ol-field-label--with-meta">
+	                    <span className="ol-field-label-text">
+	                      Full name
+	                      <span className="ol-required-badge">Required</span>
+	                    </span>
+	                    <MarketFieldHelp text="Required so the Office team knows who is requesting access for this business." />
+	                  </span>
+	                  <input
+	                    aria-required="true"
+	                    className="ol-input"
+	                    required
+	                    value={officeInvitation.fullName}
                     onChange={(event) =>
                       setOfficeInvitation((current) => ({ ...current, fullName: event.target.value }))
                     }
@@ -1114,12 +1122,20 @@ export default function MarketPage() {
                   {officeInvitationErrors.fullName ? (
                     <span className="ol-field-error">{officeInvitationErrors.fullName}</span>
                   ) : null}
-                </label>
-                <label className={`ol-field${officeInvitationErrors.email ? ' is-invalid' : ''}`}>
-                  <span className="ol-field-label">Email</span>
-                  <input
-                    className="ol-input"
-                    type="email"
+	                </label>
+	                <label className={`ol-field${officeInvitationErrors.email ? ' is-invalid' : ''}`}>
+	                  <span className="ol-field-label ol-field-label--with-meta">
+	                    <span className="ol-field-label-text">
+	                      Email
+	                      <span className="ol-required-badge">Required</span>
+	                    </span>
+	                    <MarketFieldHelp text="Required so the team can reply to the Office invitation request." />
+	                  </span>
+	                  <input
+	                    aria-required="true"
+	                    className="ol-input"
+	                    required
+	                    type="email"
                     value={officeInvitation.email}
                     onChange={(event) =>
                       setOfficeInvitation((current) => ({ ...current, email: event.target.value }))
@@ -1128,13 +1144,21 @@ export default function MarketPage() {
                   {officeInvitationErrors.email ? (
                     <span className="ol-field-error">{officeInvitationErrors.email}</span>
                   ) : null}
-                </label>
-                <label className={`ol-field${officeInvitationErrors.bestContactNumber ? ' is-invalid' : ''}`}>
-                  <span className="ol-field-label">Best contact number</span>
-                  <input
-                    className="ol-input"
-                    inputMode="tel"
-                    value={officeInvitation.bestContactNumber}
+	                </label>
+	                <label className={`ol-field${officeInvitationErrors.bestContactNumber ? ' is-invalid' : ''}`}>
+	                  <span className="ol-field-label ol-field-label--with-meta">
+	                    <span className="ol-field-label-text">
+	                      Best contact number
+	                      <span className="ol-required-badge">Required</span>
+	                    </span>
+	                    <MarketFieldHelp text="Required for Office access review if the team needs to verify business context quickly." />
+	                  </span>
+	                  <input
+	                    aria-required="true"
+	                    className="ol-input"
+	                    inputMode="tel"
+	                    required
+	                    value={officeInvitation.bestContactNumber}
                     onChange={(event) =>
                       setOfficeInvitation((current) => ({ ...current, bestContactNumber: event.target.value }))
                     }
@@ -1142,10 +1166,13 @@ export default function MarketPage() {
                   {officeInvitationErrors.bestContactNumber ? (
                     <span className="ol-field-error">{officeInvitationErrors.bestContactNumber}</span>
                   ) : null}
-                </label>
-                <label className="ol-field">
-                  <span className="ol-field-label">Alternate contact number</span>
-                  <input
+	                </label>
+	                <label className="ol-field">
+	                  <span className="ol-field-label ol-field-label--with-meta">
+	                    <span className="ol-field-label-text">Alternate contact number</span>
+	                    <MarketFieldHelp text="Optional. Add it if another number is better for follow-up when your primary number is unavailable." />
+	                  </span>
+	                  <input
                     className="ol-input"
                     inputMode="tel"
                     value={officeInvitation.alternateContactNumber}
@@ -1153,13 +1180,20 @@ export default function MarketPage() {
                       setOfficeInvitation((current) => ({ ...current, alternateContactNumber: event.target.value }))
                     }
                   />
-                  <span className="ol-field-help">Optional.</span>
-                </label>
-                <label className={`ol-field ol-field--wide${officeInvitationErrors.message ? ' is-invalid' : ''}`}>
-                  <span className="ol-field-label">Message</span>
-                  <textarea
-                    className="ol-textarea"
-                    rows={9}
+	                </label>
+	                <label className={`ol-field ol-field--wide${officeInvitationErrors.message ? ' is-invalid' : ''}`}>
+	                  <span className="ol-field-label ol-field-label--with-meta">
+	                    <span className="ol-field-label-text">
+	                      Message
+	                      <span className="ol-required-badge">Required</span>
+	                    </span>
+	                    <MarketFieldHelp text="Required. Include what Office help you need so the team can route the request correctly." />
+	                  </span>
+	                  <textarea
+	                    aria-required="true"
+	                    className="ol-textarea"
+	                    required
+	                    rows={9}
                     value={officeInvitation.message}
                     onChange={(event) =>
                       setOfficeInvitation((current) => ({ ...current, message: event.target.value }))
@@ -1986,6 +2020,15 @@ function renewalAuditActionLabel(value: string) {
     return 'Renewal ready for review';
   }
   return 'Renewal activity recorded';
+}
+
+function MarketFieldHelp({ text }: { text: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label="Field help">?</summary>
+      <span>{text}</span>
+    </details>
+  );
 }
 
 function renewalAuditStatusLabel(value: string) {

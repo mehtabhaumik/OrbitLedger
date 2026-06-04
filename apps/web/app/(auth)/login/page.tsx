@@ -384,10 +384,18 @@ export default function LoginPage() {
 
             {mode === 'register' ? (
               <label className={`ol-field${fieldErrors.name ? ' is-invalid' : ''}`}>
-                <span className="ol-field-label">Full name</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">
+                    Full name
+                    <span className="ol-required-badge">Required</span>
+                  </span>
+                  <AuthFieldHelp help="Use your real name so workspace ownership, support, and admin records are easier to identify." label="Full name" />
+                </span>
                 <input
+                  aria-required="true"
                   autoComplete="name"
                   className="ol-input"
+                  required
                   value={form.name}
                   onBlur={() => touchAndValidate('name')}
                   onChange={(event) => setFieldValue('name', event.target.value)}
@@ -397,11 +405,19 @@ export default function LoginPage() {
             ) : null}
 
             <label className={`ol-field${fieldErrors.email ? ' is-invalid' : ''}`}>
-              <span className="ol-field-label">Email</span>
+              <span className="ol-field-label ol-field-label--with-meta">
+                <span className="ol-field-label-text">
+                  Email
+                  <span className="ol-required-badge">Required</span>
+                </span>
+                <AuthFieldHelp help="Use the email you want tied to your Orbit Ledger account, invoices, support cases, and workspace access." label="Email" />
+              </span>
               <input
+                aria-required="true"
                 autoComplete="email"
                 className="ol-input"
                 inputMode="email"
+                required
                 type="email"
                 value={form.email}
                 onBlur={() => touchAndValidate('email')}
@@ -411,10 +427,18 @@ export default function LoginPage() {
             </label>
 
             <label className={`ol-field${fieldErrors.password ? ' is-invalid' : ''}`}>
-              <span className="ol-field-label">Password</span>
+              <span className="ol-field-label ol-field-label--with-meta">
+                <span className="ol-field-label-text">
+                  Password
+                  <span className="ol-required-badge">Required</span>
+                </span>
+                <AuthFieldHelp help={mode === 'register' ? 'Use at least 8 characters so your business workspace has a stronger sign-in barrier.' : 'Enter the password for this email account. Use reset if you do not remember it.'} label="Password" />
+              </span>
               <input
+                aria-required="true"
                 autoComplete={mode === 'sign_in' ? 'current-password' : 'new-password'}
                 className="ol-input"
+                required
                 type="password"
                 value={form.password}
                 onBlur={() => touchAndValidate('password')}
@@ -469,6 +493,15 @@ export default function LoginPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function AuthFieldHelp({ help, label }: { help: string; label: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label={`What is ${label}?`}>?</summary>
+      <span>{help}</span>
+    </details>
   );
 }
 

@@ -307,9 +307,16 @@ export default function BackupPage() {
               onChange={(event) => void handleFilePicked(event.target.files?.[0] ?? null)}
             />
             <div className={`ol-field${fileError ? ' is-invalid' : ''}`}>
-              <span className="ol-field-label">Selected backup file</span>
+              <span className="ol-field-label ol-field-label--with-meta">
+                <span className="ol-field-label-text">
+                  Selected backup file
+                  <span className="ol-required-badge">Required</span>
+                </span>
+                <BackupFieldHelp text="Choose the JSON backup file you want to preview. Restore stays blocked until Orbit Ledger can read and validate this file." />
+              </span>
               <input
                 className="ol-input"
+                aria-required="true"
                 readOnly
                 value={selectedFileName || 'No file selected'}
               />
@@ -349,9 +356,17 @@ export default function BackupPage() {
             Restoring this backup will replace the current workspace after you type the business name.
           </p>
           <label className="ol-field" style={{ marginTop: 16 }}>
-            <span className="ol-field-label">Type business name to confirm</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Type business name to confirm
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <BackupFieldHelp text="This exact confirmation prevents accidental restore. Type the current business name before the restore button unlocks." />
+            </span>
             <input
+              aria-required="true"
               className="ol-input"
+              required
               value={restoreConfirmation}
               placeholder={activeWorkspace?.businessName ?? 'Business name'}
               onChange={(event) => setRestoreConfirmation(event.target.value)}
@@ -372,5 +387,14 @@ function MetricCard({ label, value, helper }: { label: string; value: number | s
       <div className="ol-metric-value">{value}</div>
       <div className="ol-metric-helper">{helper ?? 'Included in this backup preview.'}</div>
     </article>
+  );
+}
+
+function BackupFieldHelp({ text }: { text: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label="Field help">?</summary>
+      <span>{text}</span>
+    </details>
   );
 }

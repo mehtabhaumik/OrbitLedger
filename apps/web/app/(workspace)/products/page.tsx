@@ -302,39 +302,70 @@ export default function ProductsPage() {
         </div>
         <div className="ol-form-band-grid">
           <label className="ol-field">
-            <span className="ol-field-label">Product name</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Product name
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <ProductFieldHelp help="Keep it short and recognizable so invoice line-item selection stays quick." label="Product name" />
+            </span>
             <input
+              aria-required="true"
               className="ol-input"
+              required
               value={form.name}
               onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
               placeholder="Printer paper"
             />
-            <span className="ol-field-help">Keep it short so invoice selection stays quick.</span>
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">Price</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Price
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <ProductFieldHelp help="Default selling price used when this product is added to an invoice. You can still adjust invoice line items later." label="Price" />
+            </span>
             <input
+              aria-required="true"
               className="ol-input ol-amount"
               inputMode="decimal"
+              required
               value={form.price}
               onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))}
               placeholder="0.00"
             />
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">Stock</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Stock
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <ProductFieldHelp help="Current quantity on hand. This helps Orbit Ledger show inventory value and low-stock review." label="Stock" />
+            </span>
             <input
+              aria-required="true"
               className="ol-input ol-amount"
               inputMode="decimal"
+              required
               value={form.stockQuantity}
               onChange={(event) => setForm((current) => ({ ...current, stockQuantity: event.target.value }))}
               placeholder="0"
             />
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">Unit</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Unit
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <ProductFieldHelp help="The measurement shown on invoices and stock reports, such as pcs, kg, hour, box, or service." label="Unit" />
+            </span>
             <input
+              aria-required="true"
               className="ol-input"
+              required
               value={form.unit}
               onChange={(event) => setForm((current) => ({ ...current, unit: event.target.value }))}
               placeholder="pcs, kg, hour"
@@ -351,6 +382,15 @@ export default function ProductsPage() {
         </div>
       </section>
     </AppShell>
+  );
+}
+
+function ProductFieldHelp({ help, label }: { help: string; label: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label={`What is ${label}?`}>?</summary>
+      <span>{help}</span>
+    </details>
   );
 }
 

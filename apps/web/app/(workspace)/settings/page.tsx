@@ -1080,22 +1080,28 @@ export default function SettingsPage() {
           <div className="ol-form-row ol-form-row--auto">
             <ProfileField
               error={fieldErrors.businessName}
+              help="Required. This appears on invoices, statements, reports, settings, and backup names."
               label="Business name"
+              required
               value={profile.businessName}
               onBlur={() => handleFieldBlur('businessName')}
               onChange={(value) => handleFieldChange('businessName', value)}
             />
             <ProfileField
               error={fieldErrors.ownerName}
+              help="Required. Used as the primary owner contact on internal workspace records."
               label="Owner name"
+              required
               value={profile.ownerName}
               onBlur={() => handleFieldBlur('ownerName')}
               onChange={(value) => handleFieldChange('ownerName', value)}
             />
             <ProfileField
               error={fieldErrors.phone}
+              help="Required. Add the best reachable business phone for company and support records."
               inputMode="tel"
               label="Phone"
+              required
               value={profile.phone}
               onBlur={() => handleFieldBlur('phone')}
               onChange={(value) => handleFieldChange('phone', value)}
@@ -1104,8 +1110,10 @@ export default function SettingsPage() {
           <div className="ol-form-row ol-form-row--auto">
             <ProfileField
               error={fieldErrors.email}
+              help="Required. Used for workspace alerts, document contact details, and important account notices."
               inputMode="email"
               label="Email"
+              required
               type="email"
               value={profile.email}
               onBlur={() => handleFieldBlur('email')}
@@ -1131,9 +1139,17 @@ export default function SettingsPage() {
               </select>
             </label>
             <label className={`ol-field${fieldErrors.stateCode ? ' is-invalid' : ''}`}>
-              <span className="ol-field-label">State</span>
+              <span className="ol-field-label ol-field-label--with-meta">
+                <span className="ol-field-label-text">
+                  State
+                  <span className="ol-required-badge">Required</span>
+                </span>
+                <SettingsFieldHelp help="Required for India-first workspace records, reporting context, and default city choices." label="State" />
+              </span>
               <select
+                aria-required="true"
                 className="ol-select"
+                required
                 value={profile.stateCode}
                 onBlur={() => handleFieldBlur('stateCode')}
                 onChange={(event) => handleFieldChange('stateCode', event.target.value)}
@@ -1246,8 +1262,19 @@ export default function SettingsPage() {
           <div className="ol-form-band-grid">
             <ProfileField label="Tax treatment" value={profile.defaultTaxTreatment} onChange={(value) => handleFieldChange('defaultTaxTreatment', value)} />
             <ProfileField inputMode="decimal" label="Default tax %" value={profile.defaultTaxRate} onChange={(value) => handleFieldChange('defaultTaxRate', value)} />
-            <ProfileField label="Default payment terms" value={profile.defaultPaymentTerms} onChange={(value) => handleFieldChange('defaultPaymentTerms', value)} />
-            <ProfileField inputMode="numeric" label="Default due days" value={profile.defaultDueDays} onChange={(value) => handleFieldChange('defaultDueDays', value)} />
+            <ProfileField
+              help="The default wording for when customers should pay new invoices, such as Due on receipt, Net 7, or Net 15."
+              label="Default payment terms"
+              value={profile.defaultPaymentTerms}
+              onChange={(value) => handleFieldChange('defaultPaymentTerms', value)}
+            />
+            <ProfileField
+              help="The number of days after the invoice date when payment becomes due. For example, 15 means invoices are due after 15 days."
+              inputMode="numeric"
+              label="Default due days"
+              value={profile.defaultDueDays}
+              onChange={(value) => handleFieldChange('defaultDueDays', value)}
+            />
             <TemplateSelect
               isPro={subscription.isPro}
               label="Default invoice template"
@@ -1783,14 +1810,19 @@ export default function SettingsPage() {
             <div className="ol-form-row ol-form-row--payment-settings">
               {paymentTemplate.fields.map((field) => (
                 <label className="ol-field" key={field.key}>
-                  <span className="ol-field-label">{field.label}</span>
+                  <span className="ol-field-label ol-field-label--with-meta">
+                    <span className="ol-field-label-text">{field.label}</span>
+                    <SettingsFieldHelp
+                      help={`${field.helper} Optional for saving settings, but add it if it helps customers pay from invoices and reminders without confusion.`}
+                      label={field.label}
+                    />
+                  </span>
                   <input
                     className="ol-input"
                     placeholder={field.placeholder}
                     value={String(paymentInstructions[field.key] ?? '')}
                     onChange={(event) => updatePaymentInstruction(field.key, event.target.value)}
                   />
-                  <span className="ol-field-help">{field.helper}</span>
                 </label>
               ))}
             </div>
@@ -1831,14 +1863,22 @@ export default function SettingsPage() {
           </span>
         </div>
 
-        <div className="ol-form-row ol-form-row--lock">
-          <label className={`ol-field${pinError ? ' is-invalid' : ''}`}>
-            <span className="ol-field-label">PIN</span>
-            <input
-              className="ol-input ol-input--pin ol-input--pin-left"
-              inputMode="numeric"
-              maxLength={4}
-              type="password"
+	        <div className="ol-form-row ol-form-row--lock">
+	          <label className={`ol-field${pinError ? ' is-invalid' : ''}`}>
+	            <span className="ol-field-label ol-field-label--with-meta">
+	              <span className="ol-field-label-text">
+	                PIN
+	                <span className="ol-required-badge">Required</span>
+	              </span>
+	              <SettingsFieldHelp help="Required to turn browser lock on or off. Use exactly 4 digits; this stays on this device only." label="PIN" />
+	            </span>
+	            <input
+	              aria-required="true"
+	              className="ol-input ol-input--pin ol-input--pin-left"
+	              inputMode="numeric"
+	              maxLength={4}
+	              required
+	              type="password"
               value={pinInput}
               onBlur={() => {
                 if (pinInput.length > 0 && pinInput.length < 4) {
@@ -2217,33 +2257,45 @@ function withCompanyAddressAsRegistered(profile: ProfileFormState): ProfileFormS
 
 function ProfileField({
   error,
+  help,
   inputMode,
   label,
   maxLength,
   onBlur,
   onChange,
   placeholder,
+  required = false,
   type = 'text',
   value,
 }: {
   label: string;
   value: string;
+  help?: string;
   type?: string;
   inputMode?: InputHTMLAttributes<HTMLInputElement>['inputMode'];
   maxLength?: number;
   placeholder?: string;
+  required?: boolean;
   error?: string | null;
   onBlur?(): void;
   onChange(value: string): void;
 }) {
   return (
     <label className={`ol-field${error ? ' is-invalid' : ''}`}>
-      <span className="ol-field-label">{label}</span>
+      <span className="ol-field-label ol-field-label--with-meta">
+        <span className="ol-field-label-text">
+          {label}
+          {required ? <span className="ol-required-badge">Required</span> : null}
+        </span>
+        {help ? <SettingsFieldHelp help={help} label={label} /> : null}
+      </span>
       <input
+        aria-required={required || undefined}
         className="ol-input"
         inputMode={inputMode}
         maxLength={maxLength}
         placeholder={placeholder}
+        required={required}
         type={type}
         value={value}
         onBlur={onBlur}
@@ -2251,6 +2303,15 @@ function ProfileField({
       />
       {error ? <span className="ol-field-error">{error}</span> : null}
     </label>
+  );
+}
+
+function SettingsFieldHelp({ help, label }: { help: string; label: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label={`What is ${label}?`}>?</summary>
+      <span>{help}</span>
+    </details>
   );
 }
 

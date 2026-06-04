@@ -374,7 +374,9 @@ export function WorkspaceSetupCard() {
                   <Field
                     autoComplete="organization"
                     error={fieldErrors.businessName}
+                    help="This appears on invoices, statements, reports, backup names, and the workspace dashboard."
                     label="Business name"
+                    required
                     value={values.businessName}
                     onBlur={() => handleFieldBlur('businessName')}
                     onChange={(businessName) => handleFieldChange('businessName', businessName)}
@@ -382,7 +384,9 @@ export function WorkspaceSetupCard() {
                   <Field
                     autoComplete="name"
                     error={fieldErrors.ownerName}
+                    help="Used as the primary owner contact for workspace setup and business review records."
                     label="Owner name"
+                    required
                     value={values.ownerName}
                     onBlur={() => handleFieldBlur('ownerName')}
                     onChange={(ownerName) => handleFieldChange('ownerName', ownerName)}
@@ -390,8 +394,10 @@ export function WorkspaceSetupCard() {
                   <Field
                     autoComplete="tel"
                     error={fieldErrors.phone}
+                    help="Used for business contact details and admin follow-up. Add the best reachable business phone."
                     inputMode="tel"
                     label="Phone"
+                    required
                     value={values.phone}
                     onBlur={() => handleFieldBlur('phone')}
                     onChange={(phone) => handleFieldChange('phone', phone)}
@@ -400,8 +406,9 @@ export function WorkspaceSetupCard() {
                 <Field
                   autoComplete="email"
                   error={fieldErrors.email}
-                  help="Used for workspace alerts and password recovery."
+                  help="Used for workspace alerts, password recovery, and important business/account notices."
                   label="Email"
+                  required
                   type="email"
                   value={values.email}
                   onBlur={() => handleFieldBlur('email')}
@@ -424,6 +431,7 @@ export function WorkspaceSetupCard() {
           {step === 1 ? (
             <div className="ol-form-grid">
               <Field
+                help="Optional, but recommended because it helps document headers, reports, and customer-facing PDFs look complete."
                 label="Business address"
                 value={values.address}
                 onChange={(address) => setValues({ ...values, address })}
@@ -445,13 +453,16 @@ export function WorkspaceSetupCard() {
                 />
                 <SelectField
                   error={fieldErrors.stateCode}
+                  help="Required for the India-first workspace setup so reports and business records use the right state context."
                   label="State"
+                  required
                   value={values.stateCode}
                   options={INDIAN_STATES}
                   onBlur={() => handleFieldBlur('stateCode')}
                   onChange={(stateCode) => handleFieldChange('stateCode', stateCode)}
                 />
                 <Field
+                  help="Optional, but useful on invoices, shipping/contact records, and backup profile details."
                   inputMode="numeric"
                   label="PIN / postcode"
                   value={values.postalCode ?? ''}
@@ -609,6 +620,7 @@ function Field({
   label,
   onBlur,
   onChange,
+  required = false,
   type = 'text',
   value,
 }: {
@@ -619,23 +631,31 @@ function Field({
   autoComplete?: string;
   help?: string;
   inputMode?: InputHTMLAttributes<HTMLInputElement>['inputMode'];
+  required?: boolean;
   onBlur?(): void;
   onChange(value: string): void;
 }) {
   return (
     <label className={`ol-field${error ? ' is-invalid' : ''}`}>
-      <span className="ol-field-label">{label}</span>
+      <span className="ol-field-label ol-field-label--with-meta">
+        <span className="ol-field-label-text">
+          {label}
+          {required ? <span className="ol-required-badge">Required</span> : null}
+        </span>
+        {help ? <WorkspaceSetupFieldHelp text={help} /> : null}
+      </span>
       <input
+        aria-required={required || undefined}
         autoComplete={autoComplete}
         className="ol-input"
         inputMode={inputMode}
+        required={required}
         type={type}
         value={value}
         onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
       />
       {error ? <span className="ol-field-error">{error}</span> : null}
-      {help ? <span className="ol-field-help">{help}</span> : null}
     </label>
   );
 }
@@ -643,26 +663,38 @@ function Field({
 function SelectField({
   disabled,
   error,
+  help,
   label,
   onBlur,
   onChange,
   options,
+  required = false,
   value,
 }: {
   label: string;
   value: string;
   disabled?: boolean;
   error?: string | null;
+  help?: string;
   options: ReadonlyArray<{ code: string; name: string }>;
+  required?: boolean;
   onBlur?(): void;
   onChange(value: string): void;
 }) {
   return (
     <label className={`ol-field${error ? ' is-invalid' : ''}`}>
-      <span className="ol-field-label">{label}</span>
+      <span className="ol-field-label ol-field-label--with-meta">
+        <span className="ol-field-label-text">
+          {label}
+          {required ? <span className="ol-required-badge">Required</span> : null}
+        </span>
+        {help ? <WorkspaceSetupFieldHelp text={help} /> : null}
+      </span>
       <select
+        aria-required={required || undefined}
         className="ol-select"
         disabled={disabled}
+        required={required}
         value={value}
         onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
@@ -675,6 +707,15 @@ function SelectField({
       </select>
       {error ? <span className="ol-field-error">{error}</span> : null}
     </label>
+  );
+}
+
+function WorkspaceSetupFieldHelp({ text }: { text: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label="Field help">?</summary>
+      <span>{text}</span>
+    </details>
   );
 }
 

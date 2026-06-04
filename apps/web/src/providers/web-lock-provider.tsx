@@ -238,15 +238,23 @@ function WebLockOverlay({ onUnlock }: { onUnlock(pin: string): Promise<boolean> 
         <p className="ol-lock-copy">
           This browser lock protects this workspace on this device. It does not change your cloud
           sign-in state.
-        </p>
-        <label className={`ol-field${error ? ' is-invalid' : ''}`}>
-          <span className="ol-field-label">4-digit PIN</span>
-          <input
-            autoFocus
-            className="ol-input ol-input--pin"
-            inputMode="numeric"
-            maxLength={4}
-            type="password"
+	        </p>
+	        <label className={`ol-field${error ? ' is-invalid' : ''}`}>
+	          <span className="ol-field-label ol-field-label--with-meta">
+	            <span className="ol-field-label-text">
+	              4-digit PIN
+	              <span className="ol-required-badge">Required</span>
+	            </span>
+	            <WebLockFieldHelp text="Required to unlock this browser session. It protects this device only and does not change your cloud sign-in password." />
+	          </span>
+	          <input
+	            aria-required="true"
+	            autoFocus
+	            className="ol-input ol-input--pin"
+	            inputMode="numeric"
+	            maxLength={4}
+	            required
+	            type="password"
             value={pin}
             onChange={(event) => {
               setPin(event.target.value.replace(/\D/g, '').slice(0, 4));
@@ -267,5 +275,14 @@ function WebLockOverlay({ onUnlock }: { onUnlock(pin: string): Promise<boolean> 
         </button>
       </div>
     </div>
+	);
+}
+
+function WebLockFieldHelp({ text }: { text: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label="Field help">?</summary>
+      <span>{text}</span>
+    </details>
   );
 }

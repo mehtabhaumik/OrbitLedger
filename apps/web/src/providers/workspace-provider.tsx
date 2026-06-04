@@ -258,6 +258,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
 
     function applyRemoteWorkspaceList(nextWorkspaces: OrbitWorkspaceSummary[]) {
+      const hadKnownWorkspaces =
+        workspaces.length > 0 || (cachedWorkspaceState?.workspaces.length ?? 0) > 0;
+
+      if (!nextWorkspaces.length && hadKnownWorkspaces) {
+        // A transient post-deploy/auth/API miss must not make saved workspaces look wiped.
+        // Keep the last known state visible and ask the user to retry the remote lookup.
+        if (isCurrentRequest()) {
+          setWorkspaceLookupError('Could not confirm your saved workspace yet. Keeping the last known workspace visible.');
+        }
+        return;
+      }
+
       applyWorkspaceList(nextWorkspaces, {
         preferredWorkspaceId: cachedWorkspaceState?.activeWorkspaceId ?? activeWorkspaceId,
       });

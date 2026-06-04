@@ -374,9 +374,17 @@ export default function DocumentsPage() {
 
         <div className="ol-form-row ol-form-row--4">
           <label className="ol-field">
-            <span className="ol-field-label">Customer</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">
+                Customer
+                <span className="ol-required-badge">Required</span>
+              </span>
+              <DocumentsFieldHelp text="Choose the customer whose statement should be generated. Statements stay blocked until a customer is selected." />
+            </span>
             <select
+              aria-required="true"
               className="ol-select"
+              required
               value={customerId}
               onChange={(event) => {
                 setCustomerId(event.target.value);
@@ -392,7 +400,10 @@ export default function DocumentsPage() {
             </select>
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">Template</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">Template</span>
+              <DocumentsFieldHelp text="Optional. The default template is used if you do not choose one; premium templates can improve customer-facing presentation." />
+            </span>
             <select className="ol-select" value={templateKey || selectedTemplate?.key || ''} onChange={(event) => setTemplateKey(event.target.value)}>
               {templates.map((template) => (
                 <option disabled={template.tier === 'pro' && !statementTemplateAccess.allowed} key={template.key} value={template.key}>
@@ -405,11 +416,17 @@ export default function DocumentsPage() {
             ) : null}
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">From</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">From</span>
+              <DocumentsFieldHelp text="Optional. Add a start date when the statement should cover a specific period, such as a month or quarter." />
+            </span>
             <input className="ol-input" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">To</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">To</span>
+              <DocumentsFieldHelp text="Optional. Add an end date to make the statement period clear for the customer or accountant." />
+            </span>
             <input className="ol-input" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
           </label>
         </div>
@@ -444,6 +461,13 @@ export default function DocumentsPage() {
           </div>
         ) : null}
         <div className="ol-list" style={{ maxHeight: 360, overflow: 'auto' }}>
+          <div className="ol-field-label ol-field-label--with-meta" style={{ marginBottom: 10 }}>
+            <span className="ol-field-label-text">
+              Batch customers
+              <span className="ol-required-badge">Required</span>
+            </span>
+            <DocumentsFieldHelp text="Select at least one customer before creating a batch. Date filters above are optional and only narrow the statement period." />
+          </div>
           {customers.map((entry) => (
             <label className="ol-list-item ol-list-action" key={entry.id}>
               <input
@@ -683,6 +707,15 @@ function smartDocumentPackTierLabel(tier: SmartDocumentPackTier) {
     office: 'Office',
   };
   return labels[tier];
+}
+
+function DocumentsFieldHelp({ text }: { text: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label="Field help">?</summary>
+      <span>{text}</span>
+    </details>
+  );
 }
 
 function formatCurrency(value: number, currency: string) {

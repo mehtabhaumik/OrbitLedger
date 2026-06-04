@@ -1093,7 +1093,10 @@ function InvoiceEditorContent() {
           <section className="ol-panel">
             <div className="ol-form-row ol-form-row--4">
               <label className="ol-field">
-                <span className="ol-field-label">Customer</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">Customer</span>
+                  <InvoiceFieldHelp help="Optional for drafts, but recommended so invoices, statements, payment links, and follow-ups attach to the right customer." label="Customer" />
+                </span>
                 <select
                   className="ol-select"
                   disabled={isReadOnlyVersion}
@@ -1119,15 +1122,30 @@ function InvoiceEditorContent() {
                 </select>
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Invoice number</span>
-                <input className="ol-input" disabled={isReadOnlyVersion} value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} />
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">
+                    Invoice number
+                    <span className="ol-required-badge">Required</span>
+                  </span>
+                  <InvoiceFieldHelp help="Required before saving. This is the document reference customers and records will use." label="Invoice number" />
+                </span>
+                <input aria-required="true" className="ol-input" disabled={isReadOnlyVersion} required value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} />
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Issue date</span>
-                <input className="ol-input" disabled={isReadOnlyVersion} type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} />
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">
+                    Issue date
+                    <span className="ol-required-badge">Required</span>
+                  </span>
+                  <InvoiceFieldHelp help="Required before saving. This controls the invoice date and helps calculate due timing." label="Issue date" />
+                </span>
+                <input aria-required="true" className="ol-input" disabled={isReadOnlyVersion} required type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} />
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Due date</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">Due date</span>
+                  <InvoiceFieldHelp help="Optional but useful. Add it so Orbit Ledger can show overdue status and follow-up timing more clearly." label="Due date" />
+                </span>
                 <input className="ol-input" disabled={isReadOnlyVersion} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
               </label>
             </div>
@@ -1162,9 +1180,17 @@ function InvoiceEditorContent() {
             ) : (
               <div className="ol-form-row ol-form-row--2" style={{ marginTop: 16 }}>
                 <label className="ol-field">
-                  <span className="ol-field-label">Update reason</span>
+                  <span className="ol-field-label ol-field-label--with-meta">
+                    <span className="ol-field-label-text">
+                      Update reason
+                      <span className="ol-required-badge">Required</span>
+                    </span>
+                    <InvoiceFieldHelp help="Required when changing a saved invoice so the version history explains why the document changed." label="Update reason" />
+                  </span>
                   <select
+                    aria-required="true"
                     className="ol-select"
+                    required
                     value={revisionReasonChoice}
                     onChange={(event) => {
                       setRevisionReasonChoice(event.target.value);
@@ -1185,10 +1211,18 @@ function InvoiceEditorContent() {
                 </label>
                 {revisionReasonChoice === 'other' ? (
                   <label className="ol-field">
-                    <span className="ol-field-label">Custom reason</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">
+                        Custom reason
+                        <span className="ol-required-badge">Required</span>
+                      </span>
+                      <InvoiceFieldHelp help="Required when you choose Other reason. Keep it short but clear for the audit trail." label="Custom reason" />
+                    </span>
                     <input
+                      aria-required="true"
                       className="ol-input"
                       placeholder="Describe what changed"
+                      required
                       value={revisionReason}
                       onChange={(event) => setRevisionReason(event.target.value)}
                     />
@@ -1197,7 +1231,10 @@ function InvoiceEditorContent() {
               </div>
             )}
             <label className="ol-field" style={{ marginTop: 16 }}>
-              <span className="ol-field-label">PDF template</span>
+              <span className="ol-field-label ol-field-label--with-meta">
+                <span className="ol-field-label-text">PDF template</span>
+                <InvoiceFieldHelp help="Optional. Choose a template to control how this invoice looks when printed, downloaded, or shared." label="PDF template" />
+              </span>
               <select
                 className="ol-select"
                 disabled={isReadOnlyVersion}
@@ -1233,7 +1270,10 @@ function InvoiceEditorContent() {
               }}
             />
             <label className="ol-field" style={{ marginTop: 16 }}>
-              <span className="ol-field-label">Notes</span>
+              <span className="ol-field-label ol-field-label--with-meta">
+                <span className="ol-field-label-text">Notes</span>
+                <InvoiceFieldHelp help="Optional. Add customer-facing notes, instructions, or context that should appear on the invoice." label="Notes" />
+              </span>
               <textarea className="ol-textarea" disabled={isReadOnlyVersion} value={notes} onChange={(event) => setNotes(event.target.value)} />
             </label>
           </section>
@@ -1249,7 +1289,10 @@ function InvoiceEditorContent() {
               {items.map((item, index) => (
                 <div className="ol-form-row ol-form-row--invoice-item" key={`${item.id ?? 'new'}-${index}`}>
                   <label className="ol-field">
-                    <span className="ol-field-label">Product</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">Product</span>
+                      <InvoiceFieldHelp help="Optional. Pick a saved product to fill item name, price, stock unit, and tax defaults faster." label="Product" />
+                    </span>
                     <select
                       className="ol-select"
                       disabled={isReadOnlyVersion}
@@ -1265,24 +1308,48 @@ function InvoiceEditorContent() {
                     </select>
                   </label>
                   <label className="ol-field">
-                    <span className="ol-field-label">Item</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">Item</span>
+                      <InvoiceFieldHelp help="Recommended. This is the customer-facing name of the product or service on the invoice line." label="Item" />
+                    </span>
                     <input className="ol-input" disabled={isReadOnlyVersion} value={item.name} onChange={(event) => updateItem(index, 'name', event.target.value)} />
                   </label>
                   <label className="ol-field">
-                    <span className="ol-field-label">Description</span>
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">Description</span>
+                      <InvoiceFieldHelp help="Optional. Add detail when the item name alone is not enough for the customer to understand the charge." label="Description" />
+                    </span>
                     <input className="ol-input" disabled={isReadOnlyVersion} value={item.description} onChange={(event) => updateItem(index, 'description', event.target.value)} />
                   </label>
                   <label className="ol-field">
-                    <span className="ol-field-label">Qty</span>
-                    <input className="ol-input ol-amount" disabled={isReadOnlyVersion} inputMode="decimal" value={item.quantity} onChange={(event) => updateItem(index, 'quantity', event.target.value)} />
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">
+                        Qty
+                        <span className="ol-required-badge">Required</span>
+                      </span>
+                      <InvoiceFieldHelp help="Required. Quantity must be greater than zero because it is used to calculate the line total." label="Quantity" />
+                    </span>
+                    <input aria-required="true" className="ol-input ol-amount" disabled={isReadOnlyVersion} inputMode="decimal" required value={item.quantity} onChange={(event) => updateItem(index, 'quantity', event.target.value)} />
                   </label>
                   <label className="ol-field">
-                    <span className="ol-field-label">Price</span>
-                    <input className="ol-input ol-amount" disabled={isReadOnlyVersion} inputMode="decimal" value={item.price} onChange={(event) => updateItem(index, 'price', event.target.value)} />
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">
+                        Price
+                        <span className="ol-required-badge">Required</span>
+                      </span>
+                      <InvoiceFieldHelp help="Required. Use zero only when the item is intentionally free or already included." label="Price" />
+                    </span>
+                    <input aria-required="true" className="ol-input ol-amount" disabled={isReadOnlyVersion} inputMode="decimal" required value={item.price} onChange={(event) => updateItem(index, 'price', event.target.value)} />
                   </label>
                   <label className="ol-field">
-                    <span className="ol-field-label">Tax %</span>
-                    <input className="ol-input ol-amount" disabled={isReadOnlyVersion} inputMode="decimal" value={item.taxRate} onChange={(event) => updateItem(index, 'taxRate', event.target.value)} />
+                    <span className="ol-field-label ol-field-label--with-meta">
+                      <span className="ol-field-label-text">
+                        Tax %
+                        <span className="ol-required-badge">Required</span>
+                      </span>
+                      <InvoiceFieldHelp help="Required. Use 0 when no tax applies; this keeps tax-ready totals explicit." label="Tax percent" />
+                    </span>
+                    <input aria-required="true" className="ol-input ol-amount" disabled={isReadOnlyVersion} inputMode="decimal" required value={item.taxRate} onChange={(event) => updateItem(index, 'taxRate', event.target.value)} />
                   </label>
                   <div className="ol-field ol-field--action">
                     <span className="ol-field-label">Line</span>
@@ -1378,21 +1445,35 @@ function InvoiceEditorContent() {
             ) : null}
             <div className="ol-form-row ol-form-row--4">
               <label className="ol-field">
-                <span className="ol-field-label">Payment amount</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">
+                    Payment amount
+                    <span className="ol-required-badge">Required</span>
+                  </span>
+                  <InvoiceFieldHelp help="Required when recording payment. This amount reduces the invoice balance." label="Payment amount" />
+                </span>
                 <input
+                  aria-required="true"
                   className="ol-input ol-amount"
                   disabled={isReadOnlyVersion}
                   inputMode="decimal"
+                  required
                   value={paymentAmount}
                   onChange={(event) => setPaymentAmount(event.target.value)}
                 />
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Payment date</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">Payment date</span>
+                  <InvoiceFieldHelp help="Defaults to today. Change it if the customer paid on a different date." label="Payment date" />
+                </span>
                 <input className="ol-input" disabled={isReadOnlyVersion} type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Payment mode</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">Payment mode</span>
+                  <InvoiceFieldHelp help="Helps you review how the customer paid and keep receipts or proof easier to audit." label="Payment mode" />
+                </span>
                 <select
                   className="ol-select"
                   disabled={isReadOnlyVersion}
@@ -1414,12 +1495,18 @@ function InvoiceEditorContent() {
                 </select>
               </label>
               <label className="ol-field">
-                <span className="ol-field-label">Payment note</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">Payment note</span>
+                  <InvoiceFieldHelp help="Optional. Add context such as who confirmed the payment or where the proof came from." label="Payment note" />
+                </span>
                 <input className="ol-input" disabled={isReadOnlyVersion} value={paymentNote} onChange={(event) => setPaymentNote(event.target.value)} />
               </label>
               <PaymentModeFields disabled={isReadOnlyVersion} details={paymentDetails} mode={paymentMode} onChange={setPaymentDetails} />
               <label className="ol-field">
-                <span className="ol-field-label">Clearance</span>
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">Clearance</span>
+                  <InvoiceFieldHelp help="Use this to distinguish received, pending, cleared, or disputed payments before final reconciliation." label="Clearance" />
+                </span>
                 <select
                   className="ol-select"
                   disabled={isReadOnlyVersion}
@@ -1506,7 +1593,13 @@ function InvoiceEditorContent() {
               </label>
               {paymentInstructionTemplate.fields.map((field) => (
                 <label className="ol-field" key={field.key}>
-                  <span className="ol-field-label">{field.label}</span>
+                  <span className="ol-field-label ol-field-label--with-meta">
+                    <span className="ol-field-label-text">{field.label}</span>
+                    <InvoiceFieldHelp
+                      help={`${field.helper} Optional for saving the invoice, but add it if you want customer-facing payment instructions to be clearer.`}
+                      label={field.label}
+                    />
+                  </span>
                   <input
                     className="ol-input"
                     disabled={isReadOnlyVersion}
@@ -1516,7 +1609,6 @@ function InvoiceEditorContent() {
                       setPaymentLinkDetails((current) => ({ ...current, [field.key]: event.target.value }))
                     }
                   />
-                  <span className="ol-field-help">{field.helper}</span>
                 </label>
               ))}
               <label className="ol-check-row">
@@ -1811,49 +1903,73 @@ function PaymentModeFields({
     <>
       {['cheque', 'demand_draft', 'bank_transfer', 'upi', 'wallet'].includes(mode) ? (
         <label className="ol-field">
-          <span className="ol-field-label">Reference</span>
+          <span className="ol-field-label ol-field-label--with-meta">
+            <span className="ol-field-label-text">Reference</span>
+            <InvoiceFieldHelp help="Optional. Add the bank, UPI, gateway, cheque, or wallet reference to make later verification easier." label="Reference" />
+          </span>
           <input className="ol-input" disabled={disabled} value={details.referenceNumber ?? ''} onChange={(event) => update('referenceNumber', event.target.value)} />
         </label>
       ) : null}
       {['cheque', 'demand_draft', 'bank_transfer'].includes(mode) ? (
         <label className="ol-field">
-          <span className="ol-field-label">Bank</span>
+          <span className="ol-field-label ol-field-label--with-meta">
+            <span className="ol-field-label-text">Bank</span>
+            <InvoiceFieldHelp help="Optional. Bank name helps resolve payment questions or match proof later." label="Bank" />
+          </span>
           <input className="ol-input" disabled={disabled} value={details.bankName ?? ''} onChange={(event) => update('bankName', event.target.value)} />
         </label>
       ) : null}
       {['cheque', 'demand_draft'].includes(mode) ? (
         <>
           <label className="ol-field">
-            <span className="ol-field-label">Branch</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">Branch</span>
+              <InvoiceFieldHelp help="Optional. Branch can help when cheque or DD records need extra verification." label="Branch" />
+            </span>
             <input className="ol-input" disabled={disabled} value={details.branchName ?? ''} onChange={(event) => update('branchName', event.target.value)} />
           </label>
           <label className="ol-field">
-            <span className="ol-field-label">Instrument date</span>
+            <span className="ol-field-label ol-field-label--with-meta">
+              <span className="ol-field-label-text">Instrument date</span>
+              <InvoiceFieldHelp help="Optional. Add the date printed on the cheque or DD when it differs from payment entry date." label="Instrument date" />
+            </span>
             <input className="ol-input" disabled={disabled} type="date" value={details.instrumentDate ?? ''} onChange={(event) => update('instrumentDate', event.target.value)} />
           </label>
         </>
       ) : null}
       {mode === 'upi' ? (
         <label className="ol-field">
-          <span className="ol-field-label">UPI ID</span>
+          <span className="ol-field-label ol-field-label--with-meta">
+            <span className="ol-field-label-text">UPI ID</span>
+            <InvoiceFieldHelp help="Optional. Add the UPI ID or handle when it helps identify where the payment came from." label="UPI ID" />
+          </span>
           <input className="ol-input" disabled={disabled} value={details.upiId ?? ''} onChange={(event) => update('upiId', event.target.value)} />
         </label>
       ) : null}
       {mode === 'card' ? (
         <label className="ol-field">
-          <span className="ol-field-label">Card last 4</span>
+          <span className="ol-field-label ol-field-label--with-meta">
+            <span className="ol-field-label-text">Card last 4</span>
+            <InvoiceFieldHelp help="Optional. Last 4 digits help identify the payment without storing full card details." label="Card last 4" />
+          </span>
           <input className="ol-input" disabled={disabled} inputMode="numeric" maxLength={4} value={details.cardLastFour ?? ''} onChange={(event) => update('cardLastFour', event.target.value.replace(/\D/g, '').slice(0, 4))} />
         </label>
       ) : null}
       {mode === 'wallet' ? (
         <label className="ol-field">
-          <span className="ol-field-label">Provider</span>
+          <span className="ol-field-label ol-field-label--with-meta">
+            <span className="ol-field-label-text">Provider</span>
+            <InvoiceFieldHelp help="Optional. Add the wallet or app name when it helps identify the payment source." label="Provider" />
+          </span>
           <input className="ol-input" disabled={disabled} value={details.provider ?? ''} onChange={(event) => update('provider', event.target.value)} />
         </label>
       ) : null}
       {mode === 'other' ? (
         <label className="ol-field">
-          <span className="ol-field-label">Payment detail</span>
+          <span className="ol-field-label ol-field-label--with-meta">
+            <span className="ol-field-label-text">Payment detail</span>
+            <InvoiceFieldHelp help="Optional. Add a short payment source note when the standard modes do not fit." label="Payment detail" />
+          </span>
           <input className="ol-input" disabled={disabled} value={details.note ?? ''} onChange={(event) => update('note', event.target.value)} />
         </label>
       ) : null}
@@ -1862,6 +1978,15 @@ function PaymentModeFields({
         <div className="ol-message ol-message--success" style={{ margin: 0 }}>{config.helper}</div>
       </div>
     </>
+  );
+}
+
+function InvoiceFieldHelp({ help, label }: { help: string; label: string }) {
+  return (
+    <details className="ol-field-info">
+      <summary aria-label={`What is ${label}?`}>?</summary>
+      <span>{help}</span>
+    </details>
   );
 }
 
