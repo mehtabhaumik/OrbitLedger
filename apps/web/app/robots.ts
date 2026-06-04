@@ -7,7 +7,7 @@ export const dynamic = 'force-static';
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
-      allow: ['/', '/template-preview'],
+      allow: ['/', '/template-preview', '/privacy', '/terms', '/refunds', '/contact'],
       disallow: [
         '/__',
         '/api',

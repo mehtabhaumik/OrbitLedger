@@ -9,6 +9,7 @@ const landingLinks = [
   { href: '#how-it-works', label: 'How it works' },
   { href: '#office', label: 'Office' },
   { href: '#pricing', label: 'Pricing' },
+  { href: '/privacy', label: 'Privacy' },
 ] as const;
 
 type LandingNavProps = {

@@ -526,6 +526,23 @@ export default function LandingPage() {
           </Link>
         </div>
       </section>
+
+      <footer className="ol-landing-footer" aria-label="Orbit Ledger public links">
+        <div>
+          <img
+            alt="Orbit Ledger"
+            className="ol-brand-logo"
+            src="/branding/orbit-ledger-logo-transparent.png"
+          />
+          <p>Orbit Ledger by Rudraix. Receivables, invoices, payments, and customer follow-up in one calm business workspace.</p>
+        </div>
+        <nav aria-label="Legal and support">
+          <Link href={'/privacy' as Route}>Privacy Policy</Link>
+          <Link href={'/terms' as Route}>Terms of Service</Link>
+          <Link href={'/refunds' as Route}>Refunds</Link>
+          <Link href={'/contact' as Route}>Contact</Link>
+        </nav>
+      </footer>
     </main>
   );
 }

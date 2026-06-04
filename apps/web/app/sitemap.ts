@@ -15,6 +15,26 @@ const publicPages = [
     path: '/template-preview',
     priority: 0.7,
   },
+  {
+    changeFrequency: 'monthly',
+    path: '/privacy',
+    priority: 0.8,
+  },
+  {
+    changeFrequency: 'monthly',
+    path: '/terms',
+    priority: 0.8,
+  },
+  {
+    changeFrequency: 'monthly',
+    path: '/refunds',
+    priority: 0.7,
+  },
+  {
+    changeFrequency: 'monthly',
+    path: '/contact',
+    priority: 0.8,
+  },
 ] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
