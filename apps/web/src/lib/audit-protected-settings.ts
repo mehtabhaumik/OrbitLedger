@@ -15,6 +15,7 @@ export type AuditProtectedSettingsSource = {
   registrationNumber?: string | null;
   registeredOfficeAddress?: string | null;
   principalPlaceOfBusiness?: string | null;
+  additionalPlacesOfBusiness?: string[] | string | null;
   nonprofitRegistrationNumber?: string | null;
   ngoDarpanId?: string | null;
   taxExemption12A12ABNumber?: string | null;
@@ -65,6 +66,7 @@ const protectedSettingLabels: Record<keyof AuditProtectedSettingsSource, string>
   registrationNumber: 'Business registration number',
   registeredOfficeAddress: 'Registered office address',
   principalPlaceOfBusiness: 'Principal place of business',
+  additionalPlacesOfBusiness: 'Additional places of business',
   nonprofitRegistrationNumber: 'Nonprofit registration number',
   ngoDarpanId: 'NGO Darpan ID',
   taxExemption12A12ABNumber: '12A / 12AB registration number',
@@ -145,6 +147,12 @@ function normalizeAuditValue(value: unknown): string | null {
   }
   if (typeof value === 'number') {
     return Number.isFinite(value) ? String(value) : null;
+  }
+  if (Array.isArray(value)) {
+    const normalizedList = value
+      .map((entry) => normalizeAuditValue(entry))
+      .filter((entry): entry is string => Boolean(entry));
+    return normalizedList.length ? normalizedList.join('\n') : null;
   }
   if (typeof value !== 'string') {
     return null;

@@ -75,4 +75,24 @@ describe('audit protected settings', () => {
     expect(changes[0]?.maskedPreviousValue).toBe('********3456');
     expect(changes[1]?.maskedNextValue).toBe('********4321');
   });
+
+  it('tracks additional places of business as protected address history', () => {
+    const changes = buildAuditProtectedSettingsChanges(
+      {
+        additionalPlacesOfBusiness: ['Ahmedabad office'],
+      },
+      {
+        additionalPlacesOfBusiness: ['Ahmedabad office', 'Surat warehouse'],
+      }
+    );
+
+    expect(changes).toEqual([
+      expect.objectContaining({
+        field: 'additionalPlacesOfBusiness',
+        label: 'Additional places of business',
+        previousValue: 'Ahmedabad office',
+        nextValue: 'Ahmedabad office\nSurat warehouse',
+      }),
+    ]);
+  });
 });

@@ -1061,6 +1061,7 @@ function workspaceAuditSourceFromDoc(data: FirestoreWorkspaceDoc) {
     registrationNumber: data.registration_number,
     registeredOfficeAddress: data.registered_office_address,
     principalPlaceOfBusiness: data.principal_place_of_business,
+    additionalPlacesOfBusiness: data.additional_places_of_business,
     nonprofitRegistrationNumber: data.nonprofit_registration_number,
     ngoDarpanId: data.ngo_darpan_id,
     taxExemption12A12ABNumber: data.tax_exemption_12a_12ab_number,

@@ -52,6 +52,16 @@ import {
   type WebEntityVerificationDocumentRow,
 } from '@/lib/entity-verification-documents-ui';
 import {
+  WEB_ADDRESS_CHANGE_REASON_OPTIONS,
+  buildAddressChangeRequestKey,
+  buildWorkspaceAddressChanges,
+  formatAddressChangeAuditReason,
+  isAddressChangeReasonComplete,
+  summarizeAddressChanges,
+  type WebAddressChange,
+  type WebAddressChangeReasonId,
+} from '@/lib/address-change-reason';
+import {
   DEFAULT_WEB_USER_SETTINGS,
   loadWebUserSettings,
   saveWebUserSettings,
@@ -175,6 +185,11 @@ type PaymentFieldKey = keyof ManualPaymentInstructionDetails;
 
 type ProfileFieldKey = 'businessName' | 'ownerName' | 'phone' | 'email' | 'stateCode';
 type UserSettingsSaveState = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
+
+type AddressReasonRequest = {
+  changes: WebAddressChange[];
+  requestKey: string;
+};
 
 const settingsHubLinks = [
   { href: '#my-settings', label: 'My Settings' },
@@ -316,6 +331,9 @@ export default function SettingsPage() {
   const [paymentInstructions, setPaymentInstructions] = useState<ManualPaymentInstructionDetails>({});
   const [paymentAuditReason, setPaymentAuditReason] = useState('');
   const [useCompanyAddressForRegistered, setUseCompanyAddressForRegistered] = useState(false);
+  const [addressReasonRequest, setAddressReasonRequest] = useState<AddressReasonRequest | null>(null);
+  const [addressChangeReason, setAddressChangeReason] = useState<WebAddressChangeReasonId>('office_relocation');
+  const [addressChangeOtherReason, setAddressChangeOtherReason] = useState('');
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -599,6 +617,9 @@ export default function SettingsPage() {
     if (['addressLine1', 'addressLine2', 'city', 'town'].includes(field)) {
       setUseCompanyAddressForRegistered(false);
     }
+    if (isAddressReasonField(field)) {
+      setAddressReasonRequest(null);
+    }
     setProfile(next);
 
     if (field in touched && touched[field as ProfileFieldKey]) {
@@ -779,15 +800,43 @@ export default function SettingsPage() {
       return;
     }
 
+    const nextInput = buildWorkspaceProfileInput(profile);
+    const addressChanges = buildWorkspaceAddressChanges(workspace, nextInput);
+    const addressRequestKey = buildAddressChangeRequestKey(addressChanges);
+    if (addressChanges.length) {
+      if (!addressReasonRequest || addressReasonRequest.requestKey !== addressRequestKey) {
+        setAddressReasonRequest({
+          changes: addressChanges,
+          requestKey: addressRequestKey,
+        });
+        showToast('Choose a reason before saving address changes.', 'info');
+        return;
+      }
+      if (!isAddressChangeReasonComplete(addressChangeReason, addressChangeOtherReason)) {
+        showToast('Add a clear reason for Other before saving address changes.', 'danger');
+        return;
+      }
+      if (!user) {
+        showToast('Sign in again before saving address changes.', 'danger');
+        return;
+      }
+    } else if (addressReasonRequest) {
+      setAddressReasonRequest(null);
+    }
+
     setIsSaving(true);
     try {
-      const nextInput = buildWorkspaceProfileInput(profile);
       const protectedChanges = buildAuditProtectedSettingsChanges(workspace, nextInput);
+      const addressAuditReason = addressChanges.length
+        ? formatAddressChangeAuditReason(addressChangeReason, addressChangeOtherReason, addressChanges)
+        : null;
       if (protectedChanges.length && user) {
         const confirmed = await confirm({
           title: 'Save important setting changes?',
           message: 'These settings affect documents, taxes, payment terms, or business identity. Orbit Ledger will keep a change history.',
-          detail: `Changed: ${summarizeAuditProtectedSettingsChanges(protectedChanges)}`,
+          detail: addressAuditReason
+            ? `${addressAuditReason} Changed settings: ${summarizeAuditProtectedSettingsChanges(protectedChanges)}`
+            : `Changed: ${summarizeAuditProtectedSettingsChanges(protectedChanges)}`,
           confirmLabel: 'Save changes',
         });
         if (!confirmed) {
@@ -796,12 +845,14 @@ export default function SettingsPage() {
         await updateWorkspaceProfileAudited(workspace.workspaceId, workspace.serverRevision, nextInput, {
           actorUid: user.uid,
           actorEmail: user.email,
-          reason: 'Protected settings updated',
+          reason: addressAuditReason ?? 'Protected settings updated',
         });
       } else {
         await updateWorkspaceProfile(workspace.workspaceId, workspace.serverRevision, nextInput);
       }
       await refresh();
+      setAddressReasonRequest(null);
+      setAddressChangeOtherReason('');
       showToast('Entity profile saved.', 'success');
     } catch (nextError) {
       showToast(nextError instanceof Error ? nextError.message : 'Entity profile could not be saved.', 'danger');
@@ -1683,6 +1734,48 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {addressReasonRequest ? (
+          <div className="ol-form-band ol-address-reason-band" role="status">
+            <div className="ol-form-band-header">
+              <div>
+                <div className="ol-form-band-title">Address change reason</div>
+                <p className="ol-form-band-copy">
+                  Changed: {summarizeAddressChanges(addressReasonRequest.changes)}.
+                </p>
+              </div>
+              <span className="ol-chip ol-chip--warning">Reason required</span>
+            </div>
+            <div className="ol-form-band-grid">
+              <label className="ol-field">
+                <span className="ol-field-label">
+                  Reason
+                  <span className="ol-required-badge">Required</span>
+                </span>
+                <select
+                  className="ol-select"
+                  value={addressChangeReason}
+                  onChange={(event) => setAddressChangeReason(event.target.value as WebAddressChangeReasonId)}
+                >
+                  {WEB_ADDRESS_CHANGE_REASON_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {addressChangeReason === 'other' ? (
+                <ProfileField
+                  help="Add the reason that should appear in the address-change audit record."
+                  label="Other reason"
+                  required
+                  value={addressChangeOtherReason}
+                  onChange={setAddressChangeOtherReason}
+                />
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         <div className="ol-actions ol-form-actions">
           <button className="ol-button" disabled={isSaving} type="submit">
@@ -2709,6 +2802,21 @@ function splitProfileLines(value: string) {
     .map((entry) => entry.trim())
     .filter(Boolean);
   return entries.length ? entries : null;
+}
+
+function isAddressReasonField(field: keyof ProfileFormState) {
+  return [
+    'address',
+    'addressLine1',
+    'addressLine2',
+    'city',
+    'town',
+    'postalCode',
+    'stateCode',
+    'registeredOfficeAddress',
+    'principalPlaceOfBusiness',
+    'additionalPlacesOfBusiness',
+  ].includes(field);
 }
 
 function VerificationDocumentList({

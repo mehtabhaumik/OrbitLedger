@@ -6709,6 +6709,10 @@ a:focus-visible {
   justify-content: center;
 }
 
+.ol-address-reason-band {
+  margin-top: 20px;
+}
+
 .ol-fast-entry-capture {
   display: grid;
   grid-template-columns: minmax(260px, 0.9fr) minmax(280px, 1.1fr);
