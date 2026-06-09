@@ -200,7 +200,7 @@ export function BackofficeShell({ children }: BackofficeShellProps) {
       <aside className="ol-backoffice-sidebar" aria-label="Back-office navigation">
         <div className="ol-backoffice-brand">
           <div className="ol-backoffice-brand-mark">
-            <img className="ol-brand-logo" alt="Orbit Ledger" src="/branding/orbit-ledger-logo-transparent.png" />
+            <img className="ol-brand-logo" alt="Orbit Ledger" src="/branding/orbit-ledger-logo-primary.png" />
           </div>
           <span className="ol-backoffice-badge">Back-office</span>
         </div>
@@ -274,7 +274,7 @@ export function BackofficeShell({ children }: BackofficeShellProps) {
           <aside className="ol-mobile-nav-panel ol-backoffice-mobile-panel">
             <div className="ol-backoffice-brand">
               <div className="ol-backoffice-brand-mark">
-                <img className="ol-brand-logo" alt="Orbit Ledger" src="/branding/orbit-ledger-logo-transparent.png" />
+                <img className="ol-brand-logo" alt="Orbit Ledger" src="/branding/orbit-ledger-logo-primary.png" />
               </div>
               <button className="ol-mobile-nav-close" type="button" onClick={() => setIsMobileNavOpen(false)} aria-label="Close back-office navigation">
                 <span aria-hidden="true" />

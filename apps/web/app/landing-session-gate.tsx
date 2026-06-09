@@ -42,7 +42,7 @@ export function LandingSessionGate() {
         <img
           className="ol-brand-logo ol-brand-logo--md"
           alt="Orbit Ledger"
-          src="/branding/orbit-ledger-logo-transparent.png"
+          src="/branding/orbit-ledger-logo-primary.png"
           width={180}
           height={38}
         />

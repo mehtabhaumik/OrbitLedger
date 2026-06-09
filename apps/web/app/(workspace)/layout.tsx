@@ -42,7 +42,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
             <img
               className="ol-brand-logo"
               alt="Orbit Ledger"
-              src="/branding/orbit-ledger-logo-transparent.png"
+              src="/branding/orbit-ledger-logo-primary.png"
               style={{ height: 32, maxWidth: 'min(420px, 100%)', objectFit: 'contain' }}
             />
             <span className="ol-brand-header-copy">Workspace check</span>

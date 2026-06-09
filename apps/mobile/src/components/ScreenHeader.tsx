@@ -3,7 +3,7 @@ import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native
 import { OrbitHeaderMenu } from './OrbitHeaderMenu';
 import { colors, layout, shadows, spacing, touch, typography } from '../theme/theme';
 
-const headerIcon = require('../../assets/branding/orbit-ledger-logo-transparent.png');
+const headerIcon = require('../../assets/branding/orbit-ledger-logo-primary.png');
 const logoSize = Platform.select({
   web: { width: 196, height: 26 },
   default: { width: 148, height: 14 },

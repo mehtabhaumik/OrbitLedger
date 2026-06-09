@@ -335,7 +335,7 @@ export function WorkspaceSetupCard() {
         <img
           className="ol-brand-logo"
           alt="Orbit Ledger"
-          src="/branding/orbit-ledger-logo-transparent.png"
+          src="/branding/orbit-ledger-logo-primary.png"
         />
         <span className="ol-brand-header-copy">Workspace setup</span>
       </div>
@@ -551,7 +551,7 @@ export function WorkspaceSetupCard() {
               <img
                 className="ol-brand-logo"
                 alt="Orbit Ledger"
-                src="/branding/orbit-ledger-logo-transparent.png"
+                src="/branding/orbit-ledger-logo-primary.png"
               />
               <span className="ol-brand-header-copy">Preparing workspace</span>
             </div>

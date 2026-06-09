@@ -47,7 +47,7 @@ export function LandingNav({ appCtaHref }: LandingNavProps) {
         <img
           alt="Orbit Ledger"
           className="ol-brand-logo"
-          src="/branding/orbit-ledger-logo-transparent.png"
+          src="/branding/orbit-ledger-logo-primary.png"
         />
       </Link>
 
@@ -98,7 +98,7 @@ export function LandingNav({ appCtaHref }: LandingNavProps) {
               <img
                 alt="Orbit Ledger"
                 className="ol-brand-logo"
-                src="/branding/orbit-ledger-logo-transparent.png"
+                src="/branding/orbit-ledger-logo-primary.png"
               />
               <button
                 aria-label="Close navigation menu"

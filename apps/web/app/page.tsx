@@ -332,7 +332,7 @@ function LandingFooter() {
           <img
             alt="Orbit Ledger"
             className="ol-brand-logo"
-            src="/branding/orbit-ledger-logo-transparent.png"
+            src="/branding/orbit-ledger-logo-primary.png"
           />
           <p>Financial clarity for the modern Indian entrepreneur. Built with precision and calm.</p>
         </div>

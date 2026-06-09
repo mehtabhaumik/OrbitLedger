@@ -1,8 +1,14 @@
 self.skipWaiting();
 
-const SHELL_CACHE = 'orbit-ledger-shell-v4';
+const SHELL_CACHE = 'orbit-ledger-shell-v5';
 const SHELL_ASSETS = [
   '/branding/orbit-ledger-logo-transparent.png',
+  '/branding/orbit-ledger-logo-primary.png',
+  '/branding/orbit-ledger-logo-inverse.png',
+  '/branding/orbit-ledger-logo-accent.png',
+  '/branding/orbit-ledger-mark-primary.png',
+  '/branding/orbit-ledger-mark-inverse.png',
+  '/branding/orbit-ledger-mark-accent.png',
   '/favicon.ico',
   '/icons/favicon-16.png',
   '/icons/favicon-32.png',

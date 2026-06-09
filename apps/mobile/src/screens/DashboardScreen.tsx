@@ -80,7 +80,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { getBusinessPaymentDetails, type BusinessPaymentDetails } from '../payments/businessPaymentDetails';
 import { colors, shadows, spacing, touch, typography } from '../theme/theme';
 
-const headerIcon = require('../../assets/branding/orbit-ledger-logo-transparent.png');
+const headerIcon = require('../../assets/branding/orbit-ledger-logo-primary.png');
 const dashboardLogoSize = Platform.select({
   web: { width: 208, height: 26 },
   default: { width: 168, height: 16 },

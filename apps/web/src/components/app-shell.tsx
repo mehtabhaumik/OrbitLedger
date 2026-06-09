@@ -188,7 +188,7 @@ export function AppShell({
             <img
               className="ol-brand-logo"
               alt="Orbit Ledger"
-              src="/branding/orbit-ledger-logo-transparent.png"
+              src="/branding/orbit-ledger-logo-primary.png"
             />
           </div>
           <span className="ol-sidebar-badge">Web</span>
@@ -298,7 +298,7 @@ export function AppShell({
           <aside className="ol-mobile-nav-panel">
             <div className="ol-sidebar-brand">
               <div className="ol-sidebar-brand-mark">
-                <img className="ol-brand-logo" alt="Orbit Ledger" src="/branding/orbit-ledger-logo-transparent.png" />
+                <img className="ol-brand-logo" alt="Orbit Ledger" src="/branding/orbit-ledger-logo-primary.png" />
               </div>
               <button className="ol-mobile-nav-close" type="button" onClick={() => setIsMobileNavOpen(false)} aria-label="Close navigation menu">
                 <span aria-hidden="true" />

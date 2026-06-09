@@ -27,7 +27,7 @@ export function LegalPage({
           <img
             alt="Orbit Ledger"
             className="ol-brand-logo"
-            src="/branding/orbit-ledger-logo-transparent.png"
+            src="/branding/orbit-ledger-logo-primary.png"
           />
         </Link>
         <nav aria-label="Public pages">

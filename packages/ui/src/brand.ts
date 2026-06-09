@@ -6,6 +6,24 @@ export const brand = {
     shape: 'rounded ledger page with a quiet orbit ring and balance lines',
     tone: 'trustworthy, practical, offline business records',
   },
+  logoSystem: {
+    primary: 'dark monochrome wordmark for professional light surfaces and everyday product chrome',
+    inverse: 'white wordmark for dark surfaces and high-contrast brand moments',
+    accent: 'current blue wordmark and app mark for icons, favicons, splash, and selective brand emphasis',
+    markOnly: 'compact OL/app mark for tight spaces where the full wordmark is too wide',
+  },
+  assets: {
+    logo: {
+      primary: 'orbit-ledger-logo-primary.png',
+      inverse: 'orbit-ledger-logo-inverse.png',
+      accent: 'orbit-ledger-logo-accent.png',
+    },
+    mark: {
+      primary: 'orbit-ledger-mark-primary.png',
+      inverse: 'orbit-ledger-mark-inverse.png',
+      accent: 'orbit-ledger-mark-accent.png',
+    },
+  },
   colors: {
     ledgerBlue: '#1C6BD8',
     ledgerBluePressed: '#1453AA',

@@ -62,7 +62,7 @@ function HostedPaymentContent() {
     <main className="ol-pay-page">
       <section className="ol-pay-shell">
         <div className="ol-pay-brand">
-          <img alt="Orbit Ledger" src="/branding/orbit-ledger-logo-transparent.png" />
+          <img alt="Orbit Ledger" src="/branding/orbit-ledger-logo-primary.png" />
         </div>
         <div className="ol-pay-grid">
           <article className="ol-pay-card ol-pay-card--hero">

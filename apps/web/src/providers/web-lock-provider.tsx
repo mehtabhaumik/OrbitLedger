@@ -232,7 +232,7 @@ function WebLockOverlay({ onUnlock }: { onUnlock(pin: string): Promise<boolean> 
         <img
           className="ol-brand-logo ol-brand-logo--md"
           alt="Orbit Ledger"
-          src="/branding/orbit-ledger-logo-transparent.png"
+          src="/branding/orbit-ledger-logo-primary.png"
         />
         <strong className="ol-lock-title">Enter your PIN to continue</strong>
         <p className="ol-lock-copy">
