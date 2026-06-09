@@ -179,19 +179,231 @@ service cloud.firestore {
         );
     }
 
+    function workspaceProfileAllowedKeys() {
+      return [
+        'business_name',
+        'profile_summary_version',
+        'profile_display_name',
+        'profile_legal_name',
+        'profile_document_name',
+        'profile_owner_name',
+        'profile_entity_label',
+        'profile_entity_subtype_label',
+        'profile_verification_status_label',
+        'profile_registered_address',
+        'profile_business_address',
+        'profile_principal_place_of_business',
+        'profile_document_address',
+        'profile_contact_line',
+        'profile_tax_identity_line',
+        'profile_registration_identity_line',
+        'profile_identity_line',
+        'profile_export_name',
+        'profile_search_text',
+        'profile_search_tokens',
+        'profile_has_tax_profile',
+        'profile_has_protected_identity',
+        'profile_summary_updated_at',
+        'legal_name',
+        'owner_name',
+        'contact_person',
+        'business_type',
+        'entity_type',
+        'entity_subtype',
+        'entity_verification_status',
+        'entity_compliance_flags',
+        'phone',
+        'whatsapp',
+        'email',
+        'website',
+        'address',
+        'address_line_1',
+        'address_line_2',
+        'city',
+        'town',
+        'postal_code',
+        'gstin',
+        'pan',
+        'cin',
+        'llpin',
+        'tax_number',
+        'registration_number',
+        'registered_office_address',
+        'principal_place_of_business',
+        'additional_places_of_business',
+        'nonprofit_registration_number',
+        'nonprofit_registration_authority',
+        'ngo_darpan_id',
+        'tax_exemption_12a_12ab_number',
+        'tax_deduction_80g_number',
+        'fcra_registration_number',
+        'csr_registration_number',
+        'place_of_supply',
+        'default_tax_treatment',
+        'default_payment_terms',
+        'default_due_days',
+        'default_tax_rate',
+        'default_invoice_template',
+        'default_statement_template',
+        'default_invoice_notes',
+        'default_recurring_email_subject',
+        'default_recurring_email_body',
+        'default_recurring_email_include_payment_link',
+        'default_recurring_email_attach_pdf',
+        'default_recurring_email_current_month_only',
+        'default_recurring_email_send_day_behavior',
+        'default_recurring_email_day',
+        'invoice_number_prefix',
+        'invoice_number_separator',
+        'invoice_number_padding',
+        'invoice_number_next_sequence',
+        'invoice_number_last_value',
+        'invoice_number_last_sequence',
+        'invoice_number_last_issued_at',
+        'invoice_number_scheme',
+        'document_filename_format',
+        'document_footer_preference',
+        'document_brand_header_color',
+        'document_brand_background_color',
+        'document_brand_font_color',
+        'reminder_style',
+        'overdue_alert_timing',
+        'follow_up_cadence_days',
+        'payment_notice_tone',
+        'urgent_payment_stamp_default',
+        'backup_reminder_frequency',
+        'whatsapp_reminder_template',
+        'email_reminder_template',
+        'payment_thank_you_template',
+        'bounced_payment_template',
+        'default_language',
+        'currency',
+        'country_code',
+        'state_code',
+        'logo_uri',
+        'document_watermark_type',
+        'document_watermark_text',
+        'document_watermark_image_uri',
+        'document_watermark_opacity',
+        'authorized_person_name',
+        'authorized_person_title',
+        'signature_uri',
+        'payment_upi_id',
+        'payment_page_url',
+        'payment_note',
+        'payment_bank_account_name',
+        'payment_bank_name',
+        'payment_bank_account_number',
+        'payment_bank_ifsc',
+        'payment_bank_branch',
+        'payment_bank_routing_number',
+        'payment_bank_sort_code',
+        'payment_bank_iban',
+        'payment_bank_swift',
+        'owner_uid',
+        'owner_email',
+        'data_state',
+        'created_at',
+        'updated_at',
+        'server_revision'
+      ];
+    }
+
+    function workspaceOptionalString(key) {
+      return request.resource.data.get(key, null) == null ||
+        request.resource.data.get(key, null) is string;
+    }
+
+    function workspaceOptionalStringList(key, maxSize) {
+      return request.resource.data.get(key, null) == null ||
+        (
+          request.resource.data.get(key, null) is list &&
+          request.resource.data.get(key, null).size() <= maxSize
+        );
+    }
+
+    function workspaceOptionalChoice(key, values) {
+      return request.resource.data.get(key, null) == null ||
+        request.resource.data.get(key, null) in values;
+    }
+
+    function validWorkspaceRequiredFields() {
+      return request.resource.data.owner_uid is string &&
+        request.resource.data.business_name is string &&
+        request.resource.data.currency is string &&
+        request.resource.data.country_code is string &&
+        request.resource.data.state_code is string;
+    }
+
+    function validWorkspaceProfileDocument() {
+      return validWorkspaceRequiredFields() &&
+        workspaceOptionalString('profile_display_name') &&
+        workspaceOptionalStringList('profile_search_tokens', 48) &&
+        (
+          request.resource.data.get('profile_summary_version', null) == null ||
+          request.resource.data.get('profile_summary_version', null) == 1
+        ) &&
+        workspaceOptionalChoice(
+          'entity_type',
+          [
+            'freelancer_individual',
+            'sole_proprietorship',
+            'partnership_firm',
+            'llp',
+            'company',
+            'nonprofit_charity'
+          ]
+        );
+    }
+
+    function keepsApprovedWorkspaceIdentityStable() {
+      return resource.data.get('entity_verification_status', null) != 'approved' ||
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'business_name',
+          'legal_name',
+          'owner_name',
+          'entity_type',
+          'entity_subtype',
+          'entity_verification_status',
+          'gstin',
+          'pan',
+          'cin',
+          'llpin',
+          'tax_number',
+          'registration_number',
+          'nonprofit_registration_number',
+          'ngo_darpan_id',
+          'tax_exemption_12a_12ab_number',
+          'tax_deduction_80g_number',
+          'fcra_registration_number',
+          'csr_registration_number',
+          'profile_display_name',
+          'profile_legal_name',
+          'profile_document_name',
+          'profile_owner_name',
+          'profile_entity_label',
+          'profile_entity_subtype_label',
+          'profile_tax_identity_line',
+          'profile_registration_identity_line',
+          'profile_identity_line',
+          'profile_has_tax_profile',
+          'profile_has_protected_identity'
+        ]);
+    }
+
     function createsOwnWorkspace() {
       return signedIn() &&
         request.resource.data.owner_uid == request.auth.uid &&
-        request.resource.data.owner_uid is string &&
-        request.resource.data.business_name is string &&
-        request.resource.data.currency is string &&
-        request.resource.data.country_code is string;
+        validWorkspaceRequiredFields();
     }
 
     function keepsWorkspaceOwner(workspaceId) {
       return signedIn() &&
         request.resource.data.owner_uid == resource.data.owner_uid &&
-        canManageWorkspaceProfile(workspaceId);
+        canManageWorkspaceProfile(workspaceId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(workspaceProfileAllowedKeys()) &&
+        validWorkspaceProfileDocument() &&
+        keepsApprovedWorkspaceIdentityStable();
     }
 
     function canAdvanceInvoiceNumberSequence(workspaceId) {

@@ -70,10 +70,51 @@ describe('Firestore workspace rules', () => {
         owner_uid: 'owner-1',
         owner_email: 'owner@example.com',
         business_name: 'Orbit Bootstrap Workspace',
+        profile_summary_version: 1,
+        profile_display_name: 'Orbit Bootstrap Workspace',
+        profile_legal_name: 'Orbit Bootstrap Private Limited',
+        profile_document_name: 'Orbit Bootstrap Private Limited',
+        profile_owner_name: 'Orbit Owner',
+        profile_entity_label: 'Company',
+        profile_entity_subtype_label: 'Private Limited',
+        profile_verification_status_label: 'Draft',
+        profile_registered_address: 'B-603, Shilpan Bliss, Vadodara',
+        profile_business_address: 'B-603, Shilpan Bliss, Vadodara',
+        profile_principal_place_of_business: 'B-603, Shilpan Bliss, Vadodara',
+        profile_document_address: 'B-603, Shilpan Bliss, Vadodara',
+        profile_contact_line: 'owner@example.com · +91 98765 43210',
+        profile_tax_identity_line: 'GSTIN: 24ABCDE1234F1Z5 · Company PAN: ABCDE1234F',
+        profile_registration_identity_line: 'CIN: U72900GJ2024PTC123456',
+        profile_identity_line: 'CIN: U72900GJ2024PTC123456 · Company PAN: ABCDE1234F',
+        profile_export_name: 'orbit-bootstrap-workspace',
+        profile_search_text: 'orbit bootstrap workspace private limited cin',
+        profile_search_tokens: ['orbit', 'bootstrap', 'workspace', 'private', 'limited', 'cin'],
+        profile_has_tax_profile: true,
+        profile_has_protected_identity: true,
         owner_name: 'Orbit Owner',
+        legal_name: 'Orbit Bootstrap Private Limited',
+        entity_type: 'company',
+        entity_subtype: 'private_limited',
+        entity_verification_status: 'draft',
+        entity_compliance_flags: {
+          gstRegistered: true,
+          donationReceiptsEnabled: false,
+          has12A12AB: false,
+          has80G: false,
+          receivesForeignContribution: false,
+          hasFcra: false,
+          acceptsCsrFunding: false,
+          hasUdyam: false,
+        },
         phone: '',
         email: 'owner@example.com',
         address: '',
+        gstin: '24ABCDE1234F1Z5',
+        pan: 'ABCDE1234F',
+        cin: 'U72900GJ2024PTC123456',
+        registered_office_address: 'B-603, Shilpan Bliss, Vadodara',
+        principal_place_of_business: 'B-603, Shilpan Bliss, Vadodara',
+        additional_places_of_business: [],
         currency: 'INR',
         country_code: 'IN',
         state_code: 'GJ',
@@ -88,11 +129,113 @@ describe('Firestore workspace rules', () => {
         data_state: 'profile_only',
         created_at: '2026-05-22T00:00:00.000Z',
         updated_at: '2026-05-22T00:00:00.000Z',
+        profile_summary_updated_at: '2026-05-22T00:00:00.000Z',
         server_revision: 1,
       })
     );
 
     await assertSucceeds(workspace.get());
+  });
+
+  it('validates workspace profile summary writes and blocks unsafe root fields', async () => {
+    await seedWorkspace('workspace-1', 'owner-1');
+
+    const owner = testEnv.authenticatedContext('owner-1').firestore();
+    const workspace = owner.collection('workspaces').doc('workspace-1');
+
+    await assertSucceeds(
+      workspace.update({
+        profile_summary_version: 1,
+        profile_display_name: 'Orbit Store',
+        profile_document_name: 'Orbit Store',
+        profile_owner_name: 'Owner',
+        profile_entity_label: 'Freelancer / Individual',
+        profile_verification_status_label: 'Draft',
+        profile_document_address: 'Main Road, Ahmedabad',
+        profile_search_text: 'orbit store owner',
+        profile_search_tokens: ['orbit', 'store', 'owner'],
+        profile_has_tax_profile: false,
+        profile_has_protected_identity: false,
+        entity_type: 'freelancer_individual',
+        entity_verification_status: 'draft',
+        entity_compliance_flags: {
+          gstRegistered: false,
+          donationReceiptsEnabled: false,
+          has12A12AB: false,
+          has80G: false,
+          receivesForeignContribution: false,
+          hasFcra: false,
+          acceptsCsrFunding: false,
+          hasUdyam: false,
+        },
+        owner_name: 'Owner',
+        phone: '+91 98765 43210',
+        email: 'owner@example.com',
+        address: 'Main Road, Ahmedabad',
+        updated_at: '2026-05-22T00:01:00.000Z',
+        profile_summary_updated_at: '2026-05-22T00:01:00.000Z',
+        server_revision: 2,
+      })
+    );
+
+    await assertFails(
+      workspace.update({
+        profile_display_name: 42,
+      })
+    );
+    await assertFails(
+      workspace.update({
+        profile_admin_override: true,
+      })
+    );
+    await assertFails(
+      workspace.update({
+        entity_type: 'shell_company',
+      })
+    );
+  });
+
+  it('locks approved workspace identity fields while allowing address maintenance', async () => {
+    await seedApprovedCompanyWorkspace('workspace-1', 'owner-1');
+
+    const owner = testEnv.authenticatedContext('owner-1').firestore();
+    const workspace = owner.collection('workspaces').doc('workspace-1');
+
+    await assertSucceeds(
+      workspace.update({
+        address: 'Updated billing address, Vadodara',
+        registered_office_address: 'Updated registered office, Vadodara',
+        profile_registered_address: 'Updated registered office, Vadodara',
+        profile_business_address: 'Updated billing address, Vadodara',
+        profile_document_address: 'Updated registered office, Vadodara',
+        profile_search_text: 'orbit store updated registered office',
+        profile_search_tokens: ['orbit', 'store', 'updated', 'registered', 'office'],
+        updated_at: '2026-05-22T00:02:00.000Z',
+        profile_summary_updated_at: '2026-05-22T00:02:00.000Z',
+        server_revision: 2,
+      })
+    );
+
+    await assertFails(
+      workspace.update({
+        business_name: 'Renamed Company',
+      })
+    );
+    await assertFails(
+      workspace.update({
+        cin: 'U72900GJ2025PTC999999',
+      })
+    );
+    await assertFails(
+      workspace.update({
+        profile_document_name: 'Tampered Legal Name',
+      })
+    );
+    await assertFails(
+      workspace.update({
+        entity_verification_status: 'draft',
+      })
+    );
   });
 
   it('blocks cross-owner workspace reads and writes', async () => {
@@ -732,9 +875,77 @@ async function seedWorkspace(workspaceId: string, ownerUid: string) {
     await context.firestore().collection('workspaces').doc(workspaceId).set({
       owner_uid: ownerUid,
       business_name: 'Orbit Store',
+      owner_name: 'Owner',
+      phone: '+91 98765 43210',
+      email: 'owner@example.com',
+      address: 'Main Road',
       currency: 'INR',
       country_code: 'IN',
+      state_code: 'GJ',
       updated_at: '2026-05-06T00:00:00.000Z',
+      server_revision: 1,
+    });
+  });
+}
+
+async function seedApprovedCompanyWorkspace(workspaceId: string, ownerUid: string) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().collection('workspaces').doc(workspaceId).set({
+      owner_uid: ownerUid,
+      owner_email: 'owner@example.com',
+      business_name: 'Orbit Store Private Limited',
+      legal_name: 'Orbit Store Private Limited',
+      owner_name: 'Orbit Owner',
+      entity_type: 'company',
+      entity_subtype: 'private_limited',
+      entity_verification_status: 'approved',
+      entity_compliance_flags: {
+        gstRegistered: true,
+        donationReceiptsEnabled: false,
+        has12A12AB: false,
+        has80G: false,
+        receivesForeignContribution: false,
+        hasFcra: false,
+        acceptsCsrFunding: false,
+        hasUdyam: false,
+      },
+      phone: '+91 98765 43210',
+      email: 'owner@example.com',
+      address: 'Main Road',
+      gstin: '24ABCDE1234F1Z5',
+      pan: 'ABCDE1234F',
+      cin: 'U72900GJ2024PTC123456',
+      registered_office_address: 'Registered Office, Vadodara',
+      principal_place_of_business: 'Main Road, Vadodara',
+      currency: 'INR',
+      country_code: 'IN',
+      state_code: 'GJ',
+      profile_summary_version: 1,
+      profile_display_name: 'Orbit Store Private Limited',
+      profile_legal_name: 'Orbit Store Private Limited',
+      profile_document_name: 'Orbit Store Private Limited',
+      profile_owner_name: 'Orbit Owner',
+      profile_entity_label: 'Company',
+      profile_entity_subtype_label: 'Private Limited',
+      profile_verification_status_label: 'Approved',
+      profile_registered_address: 'Registered Office, Vadodara',
+      profile_business_address: 'Main Road, Vadodara',
+      profile_principal_place_of_business: 'Main Road, Vadodara',
+      profile_document_address: 'Registered Office, Vadodara',
+      profile_contact_line: 'owner@example.com · +91 98765 43210',
+      profile_tax_identity_line: 'GSTIN: 24ABCDE1234F1Z5 · Company PAN: ABCDE1234F',
+      profile_registration_identity_line: 'CIN: U72900GJ2024PTC123456',
+      profile_identity_line: 'CIN: U72900GJ2024PTC123456 · Company PAN: ABCDE1234F',
+      profile_export_name: 'orbit-store-private-limited',
+      profile_search_text: 'orbit store private limited cin',
+      profile_search_tokens: ['orbit', 'store', 'private', 'limited', 'cin'],
+      profile_has_tax_profile: true,
+      profile_has_protected_identity: true,
+      data_state: 'profile_only',
+      created_at: '2026-05-06T00:00:00.000Z',
+      updated_at: '2026-05-06T00:00:00.000Z',
+      profile_summary_updated_at: '2026-05-06T00:00:00.000Z',
+      server_revision: 1,
     });
   });
 }
@@ -751,9 +962,15 @@ async function seedWorkspaceWithOfficeMember(
     await firestore.collection('workspaces').doc(workspaceId).set({
       owner_uid: ownerUid,
       business_name: 'Orbit Store',
+      owner_name: 'Owner',
+      phone: '+91 98765 43210',
+      email: 'owner@example.com',
+      address: 'Main Road',
       currency: 'INR',
       country_code: 'IN',
+      state_code: 'GJ',
       updated_at: '2026-05-06T00:00:00.000Z',
+      server_revision: 1,
     });
     await firestore.collection('workspaces').doc(workspaceId).collection('office_members').doc(memberUid).set({
       uid: memberUid,
