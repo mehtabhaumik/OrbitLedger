@@ -3653,6 +3653,7 @@ a:focus-visible {
 .ol-platform-admin-report-table-wrap::-webkit-scrollbar,
 .ol-platform-admin-user-list::-webkit-scrollbar,
 .ol-platform-admin-admin-list::-webkit-scrollbar,
+.ol-platform-admin-document-table-wrap::-webkit-scrollbar,
 .ol-platform-admin-audit-list::-webkit-scrollbar {
   height: 10px;
 }
@@ -3661,6 +3662,7 @@ a:focus-visible {
 .ol-platform-admin-report-table-wrap::-webkit-scrollbar-track,
 .ol-platform-admin-user-list::-webkit-scrollbar-track,
 .ol-platform-admin-admin-list::-webkit-scrollbar-track,
+.ol-platform-admin-document-table-wrap::-webkit-scrollbar-track,
 .ol-platform-admin-audit-list::-webkit-scrollbar-track {
   background: rgba(238, 244, 251, 0.98);
   border-radius: 999px;
@@ -3670,6 +3672,7 @@ a:focus-visible {
 .ol-platform-admin-report-table-wrap::-webkit-scrollbar-thumb,
 .ol-platform-admin-user-list::-webkit-scrollbar-thumb,
 .ol-platform-admin-admin-list::-webkit-scrollbar-thumb,
+.ol-platform-admin-document-table-wrap::-webkit-scrollbar-thumb,
 .ol-platform-admin-audit-list::-webkit-scrollbar-thumb {
   border: 2px solid rgba(238, 244, 251, 0.98);
   border-radius: 999px;
@@ -4784,6 +4787,24 @@ a:focus-visible {
   border-bottom: 1px solid rgba(191, 205, 225, 0.78);
 }
 
+.ol-platform-admin-document-filters {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) repeat(4, minmax(0, 0.72fr));
+  gap: 14px;
+  padding: 18px;
+  border-bottom: 1px solid rgba(191, 205, 225, 0.78);
+  background: rgba(248, 251, 255, 0.84);
+}
+
+.ol-platform-admin-document-company,
+.ol-platform-admin-document-search {
+  min-width: 0;
+}
+
+.ol-platform-admin-document-search {
+  grid-column: span 2;
+}
+
 .ol-platform-admin-audit-search {
   grid-column: span 2;
 }
@@ -4802,6 +4823,80 @@ a:focus-visible {
   display: grid;
   gap: 12px;
   padding: 18px;
+}
+
+.ol-platform-admin-document-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: rgba(56, 111, 222, 0.48) rgba(238, 244, 251, 0.98);
+  scrollbar-width: thin;
+  padding: 18px;
+}
+
+.ol-platform-admin-document-table {
+  width: 100%;
+  min-width: 1180px;
+  border-collapse: separate;
+  border-spacing: 0 10px;
+}
+
+.ol-platform-admin-document-table th {
+  padding: 0 14px 4px;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.ol-platform-admin-document-table td {
+  padding: 16px 14px;
+  border-top: 1px solid rgba(191, 205, 225, 0.72);
+  border-bottom: 1px solid rgba(191, 205, 225, 0.72);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  vertical-align: top;
+}
+
+.ol-platform-admin-document-table td:first-child {
+  border-left: 1px solid rgba(191, 205, 225, 0.72);
+  border-radius: 18px 0 0 18px;
+}
+
+.ol-platform-admin-document-table td:last-child {
+  border-right: 1px solid rgba(191, 205, 225, 0.72);
+  border-radius: 0 18px 18px 0;
+}
+
+.ol-platform-admin-document-table strong,
+.ol-platform-admin-document-table span,
+.ol-platform-admin-document-table code {
+  display: block;
+  max-width: 260px;
+  overflow-wrap: anywhere;
+}
+
+.ol-platform-admin-document-table strong {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.ol-platform-admin-document-table span,
+.ol-platform-admin-document-table code {
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.4;
+}
+
+.ol-platform-admin-document-link {
+  width: fit-content;
+  margin-top: 12px;
 }
 
 .ol-platform-admin-audit-row {
@@ -5325,6 +5420,7 @@ a:focus-visible {
   .ol-platform-admin-report-builder,
   .ol-platform-admin-user-control,
   .ol-platform-admin-audit-filters,
+  .ol-platform-admin-document-filters,
   .ol-platform-admin-user-registry-layout {
     grid-template-columns: 1fr;
   }
@@ -5350,6 +5446,10 @@ a:focus-visible {
   }
 
   .ol-platform-admin-audit-search {
+    grid-column: auto;
+  }
+
+  .ol-platform-admin-document-search {
     grid-column: auto;
   }
 
@@ -5469,6 +5569,10 @@ a:focus-visible {
 
   .ol-platform-admin-report-table {
     min-width: 860px;
+  }
+
+  .ol-platform-admin-document-table {
+    min-width: 1040px;
   }
 
   .ol-platform-admin-report-table th,

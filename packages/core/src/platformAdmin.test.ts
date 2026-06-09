@@ -37,10 +37,14 @@ describe('platform admin role model', () => {
     expect(canPlatformAdminRole('finance_admin', 'manage_billing_offers')).toBe(true);
     expect(canPlatformAdminRole('finance_admin', 'revoke_admin_accounts')).toBe(false);
     expect(canPlatformAdminRole('finance_admin', 'download_admin_reports')).toBe(true);
+    expect(canPlatformAdminRole('finance_admin', 'review_documents')).toBe(false);
+    expect(canPlatformAdminRole('admin', 'review_documents')).toBe(true);
     expect(canPlatformAdminRole('support_admin', 'review_support_cases')).toBe(true);
+    expect(canPlatformAdminRole('support_admin', 'review_documents')).toBe(true);
     expect(canPlatformAdminRole('support_admin', 'manage_billing_offers')).toBe(false);
     expect(canPlatformAdminRole('support_admin', 'download_admin_reports')).toBe(false);
     expect(canPlatformAdminRole('read_only_admin', 'manage_user_status')).toBe(false);
+    expect(canPlatformAdminRole('read_only_admin', 'review_documents')).toBe(true);
     expect(canPlatformAdminRole('read_only_admin', 'download_admin_reports')).toBe(true);
   });
 

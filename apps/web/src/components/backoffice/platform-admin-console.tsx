@@ -7,19 +7,24 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   canPlatformAdminRole,
   getPlatformAdminRoleDefinition,
+  ORBIT_VERIFICATION_DOCUMENT_DEFINITIONS,
   PLATFORM_ADMIN_ROLES,
+  type OrbitVerificationDocumentCategory,
   type PlatformAdminRole,
 } from '@orbit-ledger/core';
 
+import { WEB_DOCUMENT_VAULT_CATEGORY_OPTIONS } from '@/lib/document-vault';
 import {
   buildWebPlatformAdminReport,
   buildWebPlatformAdminReportCsv,
   buildWebPlatformAdminSaasHealthCharts,
   filterWebPlatformAdminAuditRecords,
+  filterWebPlatformAdminDocumentVaultRecords,
   filterWebPlatformAdminOffers,
   filterWebPlatformAdminUsersWithFilters,
   formatPlatformAdminDate,
   loadWebPlatformAdminAuditTrail,
+  loadWebPlatformAdminDocumentVault,
   loadWebPlatformAdminSnapshot,
   manageWebPlatformAdminAccount,
   manageWebPlatformAdminOffer,
@@ -29,6 +34,8 @@ import {
   type WebPlatformAdminAuditFilters,
   type WebPlatformAdminAuditRecord,
   type WebPlatformAdminChartDatum,
+  type WebPlatformAdminDocumentVaultFilters,
+  type WebPlatformAdminDocumentVaultRecord,
   type WebPlatformAdminOffer,
   type WebPlatformAdminOfferAction,
   type WebPlatformAdminOfferDiscountType,
@@ -145,17 +152,30 @@ const DEFAULT_AUDIT_FILTERS: WebPlatformAdminAuditFilters = {
   toDate: '',
 };
 
+const DEFAULT_DOCUMENT_VAULT_FILTERS: WebPlatformAdminDocumentVaultFilters = {
+  company: '',
+  documentType: '',
+  documentCategory: '',
+  fromDate: '',
+  toDate: '',
+};
+
 const DEFAULT_USER_FILTERS: WebPlatformAdminUserFilters = {
   role: 'all',
   officeAccess: 'all',
   provider: 'all',
 };
 
+const DOCUMENT_VAULT_TYPE_OPTIONS = Object.values(ORBIT_VERIFICATION_DOCUMENT_DEFINITIONS).sort((left, right) =>
+  left.label.localeCompare(right.label)
+);
+
 export type PlatformAdminConsoleSection =
   | 'overview'
   | 'users'
   | 'admins'
   | 'billing-offers'
+  | 'documents'
   | 'safety-controls'
   | 'reports'
   | 'audit';
@@ -220,6 +240,13 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
   const [auditFilters, setAuditFilters] = useState<WebPlatformAdminAuditFilters>(DEFAULT_AUDIT_FILTERS);
   const [auditSearch, setAuditSearch] = useState('');
+  const [documentVault, setDocumentVault] = useState<WebPlatformAdminDocumentVaultRecord[]>([]);
+  const [documentVaultGeneratedAt, setDocumentVaultGeneratedAt] = useState<string | null>(null);
+  const [documentVaultError, setDocumentVaultError] = useState<string | null>(null);
+  const [isLoadingDocumentVault, setIsLoadingDocumentVault] = useState(false);
+  const [documentVaultFilters, setDocumentVaultFilters] =
+    useState<WebPlatformAdminDocumentVaultFilters>(DEFAULT_DOCUMENT_VAULT_FILTERS);
+  const [documentVaultSearch, setDocumentVaultSearch] = useState('');
   const [offerSearch, setOfferSearch] = useState('');
   const [offerMessage, setOfferMessage] = useState<string | null>(null);
   const [offerError, setOfferError] = useState<string | null>(null);
@@ -239,6 +266,10 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
     () => filterWebPlatformAdminAuditRecords(auditTrail, auditSearch),
     [auditSearch, auditTrail]
   );
+  const visibleDocumentVaultRecords = useMemo(
+    () => filterWebPlatformAdminDocumentVaultRecords(documentVault, documentVaultSearch),
+    [documentVault, documentVaultSearch]
+  );
   const admins = snapshot?.admins ?? [];
   const isSuperAdmin = snapshot?.adminAccess?.role === 'super_admin';
   const adminRole = snapshot?.adminAccess?.role ?? null;
@@ -252,6 +283,8 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
   const canStartReadOnlyUserContext = canControlUsers;
   const canStartActionEnabledUserContext = snapshot?.adminAccess?.role === 'super_admin' || snapshot?.adminAccess?.role === 'admin';
   const canDownloadReports = adminRole ? canPlatformAdminRole(adminRole, 'download_admin_reports') : true;
+  const canReviewDocuments = adminRole ? canPlatformAdminRole(adminRole, 'review_documents') : true;
+  const selfAttestedDocumentCount = visibleDocumentVaultRecords.filter((record) => record.selfAttested).length;
   const mfaEnrolledCount = getUserMfaEnrollmentCount(user);
   const mfaRequirement = adminRole ? MFA_READINESS_COPY[adminRole] : null;
   const mfaStatusTone =
@@ -410,6 +443,14 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
   }, [isAuthLoading, user?.uid]);
 
   useEffect(() => {
+    if (isAuthLoading || !user || section !== 'documents') {
+      return;
+    }
+    void refreshDocumentVault(documentVaultFilters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthLoading, section, user?.uid]);
+
+  useEffect(() => {
     setReportPreviewPage(0);
   }, [reportType, search, offerSearch, auditSearch, auditFilters, snapshot?.generatedAt]);
 
@@ -457,8 +498,27 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
     }
   }
 
+  async function refreshDocumentVault(filters: WebPlatformAdminDocumentVaultFilters) {
+    setIsLoadingDocumentVault(true);
+    setDocumentVaultError(null);
+    try {
+      const vault = await loadWebPlatformAdminDocumentVault({ ...filters, limit: 150 });
+      setDocumentVault(vault.records);
+      setDocumentVaultGeneratedAt(vault.generatedAt);
+    } catch (loadError) {
+      setDocumentVaultError(loadError instanceof Error ? loadError.message : 'Platform document vault could not be loaded.');
+      setDocumentVault([]);
+      setDocumentVaultGeneratedAt(null);
+    } finally {
+      setIsLoadingDocumentVault(false);
+    }
+  }
+
   function handleRefresh() {
     void refresh(currentPageToken, { nextPageIndex: currentPageIndex, rememberedTokens: pageTokens });
+    if (section === 'documents') {
+      void refreshDocumentVault(documentVaultFilters);
+    }
   }
 
   function handlePreviousPage() {
@@ -833,6 +893,17 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
     void refreshAudit(DEFAULT_AUDIT_FILTERS);
   }
 
+  function applyDocumentVaultFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void refreshDocumentVault(documentVaultFilters);
+  }
+
+  function resetDocumentVaultFilters() {
+    setDocumentVaultFilters(DEFAULT_DOCUMENT_VAULT_FILTERS);
+    setDocumentVaultSearch('');
+    void refreshDocumentVault(DEFAULT_DOCUMENT_VAULT_FILTERS);
+  }
+
   async function recordReportEvent(report: WebPlatformAdminReport, action: 'download_csv' | 'print_report') {
     await recordWebPlatformAdminReportEvent({
       action,
@@ -986,6 +1057,7 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
   const showUsers = section === 'users';
   const showAdmins = section === 'admins';
   const showBillingOffers = section === 'billing-offers';
+  const showDocuments = section === 'documents';
   const showSafetyControls = section === 'safety-controls';
   const showReports = section === 'reports';
   const showAudit = section === 'audit';
@@ -1005,6 +1077,10 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
     'billing-offers': {
       title: 'Billing and offers',
       description: 'Review pricing, active offers, and operator actions in a tighter route-specific surface.',
+    },
+    documents: {
+      title: 'Document vault',
+      description: 'Review uploaded company, tax, address, identity, and nonprofit documents with attestation metadata.',
     },
     'safety-controls': {
       title: 'Safety controls',
@@ -1958,6 +2034,149 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
               </form>
             ) : null}
           </div>
+        </section>
+        ) : null}
+
+        {showDocuments ? (
+        <section className="ol-platform-admin-table-card ol-platform-admin-document-card" id="documents">
+          <div className="ol-platform-admin-table-head">
+            <div>
+              <strong>Document vault</strong>
+              <span>
+                {visibleDocumentVaultRecords.length.toLocaleString('en-IN')} shown · Generated {formatPlatformAdminDate(documentVaultGeneratedAt)}
+              </span>
+            </div>
+            <div className="ol-platform-admin-row-actions">
+              <span className="ol-platform-admin-status-pill" data-tone={canReviewDocuments ? 'success' : 'warning'}>
+                {canReviewDocuments ? 'Review access enabled' : 'Document review not enabled for this role'}
+              </span>
+              <span className="ol-platform-admin-status-pill" data-tone={selfAttestedDocumentCount === visibleDocumentVaultRecords.length && visibleDocumentVaultRecords.length ? 'success' : 'warning'}>
+                {selfAttestedDocumentCount.toLocaleString('en-IN')} self-attested
+              </span>
+            </div>
+          </div>
+
+          <form className="ol-platform-admin-document-filters" onSubmit={applyDocumentVaultFilters}>
+            <label className="ol-form-field ol-platform-admin-document-company">
+              <span>Company or email</span>
+              <input
+                className="ol-input"
+                value={documentVaultFilters.company}
+                onChange={(event) => setDocumentVaultFilters((current) => ({ ...current, company: event.target.value }))}
+                placeholder="Workspace, owner email, uploader email"
+              />
+            </label>
+            <label className="ol-form-field">
+              <span>Document type</span>
+              <select
+                className="ol-select"
+                value={documentVaultFilters.documentType}
+                onChange={(event) => setDocumentVaultFilters((current) => ({ ...current, documentType: event.target.value }))}
+              >
+                <option value="">All types</option>
+                {DOCUMENT_VAULT_TYPE_OPTIONS.map((definition) => (
+                  <option key={definition.id} value={definition.id}>
+                    {definition.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="ol-form-field">
+              <span>Category</span>
+              <select
+                className="ol-select"
+                value={documentVaultFilters.documentCategory}
+                onChange={(event) =>
+                  setDocumentVaultFilters((current) => ({
+                    ...current,
+                    documentCategory: event.target.value as OrbitVerificationDocumentCategory | '',
+                  }))
+                }
+              >
+                <option value="">All categories</option>
+                {WEB_DOCUMENT_VAULT_CATEGORY_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="ol-form-field">
+              <span>From</span>
+              <input
+                className="ol-input"
+                type="date"
+                value={documentVaultFilters.fromDate}
+                onChange={(event) => setDocumentVaultFilters((current) => ({ ...current, fromDate: event.target.value }))}
+              />
+            </label>
+            <label className="ol-form-field">
+              <span>To</span>
+              <input
+                className="ol-input"
+                type="date"
+                value={documentVaultFilters.toDate}
+                onChange={(event) => setDocumentVaultFilters((current) => ({ ...current, toDate: event.target.value }))}
+              />
+            </label>
+            <label className="ol-form-field ol-platform-admin-document-search">
+              <span>Search loaded documents</span>
+              <input
+                className="ol-input"
+                value={documentVaultSearch}
+                onChange={(event) => setDocumentVaultSearch(event.target.value)}
+                placeholder="Name, reason, uploader, file, status"
+              />
+            </label>
+            <div className="ol-platform-admin-audit-filter-actions">
+              <button className="ol-button" type="submit" disabled={isLoadingDocumentVault || !canReviewDocuments}>
+                {isLoadingDocumentVault ? 'Loading documents...' : 'Apply filters'}
+              </button>
+              <button className="ol-button-secondary" type="button" onClick={resetDocumentVaultFilters} disabled={isLoadingDocumentVault}>
+                Reset
+              </button>
+            </div>
+          </form>
+
+          {documentVaultError ? (
+            <div className="ol-message ol-platform-admin-audit-message" data-tone="danger">
+              {documentVaultError}
+            </div>
+          ) : null}
+
+          {isLoadingDocumentVault && !documentVault.length ? (
+            <div className="ol-platform-admin-empty">
+              <div className="ol-loading-orbit" aria-label="Loading document vault">
+                <span>O</span>
+              </div>
+              <p>Loading document vault.</p>
+            </div>
+          ) : visibleDocumentVaultRecords.length ? (
+            <div className="ol-platform-admin-document-table-wrap">
+              <table className="ol-platform-admin-document-table">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Document</th>
+                    <th>Upload</th>
+                    <th>Attestation</th>
+                    <th>Reason</th>
+                    <th>File</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleDocumentVaultRecords.map((record) => (
+                    <DocumentVaultRow key={`${record.workspaceId}-${record.id}`} record={record} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="ol-platform-admin-empty ol-platform-admin-empty-compact">
+              <h2>No documents found</h2>
+              <p>Adjust the company, type, category, date, or loaded-document search filters.</p>
+            </div>
+          )}
         </section>
         ) : null}
 
@@ -3019,6 +3238,60 @@ function OfferRow({
   );
 }
 
+function DocumentVaultRow({ record }: { record: WebPlatformAdminDocumentVaultRecord }) {
+  const attestationTone = record.selfAttested ? 'success' : 'warning';
+  const uploadActor = record.uploadedByEmail ?? record.uploadedByUid;
+  const entityLabel = [record.entityType.replaceAll('_', ' '), record.entitySubtype?.replaceAll('_', ' ')]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <tr>
+      <td>
+        <strong>{record.workspaceName}</strong>
+        <span>{record.workspaceEmail ?? 'No workspace email saved'}</span>
+        <code>{record.workspaceId}</code>
+      </td>
+      <td>
+        <strong>{record.documentName}</strong>
+        <span>{record.documentTypeLabel}</span>
+        <span>{record.documentCategoryLabel}</span>
+      </td>
+      <td>
+        <strong>{formatPlatformAdminDate(record.uploadedAt)}</strong>
+        <span>{uploadActor}</span>
+        <span>{entityLabel || 'No entity type saved'}</span>
+      </td>
+      <td>
+        <span className="ol-platform-admin-status-pill" data-tone={attestationTone}>
+          {record.selfAttested ? 'Self-attested' : 'Missing attestation'}
+        </span>
+        <span>{record.verificationStatus.replaceAll('_', ' ')}</span>
+        {record.linkedProfileRevisionId ? <code>{record.linkedProfileRevisionId}</code> : null}
+      </td>
+      <td>
+        <strong>{record.reasonToUpload}</strong>
+        {record.attestationText ? <span>{record.attestationText}</span> : null}
+      </td>
+      <td>
+        <strong>{record.fileName}</strong>
+        <span>
+          {record.contentType} · {formatDocumentSize(record.size)}
+        </span>
+        {record.downloadUrl ? (
+          <a className="ol-button-secondary ol-platform-admin-document-link" href={record.downloadUrl} target="_blank" rel="noreferrer">
+            Open / download
+          </a>
+        ) : (
+          <span className="ol-platform-admin-status-pill" data-tone="warning">
+            File link missing
+          </span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function AuditRecordRow({ record }: { record: WebPlatformAdminAuditRecord }) {
   const severityTone = record.severity === 'high' ? 'danger' : record.severity === 'medium' ? 'warning' : 'success';
 
@@ -3067,6 +3340,19 @@ function summarizeOfferTargets(offer: WebPlatformAdminOffer): string {
     return offer.targetCountries.length ? offer.targetCountries.join(', ') : 'Country targets missing';
   }
   return 'Selected targets';
+}
+
+function formatDocumentSize(size: number): string {
+  if (!Number.isFinite(size) || size <= 0) {
+    return '0 bytes';
+  }
+  if (size < 1024) {
+    return `${size} bytes`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function humanizeUserRoleFilter(role: WebPlatformAdminUserRoleFilter): string {

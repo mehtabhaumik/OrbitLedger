@@ -61,6 +61,7 @@ describe('platform admin server security helpers', () => {
     expect(canPlatformAdminUseFunction(financeAccess, 'manage_admin_accounts')).toBe(false);
     expect(canPlatformAdminUseFunction(financeAccess, 'manage_offers')).toBe(true);
     expect(canPlatformAdminUseFunction(financeAccess, 'download_admin_reports')).toBe(true);
+    expect(canPlatformAdminUseFunction(financeAccess, 'review_documents')).toBe(false);
     expect(canPlatformAdminUseUserAction(financeAccess, 'suspend_user')).toBe(false);
   });
 
@@ -79,6 +80,7 @@ describe('platform admin server security helpers', () => {
     };
 
     expect(canPlatformAdminUseFunction(supportAccess, 'manage_offers')).toBe(false);
+    expect(canPlatformAdminUseFunction(supportAccess, 'review_documents')).toBe(true);
     expect(canPlatformAdminUseUserAction(supportAccess, 'send_warning')).toBe(true);
     expect(canPlatformAdminUseUserAction(supportAccess, 'suspend_user')).toBe(false);
     expect(canPlatformAdminStartUserContextSession(supportAccess, 'view_as_user')).toBe(true);
@@ -87,6 +89,7 @@ describe('platform admin server security helpers', () => {
     expect(canPlatformAdminUseFunction(readOnlyAccess, 'manage_user_controls')).toBe(false);
     expect(canPlatformAdminUseFunction(readOnlyAccess, 'manage_user_context_sessions')).toBe(false);
     expect(canPlatformAdminUseFunction(readOnlyAccess, 'manage_offers')).toBe(false);
+    expect(canPlatformAdminUseFunction(readOnlyAccess, 'review_documents')).toBe(true);
     expect(canPlatformAdminUseFunction(readOnlyAccess, 'download_admin_reports')).toBe(true);
   });
 

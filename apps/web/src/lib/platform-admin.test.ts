@@ -6,12 +6,14 @@ import {
   buildWebPlatformAdminReportCsv,
   buildWebPlatformAdminSaasHealthCharts,
   filterWebPlatformAdminAuditRecords,
+  filterWebPlatformAdminDocumentVaultRecords,
   filterWebPlatformAdminOffers,
   filterWebPlatformAdminUsers,
   filterWebPlatformAdminUsersWithFilters,
   formatPlatformAdminDate,
   normalizeWebPlatformAdminUser,
   type WebPlatformAdminAuditRecord,
+  type WebPlatformAdminDocumentVaultRecord,
   type WebPlatformAdminOffer,
   type WebPlatformAdminSnapshot,
   type WebPlatformAdminUser,
@@ -67,6 +69,36 @@ const baseUser: WebPlatformAdminUser = {
   hasActiveSubscription: false,
   status: 'active',
 };
+
+function baseDocumentVaultRecord(): WebPlatformAdminDocumentVaultRecord {
+  return {
+    id: 'doc_base',
+    workspaceId: 'workspace_base',
+    workspaceName: 'Base Workspace',
+    workspaceEmail: 'base@example.com',
+    workspaceOwnerUid: 'owner_base',
+    documentName: 'Base document',
+    documentType: 'other',
+    documentTypeLabel: 'Other',
+    documentCategory: 'other',
+    documentCategoryLabel: 'Other',
+    reasonToUpload: 'Base upload reason',
+    selfAttested: true,
+    attestationText: 'I confirm this document is legal, authentic, correct, and I am authorized to upload it.',
+    fileName: 'document.pdf',
+    contentType: 'application/pdf',
+    size: 1000,
+    storagePath: 'workspaces/workspace_base/documents/vault/doc_base/document.pdf',
+    downloadUrl: 'https://example.com/document.pdf',
+    uploadedByUid: 'owner_base',
+    uploadedByEmail: 'base@example.com',
+    uploadedAt: '2026-06-09T12:00:00.000Z',
+    entityType: 'sole_proprietorship',
+    entitySubtype: null,
+    verificationStatus: 'uploaded',
+    linkedProfileRevisionId: null,
+  };
+}
 
 describe('platform admin registry helpers', () => {
   it('keeps emergency Super Admin emails available without relying on UI config', () => {
@@ -658,6 +690,62 @@ describe('platform admin registry helpers', () => {
     expect(filterWebPlatformAdminAuditRecords(records, 'security review')).toHaveLength(1);
     expect(filterWebPlatformAdminAuditRecords(records, 'read_only_admin')).toHaveLength(1);
     expect(filterWebPlatformAdminAuditRecords(records, 'missing')).toHaveLength(0);
+  });
+
+  it('filters platform document vault records by company, uploader, document metadata, reason, and attestation', () => {
+    const records: WebPlatformAdminDocumentVaultRecord[] = [
+      {
+        id: 'doc_1',
+        workspaceId: 'workspace_rudraix',
+        workspaceName: 'Rudraix Private Limited',
+        workspaceEmail: 'owner@rudraix.example',
+        workspaceOwnerUid: 'owner_1',
+        documentName: 'Registered office proof',
+        documentType: 'registered_office_proof',
+        documentTypeLabel: 'Registered office proof',
+        documentCategory: 'address',
+        documentCategoryLabel: 'Address',
+        reasonToUpload: 'Address verification before profile approval',
+        selfAttested: true,
+        attestationText: 'I confirm this document is legal, authentic, correct, and I am authorized to upload it.',
+        fileName: 'office-proof.pdf',
+        contentType: 'application/pdf',
+        size: 120000,
+        storagePath: 'workspaces/workspace_rudraix/documents/vault/doc_1/office-proof.pdf',
+        downloadUrl: 'https://example.com/office-proof.pdf',
+        uploadedByUid: 'owner_1',
+        uploadedByEmail: 'owner@rudraix.example',
+        uploadedAt: '2026-06-09T12:00:00.000Z',
+        entityType: 'company',
+        entitySubtype: 'private_limited',
+        verificationStatus: 'pending_review',
+        linkedProfileRevisionId: 'revision_1',
+      },
+      {
+        ...baseDocumentVaultRecord(),
+        id: 'doc_2',
+        workspaceId: 'workspace_freelancer',
+        workspaceName: 'PromptPay Studio',
+        workspaceEmail: 'freelancer@example.com',
+        documentName: 'PAN card',
+        documentType: 'pan_card',
+        documentTypeLabel: 'PAN card',
+        documentCategory: 'tax',
+        documentCategoryLabel: 'Tax',
+        reasonToUpload: 'Freelancer tax profile',
+        selfAttested: false,
+        entityType: 'freelancer_individual',
+        verificationStatus: 'uploaded',
+      },
+    ];
+
+    expect(filterWebPlatformAdminDocumentVaultRecords(records, 'rudraix')).toHaveLength(1);
+    expect(filterWebPlatformAdminDocumentVaultRecords(records, 'registered_office_proof')).toHaveLength(1);
+    expect(filterWebPlatformAdminDocumentVaultRecords(records, 'address verification')).toHaveLength(1);
+    expect(filterWebPlatformAdminDocumentVaultRecords(records, 'owner@rudraix.example')).toHaveLength(1);
+    expect(filterWebPlatformAdminDocumentVaultRecords(records, 'self attested')).toHaveLength(1);
+    expect(filterWebPlatformAdminDocumentVaultRecords(records, 'freelancer_individual')).toHaveLength(1);
+    expect(filterWebPlatformAdminDocumentVaultRecords(records, 'missing')).toHaveLength(0);
   });
 
   it('filters platform offers by label, scope, targets, plan, country, and reason', () => {

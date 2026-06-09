@@ -59,8 +59,36 @@ type PlatformAdminFunctionPermission =
   | 'manage_user_context_sessions'
   | 'manage_offers'
   | 'download_admin_reports'
+  | 'review_documents'
   | 'review_office_access'
   | 'review_support_cases';
+type PlatformAdminDocumentVaultRecord = {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  workspaceEmail: string | null;
+  workspaceOwnerUid: string | null;
+  documentName: string;
+  documentType: string;
+  documentTypeLabel: string;
+  documentCategory: string;
+  documentCategoryLabel: string;
+  reasonToUpload: string;
+  selfAttested: boolean;
+  attestationText: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  storagePath: string;
+  downloadUrl: string;
+  uploadedByUid: string;
+  uploadedByEmail: string | null;
+  uploadedAt: string | null;
+  entityType: string;
+  entitySubtype: string | null;
+  verificationStatus: string;
+  linkedProfileRevisionId: string | null;
+};
 type PlatformAdminAccountAction = 'create' | 'change_role' | 'suspend' | 'reactivate' | 'revoke';
 type PlatformAdminUserAction =
   | 'suspend_user'
@@ -5786,6 +5814,122 @@ export const getPlatformAdminAuditTrail = onRequest(
     } catch (error) {
       logger.error('Platform admin audit trail failed', error);
       response.status(500).json({ ok: false, error: 'platform_admin_audit_failed' });
+    }
+  }
+);
+
+export const getPlatformAdminDocumentVault = onRequest(
+  {
+    region: 'asia-south1',
+    cors: true,
+    maxInstances: 5,
+  },
+  async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    if (request.method === 'OPTIONS') {
+      response.status(204).send('');
+      return;
+    }
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+
+    const adminUser = await verifyRequestUser(request);
+    const adminAccess = adminUser ? await resolvePlatformAdminAccess(adminUser) : null;
+    if (!adminUser || !adminAccess || !canPlatformAdminUseFunction(adminAccess, 'review_documents')) {
+      await auditPlatformAdminPermissionAttempt({
+        endpoint: 'getPlatformAdminDocumentVault',
+        requiredPermission: 'review_documents',
+        actor: adminUser,
+        access: adminAccess,
+        outcome: 'denied',
+        reason: 'Platform document vault review requires a server-authorized admin account.',
+      });
+      response.status(403).json({ ok: false, error: 'internal_admin_required' });
+      return;
+    }
+
+    const body = asRecord(request.body);
+    const requestedLimit = Math.max(25, Math.min(250, Math.floor(numberValue(body?.limit, 100))));
+    const companyFilter = clean(stringValue(body?.company))?.toLowerCase() ?? null;
+    const documentTypeFilter = clean(stringValue(body?.documentType))?.toLowerCase() ?? null;
+    const documentCategoryFilter = clean(stringValue(body?.documentCategory))?.toLowerCase() ?? null;
+    const fromDate = parseAuditFilterDate(clean(stringValue(body?.fromDate)), 'start');
+    const toDate = parseAuditFilterDate(clean(stringValue(body?.toDate)), 'end');
+
+    try {
+      const [vaultSnapshot, workspaceSnapshot] = await Promise.all([
+        db.collectionGroup('document_vault').limit(1000).get(),
+        db.collection('workspaces').limit(3000).get(),
+      ]);
+      const workspaceById = new Map<string, FirebaseFirestore.DocumentData>();
+      for (const workspaceDoc of workspaceSnapshot.docs) {
+        workspaceById.set(workspaceDoc.id, workspaceDoc.data());
+      }
+
+      const records = vaultSnapshot.docs
+        .map((doc) => normalizePlatformAdminDocumentVaultRecord(doc, workspaceById))
+        .filter((record) => {
+          const companySearch = [
+            record.workspaceId,
+            record.workspaceName,
+            record.workspaceEmail,
+            record.uploadedByEmail,
+            record.uploadedByUid,
+          ]
+            .join(' ')
+            .toLowerCase();
+          const uploadedAt = record.uploadedAt ? Date.parse(record.uploadedAt) : Number.NaN;
+          if (companyFilter && !companySearch.includes(companyFilter)) {
+            return false;
+          }
+          if (documentTypeFilter && record.documentType.toLowerCase() !== documentTypeFilter) {
+            return false;
+          }
+          if (documentCategoryFilter && record.documentCategory.toLowerCase() !== documentCategoryFilter) {
+            return false;
+          }
+          if (fromDate && (!Number.isFinite(uploadedAt) || uploadedAt < fromDate.getTime())) {
+            return false;
+          }
+          if (toDate && (!Number.isFinite(uploadedAt) || uploadedAt > toDate.getTime())) {
+            return false;
+          }
+          return true;
+        })
+        .sort((left, right) => {
+          const leftTime = left.uploadedAt ? Date.parse(left.uploadedAt) : 0;
+          const rightTime = right.uploadedAt ? Date.parse(right.uploadedAt) : 0;
+          return rightTime - leftTime;
+        })
+        .slice(0, requestedLimit);
+
+      await db.collection('platform_admin_audit').doc(normalizeId(`document_vault_view_${adminUser.uid}_${Date.now()}`)).set({
+        action: 'platform_admin_document_vault_viewed',
+        actor_uid: adminUser.uid,
+        actor_email: adminUser.email ?? null,
+        actor_role: adminAccess.role,
+        filters: {
+          company: companyFilter,
+          document_type: documentTypeFilter,
+          document_category: documentCategoryFilter,
+          from_date: clean(stringValue(body?.fromDate)),
+          to_date: clean(stringValue(body?.toDate)),
+        },
+        result_count: records.length,
+        risk_level: 'low',
+        created_at: new Date().toISOString(),
+      });
+
+      response.json({
+        ok: true,
+        generatedAt: new Date().toISOString(),
+        records,
+      });
+    } catch (error) {
+      logger.error('Platform admin document vault failed', error);
+      response.status(500).json({ ok: false, error: 'platform_admin_document_vault_failed' });
     }
   }
 );
@@ -12198,6 +12342,10 @@ export function canPlatformAdminUseFunction(
     return access.role === 'admin' || access.role === 'finance_admin' || access.role === 'read_only_admin';
   }
 
+  if (permission === 'review_documents') {
+    return access.role === 'admin' || access.role === 'support_admin' || access.role === 'read_only_admin';
+  }
+
   if (permission === 'review_office_access') {
     return access.role === 'admin';
   }
@@ -12429,6 +12577,79 @@ function normalizePlatformAdminAuditRecord(id: string, data: FirebaseFirestore.D
     timestamp,
     affectedSummary: affected.length ? affected.join(' · ') : 'Platform record',
   };
+}
+
+function normalizePlatformAdminDocumentVaultRecord(
+  doc: FirebaseFirestore.QueryDocumentSnapshot,
+  workspaceById: Map<string, FirebaseFirestore.DocumentData>
+): PlatformAdminDocumentVaultRecord {
+  const data = doc.data() ?? {};
+  const workspaceId =
+    clean(stringValue(data.workspace_id)) ??
+    clean(stringValue(doc.ref.parent.parent?.id)) ??
+    'unknown_workspace';
+  const workspace = workspaceById.get(workspaceId) ?? {};
+  const workspaceName =
+    clean(stringValue(workspace.business_name)) ??
+    clean(stringValue(workspace.company_name)) ??
+    clean(stringValue(workspace.legal_name)) ??
+    clean(stringValue(workspace.display_name)) ??
+    workspaceId;
+  const workspaceEmail =
+    clean(stringValue(workspace.email)) ??
+    clean(stringValue(workspace.owner_email)) ??
+    clean(stringValue(workspace.billing_email));
+
+  return {
+    id: doc.id,
+    workspaceId,
+    workspaceName,
+    workspaceEmail,
+    workspaceOwnerUid: clean(stringValue(workspace.owner_uid)),
+    documentName: clean(stringValue(data.document_name)) ?? doc.id,
+    documentType: clean(stringValue(data.document_type)) ?? 'other',
+    documentTypeLabel:
+      clean(stringValue(data.document_type_label)) ??
+      (clean(stringValue(data.document_type)) ?? 'other').replaceAll('_', ' '),
+    documentCategory: clean(stringValue(data.document_category)) ?? 'other',
+    documentCategoryLabel:
+      clean(stringValue(data.document_category_label)) ??
+      (clean(stringValue(data.document_category)) ?? 'other').replaceAll('_', ' '),
+    reasonToUpload: clean(stringValue(data.reason_to_upload)) ?? 'No reason recorded',
+    selfAttested: data.self_attested === true,
+    attestationText: clean(stringValue(data.attestation_text)) ?? '',
+    fileName: clean(stringValue(data.file_name)) ?? 'Uploaded document',
+    contentType: clean(stringValue(data.content_type)) ?? 'application/octet-stream',
+    size: Math.max(0, Math.floor(numberValue(data.size, 0))),
+    storagePath: clean(stringValue(data.storage_path)) ?? '',
+    downloadUrl: clean(stringValue(data.download_url)) ?? '',
+    uploadedByUid: clean(stringValue(data.uploaded_by_uid)) ?? 'unknown_user',
+    uploadedByEmail: clean(stringValue(data.uploaded_by_email)),
+    uploadedAt: firestoreDateToIso(data.uploaded_at) ?? firestoreDateToIso(data.created_at),
+    entityType: clean(stringValue(data.entity_type)) ?? 'unknown',
+    entitySubtype: clean(stringValue(data.entity_subtype)),
+    verificationStatus: clean(stringValue(data.verification_status)) ?? 'uploaded',
+    linkedProfileRevisionId: clean(stringValue(data.linked_profile_revision_id)),
+  };
+}
+
+function firestoreDateToIso(value: unknown): string | null {
+  const stringDate = clean(stringValue(value));
+  if (stringDate) {
+    const parsed = new Date(stringDate);
+    return Number.isNaN(parsed.getTime()) ? stringDate : parsed.toISOString();
+  }
+  const maybeTimestamp = asRecord(value);
+  const toDate = maybeTimestamp?.toDate;
+  if (typeof toDate === 'function') {
+    try {
+      const date = (toDate as () => Date)();
+      return Number.isNaN(date.getTime()) ? null : date.toISOString();
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 function inferPlatformAdminAuditSeverity(action: string): string {

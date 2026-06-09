@@ -26,6 +26,7 @@ const platformNavItems: Array<{ href: Route; label: string }> = [
   { href: '/backoffice/platform/users' as Route, label: 'Users' },
   { href: '/backoffice/platform/admins' as Route, label: 'Admins' },
   { href: '/backoffice/platform/billing-offers' as Route, label: 'Billing & offers' },
+  { href: '/backoffice/platform/documents' as Route, label: 'Documents' },
   { href: '/backoffice/platform/safety-controls' as Route, label: 'Safety controls' },
   { href: '/backoffice/platform/reports' as Route, label: 'Reports' },
   { href: '/backoffice/platform/audit' as Route, label: 'Audit' },
@@ -307,6 +308,13 @@ function getBackofficeRouteCopy(pathname: string | null) {
       kicker: 'Platform Admin',
       title: 'Billing & Offers',
       subtitle: 'Control commercial exposure, pricing, and offer state in one dedicated finance-safe workspace.',
+    };
+  }
+  if (pathname?.startsWith('/backoffice/platform/documents')) {
+    return {
+      kicker: 'Platform Admin',
+      title: 'Document Vault',
+      subtitle: 'Review company, tax, address, identity, and nonprofit uploads with dates, reasons, and self-attestation.',
     };
   }
   if (pathname?.startsWith('/backoffice/platform/safety-controls')) {

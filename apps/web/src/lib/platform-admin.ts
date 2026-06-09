@@ -174,6 +174,47 @@ export type WebPlatformAdminAuditTrail = {
   records: WebPlatformAdminAuditRecord[];
 };
 
+export type WebPlatformAdminDocumentVaultRecord = {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  workspaceEmail: string | null;
+  workspaceOwnerUid: string | null;
+  documentName: string;
+  documentType: string;
+  documentTypeLabel: string;
+  documentCategory: string;
+  documentCategoryLabel: string;
+  reasonToUpload: string;
+  selfAttested: boolean;
+  attestationText: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  storagePath: string;
+  downloadUrl: string;
+  uploadedByUid: string;
+  uploadedByEmail: string | null;
+  uploadedAt: string | null;
+  entityType: string;
+  entitySubtype: string | null;
+  verificationStatus: string;
+  linkedProfileRevisionId: string | null;
+};
+
+export type WebPlatformAdminDocumentVaultFilters = {
+  company: string;
+  documentType: string;
+  documentCategory: string;
+  fromDate: string;
+  toDate: string;
+};
+
+export type WebPlatformAdminDocumentVault = {
+  generatedAt: string;
+  records: WebPlatformAdminDocumentVaultRecord[];
+};
+
 export type WebPlatformAdminMetrics = {
   userCount: number;
   disabledCount: number;
@@ -778,6 +819,44 @@ export function filterWebPlatformAdminOffers(
   );
 }
 
+export function filterWebPlatformAdminDocumentVaultRecords(
+  records: WebPlatformAdminDocumentVaultRecord[],
+  searchTerm: string
+): WebPlatformAdminDocumentVaultRecord[] {
+  const search = searchTerm.trim().toLowerCase();
+  if (!search) {
+    return records;
+  }
+  return records.filter((record) =>
+    [
+      record.id,
+      record.workspaceId,
+      record.workspaceName,
+      record.workspaceEmail ?? '',
+      record.workspaceOwnerUid ?? '',
+      record.documentName,
+      record.documentType,
+      record.documentTypeLabel,
+      record.documentCategory,
+      record.documentCategoryLabel,
+      record.reasonToUpload,
+      record.selfAttested ? 'self attested' : 'not attested',
+      record.fileName,
+      record.contentType,
+      record.storagePath,
+      record.uploadedByUid,
+      record.uploadedByEmail ?? '',
+      record.entityType,
+      record.entitySubtype ?? '',
+      record.verificationStatus,
+      record.linkedProfileRevisionId ?? '',
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(search)
+  );
+}
+
 export function formatPlatformAdminDate(value: string | null | undefined): string {
   if (!value) {
     return 'Not seen yet';
@@ -1042,6 +1121,54 @@ export async function loadWebPlatformAdminAuditTrail(input: Partial<WebPlatformA
   };
 }
 
+export async function loadWebPlatformAdminDocumentVault(
+  input: Partial<WebPlatformAdminDocumentVaultFilters> & {
+    limit?: number;
+  } = {}
+): Promise<WebPlatformAdminDocumentVault> {
+  const user = getWebAuth().currentUser;
+  if (!user) {
+    throw new Error('Sign in again before opening the platform document vault.');
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(getPlatformAdminDocumentVaultUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      limit: input.limit ?? 150,
+      company: input.company ?? '',
+      documentType: input.documentType ?? '',
+      documentCategory: input.documentCategory ?? '',
+      fromDate: input.fromDate ?? '',
+      toDate: input.toDate ?? '',
+    }),
+  });
+  const result = (await response.json().catch(() => ({
+    ok: false,
+    error: 'platform_admin_document_vault_failed',
+  }))) as
+    | ({
+        ok: true;
+      } & WebPlatformAdminDocumentVault)
+    | {
+        ok: false;
+        error: string;
+      };
+
+  if (!result.ok) {
+    throw new Error(platformAdminDocumentVaultErrorMessage(result.error));
+  }
+
+  return {
+    generatedAt: result.generatedAt,
+    records: Array.isArray(result.records) ? result.records : [],
+  };
+}
+
 export async function recordWebPlatformAdminReportEvent(input: {
   action: WebPlatformAdminReportAction;
   report: Pick<WebPlatformAdminReport, 'type' | 'title' | 'generatedAt' | 'generatedBy' | 'adminRole' | 'filters' | 'rows'>;
@@ -1104,6 +1231,11 @@ function getPlatformAdminUserUrl() {
 function getPlatformAdminAuditTrailUrl() {
   const projectId = getWebFirebaseProjectId();
   return `https://asia-south1-${projectId}.cloudfunctions.net/getPlatformAdminAuditTrail`;
+}
+
+function getPlatformAdminDocumentVaultUrl() {
+  const projectId = getWebFirebaseProjectId();
+  return `https://asia-south1-${projectId}.cloudfunctions.net/getPlatformAdminDocumentVault`;
 }
 
 function getPlatformAdminOfferUrl() {
@@ -1193,6 +1325,16 @@ function platformAdminAuditErrorMessage(error: string): string {
     return 'Platform admin audit request method is not supported.';
   }
   return 'Platform admin audit trail could not be loaded.';
+}
+
+function platformAdminDocumentVaultErrorMessage(error: string): string {
+  if (error === 'internal_admin_required') {
+    return 'This admin role cannot open the platform document vault.';
+  }
+  if (error === 'method_not_allowed') {
+    return 'Platform document vault request method is not supported.';
+  }
+  return 'Platform document vault could not be loaded.';
 }
 
 function platformAdminOfferErrorMessage(error: string): string {

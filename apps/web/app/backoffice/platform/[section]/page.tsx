@@ -7,6 +7,7 @@ const PLATFORM_SECTIONS: PlatformAdminConsoleSection[] = [
   'users',
   'admins',
   'billing-offers',
+  'documents',
   'safety-controls',
   'reports',
   'audit',
