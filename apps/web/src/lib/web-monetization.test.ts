@@ -207,7 +207,7 @@ describe('web monetization feature gates', () => {
       product_id: 'com.rudraix.orbitledger.pro.monthly',
       source: 'provider_webhook',
       updated_at: '2026-05-03T00:00:00.000Z',
-      valid_until: '2026-06-03T00:00:00.000Z',
+      valid_until: '2027-06-03T00:00:00.000Z',
     });
     const status = hydrateWebSubscriptionStatus(stored!);
 

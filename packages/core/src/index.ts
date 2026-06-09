@@ -62,6 +62,27 @@ export type {
 } from './entityProfile';
 
 export {
+  ORBIT_VERIFICATION_DOCUMENT_ACCEPT,
+  ORBIT_VERIFICATION_DOCUMENT_ACCEPTED_MIME_TYPES,
+  ORBIT_VERIFICATION_DOCUMENT_DEFINITIONS,
+  ORBIT_VERIFICATION_DOCUMENT_MAX_BYTES,
+  ORBIT_VERIFICATION_DOCUMENT_UPLOAD_FIELDS,
+  getOrbitEntityVerificationDocuments,
+  validateOrbitVerificationDocumentFile,
+} from './entityVerificationDocuments';
+export type {
+  OrbitVerificationDocumentCategory,
+  OrbitVerificationDocumentChecklist,
+  OrbitVerificationDocumentChecklistItem,
+  OrbitVerificationDocumentDefinition,
+  OrbitVerificationDocumentFileInput,
+  OrbitVerificationDocumentRequirement,
+  OrbitVerificationDocumentTypeId,
+  OrbitVerificationDocumentUploadFieldDefinition,
+  OrbitVerificationDocumentUploadFieldId,
+} from './entityVerificationDocuments';
+
+export {
   formatPhoneForLocalBusinessPack,
   getLocalBusinessPack,
   getLocalPhoneExample,

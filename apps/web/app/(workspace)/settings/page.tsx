@@ -48,6 +48,10 @@ import {
   shouldShowEntityProfileField,
 } from '@/lib/entity-profile-ui';
 import {
+  buildWebEntityVerificationDocumentChecklist,
+  type WebEntityVerificationDocumentRow,
+} from '@/lib/entity-verification-documents-ui';
+import {
   DEFAULT_WEB_USER_SETTINGS,
   loadWebUserSettings,
   saveWebUserSettings,
@@ -549,6 +553,11 @@ export default function SettingsPage() {
     entityType: profile.entityType,
     entitySubtype: profile.entitySubtype,
     entityVerificationStatus: profile.entityVerificationStatus,
+    entityComplianceFlags: profile.entityComplianceFlags,
+  });
+  const verificationDocuments = buildWebEntityVerificationDocumentChecklist({
+    entityType: profile.entityType,
+    entitySubtype: profile.entitySubtype,
     entityComplianceFlags: profile.entityComplianceFlags,
   });
   const showEntityField = (field: Parameters<typeof shouldShowEntityProfileField>[1]) =>
@@ -1650,6 +1659,29 @@ export default function SettingsPage() {
               <ProfileField label="Place of supply" value={profile.placeOfSupply} onChange={(value) => handleFieldChange('placeOfSupply', value)} />
             </div>
           </div>
+          <div className="ol-form-band">
+            <div className="ol-form-band-header">
+              <div>
+                <div className="ol-form-band-title">Verification documents</div>
+                <p className="ol-form-band-copy">
+                  Proof checklist for {entityProfileUi.entityLabel.toLowerCase()} profiles.
+                </p>
+              </div>
+              <span className="ol-chip ol-chip--primary">{verificationDocuments.required.length} required</span>
+            </div>
+            <div className="ol-form-band-grid ol-form-band-grid--wide">
+              <VerificationDocumentList
+                documents={verificationDocuments.required}
+                emptyText="No required proof for the selected profile."
+                title="Required proof"
+              />
+              <VerificationDocumentList
+                documents={verificationDocuments.optional}
+                emptyText="No optional proof for the selected profile."
+                title="Optional proof"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="ol-actions ol-form-actions">
@@ -2677,6 +2709,54 @@ function splitProfileLines(value: string) {
     .map((entry) => entry.trim())
     .filter(Boolean);
   return entries.length ? entries : null;
+}
+
+function VerificationDocumentList({
+  documents,
+  emptyText,
+  title,
+}: {
+  documents: readonly WebEntityVerificationDocumentRow[];
+  emptyText: string;
+  title: string;
+}) {
+  return (
+    <section className="ol-verification-doc-list" aria-label={title}>
+      <div className="ol-verification-doc-list-head">
+        <strong>{title}</strong>
+        <span>{documents.length}</span>
+      </div>
+      {documents.length ? (
+        <div className="ol-list">
+          {documents.map((document) => (
+            <article className="ol-list-item ol-verification-doc-item" key={document.id}>
+              <div className="ol-list-icon" data-tone={document.requirement === 'required' ? 'warning' : 'neutral'}>
+                {document.categoryLabel.slice(0, 1)}
+              </div>
+              <div className="ol-list-copy">
+                <div className="ol-verification-doc-title-row">
+                  <div className="ol-list-title">{document.label}</div>
+                  <span className={`ol-chip ${document.requirement === 'required' ? 'ol-chip--warning' : 'ol-chip--muted'}`}>
+                    {document.requirementLabel}
+                  </span>
+                </div>
+                <div className="ol-list-text">{document.description}</div>
+                <div className="ol-verification-doc-meta">
+                  <span>{document.categoryLabel}</span>
+                  <span>{document.acceptedFileSummary}</span>
+                  <span>{document.maxSizeLabel}</span>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="ol-empty-state ol-verification-doc-empty">
+          <span>{emptyText}</span>
+        </div>
+      )}
+    </section>
+  );
 }
 
 function ProfileField({

@@ -1,12 +1,19 @@
 'use client';
 
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import {
+  ORBIT_VERIFICATION_DOCUMENT_ACCEPTED_MIME_TYPES,
+  ORBIT_VERIFICATION_DOCUMENT_MAX_BYTES,
+  validateOrbitVerificationDocumentFile,
+} from '@orbit-ledger/core';
 
 import { getWebStorage } from './firebase';
 
 const MAX_IDENTITY_IMAGE_BYTES = 2 * 1024 * 1024;
 const MAX_INSTRUMENT_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_PAYMENT_PROOF_BYTES = 10 * 1024 * 1024;
+export const MAX_VERIFICATION_DOCUMENT_BYTES = ORBIT_VERIFICATION_DOCUMENT_MAX_BYTES;
+export const ALLOWED_VERIFICATION_DOCUMENT_TYPES = ORBIT_VERIFICATION_DOCUMENT_ACCEPTED_MIME_TYPES;
 const ALLOWED_IMAGE_TYPES = new Map([
   ['image/png', 'png'],
   ['image/jpeg', 'jpg'],
@@ -68,6 +75,10 @@ export function validatePaymentInstrumentImage(file: File) {
   }
 
   return null;
+}
+
+export function validateWorkspaceVerificationDocumentFile(file: File) {
+  return validateOrbitVerificationDocumentFile(file);
 }
 
 export async function uploadPaymentInstrumentImage(

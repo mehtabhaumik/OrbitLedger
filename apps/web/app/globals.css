@@ -6626,6 +6626,89 @@ a:focus-visible {
   width: fit-content;
 }
 
+.ol-verification-doc-list {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(205, 217, 235, 0.82);
+  border-radius: var(--control-radius);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.ol-verification-doc-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  color: var(--text);
+}
+
+.ol-verification-doc-list-head strong {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.ol-verification-doc-list-head span {
+  min-width: 28px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(236, 243, 255, 0.9);
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.ol-verification-doc-item {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(216, 226, 241, 0.8);
+  border-radius: var(--control-radius);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.ol-verification-doc-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ol-verification-doc-title-row .ol-list-title {
+  min-width: min(100%, 180px);
+  line-height: 1.35;
+}
+
+.ol-verification-doc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ol-verification-doc-meta span {
+  padding: 4px 8px;
+  border: 1px solid rgba(205, 217, 235, 0.72);
+  border-radius: 999px;
+  background: rgba(247, 250, 255, 0.84);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.ol-verification-doc-empty {
+  min-height: 92px;
+  padding: 18px;
+  align-items: center;
+  justify-content: center;
+}
+
 .ol-fast-entry-capture {
   display: grid;
   grid-template-columns: minmax(260px, 0.9fr) minmax(280px, 1.1fr);
