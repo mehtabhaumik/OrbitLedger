@@ -37,6 +37,7 @@ import {
   type CustomerBalanceFilter,
 } from '@/lib/workspace-power';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
+import { buildWorkspaceProfileView } from '@/lib/workspace-profile-view';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -276,10 +277,14 @@ export default function CustomersPage() {
     [filteredCustomers, selectedCustomerIds]
   );
   const customerSummary = useMemo(() => sumCustomerBalances(filteredCustomers), [filteredCustomers]);
+  const workspaceProfile = useMemo(
+    () => (activeWorkspace ? buildWorkspaceProfileView(activeWorkspace) : null),
+    [activeWorkspace]
+  );
   const collectionCoach = useMemo(
     () =>
       buildCollectionCoach({
-        businessName: activeWorkspace?.businessName,
+        businessName: workspaceProfile?.displayName,
         currency: activeWorkspace?.currency ?? 'INR',
         today: new Date().toISOString().slice(0, 10),
         customers: customers.map((customer) => {
@@ -310,7 +315,7 @@ export default function CustomersPage() {
           };
         }),
       }),
-    [activeWorkspace?.businessName, activeWorkspace?.currency, customers, invoices, paymentPromises]
+    [activeWorkspace?.currency, customers, invoices, paymentPromises, workspaceProfile?.displayName]
   );
   const coachRecommendations = collectionCoach.recommendations.slice(0, 4);
   const allVisibleSelected =
@@ -421,7 +426,11 @@ export default function CustomersPage() {
       rows
     );
     downloadTextFile(
-      makeExportFileName([activeWorkspace.businessName, 'customers', selectedCustomerIds.size ? 'selected' : 'current-view']),
+      makeExportFileName([
+        workspaceProfile?.exportName ?? activeWorkspace.businessName,
+        'customers',
+        selectedCustomerIds.size ? 'selected' : 'current-view',
+      ]),
       csv
     );
     showToast(`${exportRows.length} customer${exportRows.length === 1 ? '' : 's'} exported.`, 'success');

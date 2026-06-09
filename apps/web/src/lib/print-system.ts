@@ -1,6 +1,6 @@
 import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
 
-import { formatWorkspaceDocumentAddress } from './workspace-address';
+import { buildWorkspaceProfileView } from './workspace-profile-view';
 
 export type PrintPreparedBy = {
   name?: string | null;
@@ -65,8 +65,7 @@ export function buildOrbitPrintDocument(input: PrintDocumentInput): string {
   const generatedAt = input.generatedAt ?? new Date();
   const timestamp = formatPrintDateTime(generatedAt, input.workspace.countryCode);
   const preparedBy = buildPreparedByLine(input.preparedBy);
-  const workspaceAddress = formatWorkspaceDocumentAddress(input.workspace);
-  const workspaceContact = compactPrintParts([input.workspace.phone, input.workspace.email]).join(' | ');
+  const profile = buildWorkspaceProfileView(input.workspace);
   const classification = input.classification?.trim() || 'Business record';
 
   return `<!doctype html>
@@ -83,9 +82,10 @@ export function buildOrbitPrintDocument(input: PrintDocumentInput): string {
       <div class="ol-print-brand">
         ${printLogo(input.workspace)}
         <div class="ol-print-business">
-          <strong>${escapeHtml(input.workspace.legalName || input.workspace.businessName)}</strong>
-          <span>${escapeHtml(workspaceAddress)}</span>
-          ${workspaceContact ? `<span>${escapeHtml(workspaceContact)}</span>` : ''}
+          <strong>${escapeHtml(profile.documentName)}</strong>
+          <span>${escapeHtml(profile.documentAddress)}</span>
+          ${profile.contactLine ? `<span>${escapeHtml(profile.contactLine)}</span>` : ''}
+          ${profile.identityLine ? `<span>${escapeHtml(profile.identityLine)}</span>` : ''}
         </div>
       </div>
       <div class="ol-print-meta">
@@ -109,7 +109,7 @@ export function buildOrbitPrintDocument(input: PrintDocumentInput): string {
 
     <footer class="ol-print-footer">
       <span>Created with Orbit Ledger</span>
-      <span>${escapeHtml(input.workspace.businessName)}${preparedBy ? ` | ${escapeHtml(preparedBy)}` : ''}</span>
+      <span>${escapeHtml(profile.displayName)}${preparedBy ? ` | ${escapeHtml(preparedBy)}` : ''}</span>
       <span>${escapeHtml(timestamp)}</span>
     </footer>
   </main>
@@ -222,12 +222,13 @@ function renderPrintSection(section: PrintSection): string {
 }
 
 function printLogo(workspace: OrbitWorkspaceSummary): string {
+  const profile = buildWorkspaceProfileView(workspace);
   const logoUrl = workspace.logoUri || (workspace as { logoUrl?: string | null }).logoUrl;
   if (logoUrl) {
-    return `<img class="ol-print-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(workspace.businessName)} logo" />`;
+    return `<img class="ol-print-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(profile.logoAlt)}" />`;
   }
 
-  return `<div class="ol-print-logo-fallback">${escapeHtml(initials(workspace.businessName))}</div>`;
+  return `<div class="ol-print-logo-fallback">${escapeHtml(profile.initials)}</div>`;
 }
 
 function buildPreparedByLine(preparedBy?: PrintPreparedBy | null): string {
@@ -248,19 +249,6 @@ function buildPreparedByLine(preparedBy?: PrintPreparedBy | null): string {
     return `Prepared by ${email}`;
   }
   return '';
-}
-
-function compactPrintParts(parts: Array<string | null | undefined>): string[] {
-  return parts.map((part) => part?.trim()).filter((part): part is string => Boolean(part));
-}
-
-function initials(value: string): string {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('') || 'OL';
 }
 
 function localeForCountry(countryCode?: string | null): string {

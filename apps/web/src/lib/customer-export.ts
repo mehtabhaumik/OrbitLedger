@@ -3,6 +3,7 @@
 import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
 
 import type { WorkspaceCustomer } from './workspace-data';
+import { buildWorkspaceProfileView } from './workspace-profile-view';
 
 type CustomerExportPdf = InstanceType<typeof import('jspdf').jsPDF>;
 
@@ -31,7 +32,7 @@ export async function downloadCustomerProfilePdf(input: {
     drawCustomerPage(pdf, input.workspace, customer, currency);
   });
 
-  pdf.save(buildCustomerPdfFileName(input.workspace.businessName, input.customers));
+  pdf.save(buildCustomerPdfFileName(buildWorkspaceProfileView(input.workspace).displayName, input.customers));
 }
 
 function drawCoverPage(
@@ -175,21 +176,24 @@ function drawBrandHeader(
   title: string,
   subtitle: string
 ) {
+  const profile = buildWorkspaceProfileView(workspace);
   const x = page.margin;
   pdf.setFillColor(239, 245, 255);
   pdf.roundedRect(x, page.margin, 58, 58, 14, 14, 'F');
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(16);
   pdf.setTextColor(47, 99, 183);
-  pdf.text(initials(workspace.businessName), x + 29, page.margin + 36, { align: 'center' });
+  pdf.text(profile.initials, x + 29, page.margin + 36, { align: 'center' });
 
   pdf.setFontSize(18);
   pdf.setTextColor(24, 34, 51);
-  pdf.text(workspace.businessName, x + 74, page.margin + 20);
+  pdf.text(profile.documentName, x + 74, page.margin + 20);
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(10);
   pdf.setTextColor(96, 112, 135);
-  pdf.text([workspace.legalName, workspace.phone, workspace.email].filter(Boolean).join(' | '), x + 74, page.margin + 40);
+  pdf.text([profile.identityLine, profile.contactLine].filter(Boolean).join(' | '), x + 74, page.margin + 40, {
+    maxWidth: 250,
+  });
 
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(16);
@@ -303,10 +307,6 @@ function buildCustomerPdfFileName(businessName: string, customers: WorkspaceCust
 
 function filePart(value: string) {
   return value.trim().replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'export';
-}
-
-function initials(value: string) {
-  return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'OL';
 }
 
 function formatCurrency(value: number, currency: string) {

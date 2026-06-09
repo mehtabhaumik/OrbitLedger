@@ -41,6 +41,7 @@ import {
   type TransactionTypeFilter,
 } from '@/lib/workspace-power';
 import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
+import { getWorkspaceExportName } from '@/lib/workspace-profile-view';
 import { useAuth } from '@/providers/auth-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -409,7 +410,7 @@ export default function TransactionsPage() {
     const csv = buildCsv(['Date', 'Type', 'Customer', 'Payment mode', 'Note', 'Amount'], rows);
     downloadTextFile(
       makeExportFileName([
-        activeWorkspace.businessName,
+        getWorkspaceExportName(activeWorkspace),
         'transactions',
         selectedTransactionIds.size ? 'selected' : 'current-view',
       ]),

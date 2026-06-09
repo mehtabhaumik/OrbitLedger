@@ -6,6 +6,7 @@ import {
   type NotificationReminderPreferences,
 } from './notification-preferences';
 import type { WorkspaceCustomer, WorkspaceInvoiceDetail, WorkspacePaymentProviderEvent } from './workspace-data';
+import { buildWorkspaceProfileView } from './workspace-profile-view';
 
 export type LiveCollectionReceiptFollowUpState = 'stop' | 'adjust' | 'continue' | 'review';
 
@@ -26,7 +27,8 @@ export type LiveCollectionReceiptAutomation = {
 };
 
 export type BuildLiveCollectionReceiptAutomationInput = {
-  workspace: Pick<OrbitWorkspaceSummary, 'businessName' | 'email' | 'phone' | 'currency'>;
+  workspace: Pick<OrbitWorkspaceSummary, 'businessName' | 'email' | 'phone' | 'currency'> &
+    Partial<Pick<OrbitWorkspaceSummary, 'legalName' | 'ownerName' | 'entityType' | 'entitySubtype'>>;
   customer: Pick<WorkspaceCustomer, 'name' | 'email' | 'whatsapp'> | null;
   invoice: Pick<WorkspaceInvoiceDetail, 'id' | 'invoiceNumber' | 'totalAmount' | 'paidAmount' | 'paymentStatus'>;
   events?: WorkspacePaymentProviderEvent[];
@@ -45,8 +47,19 @@ export function buildLiveCollectionReceiptAutomation(
   const amount = latestReceiptEvent?.allocationAmount || latestReceiptEvent?.amount || input.invoice.paidAmount;
   const amountLabel = formatReceiptAmount(amount, currency);
   const preferences = input.preferences ?? getNotificationReminderPreferences(null);
+  const profile = buildWorkspaceProfileView({
+    workspaceId: 'receipt-workspace',
+    address: '',
+    countryCode: 'IN',
+    stateCode: '',
+    ...input.workspace,
+    ownerName: input.workspace.ownerName ?? input.workspace.businessName,
+    logoUri: null,
+    paymentInstructions: {},
+    dataState: 'profile_only',
+  } as OrbitWorkspaceSummary);
   const receiptMessage = renderReminderTemplate(preferences.paymentThankYouTemplate, {
-    businessName: input.workspace.businessName,
+    businessName: profile.displayName,
     customerName,
     amount: amountLabel,
     reference: input.invoice.invoiceNumber,
@@ -66,14 +79,14 @@ export function buildLiveCollectionReceiptAutomation(
     whatsappMessage: eligible
       ? buildReceiptWhatsAppMessage({
           customerName,
-          businessName: input.workspace.businessName,
+          businessName: profile.displayName,
           invoiceNumber: input.invoice.invoiceNumber,
           amountLabel,
           businessPhone: input.workspace.phone,
           businessEmail: input.workspace.email,
         })
       : 'A receipt will be available after a verified payment is applied to this invoice.',
-    emailSubject: `Receipt for invoice ${input.invoice.invoiceNumber} from ${input.workspace.businessName}`,
+    emailSubject: `Receipt for invoice ${input.invoice.invoiceNumber} from ${profile.displayName}`,
     followUpState: followUpStateForInvoice({
       eligible,
       dueAmount,

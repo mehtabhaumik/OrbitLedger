@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { isWebPlatformAdminAllowed } from '@/lib/platform-admin-access';
 import { isWebOfficeOperationsAllowed } from '@/lib/office-admin-operations';
+import { getWorkspaceDisplayName } from '@/lib/workspace-profile-view';
 import { useAuth } from '@/providers/auth-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
@@ -172,7 +173,7 @@ export function BackofficeShell({ children }: BackofficeShellProps) {
             <strong>{isOnline ? 'Connected' : 'Offline'}</strong>
             <p>
               {activeWorkspace
-                ? `Workspace context: ${activeWorkspace.businessName}`
+                ? `Workspace context: ${getWorkspaceDisplayName(activeWorkspace)}`
                 : 'No workspace selected. Platform work is still available, and operations routes can be entered once a workspace is chosen.'}
             </p>
           </div>
@@ -236,7 +237,7 @@ export function BackofficeShell({ children }: BackofficeShellProps) {
               >
                 {workspaces.map((workspace) => (
                   <option key={workspace.workspaceId} value={workspace.workspaceId}>
-                    {workspace.businessName}
+                    {getWorkspaceDisplayName(workspace)}
                   </option>
                 ))}
               </select>

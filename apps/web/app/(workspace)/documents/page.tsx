@@ -21,6 +21,7 @@ import {
   openPrintableDocument,
 } from '@/lib/web-documents';
 import { buildCsv, downloadTextFile, makeExportFileName } from '@/lib/workspace-power';
+import { buildWorkspaceProfileView } from '@/lib/workspace-profile-view';
 import {
   createDraftWorkspaceInvoice,
   listWorkspaceInvoices,
@@ -54,6 +55,10 @@ export default function DocumentsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const statementTemplateAccess = resolveWebFeatureAccess(subscription, 'advanced_statement_templates');
   const statementBatchAccess = resolveWebFeatureAccess(subscription, 'batch_statements');
+  const workspaceProfile = useMemo(
+    () => (activeWorkspace ? buildWorkspaceProfileView(activeWorkspace) : null),
+    [activeWorkspace]
+  );
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -99,12 +104,12 @@ export default function DocumentsPage() {
       return null;
     }
     return buildSmartDocumentPack({
-      businessName: activeWorkspace.businessName,
+      businessName: workspaceProfile?.displayName ?? activeWorkspace.businessName,
       currency: activeWorkspace.currency,
       currentTier: mapWebSmartDocumentTier(subscription.tier),
       signals: buildWebSmartDocumentSignals(customers, invoices, activeWorkspace.countryCode),
     });
-  }, [activeWorkspace, customers, invoices, subscription.tier]);
+  }, [activeWorkspace, customers, invoices, subscription.tier, workspaceProfile?.displayName]);
   const smartDocumentPackItems = smartDocumentPack?.items.slice(0, 6) ?? [];
   const statement = useMemo(() => {
     if (!activeWorkspace || !customer) {
@@ -230,7 +235,7 @@ export default function DocumentsPage() {
         ];
       })
     );
-    downloadTextFile(makeExportFileName([activeWorkspace.businessName, 'statement-batch']), csv);
+    downloadTextFile(makeExportFileName([workspaceProfile?.exportName ?? activeWorkspace.businessName, 'statement-batch']), csv);
     showToast('Statement batch CSV downloaded.', 'success');
   }
 
@@ -252,7 +257,7 @@ export default function DocumentsPage() {
       return;
     }
     const message = buildPaymentRequestMessage({
-      businessName: activeWorkspace.businessName,
+      businessName: workspaceProfile?.displayName ?? activeWorkspace.businessName,
       customerName: customer.name,
       amount: Math.max(customer.balance, 0),
       currency: activeWorkspace.currency,
@@ -306,7 +311,7 @@ export default function DocumentsPage() {
         return;
       }
       const message = buildPaymentRequestMessage({
-        businessName: activeWorkspace.businessName,
+        businessName: workspaceProfile?.displayName ?? activeWorkspace.businessName,
         customerName: targetCustomer.name,
         amount: Math.max(item.amountDue ?? targetCustomer.balance, 0),
         currency: activeWorkspace.currency,

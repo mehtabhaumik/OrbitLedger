@@ -25,6 +25,7 @@ import {
 
 import { AppShell } from '@/components/app-shell';
 import { getWebDocumentTemplates, type WebDocumentTemplate } from '@/lib/web-documents';
+import { buildWorkspaceProfileView } from '@/lib/workspace-profile-view';
 import {
   buildAuditProtectedSettingsChanges,
   summarizeAuditProtectedSettingsChanges,
@@ -602,13 +603,14 @@ export default function SettingsPage() {
   }
 
   const workspace = activeWorkspace;
+  const workspaceProfile = buildWorkspaceProfileView(workspace);
   const paymentProviderPlan = getWebPaymentProviderPlan();
   const liveCollectionsSetupStatus = buildWebLiveCollectionsSetupStatus(paymentProviderPlan);
   const paymentTemplate = getManualPaymentInstructionTemplate(workspace.countryCode);
   const invoiceTemplates = getWebDocumentTemplates(workspace, 'invoice');
   const statementTemplates = getWebDocumentTemplates(workspace, 'statement');
   const invoiceNumberPreview = buildSmartInvoiceNumber({
-    businessName: profile.businessName || workspace.businessName,
+    businessName: profile.businessName || workspaceProfile.displayName,
     workspaceId: workspace.workspaceId,
     issueDate: new Date().toISOString().slice(0, 10),
     sequenceNumber: normalizePositiveInteger(profile.invoiceNumberNextSequence, workspace.invoiceNumberNextSequence ?? 1),

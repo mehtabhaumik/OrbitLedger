@@ -33,6 +33,7 @@ import {
   type InvoiceFilterSet,
 } from '@/lib/workspace-power';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
+import { getWorkspaceExportName } from '@/lib/workspace-profile-view';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -230,7 +231,7 @@ export default function InvoicesPage() {
     const csv = buildCsv(['Invoice number', 'Document state', 'Payment state', 'Issue date', 'Customer', 'Amount'], rows);
     downloadTextFile(
       makeExportFileName([
-        activeWorkspace.businessName,
+        getWorkspaceExportName(activeWorkspace),
         'invoices',
         selectedInvoiceIds.size ? 'selected' : 'current-view',
       ]),

@@ -30,6 +30,7 @@ import {
   type WebOfficeTeamSnapshot,
 } from '@/lib/office-team';
 import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
+import { buildWorkspaceProfileView } from '@/lib/workspace-profile-view';
 import { useAuth } from '@/providers/auth-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -64,14 +65,18 @@ export default function TeamPage() {
     () => snapshot?.availableInviteRoles[0] ?? '',
     [snapshot?.availableInviteRoles]
   );
+  const workspaceProfile = useMemo(
+    () => (activeWorkspace ? buildWorkspaceProfileView(activeWorkspace) : null),
+    [activeWorkspace]
+  );
   const inviteAdminName = useMemo(() => resolveOfficeInviteAdminName(user?.displayName, user?.email), [user?.displayName, user?.email]);
   const defaultInviteMessage = useMemo(
     () =>
       buildDefaultWebOfficeMemberInvitationMessage({
-        businessName: activeWorkspace?.businessName,
+        businessName: workspaceProfile?.displayName,
         adminName: inviteAdminName,
       }),
-    [activeWorkspace?.businessName, inviteAdminName]
+    [inviteAdminName, workspaceProfile?.displayName]
   );
 
   useEffect(() => {

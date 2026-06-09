@@ -20,6 +20,7 @@ import { buildWebLiveCollectionsSetupStatus } from '@/lib/live-collections-setup
 import { getWebPaymentProviderPlan } from '@/lib/payment-provider-mode';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
 import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
+import { buildWorkspaceProfileView } from '@/lib/workspace-profile-view';
 import {
   applyWorkspaceProviderEventToInvoice,
   listWorkspaceCustomers,
@@ -53,6 +54,10 @@ export default function PaymentsPage() {
   const { showToast } = useToast();
   const { confirm } = useConfirmDialog();
   const officeAccess = useOfficeAccess();
+  const workspaceProfile = useMemo(
+    () => (activeWorkspace ? buildWorkspaceProfileView(activeWorkspace) : null),
+    [activeWorkspace]
+  );
   const [events, setEvents] = useState<WorkspacePaymentProviderEvent[]>([]);
   const [manualPayments, setManualPayments] = useState<WorkspaceManualPaymentReviewItem[]>([]);
   const [transactions, setTransactions] = useState<WorkspaceTransaction[]>([]);
@@ -225,7 +230,7 @@ export default function PaymentsPage() {
 
     return buildRazorpayPaymentLinkDraft({
       workspaceId: activeWorkspace.workspaceId,
-      businessName: activeWorkspace.businessName,
+      businessName: workspaceProfile?.displayName ?? activeWorkspace.businessName,
       invoiceId: sampleInvoice?.id ?? 'invoice_id',
       invoiceNumber,
       customerId: sampleInvoice?.customerId ?? 'customer_id',
@@ -235,7 +240,7 @@ export default function PaymentsPage() {
       reference: buildInvoicePaymentReference(invoiceNumber),
       callbackUrl: paymentPageUrl,
     });
-  }, [activeWorkspace, customers, invoices, openInvoices, paymentPageUrl]);
+  }, [activeWorkspace, customers, invoices, openInvoices, paymentPageUrl, workspaceProfile?.displayName]);
 
   async function copyWebhookUrl() {
     await navigator.clipboard.writeText(webhookUrl);
@@ -402,7 +407,7 @@ export default function PaymentsPage() {
       return;
     }
     const message = buildManualPaymentFollowUpMessage({
-      businessName: activeWorkspace.businessName,
+      businessName: workspaceProfile?.displayName ?? activeWorkspace.businessName,
       customerName: payment.customerName,
       amountLabel: formatCurrency(payment.amount, activeWorkspace.currency),
       clearanceStatus: payment.paymentClearanceStatus,

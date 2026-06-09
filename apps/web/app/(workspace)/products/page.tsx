@@ -16,6 +16,7 @@ import {
 } from '@/lib/workspace-products';
 import { downloadTextFile, makeExportFileName } from '@/lib/workspace-power';
 import { formatPrintCurrency, openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
+import { getWorkspaceExportName } from '@/lib/workspace-profile-view';
 import { useAuth } from '@/providers/auth-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -140,7 +141,7 @@ export default function ProductsPage() {
       return;
     }
     downloadTextFile(
-      makeExportFileName([activeWorkspace.businessName, 'products']),
+      makeExportFileName([getWorkspaceExportName(activeWorkspace), 'products']),
       buildProductsCsv(filteredProducts)
     );
   }

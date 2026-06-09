@@ -33,6 +33,7 @@ import { AppShell } from '@/components/app-shell';
 import { DashboardCharts, type DashboardChartInsight } from '@/components/dashboard-charts';
 import { WorkspaceStatusCards } from '@/components/workspace-status-cards';
 import { buildDashboardAnalytics } from '@/lib/dashboard-analytics';
+import { buildWorkspaceProfileView } from '@/lib/workspace-profile-view';
 import {
   loadEligiblePlatformOffers,
   summarizeActivePlatformOffer,
@@ -112,6 +113,10 @@ export default function DashboardPage() {
     offers: [],
   });
   const currency = activeWorkspace?.currency ?? 'INR';
+  const workspaceProfile = useMemo(
+    () => (activeWorkspace ? buildWorkspaceProfileView(activeWorkspace) : null),
+    [activeWorkspace]
+  );
   const today = new Date().toISOString().slice(0, 10);
   const featuredOffer = useMemo(() => summarizeActivePlatformOffer(eligibleOffers.offers), [eligibleOffers.offers]);
   const followUpCustomers = useMemo(
@@ -171,7 +176,7 @@ export default function DashboardPage() {
   const closingRitual = useMemo(
     () =>
       buildOwnerClosingRitual({
-        businessName: activeWorkspace?.businessName,
+        businessName: workspaceProfile?.displayName,
         currency,
         date: today,
         cash: {
@@ -208,7 +213,7 @@ export default function DashboardPage() {
         },
       }),
     [
-      activeWorkspace?.businessName,
+      workspaceProfile?.displayName,
       closingChecks,
       countedCash,
       currency,
@@ -225,7 +230,7 @@ export default function DashboardPage() {
   const mistakeRecovery = useMemo(
     () =>
       buildMistakeRecoveryMode({
-        businessName: activeWorkspace?.businessName,
+        businessName: workspaceProfile?.displayName,
         signals: buildDashboardMistakeRecoverySignals({
           customers,
           invoices,
@@ -234,12 +239,12 @@ export default function DashboardPage() {
           transactions,
         }),
       }),
-    [activeWorkspace?.businessName, customers, invoices, manualPayments, products, transactions]
+    [customers, invoices, manualPayments, products, transactions, workspaceProfile?.displayName]
   );
   const dailyCenter = useMemo(
     () =>
       buildDailyActionCenter({
-        businessName: activeWorkspace?.businessName,
+        businessName: workspaceProfile?.displayName,
         currency,
         collections: {
           amountDue: dashboardSnapshot?.receivableTotal ?? followUpCustomers.reduce((total, customer) => total + customer.balance, 0),
@@ -267,7 +272,6 @@ export default function DashboardPage() {
         },
       }),
     [
-      activeWorkspace?.businessName,
       closingRitual.flags.length,
       closingSavedAt,
       currency,
@@ -279,6 +283,7 @@ export default function DashboardPage() {
       productSummary.outOfStockCount,
       unpaidInvoiceAmount,
       unpaidInvoices.length,
+      workspaceProfile?.displayName,
     ]
   );
   const visibleDailyActions = useMemo(
@@ -288,13 +293,13 @@ export default function DashboardPage() {
   const localBusinessIntelligence = useMemo(
     () =>
       buildLocalBusinessIntelligence({
-        businessName: activeWorkspace?.businessName,
+        businessName: workspaceProfile?.displayName,
         signal: {
           countryCode: activeWorkspace?.countryCode,
           stateCode: activeWorkspace?.stateCode,
           city: activeWorkspace?.city,
           month: new Date().getMonth() + 1,
-          hasTaxProfile: Boolean(activeWorkspace?.gstin || activeWorkspace?.taxNumber || activeWorkspace?.defaultTaxRate),
+          hasTaxProfile: Boolean(workspaceProfile?.hasTaxProfile),
           hasLocalPaymentDetails: Boolean(
             activeWorkspace?.paymentInstructions?.upiId ||
               activeWorkspace?.paymentInstructions?.bankAccountNumber ||
@@ -308,18 +313,16 @@ export default function DashboardPage() {
         },
       }),
     [
-      activeWorkspace?.businessName,
       activeWorkspace?.city,
       activeWorkspace?.countryCode,
       activeWorkspace?.currency,
       activeWorkspace?.defaultInvoiceTemplate,
-      activeWorkspace?.defaultTaxRate,
-      activeWorkspace?.gstin,
       activeWorkspace?.paymentInstructions?.bankAccountNumber,
       activeWorkspace?.paymentInstructions?.paymentPageUrl,
       activeWorkspace?.paymentInstructions?.upiId,
       activeWorkspace?.stateCode,
-      activeWorkspace?.taxNumber,
+      workspaceProfile?.displayName,
+      workspaceProfile?.hasTaxProfile,
       followUpCustomers.length,
       invoices,
       unpaidInvoices.length,
@@ -576,7 +579,7 @@ export default function DashboardPage() {
             <span className={`ol-chip ol-chip--${dailyCenter.topAction.tone === 'danger' ? 'warning' : dailyCenter.topAction.tone}`}>
               {dailyCenter.topAction.priority === 'critical' ? 'Priority' : 'Today'}
             </span>
-            <span className="ol-chip ol-chip--success">{activeWorkspace?.businessName ?? 'Workspace'}</span>
+            <span className="ol-chip ol-chip--success">{workspaceProfile?.displayName ?? 'Workspace'}</span>
           </div>
           <h1 id="workspace-os-title">{dailyCenter.topAction.title}</h1>
           <p>{dailyCenter.topAction.message}</p>
@@ -715,7 +718,7 @@ export default function DashboardPage() {
           {
             label: 'Receivable',
             value: formatCurrency(dashboardSnapshot?.receivableTotal ?? 0, currency),
-            helper: activeWorkspace ? `Outstanding balance for ${activeWorkspace.businessName}.` : 'No workspace selected.',
+            helper: activeWorkspace ? `Outstanding balance for ${workspaceProfile?.displayName ?? activeWorkspace.businessName}.` : 'No workspace selected.',
             tone: 'warning',
           },
           {

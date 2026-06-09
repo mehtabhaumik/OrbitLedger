@@ -228,6 +228,32 @@ describe('web document parity', () => {
     expect(fallbackDocument.html).toContain('General Company Address, GJ, IN');
   });
 
+  it('propagates legal profile identity into generated invoice documents', () => {
+    const document = buildInvoiceWebDocument({
+      workspace: {
+        ...workspace,
+        businessName: 'Rudraix',
+        legalName: 'Rudraix Private Limited',
+        entityType: 'company',
+        entitySubtype: 'private_limited',
+        registeredOfficeAddress: 'Registered Office, Vadodara, GJ 391410',
+        principalPlaceOfBusiness: 'Operations Office, Ahmedabad',
+        gstin: '24ABCDE1234F1Z5',
+        pan: 'ABCDE1234F',
+        cin: 'U72900GJ2024PTC123456',
+      },
+      invoice: makeInvoice(),
+      customer,
+    });
+
+    expect(document.invoiceData.businessName).toBe('Rudraix Private Limited');
+    expect(document.invoiceData.businessAddress).toBe('Registered Office, Vadodara, GJ 391410');
+    expect(document.html).toContain('Rudraix Private Limited');
+    expect(document.html).toContain('CIN: U72900GJ2024PTC123456');
+    expect(document.html).toContain('Company PAN: ABCDE1234F');
+    expect(document.html).toContain('GSTIN: 24ABCDE1234F1Z5');
+  });
+
   it('does not show invoice template names on generated invoices', () => {
     const document = buildInvoiceWebDocument({ workspace, invoice: makeInvoice(), customer });
 

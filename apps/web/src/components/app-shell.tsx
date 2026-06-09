@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { isWebPlatformAdminAllowed } from '@/lib/platform-admin-access';
 import { isWebOfficeOperationsAllowed } from '@/lib/office-admin-operations';
+import { getWorkspaceDisplayName } from '@/lib/workspace-profile-view';
 import { useAuth } from '@/providers/auth-provider';
 import { useUserContext } from '@/providers/user-context-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
@@ -234,7 +235,7 @@ export function AppShell({
               >
                 {workspaces.map((workspace) => (
                   <option key={workspace.workspaceId} value={workspace.workspaceId}>
-                    {workspace.businessName}
+                    {getWorkspaceDisplayName(workspace)}
                   </option>
                 ))}
               </select>

@@ -46,6 +46,23 @@ describe('workspace address formatting', () => {
     );
   });
 
+  it('prioritizes registered office and principal place of business profile fields', () => {
+    expect(
+      formatWorkspaceDocumentAddress({
+        ...baseWorkspace,
+        registeredOfficeAddress: 'MCA Registered Office, Ahmedabad',
+        principalPlaceOfBusiness: 'Principal GST Place, Vadodara',
+      })
+    ).toBe('MCA Registered Office, Ahmedabad');
+    expect(
+      formatWorkspaceDocumentAddress({
+        ...baseWorkspace,
+        registeredOfficeAddress: null,
+        principalPlaceOfBusiness: 'Principal GST Place, Vadodara',
+      })
+    ).toBe('Principal GST Place, Vadodara');
+  });
+
   it('falls back to company address when registered address is not saved', () => {
     const workspace: OrbitWorkspaceSummary = {
       ...baseWorkspace,

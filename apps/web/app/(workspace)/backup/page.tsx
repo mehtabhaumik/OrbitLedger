@@ -11,6 +11,7 @@ import {
   type WebWorkspaceBackup,
 } from '@/lib/workspace-backup';
 import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
+import { buildWorkspaceProfileView } from '@/lib/workspace-profile-view';
 import { useAuth } from '@/providers/auth-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -31,6 +32,10 @@ export default function BackupPage() {
   const [restoreProgress, setRestoreProgress] = useState<string | null>(null);
   const [lastProtectedAt, setLastProtectedAt] = useState<string | null>(null);
   const backupSummary = useMemo(() => (preview ? summarizeWorkspaceBackup(preview) : null), [preview]);
+  const workspaceProfile = useMemo(
+    () => (activeWorkspace ? buildWorkspaceProfileView(activeWorkspace) : null),
+    [activeWorkspace]
+  );
   const activeBackupKey = activeWorkspace
     ? `orbit-ledger:last-web-backup:${activeWorkspace.workspaceId}`
     : null;
@@ -60,9 +65,7 @@ export default function BackupPage() {
       const href = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = href;
-      link.download = `orbit-ledger-${activeWorkspace.businessName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')}-workspace-backup.json`;
+      link.download = `orbit-ledger-${workspaceProfile?.exportName ?? 'workspace'}-workspace-backup.json`;
       link.click();
       URL.revokeObjectURL(href);
       const protectedAt = backup.exported_at;
@@ -125,8 +128,9 @@ export default function BackupPage() {
       showToast(officeAccess.getLockedMessage('restore_backup'), 'info');
       return;
     }
-    if (restoreConfirmation.trim() !== activeWorkspace.businessName) {
-      showToast(`Type ${activeWorkspace.businessName} to confirm restore.`, 'danger');
+    const confirmationName = workspaceProfile?.displayName ?? activeWorkspace.businessName;
+    if (restoreConfirmation.trim() !== confirmationName) {
+      showToast(`Type ${confirmationName} to confirm restore.`, 'danger');
       return;
     }
 
@@ -324,7 +328,7 @@ export default function BackupPage() {
             </div>
             <button
               className="ol-button"
-              disabled={!preview || isRestoring || restoreConfirmation.trim() !== activeWorkspace?.businessName || !officeAccess.can('restore_backup')}
+              disabled={!preview || isRestoring || restoreConfirmation.trim() !== workspaceProfile?.displayName || !officeAccess.can('restore_backup')}
               type="button"
               onClick={() => void handleRestore()}
             >
@@ -368,7 +372,7 @@ export default function BackupPage() {
               className="ol-input"
               required
               value={restoreConfirmation}
-              placeholder={activeWorkspace?.businessName ?? 'Business name'}
+              placeholder={workspaceProfile?.displayName ?? 'Business name'}
               onChange={(event) => setRestoreConfirmation(event.target.value)}
             />
           </label>

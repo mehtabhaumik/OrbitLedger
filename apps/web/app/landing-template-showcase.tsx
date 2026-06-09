@@ -5,6 +5,7 @@ import type { Route } from 'next';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { buildPublicTemplateDemoData } from '@/lib/template-preview-demo';
+import { buildWorkspaceProfileView } from '@/lib/workspace-profile-view';
 
 const templates = [
   {
@@ -224,6 +225,7 @@ function TemplatePreviewSheet({
 }) {
   const stamp = demoData.invoice.paymentStatus === 'paid' ? 'PAID' : layout === 'payment' ? 'PAY NOW' : 'UNPAID';
   const rows = demoData.invoice.items.slice(0, 3);
+  const profile = buildWorkspaceProfileView(demoData.workspace);
 
   return (
     <div className="ol-template-sheet-inner">
@@ -231,8 +233,8 @@ function TemplatePreviewSheet({
       <div className="ol-template-watermark">SAMPLE</div>
       <div className="ol-template-header">
         <div>
-          <span className="ol-template-logo">OL</span>
-          <strong>{demoData.workspace.businessName}</strong>
+          <span className="ol-template-logo">{profile.initials}</span>
+          <strong>{profile.documentName}</strong>
         </div>
         <b>{stamp}</b>
       </div>

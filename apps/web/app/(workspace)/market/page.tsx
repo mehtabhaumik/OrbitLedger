@@ -43,6 +43,7 @@ import {
   type WebSubscriptionRenewalAuditItem,
   type WebSubscriptionRenewalChange,
 } from '@/lib/subscription-entitlements';
+import { buildWorkspaceProfileView, getWorkspaceDisplayName } from '@/lib/workspace-profile-view';
 import {
   buildWebPurchaseOperationsSnapshot,
   type WebPurchaseOperationsSnapshot,
@@ -116,7 +117,7 @@ export default function MarketPage() {
     email: '',
     bestContactNumber: '',
     alternateContactNumber: '',
-    message: createDefaultWebOfficeInvitationMessage(activeWorkspace?.businessName),
+    message: createDefaultWebOfficeInvitationMessage(getWorkspaceDisplayName(activeWorkspace)),
   });
   const [officeInvitationErrors, setOfficeInvitationErrors] = useState({
     fullName: null as string | null,
@@ -135,6 +136,10 @@ export default function MarketPage() {
         regionCode: activeWorkspace.stateCode,
       })
     : null;
+  const workspaceProfile = useMemo(
+    () => (activeWorkspace ? buildWorkspaceProfileView(activeWorkspace) : null),
+    [activeWorkspace]
+  );
   const paidPlanCatalog = useMemo(
     () => getWebPaidPlanCatalogForCountry(activeWorkspace?.countryCode ?? 'IN'),
     [activeWorkspace?.countryCode]
@@ -190,7 +195,7 @@ export default function MarketPage() {
       email: user?.email ?? '',
       bestContactNumber: activeWorkspace?.phone ?? '',
       alternateContactNumber: '',
-      message: createDefaultWebOfficeInvitationMessage(activeWorkspace?.businessName),
+      message: createDefaultWebOfficeInvitationMessage(workspaceProfile?.displayName),
     });
     setOfficeInvitationErrors({
       fullName: null,
@@ -204,7 +209,7 @@ export default function MarketPage() {
   function sendOfficeInvitationRequest() {
     const input = {
       ...officeInvitation,
-      businessName: activeWorkspace?.businessName,
+      businessName: workspaceProfile?.displayName,
       userEmail: user?.email,
     };
     const validation = validateWebOfficeInvitationInput(input);

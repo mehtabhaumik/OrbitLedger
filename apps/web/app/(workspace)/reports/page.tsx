@@ -45,6 +45,7 @@ import { buildProductReorderSuggestions } from '@/lib/workspace-products';
 import { buildCsv, downloadTextFile, makeExportFileName } from '@/lib/workspace-power';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
 import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
+import { buildWorkspaceProfileView } from '@/lib/workspace-profile-view';
 import { useAuth } from '@/providers/auth-provider';
 import { useOfficeAccess } from '@/providers/office-access-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
@@ -80,6 +81,10 @@ export default function ReportsPage() {
   const month = today.slice(0, 7);
   const taxReportAccess = resolveWebFeatureAccess(subscription, 'tax_ready_documents');
   const auditReportAccess = resolveWebFeatureAccess(subscription, 'audit_ready_reports');
+  const workspaceProfile = useMemo(
+    () => (activeWorkspace ? buildWorkspaceProfileView(activeWorkspace) : null),
+    [activeWorkspace]
+  );
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -194,7 +199,7 @@ export default function ReportsPage() {
   const sharedBusinessHealth = useMemo(
     () =>
       buildBusinessHealthScore({
-        businessName: activeWorkspace?.businessName,
+        businessName: workspaceProfile?.displayName,
         currency,
         signal: {
           receivableAmount: dashboardSnapshot?.receivableTotal ?? 0,
@@ -217,7 +222,6 @@ export default function ReportsPage() {
         },
       }),
     [
-      activeWorkspace,
       currency,
       customers,
       dailyClosing.actions,
@@ -227,6 +231,7 @@ export default function ReportsPage() {
       stockSuggestions,
       transactions,
       unpaidInvoices,
+      workspaceProfile?.displayName,
     ]
   );
   const complianceSummary = useMemo(
@@ -249,7 +254,12 @@ export default function ReportsPage() {
     const payload = {
       generatedAt: new Date().toISOString(),
       business: {
-        name: activeWorkspace.businessName,
+        name: workspaceProfile?.documentName ?? activeWorkspace.businessName,
+        displayName: workspaceProfile?.displayName ?? activeWorkspace.businessName,
+        entity: workspaceProfile?.entityLabel,
+        identity: workspaceProfile?.identityLine,
+        registeredAddress: workspaceProfile?.registeredAddress,
+        businessAddress: workspaceProfile?.businessAddress,
         currency: activeWorkspace.currency,
         countryCode: activeWorkspace.countryCode,
         stateCode: activeWorkspace.stateCode,
@@ -262,7 +272,7 @@ export default function ReportsPage() {
       },
     };
     downloadTextFile(
-      makeExportFileName([activeWorkspace.businessName, 'business-review'], 'json'),
+      makeExportFileName([workspaceProfile?.exportName ?? activeWorkspace.businessName, 'business-review'], 'json'),
       JSON.stringify(payload, null, 2),
       'application/json'
     );
@@ -292,7 +302,7 @@ export default function ReportsPage() {
         ['Business health score', sharedBusinessHealth.score],
       ]
     );
-    downloadTextFile(makeExportFileName([activeWorkspace.businessName, 'business-review']), csv);
+    downloadTextFile(makeExportFileName([workspaceProfile?.exportName ?? activeWorkspace.businessName, 'business-review']), csv);
   }
 
   function exportComplianceCsv() {
@@ -322,7 +332,7 @@ export default function ReportsPage() {
         ],
       ]
     );
-    downloadTextFile(makeExportFileName([activeWorkspace.businessName, 'tax-summary', month]), csv);
+    downloadTextFile(makeExportFileName([workspaceProfile?.exportName ?? activeWorkspace.businessName, 'tax-summary', month]), csv);
   }
 
   function printBusinessReport() {

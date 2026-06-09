@@ -19,6 +19,7 @@ import {
   type WebSupportCaseCustomerStatus,
 } from '@/lib/support-consent';
 import { openOrbitPrintDocument, printPreparedByFromUser } from '@/lib/print-system';
+import { getWorkspaceDisplayName } from '@/lib/workspace-profile-view';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -75,7 +76,7 @@ export default function SupportPage() {
   const [savedConsent, setSavedConsent] = useState<{ consentId: string; expiresAt: string } | null>(null);
   const [supportCases, setSupportCases] = useState<WebSupportCaseCustomerStatus[]>([]);
   const [isLoadingSupportCases, setIsLoadingSupportCases] = useState(false);
-  const businessName = activeWorkspace?.businessName ?? 'Orbit Ledger workspace';
+  const businessName = getWorkspaceDisplayName(activeWorkspace);
 
   async function refreshSupportCases(workspaceId: string) {
     setIsLoadingSupportCases(true);

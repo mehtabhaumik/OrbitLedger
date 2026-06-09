@@ -21,7 +21,7 @@ import type {
   WorkspaceTransaction,
 } from './workspace-data';
 import { formatPrintDateTime, type PrintPreparedBy } from './print-system';
-import { formatWorkspaceDocumentAddress } from './workspace-address';
+import { buildWorkspaceProfileView } from './workspace-profile-view';
 import { buildCsv, downloadTextFile } from './workspace-power';
 import {
   getDefaultWebSubscriptionStatus,
@@ -484,11 +484,12 @@ export function buildInvoiceWebDocument(input: BuildInvoiceDocumentInput) {
     paymentStatusLine: input.paymentStatusLine,
     paymentStatusReason: input.invoice.paymentStatusReason,
   });
+  const profile = buildWorkspaceProfileView(input.workspace);
   const invoiceData: InvoiceDocumentData = {
     title: pack.documents.invoiceTitle,
-    businessName: input.workspace.businessName,
-    businessAddress: formatWorkspaceDocumentAddress(input.workspace),
-    businessContact: `${input.workspace.phone} | ${input.workspace.email}`,
+    businessName: profile.documentName,
+    businessAddress: profile.documentAddress,
+    businessContact: profile.contactLine,
     customerName,
     customerPhone: input.customer?.phone ?? null,
     customerAddress: input.customer?.address ?? null,
@@ -656,11 +657,12 @@ export function buildStatementWebDocument(input: BuildStatementDocumentInput) {
       : runningBalance < 0
         ? `You owe ${input.customer.name} ${money(amountDue, input.workspace.currency, template.locale)}.`
         : 'This account is settled for the selected statement period.';
+  const profile = buildWorkspaceProfileView(input.workspace);
   const statementData: StatementDocumentData = {
     title: pack.documents.statementTitle,
-    businessName: input.workspace.businessName,
-    businessAddress: formatWorkspaceDocumentAddress(input.workspace),
-    businessContact: `${input.workspace.phone} | ${input.workspace.email}`,
+    businessName: profile.documentName,
+    businessAddress: profile.documentAddress,
+    businessContact: profile.contactLine,
     customerName: input.customer.name,
     customerPhone: input.customer.phone,
     customerAddress: input.customer.address,
@@ -1407,20 +1409,25 @@ function headerBlock(input: {
   template: WebDocumentTemplate;
   showTemplateName?: boolean;
 }) {
+  const profile = buildWorkspaceProfileView(input.workspace);
   const logo = input.includeBranding && input.workspace.logoUri
-    ? `<img class="logo" src="${escapeAttribute(input.workspace.logoUri)}" alt="${escapeAttribute(input.workspace.businessName)} logo">`
-    : `<div class="logo-fallback">${escapeHtml(initials(input.workspace.businessName))}</div>`;
+    ? `<img class="logo" src="${escapeAttribute(input.workspace.logoUri)}" alt="${escapeAttribute(profile.logoAlt)}">`
+    : `<div class="logo-fallback">${escapeHtml(profile.initials)}</div>`;
   const templateBadge = input.showTemplateName === false
     ? ''
     : `<em class="style-badge">${escapeHtml(input.template.tier === 'pro' ? `${input.template.label} · Pro` : input.template.label)}</em>`;
-  return `<header class="document-header"><div class="brand-row">${logo}<div class="business-copy"><h1>${escapeHtml(input.workspace.businessName)}</h1><p>${escapeHtml(formatWorkspaceDocumentAddress(input.workspace))}</p><p class="business-contact">${escapeHtml(input.workspace.phone)} | ${escapeHtml(input.workspace.email)}</p></div></div><div class="statement-title"><p class="label">${escapeHtml(input.title)}</p><strong>${escapeHtml(input.strong)}</strong><span>${escapeHtml(input.meta)}</span>${templateBadge}</div></header>`;
+  const identityLine = profile.identityLine
+    ? `<p class="business-identity">${escapeHtml(profile.identityLine)}</p>`
+    : '';
+  return `<header class="document-header"><div class="brand-row">${logo}<div class="business-copy"><h1>${escapeHtml(profile.documentName)}</h1><p>${escapeHtml(profile.documentAddress)}</p><p class="business-contact">${escapeHtml(profile.contactLine)}</p>${identityLine}</div></div><div class="statement-title"><p class="label">${escapeHtml(input.title)}</p><strong>${escapeHtml(input.strong)}</strong><span>${escapeHtml(input.meta)}</span>${templateBadge}</div></header>`;
 }
 
 function signatureBlock(workspace: OrbitWorkspaceSummary, includeBranding: boolean) {
+  const profile = buildWorkspaceProfileView(workspace);
   const signature = includeBranding && workspace.signatureUri
     ? `<img class="signature" src="${escapeAttribute(workspace.signatureUri)}" alt="Authorized signature">`
     : '<span>Signature not added</span>';
-  return `<div class="signature-card"><p class="label">Authorized by</p><div class="signature-box">${signature}</div><div class="signature-line"></div><h2>${escapeHtml(workspace.authorizedPersonName || workspace.ownerName || workspace.businessName)}</h2><p>${escapeHtml(workspace.authorizedPersonTitle || 'Authorized person')}</p></div>`;
+  return `<div class="signature-card"><p class="label">Authorized by</p><div class="signature-box">${signature}</div><div class="signature-line"></div><h2>${escapeHtml(workspace.authorizedPersonName || profile.ownerName || profile.documentName)}</h2><p>${escapeHtml(workspace.authorizedPersonTitle || 'Authorized person')}</p></div>`;
 }
 
 function urgentPaymentStamp() {
@@ -1542,7 +1549,7 @@ function buildDocumentPdfFooterDetails(input: {
   return {
     left: input.footerText,
     center: compactDocumentFooterParts([
-      input.workspace.businessName,
+      buildWorkspaceProfileView(input.workspace).displayName,
       buildPdfPreparedByLine(input.preparedBy),
     ]).join(' | '),
     right: compactDocumentFooterParts([
@@ -1827,10 +1834,6 @@ function normalizeDate(value: string) {
 
 function today() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function initials(value: string) {
-  return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'OL';
 }
 
 function escapeHtml(value: string) {

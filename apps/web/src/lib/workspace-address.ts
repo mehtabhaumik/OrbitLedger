@@ -34,7 +34,12 @@ export function formatWorkspaceCompanyAddress(workspace: OrbitWorkspaceSummary):
 }
 
 export function formatWorkspaceDocumentAddress(workspace: OrbitWorkspaceSummary): string {
-  return formatWorkspaceRegisteredAddress(workspace) ?? formatWorkspaceCompanyAddress(workspace);
+  return (
+    workspace.registeredOfficeAddress?.trim() ||
+    formatWorkspaceRegisteredAddress(workspace) ||
+    workspace.principalPlaceOfBusiness?.trim() ||
+    formatWorkspaceCompanyAddress(workspace)
+  );
 }
 
 export function compactAddressParts(parts: Array<string | null | undefined>): string[] {

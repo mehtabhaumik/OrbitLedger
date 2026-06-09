@@ -20,6 +20,7 @@ import {
   getPromiseStatusLabel,
 } from '@/lib/customer-timeline';
 import { downloadCustomerProfilePdf } from '@/lib/customer-export';
+import { buildWorkspaceProfileView } from '@/lib/workspace-profile-view';
 import { getWebDocumentTemplates, type WebDocumentTemplate } from '@/lib/web-documents';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
 import {
@@ -305,6 +306,10 @@ function CustomerDetailContent() {
     filteredTransactions.every((transaction) => selectedTransactionIds.has(transaction.id));
   const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
   const customerExportAccess = resolveWebFeatureAccess(subscription, 'customer_profile_exports');
+  const workspaceProfile = useMemo(
+    () => (activeWorkspace ? buildWorkspaceProfileView(activeWorkspace) : null),
+    [activeWorkspace]
+  );
   const autoEmailWarnings = useMemo(
     () => buildCustomerAutoEmailWarnings(recurringRules, customerInvoices),
     [customerInvoices, recurringRules]
@@ -316,12 +321,12 @@ function CustomerDetailContent() {
   const reminderMessage =
     activeWorkspace && customer
       ? renderReminderTemplate(reminderPreferences.whatsappReminderTemplate, {
-          businessName: activeWorkspace.businessName,
+          businessName: workspaceProfile?.displayName ?? activeWorkspace.businessName,
           customerName: customer.name,
           balance: formatCurrency(customer.balance, currency),
         }) ||
         buildReminderMessage({
-          businessName: activeWorkspace.businessName,
+          businessName: workspaceProfile?.displayName ?? activeWorkspace.businessName,
           customerName: customer.name,
           balanceLabel: formatCurrency(customer.balance, currency),
           tone: reminderTone,
@@ -569,7 +574,7 @@ function CustomerDetailContent() {
     const csv = buildCsv(['Date', 'Type', 'Payment mode', 'Note', 'Amount'], rows);
     downloadTextFile(
       makeExportFileName([
-        activeWorkspace.businessName,
+        workspaceProfile?.exportName ?? activeWorkspace.businessName,
         customer.name,
         'transactions',
         selectedTransactionIds.size ? 'selected' : 'current-view',
@@ -664,7 +669,10 @@ function CustomerDetailContent() {
         customer.updatedAt,
       ]]
     );
-    downloadTextFile(makeExportFileName([activeWorkspace.businessName, customer.name, 'customer-profile']), csv);
+    downloadTextFile(
+      makeExportFileName([workspaceProfile?.exportName ?? activeWorkspace.businessName, customer.name, 'customer-profile']),
+      csv
+    );
     showToast('Customer CSV downloaded.', 'success');
   }
 

@@ -78,6 +78,7 @@ import {
   buildLiveCollectionReceiptAutomation,
   shouldStopInvoiceFollowUps,
 } from '@/lib/live-collections-receipts';
+import { buildWorkspaceProfileView } from '@/lib/workspace-profile-view';
 import { uploadPaymentInstrumentImage } from '@/lib/workspace-storage';
 import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
 import { useAuth } from '@/providers/auth-provider';
@@ -185,6 +186,10 @@ function InvoiceEditorContent() {
   const paymentReversalAccess = resolveWebFeatureAccess(subscription, 'payment_reversals');
   const invoiceTemplates = activeWorkspace ? getWebDocumentTemplates(activeWorkspace, 'invoice') : [];
   const selectedTemplate = invoiceTemplates.find((template) => template.key === templateKey) ?? invoiceTemplates[0];
+  const workspaceProfile = useMemo(
+    () => (activeWorkspace ? buildWorkspaceProfileView(activeWorkspace) : null),
+    [activeWorkspace]
+  );
   const paymentInstructionTemplate = getManualPaymentInstructionTemplate(activeWorkspace?.countryCode);
   const isReadOnlyVersion = Boolean(versionId);
   const effectiveRevisionReason = getEffectiveRevisionReason(revisionReasonChoice, revisionReason);
@@ -365,7 +370,7 @@ function InvoiceEditorContent() {
       activeWorkspace
         ? buildInvoicePaymentLink({
             amount: dueAmount > 0 ? dueAmount : total,
-            businessName: activeWorkspace.businessName,
+            businessName: workspaceProfile?.displayName ?? activeWorkspace.businessName,
             countryCode: activeWorkspace.countryCode,
             currency,
             customerName: selectedCustomer?.name ?? null,
@@ -378,7 +383,18 @@ function InvoiceEditorContent() {
             },
           })
         : null,
-    [activeWorkspace, currency, dueAmount, dueDate, hostedPaymentPageUrl, invoiceNumber, paymentLinkDetails, selectedCustomer?.name, total]
+    [
+      activeWorkspace,
+      currency,
+      dueAmount,
+      dueDate,
+      hostedPaymentPageUrl,
+      invoiceNumber,
+      paymentLinkDetails,
+      selectedCustomer?.name,
+      total,
+      workspaceProfile?.displayName,
+    ]
   );
   const hasProviderBackedPaymentLink = Boolean(paymentLinkDetails.paymentPageUrl?.trim());
   const livePaymentLinkStatus = useMemo(
@@ -680,7 +696,7 @@ function InvoiceEditorContent() {
       return;
     }
     const messageText = buildPaymentRequestMessage({
-      businessName: activeWorkspace.businessName,
+      businessName: workspaceProfile?.displayName ?? activeWorkspace.businessName,
       customerName: selectedCustomer?.name ?? 'Customer',
       amount: dueAmount > 0 ? dueAmount : total,
       currency,

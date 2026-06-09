@@ -16,6 +16,7 @@ import {
 } from '@/lib/web-documents';
 import { buildWorkspaceTemplateDemoData, templatePreviewWorkspace } from '@/lib/template-preview-demo';
 import type { TemplateDemoData } from '@/lib/template-demo-data-factory';
+import { buildWorkspaceProfileView } from '@/lib/workspace-profile-view';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 export default function TemplateShowcasePage() {
@@ -169,6 +170,7 @@ function TemplateShowcasePreview({
 }) {
   const rows = demoData.invoice.items.slice(0, layout === 'compact' ? 4 : 3);
   const stamp = demoData.invoice.paymentStatus === 'paid' ? 'Paid' : layout === 'payment' ? 'Pay now' : 'Unpaid';
+  const profile = buildWorkspaceProfileView(demoData.workspace);
 
   return (
     <div
@@ -181,10 +183,10 @@ function TemplateShowcasePreview({
         <div className="ol-template-showcase-watermark">Sample</div>
         <header className="ol-template-showcase-paper-head">
           <div className="ol-template-showcase-brand">
-            <span>OL</span>
+            <span>{profile.initials}</span>
             <div>
-              <strong>{demoData.workspace.businessName}</strong>
-              <small>{demoData.workspace.address}</small>
+              <strong>{profile.documentName}</strong>
+              <small>{profile.documentAddress}</small>
             </div>
           </div>
           <div className="ol-template-showcase-number">
