@@ -8,6 +8,7 @@ import type {
   OrbitEntityVerificationStatus,
 } from '@orbit-ledger/contracts';
 import {
+  ORBIT_VERIFICATION_DOCUMENT_ACCEPT,
   ORBIT_ENTITY_TYPE_OPTIONS,
   buildSmartInvoiceNumber,
   getManualPaymentInstructionTemplate,
@@ -51,6 +52,18 @@ import {
   buildWebEntityVerificationDocumentChecklist,
   type WebEntityVerificationDocumentRow,
 } from '@/lib/entity-verification-documents-ui';
+import {
+  DEFAULT_DOCUMENT_VAULT_UPLOAD_FORM,
+  WEB_DOCUMENT_VAULT_ATTESTATION_TEXT,
+  WEB_DOCUMENT_VAULT_CATEGORY_OPTIONS,
+  buildWebDocumentVaultTypeOptions,
+  getWebDocumentVaultTypeOption,
+  listWorkspaceDocumentVault,
+  uploadWorkspaceDocumentVaultRecord,
+  validateWebDocumentVaultUpload,
+  type WebDocumentVaultRecord,
+  type WebDocumentVaultUploadForm,
+} from '@/lib/document-vault';
 import {
   WEB_ADDRESS_CHANGE_REASON_OPTIONS,
   buildAddressChangeRequestKey,
@@ -212,6 +225,7 @@ export default function SettingsPage() {
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const signatureInputRef = useRef<HTMLInputElement | null>(null);
   const watermarkInputRef = useRef<HTMLInputElement | null>(null);
+  const vaultFileInputRef = useRef<HTMLInputElement | null>(null);
   const userSettingsReadyRef = useRef(false);
   const userSettingsSignatureRef = useRef('');
   const [invoiceNumberHealth, setInvoiceNumberHealth] = useState<WorkspaceInvoiceNumberHealth | null>(null);
@@ -334,6 +348,12 @@ export default function SettingsPage() {
   const [addressReasonRequest, setAddressReasonRequest] = useState<AddressReasonRequest | null>(null);
   const [addressChangeReason, setAddressChangeReason] = useState<WebAddressChangeReasonId>('office_relocation');
   const [addressChangeOtherReason, setAddressChangeOtherReason] = useState('');
+  const [vaultDocuments, setVaultDocuments] = useState<WebDocumentVaultRecord[]>([]);
+  const [vaultUploadForm, setVaultUploadForm] = useState<WebDocumentVaultUploadForm>(DEFAULT_DOCUMENT_VAULT_UPLOAD_FORM);
+  const [vaultFile, setVaultFile] = useState<File | null>(null);
+  const [isVaultLoading, setIsVaultLoading] = useState(false);
+  const [isVaultUploading, setIsVaultUploading] = useState(false);
+  const [vaultUploadError, setVaultUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -507,6 +527,40 @@ export default function SettingsPage() {
     };
   }, [activeWorkspace?.workspaceId, showToast, user?.uid]);
 
+  useEffect(() => {
+    if (!activeWorkspace || !user) {
+      setVaultDocuments([]);
+      setVaultUploadForm(DEFAULT_DOCUMENT_VAULT_UPLOAD_FORM);
+      setVaultFile(null);
+      setVaultUploadError(null);
+      return;
+    }
+
+    let isMounted = true;
+    setIsVaultLoading(true);
+    setVaultUploadError(null);
+    void listWorkspaceDocumentVault(activeWorkspace.workspaceId)
+      .then((documents) => {
+        if (isMounted) {
+          setVaultDocuments(documents);
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setVaultUploadError(error instanceof Error ? error.message : 'Document vault could not be loaded.');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsVaultLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeWorkspace?.workspaceId, user?.uid]);
+
   const userSettingsSignature = buildUserSettingsSignature(userSettings);
 
   useEffect(() => {
@@ -574,6 +628,11 @@ export default function SettingsPage() {
     entityComplianceFlags: profile.entityComplianceFlags,
   });
   const verificationDocuments = buildWebEntityVerificationDocumentChecklist({
+    entityType: profile.entityType,
+    entitySubtype: profile.entitySubtype,
+    entityComplianceFlags: profile.entityComplianceFlags,
+  });
+  const documentVaultTypeOptions = buildWebDocumentVaultTypeOptions({
     entityType: profile.entityType,
     entitySubtype: profile.entitySubtype,
     entityComplianceFlags: profile.entityComplianceFlags,
@@ -1079,6 +1138,66 @@ export default function SettingsPage() {
 
   function updatePaymentInstruction(field: PaymentFieldKey, value: string) {
     setPaymentInstructions((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateVaultUploadForm<K extends keyof WebDocumentVaultUploadForm>(
+    field: K,
+    value: WebDocumentVaultUploadForm[K]
+  ) {
+    setVaultUploadForm((current) => ({ ...current, [field]: value }));
+    setVaultUploadError(null);
+  }
+
+  function handleVaultDocumentTypeChange(value: string) {
+    const option = getWebDocumentVaultTypeOption(documentVaultTypeOptions, value);
+    setVaultUploadForm((current) => ({
+      ...current,
+      documentType: option?.id ?? '',
+      documentCategory: option?.category ?? current.documentCategory,
+      documentName: current.documentName.trim() ? current.documentName : option?.label ?? '',
+    }));
+    setVaultUploadError(null);
+  }
+
+  async function uploadVaultDocument() {
+    if (!activeWorkspace || !user) {
+      showToast('Sign in and choose a workspace before uploading documents.', 'danger');
+      return;
+    }
+
+    const errors = validateWebDocumentVaultUpload({ ...vaultUploadForm, file: vaultFile });
+    if (errors.length) {
+      setVaultUploadError(errors[0]);
+      showToast(errors[0], 'danger');
+      return;
+    }
+
+    setIsVaultUploading(true);
+    setVaultUploadError(null);
+    try {
+      const uploaded = await uploadWorkspaceDocumentVaultRecord({
+        workspace: activeWorkspace,
+        actor: {
+          uid: user.uid,
+          email: user.email,
+        },
+        form: vaultUploadForm,
+        file: vaultFile as File,
+      });
+      setVaultDocuments((current) => [uploaded, ...current.filter((document) => document.id !== uploaded.id)]);
+      setVaultUploadForm(DEFAULT_DOCUMENT_VAULT_UPLOAD_FORM);
+      setVaultFile(null);
+      if (vaultFileInputRef.current) {
+        vaultFileInputRef.current.value = '';
+      }
+      showToast('Document uploaded to the vault.', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Document could not be uploaded.';
+      setVaultUploadError(message);
+      showToast(message, 'danger');
+    } finally {
+      setIsVaultUploading(false);
+    }
   }
 
   async function savePaymentSettings() {
@@ -1754,6 +1873,124 @@ export default function SettingsPage() {
                 title="Optional proof"
               />
             </div>
+          </div>
+          <div className="ol-form-band ol-document-vault-band">
+            <div className="ol-form-band-header">
+              <div>
+                <div className="ol-form-band-title">Document vault</div>
+                <p className="ol-form-band-copy">
+                  Upload legal proof for this {entityProfileUi.entityLabel.toLowerCase()} profile. Vault records keep the reason, attestation, uploader, and file metadata ready for admin review.
+                </p>
+              </div>
+              <span className="ol-chip ol-chip--primary">{vaultDocuments.length} uploaded</span>
+            </div>
+
+            <div className="ol-document-vault-upload-grid">
+              <ProfileField
+                help="Use a clear name like PAN card, GST certificate, or registered office proof."
+                label="Document name"
+                required
+                value={vaultUploadForm.documentName}
+                onChange={(value) => updateVaultUploadForm('documentName', value)}
+              />
+              <label className="ol-field">
+                <span className="ol-field-label">
+                  Document type
+                  <span className="ol-required-badge">Required</span>
+                </span>
+                <select
+                  className="ol-select"
+                  required
+                  value={vaultUploadForm.documentType}
+                  onChange={(event) => handleVaultDocumentTypeChange(event.target.value)}
+                >
+                  <option value="">Choose document type</option>
+                  {documentVaultTypeOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label} · {option.requirement === 'required' ? 'Required' : 'Optional'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="ol-field">
+                <span className="ol-field-label">
+                  Document category
+                  <span className="ol-required-badge">Required</span>
+                </span>
+                <select
+                  className="ol-select"
+                  required
+                  value={vaultUploadForm.documentCategory}
+                  onChange={(event) =>
+                    updateVaultUploadForm(
+                      'documentCategory',
+                      event.target.value as WebDocumentVaultUploadForm['documentCategory']
+                    )
+                  }
+                >
+                  <option value="">Choose category</option>
+                  {WEB_DOCUMENT_VAULT_CATEGORY_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <ProfileTextArea
+                help="This reason is saved with the vault record for future audit and admin verification."
+                label="Reason to upload"
+                value={vaultUploadForm.reasonToUpload}
+                onChange={(value) => updateVaultUploadForm('reasonToUpload', value)}
+              />
+              <label className="ol-field">
+                <span className="ol-field-label">
+                  File
+                  <span className="ol-required-badge">Required</span>
+                </span>
+                <input
+                  ref={vaultFileInputRef}
+                  accept={ORBIT_VERIFICATION_DOCUMENT_ACCEPT}
+                  className="ol-input ol-file-input"
+                  type="file"
+                  onChange={(event) => {
+                    setVaultFile(event.target.files?.[0] ?? null);
+                    setVaultUploadError(null);
+                  }}
+                />
+                <span className="ol-field-help">
+                  PDF, PNG, or JPEG only. Maximum file size is 10 MB.
+                </span>
+              </label>
+              <label className="ol-inline-check ol-inline-check--panel ol-document-vault-attestation">
+                <input
+                  checked={vaultUploadForm.selfAttestation}
+                  type="checkbox"
+                  onChange={(event) => updateVaultUploadForm('selfAttestation', event.target.checked)}
+                />
+                <span>
+                  <strong>Self-attestation</strong>
+                  <small>{WEB_DOCUMENT_VAULT_ATTESTATION_TEXT}</small>
+                </span>
+              </label>
+            </div>
+
+            {vaultUploadError ? <div className="ol-inline-error">{vaultUploadError}</div> : null}
+
+            <div className="ol-form-band-actions">
+              <span className="ol-form-band-copy">
+                {vaultFile ? `${vaultFile.name} · ${formatFileSize(vaultFile.size)}` : 'No file selected.'}
+              </span>
+              <button
+                className="ol-button"
+                disabled={isVaultUploading}
+                type="button"
+                onClick={uploadVaultDocument}
+              >
+                {isVaultUploading ? 'Uploading...' : 'Upload document'}
+              </button>
+            </div>
+
+            <DocumentVaultList documents={vaultDocuments} isLoading={isVaultLoading} />
           </div>
         </div>
 
@@ -2889,6 +3126,65 @@ function VerificationDocumentList({
   );
 }
 
+function DocumentVaultList({
+  documents,
+  isLoading,
+}: {
+  documents: readonly WebDocumentVaultRecord[];
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="ol-empty-state ol-document-vault-empty">
+        <span>Loading document vault...</span>
+      </div>
+    );
+  }
+
+  if (!documents.length) {
+    return (
+      <div className="ol-empty-state ol-document-vault-empty">
+        <span>No uploaded documents yet.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ol-document-vault-list" aria-label="Uploaded documents">
+      {documents.map((document) => (
+        <article className="ol-list-item ol-document-vault-item" key={document.id}>
+          <div className="ol-list-icon" data-tone={document.selfAttested ? 'success' : 'warning'}>
+            {document.documentCategoryLabel.slice(0, 1)}
+          </div>
+          <div className="ol-list-copy">
+            <div className="ol-verification-doc-title-row">
+              <div>
+                <div className="ol-list-title">{document.documentName}</div>
+                <div className="ol-list-text">
+                  {document.documentTypeLabel} · Uploaded {document.uploadedAt ? formatAuditDate(document.uploadedAt) : 'recently'}
+                </div>
+              </div>
+              <span className="ol-chip ol-chip--success">{document.verificationStatus.replace(/_/g, ' ')}</span>
+            </div>
+            <div className="ol-list-text ol-document-vault-reason">{document.reasonToUpload}</div>
+            <div className="ol-verification-doc-meta">
+              <span>{document.documentCategoryLabel}</span>
+              <span>{document.contentType}</span>
+              <span>{formatFileSize(document.size)}</span>
+              <span>{document.selfAttested ? 'Self-attested' : 'Attestation missing'}</span>
+            </div>
+          </div>
+          {document.downloadUrl ? (
+            <a className="ol-button-secondary ol-document-vault-open" href={document.downloadUrl} rel="noreferrer" target="_blank">
+              Open
+            </a>
+          ) : null}
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function ProfileField({
   error,
   help,
@@ -3004,6 +3300,16 @@ function formatAuditDate(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
+}
+
+function formatFileSize(size: number) {
+  if (!Number.isFinite(size) || size <= 0) {
+    return '0 KB';
+  }
+  if (size >= 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(size >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+  }
+  return `${Math.max(1, Math.round(size / 1024))} KB`;
 }
 
 function TemplateSelect({

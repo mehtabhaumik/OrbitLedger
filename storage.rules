@@ -23,6 +23,11 @@ service firebase.storage {
         request.resource.contentType == 'application/pdf';
     }
 
+    function isVerificationDocumentUpload(maxBytes) {
+      return request.resource.size <= maxBytes &&
+        request.resource.contentType.matches('(application/pdf|image/png|image/jpeg)');
+    }
+
     function isBackupUpload(maxBytes) {
       return request.resource.size <= maxBytes &&
         request.resource.contentType.matches('(application/json|application/octet-stream)');
@@ -60,6 +65,12 @@ service firebase.storage {
     match /workspaces/{workspaceId}/documents/statements/{fileName} {
       allow read: if ownsWorkspace(workspaceId);
       allow create, update: if ownsWorkspace(workspaceId) && isPdfUpload(10 * 1024 * 1024);
+      allow delete: if ownsWorkspace(workspaceId);
+    }
+
+    match /workspaces/{workspaceId}/documents/vault/{documentId}/{fileName} {
+      allow read: if ownsWorkspace(workspaceId);
+      allow create, update: if ownsWorkspace(workspaceId) && isVerificationDocumentUpload(10 * 1024 * 1024);
       allow delete: if ownsWorkspace(workspaceId);
     }
 

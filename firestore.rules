@@ -228,6 +228,7 @@ service cloud.firestore {
         collectionName != 'office_access_admin_queue' &&
         collectionName != 'settings_audit' &&
         collectionName != 'entity_profile_revisions' &&
+        collectionName != 'document_vault' &&
         collectionName != 'live_payment_events' &&
         collectionName != 'live_payment_event_raw' &&
         collectionName != 'live_payment_audit' &&
@@ -311,6 +312,127 @@ service cloud.firestore {
         (
           request.resource.data.created_at is timestamp ||
           request.resource.data.created_at is string
+        );
+    }
+
+    function validDocumentVaultDocument(workspaceId) {
+      return request.resource.data.keys().hasOnly([
+          'workspace_id',
+          'document_name',
+          'document_type',
+          'document_type_label',
+          'document_category',
+          'document_category_label',
+          'reason_to_upload',
+          'self_attested',
+          'attestation_text',
+          'file_name',
+          'content_type',
+          'size',
+          'storage_path',
+          'download_url',
+          'uploaded_by_uid',
+          'uploaded_by_email',
+          'uploaded_at',
+          'created_at',
+          'updated_at',
+          'entity_type',
+          'entity_subtype',
+          'verification_status',
+          'linked_profile_revision_id'
+        ]) &&
+        request.resource.data.workspace_id == workspaceId &&
+        request.resource.data.document_name is string &&
+        request.resource.data.document_name.size() > 0 &&
+        request.resource.data.document_type is string &&
+        request.resource.data.document_type in [
+          'pan_card',
+          'identity_proof',
+          'address_proof',
+          'gst_certificate',
+          'bank_proof',
+          'udyam_certificate',
+          'professional_registration',
+          'shop_establishment_registration',
+          'partnership_deed',
+          'partner_list',
+          'authorization_letter',
+          'llp_incorporation_certificate',
+          'llp_agreement',
+          'company_incorporation_certificate',
+          'company_pan_proof',
+          'registered_office_proof',
+          'board_resolution',
+          'authorized_signatory_proof',
+          'trust_deed',
+          'society_registration_certificate',
+          'section_8_incorporation_certificate',
+          'ngo_registration_certificate',
+          'nonprofit_pan_proof',
+          'twelve_a_12ab_certificate',
+          'eighty_g_certificate',
+          'fcra_registration',
+          'csr_1_registration',
+          'darpan_proof',
+          'other'
+        ] &&
+        request.resource.data.document_type_label is string &&
+        request.resource.data.document_type_label.size() > 0 &&
+        request.resource.data.document_category in [
+          'identity',
+          'address',
+          'registration',
+          'authorization',
+          'tax',
+          'gst',
+          'nonprofit_tax',
+          'foreign_contribution',
+          'csr',
+          'bank',
+          'professional',
+          'other'
+        ] &&
+        request.resource.data.document_category_label is string &&
+        request.resource.data.document_category_label.size() > 0 &&
+        request.resource.data.reason_to_upload is string &&
+        request.resource.data.reason_to_upload.size() > 0 &&
+        request.resource.data.self_attested == true &&
+        request.resource.data.attestation_text is string &&
+        request.resource.data.attestation_text.size() > 0 &&
+        request.resource.data.file_name is string &&
+        request.resource.data.file_name.size() > 0 &&
+        request.resource.data.content_type in ['application/pdf', 'image/png', 'image/jpeg'] &&
+        request.resource.data.size is number &&
+        request.resource.data.size > 0 &&
+        request.resource.data.size <= 10 * 1024 * 1024 &&
+        request.resource.data.storage_path is string &&
+        request.resource.data.storage_path.matches('workspaces/' + workspaceId + '/documents/vault/[^/]+/.+') &&
+        request.resource.data.download_url is string &&
+        request.resource.data.download_url.size() > 0 &&
+        request.resource.data.uploaded_by_uid == request.auth.uid &&
+        (request.resource.data.uploaded_by_email == null || request.resource.data.uploaded_by_email is string) &&
+        request.resource.data.entity_type in [
+          'freelancer_individual',
+          'sole_proprietorship',
+          'partnership_firm',
+          'llp',
+          'company',
+          'nonprofit_charity'
+        ] &&
+        (request.resource.data.entity_subtype == null || request.resource.data.entity_subtype is string) &&
+        request.resource.data.verification_status == 'uploaded' &&
+        request.resource.data.linked_profile_revision_id == null &&
+        (
+          request.resource.data.uploaded_at is timestamp ||
+          request.resource.data.uploaded_at is string
+        ) &&
+        (
+          request.resource.data.created_at is timestamp ||
+          request.resource.data.created_at is string
+        ) &&
+        (
+          request.resource.data.updated_at is timestamp ||
+          request.resource.data.updated_at is string
         );
     }
 
@@ -541,6 +663,13 @@ service cloud.firestore {
       match /entity_profile_revisions/{revisionId} {
         allow read: if ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin', 'accountant']);
         allow create: if validEntityProfileRevisionDocument(workspaceId) &&
+          (ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin']));
+        allow update, delete: if false;
+      }
+
+      match /document_vault/{documentId} {
+        allow read: if ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin', 'accountant']);
+        allow create: if validDocumentVaultDocument(workspaceId) &&
           (ownsWorkspace(workspaceId) || hasOfficeRole(workspaceId, ['admin']));
         allow update, delete: if false;
       }

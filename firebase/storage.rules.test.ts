@@ -93,6 +93,62 @@ describe('Storage workspace rules', () => {
     );
   });
 
+  it('allows only strict PDF, PNG, and JPEG files in the document vault', async () => {
+    const ownerStorage = testEnv.authenticatedContext('owner-1').storage();
+
+    await assertSucceeds(
+      upload(
+        ownerStorage.ref('workspaces/workspace-1/documents/vault/document-1/proof.pdf'),
+        bytes(1024),
+        'application/pdf'
+      )
+    );
+    await assertSucceeds(
+      upload(
+        ownerStorage.ref('workspaces/workspace-1/documents/vault/document-1/proof.png'),
+        bytes(1024),
+        'image/png'
+      )
+    );
+    await assertSucceeds(
+      upload(
+        ownerStorage.ref('workspaces/workspace-1/documents/vault/document-1/proof.jpg'),
+        bytes(1024),
+        'image/jpeg'
+      )
+    );
+    await assertFails(
+      upload(
+        ownerStorage.ref('workspaces/workspace-1/documents/vault/document-1/proof.webp'),
+        bytes(1024),
+        'image/webp'
+      )
+    );
+    await assertFails(
+      upload(
+        ownerStorage.ref('workspaces/workspace-1/documents/vault/document-1/too-large.pdf'),
+        bytes(10 * 1024 * 1024 + 1),
+        'application/pdf'
+      )
+    );
+  });
+
+  it('blocks cross-workspace access to document vault files', async () => {
+    const ownerStorage = testEnv.authenticatedContext('owner-1').storage();
+    const otherStorage = testEnv.authenticatedContext('owner-2').storage();
+    const path = 'workspaces/workspace-1/documents/vault/document-1/proof.pdf';
+
+    await assertSucceeds(upload(ownerStorage.ref(path), bytes(1024), 'application/pdf'));
+    await assertFails(otherStorage.ref(path).getDownloadURL());
+    await assertFails(
+      upload(
+        otherStorage.ref('workspaces/workspace-1/documents/vault/document-2/proof.pdf'),
+        bytes(1024),
+        'application/pdf'
+      )
+    );
+  });
+
   it('keeps backups, imports, and unknown paths constrained', async () => {
     const ownerStorage = testEnv.authenticatedContext('owner-1').storage();
 

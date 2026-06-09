@@ -23,6 +23,11 @@ const ALLOWED_PAYMENT_PROOF_TYPES = new Map([
   ...ALLOWED_IMAGE_TYPES,
   ['application/pdf', 'pdf'],
 ]);
+const ALLOWED_VERIFICATION_DOCUMENT_EXTENSIONS = new Map([
+  ['application/pdf', 'pdf'],
+  ['image/png', 'png'],
+  ['image/jpeg', 'jpg'],
+]);
 
 export type WorkspaceIdentityAssetKind = 'logo' | 'signature' | 'watermark';
 
@@ -79,6 +84,41 @@ export function validatePaymentInstrumentImage(file: File) {
 
 export function validateWorkspaceVerificationDocumentFile(file: File) {
   return validateOrbitVerificationDocumentFile(file);
+}
+
+export async function uploadWorkspaceVerificationDocument(
+  workspaceId: string,
+  documentId: string,
+  file: File
+) {
+  const error = validateWorkspaceVerificationDocumentFile(file);
+  if (error) {
+    throw new Error(error);
+  }
+
+  const extension = ALLOWED_VERIFICATION_DOCUMENT_EXTENSIONS.get(file.type) ?? 'pdf';
+  const timestamp = Date.now();
+  const safeName = sanitizeStorageFileName(file.name || `verification-document.${extension}`, extension);
+  const storagePath = `workspaces/${workspaceId}/documents/vault/${documentId}/${timestamp}-${safeName}`;
+  const fileRef = ref(getWebStorage(), storagePath);
+
+  await uploadBytes(fileRef, file, {
+    contentType: file.type,
+    customMetadata: {
+      workspaceId,
+      documentId,
+      assetKind: 'verification-document',
+      originalName: file.name,
+    },
+  });
+
+  return {
+    fileName: file.name || safeName,
+    url: await getDownloadURL(fileRef),
+    storagePath,
+    contentType: file.type,
+    size: file.size,
+  };
 }
 
 export async function uploadPaymentInstrumentImage(
@@ -163,4 +203,16 @@ function loadImage(file: File): Promise<HTMLImageElement> {
     };
     image.src = url;
   });
+}
+
+function sanitizeStorageFileName(name: string, extension: string) {
+  const cleaned = name
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 96);
+  const fallback = `verification-document.${extension}`;
+  const candidate = cleaned || fallback;
+  return candidate.toLowerCase().endsWith(`.${extension}`) ? candidate : `${candidate}.${extension}`;
 }

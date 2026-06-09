@@ -6713,6 +6713,68 @@ a:focus-visible {
   margin-top: 20px;
 }
 
+.ol-document-vault-band {
+  gap: 18px;
+}
+
+.ol-document-vault-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 18px;
+  align-items: start;
+  min-width: 0;
+}
+
+.ol-file-input {
+  padding: 10px;
+}
+
+.ol-document-vault-attestation {
+  margin: 0;
+  min-height: 100%;
+}
+
+.ol-inline-error {
+  padding: 12px 14px;
+  border: 1px solid rgba(193, 73, 93, 0.22);
+  border-radius: var(--control-radius);
+  background: var(--danger-surface);
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ol-document-vault-list {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ol-document-vault-item {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(205, 217, 235, 0.82);
+  border-radius: var(--control-radius);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.ol-document-vault-reason {
+  margin-top: 8px;
+}
+
+.ol-document-vault-open {
+  width: fit-content;
+  white-space: nowrap;
+}
+
+.ol-document-vault-empty {
+  min-height: 110px;
+  padding: 18px;
+  align-items: center;
+  justify-content: center;
+}
+
 .ol-fast-entry-capture {
   display: grid;
   grid-template-columns: minmax(260px, 0.9fr) minmax(280px, 1.1fr);

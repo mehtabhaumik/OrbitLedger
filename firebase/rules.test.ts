@@ -294,6 +294,54 @@ describe('Firestore workspace rules', () => {
     await assertFails(staffRevisions.doc('staff-revision').set(entityProfileRevisionPayload('workspace-1', 'staff-1')));
   });
 
+  it('restricts document vault records to owners and Office admins', async () => {
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'admin-1', 'admin');
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'accountant-1', 'accountant');
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'staff-1', 'staff');
+
+    const ownerVault = testEnv.authenticatedContext('owner-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('document_vault');
+    const adminVault = testEnv.authenticatedContext('admin-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('document_vault');
+    const accountantVault = testEnv.authenticatedContext('accountant-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('document_vault');
+    const staffVault = testEnv.authenticatedContext('staff-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('document_vault');
+
+    await assertSucceeds(ownerVault.doc('owner-document').set(documentVaultPayload('workspace-1', 'owner-1')));
+    await assertSucceeds(adminVault.doc('admin-document').set(documentVaultPayload('workspace-1', 'admin-1')));
+    await assertSucceeds(accountantVault.doc('owner-document').get());
+    await assertFails(accountantVault.doc('accountant-document').set(documentVaultPayload('workspace-1', 'accountant-1')));
+    await assertFails(staffVault.doc('owner-document').get());
+    await assertFails(staffVault.doc('staff-document').set(documentVaultPayload('workspace-1', 'staff-1')));
+  });
+
+  it('blocks unsafe document vault metadata', async () => {
+    await seedWorkspace('workspace-1', 'owner-1');
+
+    const ownerVault = testEnv.authenticatedContext('owner-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('document_vault');
+
+    await assertFails(
+      ownerVault.doc('webp-document').set({
+        ...documentVaultPayload('workspace-1', 'owner-1'),
+        content_type: 'image/webp',
+      })
+    );
+    await assertFails(
+      ownerVault.doc('missing-attestation').set({
+        ...documentVaultPayload('workspace-1', 'owner-1'),
+        self_attested: false,
+      })
+    );
+    await assertFails(
+      ownerVault.doc('oversized-document').set({
+        ...documentVaultPayload('workspace-1', 'owner-1'),
+        size: 10 * 1024 * 1024 + 1,
+      })
+    );
+  });
+
   it('lets active Office members discover shared workspaces through membership lookup', async () => {
     await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'manager-1', 'manager');
 
@@ -799,5 +847,33 @@ function entityProfileRevisionPayload(workspaceId: string, actorUid: string) {
     server_revision_before: 1,
     server_revision_after: 2,
     created_at: '2026-06-09T18:00:00.000Z',
+  };
+}
+
+function documentVaultPayload(workspaceId: string, actorUid: string) {
+  return {
+    workspace_id: workspaceId,
+    document_name: 'PAN card',
+    document_type: 'pan_card',
+    document_type_label: 'PAN card',
+    document_category: 'tax',
+    document_category_label: 'Tax',
+    reason_to_upload: 'Initial verification',
+    self_attested: true,
+    attestation_text: 'I confirm this document is legal, authentic, correct, and I am authorized to upload it.',
+    file_name: 'pan-card.pdf',
+    content_type: 'application/pdf',
+    size: 1024,
+    storage_path: `workspaces/${workspaceId}/documents/vault/document-1/pan-card.pdf`,
+    download_url: 'https://storage.example/pan-card.pdf',
+    uploaded_by_uid: actorUid,
+    uploaded_by_email: `${actorUid}@example.com`,
+    uploaded_at: '2026-06-09T18:00:00.000Z',
+    created_at: '2026-06-09T18:00:00.000Z',
+    updated_at: '2026-06-09T18:00:00.000Z',
+    entity_type: 'sole_proprietorship',
+    entity_subtype: null,
+    verification_status: 'uploaded',
+    linked_profile_revision_id: null,
   };
 }
