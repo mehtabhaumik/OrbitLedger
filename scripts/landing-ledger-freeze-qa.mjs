@@ -10,21 +10,19 @@ const outputDir = join(repoRoot, "artifacts", "landing-ledger-freeze-qa", timest
 const targetUrl = process.env.ORBIT_LEDGER_LOCAL_URL ?? "http://localhost:3001/";
 
 const viewports = [
-  { name: "mobile", width: 390, height: 1200, expectsMenu: true, expectsSingleColumn: true },
-  { name: "tablet", width: 834, height: 1200, expectsMenu: true, expectsSingleColumn: false },
-  { name: "desktop", width: 1440, height: 1200, expectsMenu: false, expectsSingleColumn: false },
+  { name: "mobile", width: 390, height: 1200, expectsMenu: true, expectsRevampSingleColumn: true },
+  { name: "tablet", width: 834, height: 1200, expectsMenu: true, expectsRevampSingleColumn: true },
+  { name: "desktop", width: 1440, height: 1200, expectsMenu: false, expectsRevampSingleColumn: false },
 ];
 
 const sections = [
-  ["hero", ".ol-landing-hero"],
-  ["product-flow", ".ol-product-flow-section"],
+  ["hero", ".ol-revamp-hero"],
+  ["workflow", ".ol-revamp-workflow"],
+  ["product", "#product"],
   ["templates", "#templates"],
-  ["live-control", ".ol-live-control-section"],
-  ["story", ".ol-landing-story-section"],
-  ["office", "#office"],
-  ["trust", ".ol-trust-rebuild-section"],
+  ["template-showcase", ".ol-template-stage"],
   ["pricing", "#pricing"],
-  ["final", "#final-cta"],
+  ["footer", ".ol-revamp-footer"],
 ];
 
 function assertSafeUrl(url) {
@@ -81,7 +79,11 @@ for (const viewport of viewports) {
     };
     const viewportWidth = window.innerWidth;
     const textOverflow = [];
-    const ignoredDecorativeSelectors = [".ol-ledger-bg-sheet", ".ol-landing-hero-ledger"];
+    const ignoredDecorativeSelectors = [
+      ".ol-ledger-bg-sheet",
+      ".ol-landing-hero-ledger",
+      ".ol-revamp-workflow",
+    ];
 
     for (const el of document.querySelectorAll("h1,h2,h3,p,a,button,span,strong,b,em,small,li")) {
       if (!visible(el)) continue;
@@ -103,7 +105,11 @@ for (const viewport of viewports) {
       return node ? getComputedStyle(node).gridTemplateColumns : null;
     };
 
-    const sectionRects = Array.from(document.querySelectorAll(".ol-landing-section"))
+    const sectionRects = Array.from(
+      document.querySelectorAll(
+        ".ol-revamp-hero,.ol-revamp-workflow,.ol-revamp-feature-band,.ol-revamp-template-band,.ol-revamp-beta-cta,.ol-revamp-footer",
+      ),
+    )
       .map((section) => {
         const rect = section.getBoundingClientRect();
         return { top: rect.top + window.scrollY, bottom: rect.bottom + window.scrollY };
@@ -114,9 +120,10 @@ for (const viewport of viewports) {
       overflow: document.documentElement.scrollWidth - viewportWidth,
       textOverflow,
       mobileMenuDisplay: getComputedStyle(document.querySelector(".ol-landing-menu-button")).display,
-      storyColumns: styleFor(".ol-landing-story-grid"),
-      officeColumns: styleFor("#office"),
-      trustColumns: styleFor(".ol-trust-control-grid"),
+      heroColumns: styleFor(".ol-revamp-hero"),
+      featureColumns: styleFor(".ol-revamp-feature-grid"),
+      templateGalleryColumns: styleFor(".ol-template-gallery-shell"),
+      footerColumns: styleFor(".ol-revamp-footer-main"),
       sectionGaps: sectionRects.slice(0, -1).map((rect, index) => Math.round(sectionRects[index + 1].top - rect.bottom)),
     };
   });
@@ -133,14 +140,26 @@ for (const viewport of viewports) {
   if (!viewport.expectsMenu && audit.mobileMenuDisplay !== "none") {
     failures.push(`${viewport.name}: hamburger menu is visible on desktop`);
   }
-  if (viewport.expectsSingleColumn) {
+  if (viewport.expectsRevampSingleColumn) {
     for (const [label, columns] of [
-      ["story", audit.storyColumns],
-      ["office", audit.officeColumns],
-      ["trust", audit.trustColumns],
+      ["hero", audit.heroColumns],
+      ["features", audit.featureColumns],
+      ["template gallery", audit.templateGalleryColumns],
+      ["footer", audit.footerColumns],
     ]) {
       if (columnCount(columns) !== 1) {
         failures.push(`${viewport.name}: ${label} section is not single-column (${columns})`);
+      }
+    }
+  } else {
+    for (const [label, columns] of [
+      ["hero", audit.heroColumns],
+      ["features", audit.featureColumns],
+      ["template gallery", audit.templateGalleryColumns],
+      ["footer", audit.footerColumns],
+    ]) {
+      if (columnCount(columns) <= 1) {
+        failures.push(`${viewport.name}: ${label} section did not preserve desktop columns (${columns})`);
       }
     }
   }
