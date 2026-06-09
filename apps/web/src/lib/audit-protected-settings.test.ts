@@ -58,4 +58,21 @@ describe('audit protected settings', () => {
     expect(changes[0]?.maskedPreviousValue).toBe('Uploaded signature file');
     expect(changes[0]?.maskedNextValue).toBe('Uploaded signature file');
   });
+
+  it('tracks new identity compliance fields without exposing full registration values', () => {
+    const changes = buildAuditProtectedSettingsChanges(
+      {
+        cin: 'U72900GJ2024PTC123456',
+        fcraRegistrationNumber: 'FCRA-OLD-123456',
+      },
+      {
+        cin: 'U72900GJ2024PTC654321',
+        fcraRegistrationNumber: 'FCRA-NEW-654321',
+      }
+    );
+
+    expect(changes.map((change) => change.label)).toEqual(['CIN', 'FCRA registration number']);
+    expect(changes[0]?.maskedPreviousValue).toBe('********3456');
+    expect(changes[1]?.maskedNextValue).toBe('********4321');
+  });
 });

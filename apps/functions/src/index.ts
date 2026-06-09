@@ -15435,6 +15435,10 @@ function mapFunctionWorkspaceSummary(id: string, data: Record<string, unknown>) 
     ownerName: clean(stringValue(data.owner_name)) ?? '',
     contactPerson: clean(stringValue(data.contact_person)),
     businessType: clean(stringValue(data.business_type)),
+    entityType: normalizeFunctionEntityType(data.entity_type),
+    entitySubtype: normalizeFunctionEntitySubtype(data.entity_subtype),
+    entityVerificationStatus: normalizeFunctionEntityVerificationStatus(data.entity_verification_status),
+    entityComplianceFlags: normalizeFunctionEntityComplianceFlags(asRecord(data.entity_compliance_flags)),
     phone: clean(stringValue(data.phone)) ?? '',
     whatsapp: clean(stringValue(data.whatsapp)),
     email: clean(stringValue(data.email)) ?? '',
@@ -15447,8 +15451,22 @@ function mapFunctionWorkspaceSummary(id: string, data: Record<string, unknown>) 
     postalCode: clean(stringValue(data.postal_code)),
     gstin: clean(stringValue(data.gstin)),
     pan: clean(stringValue(data.pan)),
+    cin: clean(stringValue(data.cin)),
+    llpin: clean(stringValue(data.llpin)),
     taxNumber: clean(stringValue(data.tax_number)),
     registrationNumber: clean(stringValue(data.registration_number)),
+    registeredOfficeAddress: clean(stringValue(data.registered_office_address)),
+    principalPlaceOfBusiness: clean(stringValue(data.principal_place_of_business)),
+    additionalPlacesOfBusiness: Array.isArray(data.additional_places_of_business)
+      ? data.additional_places_of_business.filter((place): place is string => typeof place === 'string' && Boolean(clean(place)))
+      : null,
+    nonprofitRegistrationNumber: clean(stringValue(data.nonprofit_registration_number)),
+    nonprofitRegistrationAuthority: clean(stringValue(data.nonprofit_registration_authority)),
+    ngoDarpanId: clean(stringValue(data.ngo_darpan_id)),
+    taxExemption12A12ABNumber: clean(stringValue(data.tax_exemption_12a_12ab_number)),
+    taxDeduction80GNumber: clean(stringValue(data.tax_deduction_80g_number)),
+    fcraRegistrationNumber: clean(stringValue(data.fcra_registration_number)),
+    csrRegistrationNumber: clean(stringValue(data.csr_registration_number)),
     placeOfSupply: clean(stringValue(data.place_of_supply)),
     defaultTaxTreatment: clean(stringValue(data.default_tax_treatment)),
     defaultPaymentTerms: clean(stringValue(data.default_payment_terms)),
@@ -15530,6 +15548,10 @@ function workspaceFunctionProfileOptionalPayload(input: Record<string, unknown>)
     legal_name: clean(stringValue(input.legalName)),
     contact_person: clean(stringValue(input.contactPerson)),
     business_type: clean(stringValue(input.businessType)),
+    entity_type: normalizeFunctionEntityType(input.entityType),
+    entity_subtype: normalizeFunctionEntitySubtype(input.entitySubtype),
+    entity_verification_status: normalizeFunctionEntityVerificationStatus(input.entityVerificationStatus),
+    entity_compliance_flags: normalizeFunctionEntityComplianceFlags(asRecord(input.entityComplianceFlags)),
     whatsapp: clean(stringValue(input.whatsapp)),
     website: clean(stringValue(input.website)),
     address_line_1: clean(stringValue(input.addressLine1)),
@@ -15539,8 +15561,20 @@ function workspaceFunctionProfileOptionalPayload(input: Record<string, unknown>)
     postal_code: clean(stringValue(input.postalCode)),
     gstin: clean(stringValue(input.gstin))?.toUpperCase() ?? null,
     pan: clean(stringValue(input.pan))?.toUpperCase() ?? null,
+    cin: clean(stringValue(input.cin))?.toUpperCase() ?? null,
+    llpin: clean(stringValue(input.llpin))?.toUpperCase() ?? null,
     tax_number: clean(stringValue(input.taxNumber)),
     registration_number: clean(stringValue(input.registrationNumber)),
+    registered_office_address: clean(stringValue(input.registeredOfficeAddress)),
+    principal_place_of_business: clean(stringValue(input.principalPlaceOfBusiness)),
+    additional_places_of_business: normalizeFunctionPlaceList(input.additionalPlacesOfBusiness),
+    nonprofit_registration_number: clean(stringValue(input.nonprofitRegistrationNumber)),
+    nonprofit_registration_authority: clean(stringValue(input.nonprofitRegistrationAuthority)),
+    ngo_darpan_id: clean(stringValue(input.ngoDarpanId)),
+    tax_exemption_12a_12ab_number: clean(stringValue(input.taxExemption12A12ABNumber)),
+    tax_deduction_80g_number: clean(stringValue(input.taxDeduction80GNumber)),
+    fcra_registration_number: clean(stringValue(input.fcraRegistrationNumber)),
+    csr_registration_number: clean(stringValue(input.csrRegistrationNumber)),
     place_of_supply: clean(stringValue(input.placeOfSupply)),
     default_tax_treatment: clean(stringValue(input.defaultTaxTreatment)),
     default_payment_terms: clean(stringValue(input.defaultPaymentTerms)),
@@ -15610,6 +15644,63 @@ function functionPaymentInstructionPayload(details: Record<string, unknown> | nu
     payment_bank_iban: clean(stringValue(details?.bankIban)),
     payment_bank_swift: clean(stringValue(details?.bankSwift)),
   };
+}
+
+function normalizeFunctionEntityType(value: unknown) {
+  return normalizeFunctionChoice(
+    stringValue(value),
+    ['freelancer_individual', 'sole_proprietorship', 'partnership_firm', 'llp', 'company', 'nonprofit_charity'],
+    'sole_proprietorship'
+  );
+}
+
+function normalizeFunctionEntitySubtype(value: unknown) {
+  const normalized = clean(stringValue(value));
+  const allowed = [
+    'private_limited',
+    'one_person_company',
+    'public_limited',
+    'other_company',
+    'charitable_trust',
+    'registered_society',
+    'section_8_company',
+    'ngo_voluntary_organization',
+    'religious_charitable_institution',
+    'other_nonprofit',
+  ];
+  return normalized && allowed.includes(normalized) ? normalized : null;
+}
+
+function normalizeFunctionEntityVerificationStatus(value: unknown) {
+  return normalizeFunctionChoice(
+    stringValue(value),
+    ['draft', 'pending_review', 'approved', 'needs_updates', 'rejected'],
+    'draft'
+  );
+}
+
+function normalizeFunctionEntityComplianceFlags(flags: Record<string, unknown> | null) {
+  return {
+    gstRegistered: booleanOrNull(flags?.gstRegistered) ?? false,
+    donationReceiptsEnabled: booleanOrNull(flags?.donationReceiptsEnabled) ?? false,
+    has12A12AB: booleanOrNull(flags?.has12A12AB) ?? false,
+    has80G: booleanOrNull(flags?.has80G) ?? false,
+    receivesForeignContribution: booleanOrNull(flags?.receivesForeignContribution) ?? false,
+    hasFcra: booleanOrNull(flags?.hasFcra) ?? false,
+    acceptsCsrFunding: booleanOrNull(flags?.acceptsCsrFunding) ?? false,
+    hasUdyam: booleanOrNull(flags?.hasUdyam) ?? false,
+  };
+}
+
+function normalizeFunctionPlaceList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const places = value
+    .map((place) => clean(stringValue(place)))
+    .filter((place): place is string => Boolean(place))
+    .slice(0, 20);
+  return places.length ? places : null;
 }
 
 function normalizeFunctionChoice<T extends string>(

@@ -1,6 +1,12 @@
 'use client';
 
-import type { OrbitWorkspaceSummary } from '@orbit-ledger/contracts';
+import type {
+  OrbitEntityComplianceFlags,
+  OrbitEntitySubtype,
+  OrbitEntityType,
+  OrbitEntityVerificationStatus,
+  OrbitWorkspaceSummary,
+} from '@orbit-ledger/contracts';
 import { normalizeManualPaymentInstructionDetails, type ManualPaymentInstructionDetails } from '@orbit-ledger/core';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import {
@@ -32,6 +38,10 @@ export type WorkspaceProfileInput = {
   ownerName: string;
   contactPerson?: string | null;
   businessType?: string | null;
+  entityType?: OrbitEntityType | null;
+  entitySubtype?: OrbitEntitySubtype | null;
+  entityVerificationStatus?: OrbitEntityVerificationStatus | null;
+  entityComplianceFlags?: Partial<OrbitEntityComplianceFlags> | null;
   phone: string;
   whatsapp?: string | null;
   email: string;
@@ -44,8 +54,20 @@ export type WorkspaceProfileInput = {
   postalCode?: string | null;
   gstin?: string | null;
   pan?: string | null;
+  cin?: string | null;
+  llpin?: string | null;
   taxNumber?: string | null;
   registrationNumber?: string | null;
+  registeredOfficeAddress?: string | null;
+  principalPlaceOfBusiness?: string | null;
+  additionalPlacesOfBusiness?: string[] | null;
+  nonprofitRegistrationNumber?: string | null;
+  nonprofitRegistrationAuthority?: string | null;
+  ngoDarpanId?: string | null;
+  taxExemption12A12ABNumber?: string | null;
+  taxDeduction80GNumber?: string | null;
+  fcraRegistrationNumber?: string | null;
+  csrRegistrationNumber?: string | null;
   placeOfSupply?: string | null;
   defaultTaxTreatment?: string | null;
   defaultPaymentTerms?: string | null;
@@ -113,6 +135,10 @@ type FirestoreWorkspaceDoc = {
   owner_name: string;
   contact_person?: string | null;
   business_type?: string | null;
+  entity_type?: string | null;
+  entity_subtype?: string | null;
+  entity_verification_status?: string | null;
+  entity_compliance_flags?: Partial<OrbitEntityComplianceFlags> | null;
   phone: string;
   whatsapp?: string | null;
   email: string;
@@ -125,8 +151,20 @@ type FirestoreWorkspaceDoc = {
   postal_code?: string | null;
   gstin?: string | null;
   pan?: string | null;
+  cin?: string | null;
+  llpin?: string | null;
   tax_number?: string | null;
   registration_number?: string | null;
+  registered_office_address?: string | null;
+  principal_place_of_business?: string | null;
+  additional_places_of_business?: string[] | null;
+  nonprofit_registration_number?: string | null;
+  nonprofit_registration_authority?: string | null;
+  ngo_darpan_id?: string | null;
+  tax_exemption_12a_12ab_number?: string | null;
+  tax_deduction_80g_number?: string | null;
+  fcra_registration_number?: string | null;
+  csr_registration_number?: string | null;
   place_of_supply?: string | null;
   default_tax_treatment?: string | null;
   default_payment_terms?: string | null;
@@ -752,6 +790,10 @@ function mapWorkspace(id: string, data: FirestoreWorkspaceDoc): OrbitWorkspaceSu
     ownerName: data.owner_name ?? '',
     contactPerson: data.contact_person ?? null,
     businessType: data.business_type ?? null,
+    entityType: normalizeEntityTypeValue(data.entity_type),
+    entitySubtype: normalizeEntitySubtypeValue(data.entity_subtype),
+    entityVerificationStatus: normalizeEntityVerificationStatusValue(data.entity_verification_status),
+    entityComplianceFlags: normalizeEntityComplianceFlagsValue(data.entity_compliance_flags),
     phone: data.phone ?? '',
     whatsapp: data.whatsapp ?? null,
     email: data.email ?? '',
@@ -764,8 +806,22 @@ function mapWorkspace(id: string, data: FirestoreWorkspaceDoc): OrbitWorkspaceSu
     postalCode: data.postal_code ?? null,
     gstin: data.gstin ?? null,
     pan: data.pan ?? null,
+    cin: data.cin ?? null,
+    llpin: data.llpin ?? null,
     taxNumber: data.tax_number ?? null,
     registrationNumber: data.registration_number ?? null,
+    registeredOfficeAddress: data.registered_office_address ?? null,
+    principalPlaceOfBusiness: data.principal_place_of_business ?? null,
+    additionalPlacesOfBusiness: Array.isArray(data.additional_places_of_business)
+      ? data.additional_places_of_business.filter((place): place is string => typeof place === 'string' && place.trim().length > 0)
+      : null,
+    nonprofitRegistrationNumber: data.nonprofit_registration_number ?? null,
+    nonprofitRegistrationAuthority: data.nonprofit_registration_authority ?? null,
+    ngoDarpanId: data.ngo_darpan_id ?? null,
+    taxExemption12A12ABNumber: data.tax_exemption_12a_12ab_number ?? null,
+    taxDeduction80GNumber: data.tax_deduction_80g_number ?? null,
+    fcraRegistrationNumber: data.fcra_registration_number ?? null,
+    csrRegistrationNumber: data.csr_registration_number ?? null,
     placeOfSupply: data.place_of_supply ?? null,
     defaultTaxTreatment: data.default_tax_treatment ?? null,
     defaultPaymentTerms: data.default_payment_terms ?? null,
@@ -862,6 +918,10 @@ function workspaceProfileOptionalPayload(input: WorkspaceProfileInput) {
     legal_name: cleanOptional(input.legalName),
     contact_person: cleanOptional(input.contactPerson),
     business_type: cleanOptional(input.businessType),
+    entity_type: normalizeEntityTypeValue(input.entityType),
+    entity_subtype: normalizeEntitySubtypeValue(input.entitySubtype),
+    entity_verification_status: normalizeEntityVerificationStatusValue(input.entityVerificationStatus),
+    entity_compliance_flags: normalizeEntityComplianceFlagsValue(input.entityComplianceFlags),
     whatsapp: cleanOptional(input.whatsapp),
     website: cleanOptional(input.website),
     address_line_1: cleanOptional(input.addressLine1),
@@ -871,8 +931,20 @@ function workspaceProfileOptionalPayload(input: WorkspaceProfileInput) {
     postal_code: cleanOptional(input.postalCode),
     gstin: cleanOptional(input.gstin)?.toUpperCase() ?? null,
     pan: cleanOptional(input.pan)?.toUpperCase() ?? null,
+    cin: cleanOptional(input.cin)?.toUpperCase() ?? null,
+    llpin: cleanOptional(input.llpin)?.toUpperCase() ?? null,
     tax_number: cleanOptional(input.taxNumber),
     registration_number: cleanOptional(input.registrationNumber),
+    registered_office_address: cleanOptional(input.registeredOfficeAddress),
+    principal_place_of_business: cleanOptional(input.principalPlaceOfBusiness),
+    additional_places_of_business: normalizePlaceList(input.additionalPlacesOfBusiness),
+    nonprofit_registration_number: cleanOptional(input.nonprofitRegistrationNumber),
+    nonprofit_registration_authority: cleanOptional(input.nonprofitRegistrationAuthority),
+    ngo_darpan_id: cleanOptional(input.ngoDarpanId),
+    tax_exemption_12a_12ab_number: cleanOptional(input.taxExemption12A12ABNumber),
+    tax_deduction_80g_number: cleanOptional(input.taxDeduction80GNumber),
+    fcra_registration_number: cleanOptional(input.fcraRegistrationNumber),
+    csr_registration_number: cleanOptional(input.csrRegistrationNumber),
     place_of_supply: cleanOptional(input.placeOfSupply),
     default_tax_treatment: cleanOptional(input.defaultTaxTreatment),
     default_payment_terms: cleanOptional(input.defaultPaymentTerms),
@@ -983,8 +1055,18 @@ function workspaceAuditSourceFromDoc(data: FirestoreWorkspaceDoc) {
     postalCode: data.postal_code,
     gstin: data.gstin,
     pan: data.pan,
+    cin: data.cin,
+    llpin: data.llpin,
     taxNumber: data.tax_number,
     registrationNumber: data.registration_number,
+    registeredOfficeAddress: data.registered_office_address,
+    principalPlaceOfBusiness: data.principal_place_of_business,
+    nonprofitRegistrationNumber: data.nonprofit_registration_number,
+    ngoDarpanId: data.ngo_darpan_id,
+    taxExemption12A12ABNumber: data.tax_exemption_12a_12ab_number,
+    taxDeduction80GNumber: data.tax_deduction_80g_number,
+    fcraRegistrationNumber: data.fcra_registration_number,
+    csrRegistrationNumber: data.csr_registration_number,
     placeOfSupply: data.place_of_supply,
     stateCode: data.state_code,
     defaultTaxTreatment: data.default_tax_treatment,
@@ -1047,6 +1129,62 @@ function normalizeDocumentFooterPreference(value?: string | null) {
 function normalizeChoice<T extends string>(value: string | null | undefined, allowed: readonly T[], fallback: T): T {
   const normalized = value?.trim();
   return allowed.includes(normalized as T) ? (normalized as T) : fallback;
+}
+
+function normalizeEntityTypeValue(value?: string | null): OrbitEntityType {
+  return normalizeChoice(
+    value,
+    ['freelancer_individual', 'sole_proprietorship', 'partnership_firm', 'llp', 'company', 'nonprofit_charity'],
+    'sole_proprietorship'
+  );
+}
+
+function normalizeEntitySubtypeValue(value?: string | null): OrbitEntitySubtype | null {
+  const normalized = value?.trim();
+  const allowed = [
+    'private_limited',
+    'one_person_company',
+    'public_limited',
+    'other_company',
+    'charitable_trust',
+    'registered_society',
+    'section_8_company',
+    'ngo_voluntary_organization',
+    'religious_charitable_institution',
+    'other_nonprofit',
+  ] as const satisfies readonly OrbitEntitySubtype[];
+  return allowed.includes(normalized as OrbitEntitySubtype) ? (normalized as OrbitEntitySubtype) : null;
+}
+
+function normalizeEntityVerificationStatusValue(value?: string | null): OrbitEntityVerificationStatus {
+  return normalizeChoice(
+    value,
+    ['draft', 'pending_review', 'approved', 'needs_updates', 'rejected'],
+    'draft'
+  );
+}
+
+function normalizeEntityComplianceFlagsValue(
+  flags?: Partial<OrbitEntityComplianceFlags> | null
+): OrbitEntityComplianceFlags {
+  return {
+    gstRegistered: Boolean(flags?.gstRegistered),
+    donationReceiptsEnabled: Boolean(flags?.donationReceiptsEnabled),
+    has12A12AB: Boolean(flags?.has12A12AB),
+    has80G: Boolean(flags?.has80G),
+    receivesForeignContribution: Boolean(flags?.receivesForeignContribution),
+    hasFcra: Boolean(flags?.hasFcra),
+    acceptsCsrFunding: Boolean(flags?.acceptsCsrFunding),
+    hasUdyam: Boolean(flags?.hasUdyam),
+  };
+}
+
+function normalizePlaceList(value?: string[] | null) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const places = value.map((place) => place.trim()).filter(Boolean).slice(0, 20);
+  return places.length ? places : null;
 }
 
 function normalizeHexColor(value?: string | null) {

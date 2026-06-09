@@ -4,6 +4,67 @@ export type OrbitSyncStatus = 'pending' | 'synced' | 'conflict';
 
 export type OrbitWorkspaceDataState = 'profile_only' | 'full_dataset';
 
+export type OrbitEntityType =
+  | 'freelancer_individual'
+  | 'sole_proprietorship'
+  | 'partnership_firm'
+  | 'llp'
+  | 'company'
+  | 'nonprofit_charity';
+
+export type OrbitCompanySubtype =
+  | 'private_limited'
+  | 'one_person_company'
+  | 'public_limited'
+  | 'other_company';
+
+export type OrbitNonprofitSubtype =
+  | 'charitable_trust'
+  | 'registered_society'
+  | 'section_8_company'
+  | 'ngo_voluntary_organization'
+  | 'religious_charitable_institution'
+  | 'other_nonprofit';
+
+export type OrbitEntitySubtype = OrbitCompanySubtype | OrbitNonprofitSubtype;
+
+export type OrbitEntityVerificationStatus =
+  | 'draft'
+  | 'pending_review'
+  | 'approved'
+  | 'needs_updates'
+  | 'rejected';
+
+export type OrbitEntityComplianceFlags = {
+  gstRegistered: boolean;
+  donationReceiptsEnabled: boolean;
+  has12A12AB: boolean;
+  has80G: boolean;
+  receivesForeignContribution: boolean;
+  hasFcra: boolean;
+  acceptsCsrFunding: boolean;
+  hasUdyam: boolean;
+};
+
+export type OrbitEntityProfileIdentity = {
+  entityType: OrbitEntityType;
+  entitySubtype: OrbitEntitySubtype | null;
+  entityVerificationStatus: OrbitEntityVerificationStatus;
+  complianceFlags: OrbitEntityComplianceFlags;
+  cin?: string | null;
+  llpin?: string | null;
+  registeredOfficeAddress?: string | null;
+  principalPlaceOfBusiness?: string | null;
+  additionalPlacesOfBusiness?: string[] | null;
+  nonprofitRegistrationNumber?: string | null;
+  nonprofitRegistrationAuthority?: string | null;
+  ngoDarpanId?: string | null;
+  taxExemption12A12ABNumber?: string | null;
+  taxDeduction80GNumber?: string | null;
+  fcraRegistrationNumber?: string | null;
+  csrRegistrationNumber?: string | null;
+};
+
 export type OnlinePaymentProvider = 'razorpay';
 
 export type OnlinePaymentProviderMode = 'test' | 'live';
@@ -221,9 +282,25 @@ export type OrbitWorkspaceSummary = {
   postalCode?: string | null;
   gstin?: string | null;
   pan?: string | null;
+  cin?: string | null;
+  llpin?: string | null;
   taxNumber?: string | null;
   registrationNumber?: string | null;
+  registeredOfficeAddress?: string | null;
+  principalPlaceOfBusiness?: string | null;
+  additionalPlacesOfBusiness?: string[] | null;
+  nonprofitRegistrationNumber?: string | null;
+  nonprofitRegistrationAuthority?: string | null;
+  ngoDarpanId?: string | null;
+  taxExemption12A12ABNumber?: string | null;
+  taxDeduction80GNumber?: string | null;
+  fcraRegistrationNumber?: string | null;
+  csrRegistrationNumber?: string | null;
   placeOfSupply?: string | null;
+  entityType?: OrbitEntityType | null;
+  entitySubtype?: OrbitEntitySubtype | null;
+  entityVerificationStatus?: OrbitEntityVerificationStatus | null;
+  entityComplianceFlags?: OrbitEntityComplianceFlags | null;
   defaultTaxTreatment?: string | null;
   defaultPaymentTerms?: string | null;
   defaultDueDays?: number | null;

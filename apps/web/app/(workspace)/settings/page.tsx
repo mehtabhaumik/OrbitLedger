@@ -1,6 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import type {
+  OrbitEntityComplianceFlags,
+  OrbitEntitySubtype,
+  OrbitEntityType,
+  OrbitEntityVerificationStatus,
+} from '@orbit-ledger/contracts';
 import {
   buildSmartInvoiceNumber,
   getManualPaymentInstructionTemplate,
@@ -77,6 +83,10 @@ type ProfileFormState = {
   ownerName: string;
   contactPerson: string;
   businessType: string;
+  entityType: OrbitEntityType;
+  entitySubtype: OrbitEntitySubtype | null;
+  entityVerificationStatus: OrbitEntityVerificationStatus;
+  entityComplianceFlags: OrbitEntityComplianceFlags;
   phone: string;
   whatsapp: string;
   email: string;
@@ -173,6 +183,19 @@ export default function SettingsPage() {
     ownerName: '',
     contactPerson: '',
     businessType: '',
+    entityType: 'sole_proprietorship',
+    entitySubtype: null,
+    entityVerificationStatus: 'draft',
+    entityComplianceFlags: {
+      gstRegistered: false,
+      donationReceiptsEnabled: false,
+      has12A12AB: false,
+      has80G: false,
+      receivesForeignContribution: false,
+      hasFcra: false,
+      acceptsCsrFunding: false,
+      hasUdyam: false,
+    },
     phone: '',
     whatsapp: '',
     email: '',
@@ -267,6 +290,19 @@ export default function SettingsPage() {
       ownerName: activeWorkspace.ownerName,
       contactPerson: activeWorkspace.contactPerson ?? '',
       businessType: activeWorkspace.businessType ?? '',
+      entityType: activeWorkspace.entityType ?? 'sole_proprietorship',
+      entitySubtype: activeWorkspace.entitySubtype ?? null,
+      entityVerificationStatus: activeWorkspace.entityVerificationStatus ?? 'draft',
+      entityComplianceFlags: activeWorkspace.entityComplianceFlags ?? {
+        gstRegistered: false,
+        donationReceiptsEnabled: false,
+        has12A12AB: false,
+        has80G: false,
+        receivesForeignContribution: false,
+        hasFcra: false,
+        acceptsCsrFunding: false,
+        hasUdyam: false,
+      },
       phone: activeWorkspace.phone,
       whatsapp: activeWorkspace.whatsapp ?? '',
       email: activeWorkspace.email,
@@ -536,6 +572,10 @@ export default function SettingsPage() {
       ownerName: nextProfile.ownerName.trim(),
       contactPerson: nextProfile.contactPerson,
       businessType: nextProfile.businessType,
+      entityType: nextProfile.entityType,
+      entitySubtype: nextProfile.entitySubtype,
+      entityVerificationStatus: nextProfile.entityVerificationStatus,
+      entityComplianceFlags: nextProfile.entityComplianceFlags,
       phone: nextProfile.phone.trim(),
       whatsapp: nextProfile.whatsapp,
       email: nextProfile.email.trim(),
@@ -548,8 +588,20 @@ export default function SettingsPage() {
       postalCode: nextProfile.postalCode,
       gstin: nextProfile.gstin,
       pan: nextProfile.pan,
+      cin: workspace.cin ?? null,
+      llpin: workspace.llpin ?? null,
       taxNumber: nextProfile.taxNumber,
       registrationNumber: nextProfile.registrationNumber,
+      registeredOfficeAddress: workspace.registeredOfficeAddress ?? null,
+      principalPlaceOfBusiness: workspace.principalPlaceOfBusiness ?? null,
+      additionalPlacesOfBusiness: workspace.additionalPlacesOfBusiness ?? null,
+      nonprofitRegistrationNumber: workspace.nonprofitRegistrationNumber ?? null,
+      nonprofitRegistrationAuthority: workspace.nonprofitRegistrationAuthority ?? null,
+      ngoDarpanId: workspace.ngoDarpanId ?? null,
+      taxExemption12A12ABNumber: workspace.taxExemption12A12ABNumber ?? null,
+      taxDeduction80GNumber: workspace.taxDeduction80GNumber ?? null,
+      fcraRegistrationNumber: workspace.fcraRegistrationNumber ?? null,
+      csrRegistrationNumber: workspace.csrRegistrationNumber ?? null,
       placeOfSupply: nextProfile.placeOfSupply,
       defaultTaxTreatment: nextProfile.defaultTaxTreatment,
       defaultPaymentTerms: nextProfile.defaultPaymentTerms,

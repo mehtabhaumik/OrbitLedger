@@ -39,6 +39,29 @@ export function canBootstrapWorkspaceLocally(dataState: OrbitWorkspaceDataState)
 }
 
 export {
+  DEFAULT_ORBIT_ENTITY_COMPLIANCE_FLAGS,
+  DEFAULT_ORBIT_ENTITY_TYPE,
+  DEFAULT_ORBIT_ENTITY_VERIFICATION_STATUS,
+  ORBIT_ENTITY_PROFILE_DEFINITIONS,
+  ORBIT_ENTITY_TYPE_OPTIONS,
+  doesOrbitEntityRequireCin,
+  getHiddenOrbitEntityProfileFields,
+  getOrbitEntityProfileDefinition,
+  getProtectedOrbitEntityProfileFields,
+  getRequiredOrbitEntityProfileFields,
+  isOrbitCompanyEntity,
+  isOrbitNonprofitEntity,
+  normalizeOrbitEntityProfile,
+} from './entityProfile';
+export type {
+  OrbitEntityComplianceFlagId,
+  OrbitEntityProfileDefinition,
+  OrbitEntityProfileFieldId,
+  OrbitEntityProfileInput,
+  OrbitEntityTypeOption,
+} from './entityProfile';
+
+export {
   formatPhoneForLocalBusinessPack,
   getLocalBusinessPack,
   getLocalPhoneExample,

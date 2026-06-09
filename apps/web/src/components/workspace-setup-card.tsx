@@ -17,6 +17,18 @@ import { useWorkspace } from '@/providers/workspace-provider';
 const defaultValues: WorkspaceProfileInput = {
   businessName: '',
   ownerName: '',
+  entityType: 'sole_proprietorship',
+  entityVerificationStatus: 'draft',
+  entityComplianceFlags: {
+    gstRegistered: false,
+    donationReceiptsEnabled: false,
+    has12A12AB: false,
+    has80G: false,
+    receivesForeignContribution: false,
+    hasFcra: false,
+    acceptsCsrFunding: false,
+    hasUdyam: false,
+  },
   phone: '',
   email: '',
   address: '',

@@ -9,8 +9,18 @@ export type AuditProtectedSettingsSource = {
   postalCode?: string | null;
   gstin?: string | null;
   pan?: string | null;
+  cin?: string | null;
+  llpin?: string | null;
   taxNumber?: string | null;
   registrationNumber?: string | null;
+  registeredOfficeAddress?: string | null;
+  principalPlaceOfBusiness?: string | null;
+  nonprofitRegistrationNumber?: string | null;
+  ngoDarpanId?: string | null;
+  taxExemption12A12ABNumber?: string | null;
+  taxDeduction80GNumber?: string | null;
+  fcraRegistrationNumber?: string | null;
+  csrRegistrationNumber?: string | null;
   placeOfSupply?: string | null;
   stateCode?: string | null;
   defaultTaxTreatment?: string | null;
@@ -49,8 +59,18 @@ const protectedSettingLabels: Record<keyof AuditProtectedSettingsSource, string>
   postalCode: 'PIN or postcode',
   gstin: 'GSTIN',
   pan: 'PAN',
+  cin: 'CIN',
+  llpin: 'LLPIN',
   taxNumber: 'Tax number',
   registrationNumber: 'Business registration number',
+  registeredOfficeAddress: 'Registered office address',
+  principalPlaceOfBusiness: 'Principal place of business',
+  nonprofitRegistrationNumber: 'Nonprofit registration number',
+  ngoDarpanId: 'NGO Darpan ID',
+  taxExemption12A12ABNumber: '12A / 12AB registration number',
+  taxDeduction80GNumber: '80G registration number',
+  fcraRegistrationNumber: 'FCRA registration number',
+  csrRegistrationNumber: 'CSR registration number',
   placeOfSupply: 'Place of supply',
   stateCode: 'State',
   defaultTaxTreatment: 'Default tax treatment',
@@ -72,8 +92,16 @@ const protectedSettingLabels: Record<keyof AuditProtectedSettingsSource, string>
 const sensitiveProtectedFields = new Set<keyof AuditProtectedSettingsSource>([
   'gstin',
   'pan',
+  'cin',
+  'llpin',
   'taxNumber',
   'registrationNumber',
+  'nonprofitRegistrationNumber',
+  'ngoDarpanId',
+  'taxExemption12A12ABNumber',
+  'taxDeduction80GNumber',
+  'fcraRegistrationNumber',
+  'csrRegistrationNumber',
   'signatureUri',
 ]);
 
