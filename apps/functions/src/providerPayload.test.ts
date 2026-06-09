@@ -39,6 +39,7 @@ import {
   buildResendEmailPayload,
   buildResendSupportEmailEventUpdate,
   buildBillingPortalSessionRecord,
+  buildFunctionWorkspaceProfileDatabasePayload,
   buildRazorpayCheckoutPayload,
   buildSubscriptionBillingMetadata,
   buildSupportCaseEmailDeliveryUpdate,
@@ -920,6 +921,60 @@ describe('provider webhook payload mapping', () => {
       transaction_id: 'pay_123',
       provider_reference: 'order_123',
     });
+  });
+
+  it('prefers stored profile summary fields for billing metadata and workspace database payloads', () => {
+    const profilePayload = buildFunctionWorkspaceProfileDatabasePayload({
+      businessName: 'Orbit Charity',
+      legalName: 'Orbit Charity Foundation',
+      ownerName: 'Asha Shah',
+      entityType: 'nonprofit_charity',
+      entitySubtype: 'charitable_trust',
+      entityVerificationStatus: 'approved',
+      phone: '+91 90000 00000',
+      email: 'trust@example.invalid',
+      address: 'Trust Office, Ahmedabad',
+      countryCode: 'IN',
+      stateCode: 'GJ',
+      nonprofitRegistrationNumber: 'TRUST-2048',
+      taxExemption12A12ABNumber: '12AB-2048',
+      taxDeduction80GNumber: '80G-2048',
+      pan: 'ABCDE1234F',
+    });
+
+    expect(profilePayload).toMatchObject({
+      profile_display_name: 'Orbit Charity',
+      profile_document_name: 'Orbit Charity Foundation',
+      profile_entity_label: 'Nonprofit / Charity',
+      profile_entity_subtype_label: 'Charitable Trust',
+      profile_has_protected_identity: true,
+    });
+    expect(profilePayload.profile_identity_line).toContain('Nonprofit Reg.: TRUST-2048');
+    expect(profilePayload.profile_search_tokens).toEqual(expect.arrayContaining(['orbit', 'charity', 'foundation']));
+
+    const pricing = resolveSubscriptionCheckoutPricing('pro_yearly', 'IN');
+    const metadata = buildSubscriptionBillingMetadata({
+      workspaceId: 'workspace_1',
+      userId: 'user_1',
+      planId: 'pro_yearly',
+      checkoutIntentId: 'checkout_profile_summary_123456',
+      pricing,
+      workspace: {
+        business_name: 'Legacy Business Name',
+        legal_name: 'Legacy Legal Name',
+        profile_display_name: 'Orbit Charity',
+        profile_legal_name: 'Orbit Charity Foundation',
+        email: 'trust@example.invalid',
+        country_code: 'IN',
+        pan: 'ABCDE1234F',
+      },
+      status: 'confirmed',
+      now: new Date('2026-05-04T00:00:00.000Z'),
+    });
+
+    expect(metadata.buyer_business_name).toBe('Orbit Charity');
+    expect(metadata.buyer_legal_name).toBe('Orbit Charity Foundation');
+    expect(metadata.tax_registration_number).toBe('ABCDE1234F');
   });
 
   it('marks country billing rules for missing tax identifiers and sales tax review', () => {

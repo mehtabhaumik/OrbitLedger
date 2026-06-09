@@ -765,6 +765,7 @@ export const createUserWorkspace = onRequest(
       const payload = {
         business_name: businessName,
         ...workspaceFunctionProfileOptionalPayload(workspace),
+        ...buildFunctionWorkspaceProfileDatabasePayload(workspace),
         owner_name: ownerName,
         phone,
         email,
@@ -790,6 +791,7 @@ export const createUserWorkspace = onRequest(
         data_state: 'profile_only',
         created_at: now,
         updated_at: now,
+        profile_summary_updated_at: now,
         server_revision: 1,
       };
 
@@ -1022,8 +1024,8 @@ export function buildSubscriptionBillingMetadata(input: {
     seller_country: 'IN',
     buyer_workspace_id: input.workspaceId,
     buyer_user_id: input.userId,
-    buyer_business_name: clean(stringValue(workspace.business_name)) ?? clean(stringValue(workspace.buyer_business_name)),
-    buyer_legal_name: clean(stringValue(workspace.legal_name)) ?? clean(stringValue(workspace.buyer_legal_name)),
+    buyer_business_name: workspaceProfileDisplayName(workspace) ?? clean(stringValue(workspace.buyer_business_name)),
+    buyer_legal_name: workspaceProfileLegalName(workspace) ?? clean(stringValue(workspace.buyer_legal_name)),
     buyer_email:
       clean(stringValue(workspace.email)) ??
       clean(stringValue(workspace.owner_email)) ??
@@ -2211,7 +2213,7 @@ export const createRazorpayCheckout = onRequest(
       const reference = buildCheckoutReference(invoiceNumber, money(invoice.version_number), now);
       const checkoutPayload = buildRazorpayCheckoutPayload({
         workspaceId,
-        businessName: clean(stringValue(workspace.business_name)) ?? 'Orbit Ledger',
+        businessName: workspaceProfileDisplayName(workspace) ?? 'Orbit Ledger',
         invoiceId,
         invoiceNumber,
         customerId: clean(stringValue(invoice.customer_id)),
@@ -4364,14 +4366,11 @@ export const getPlatformAdminSnapshot = onRequest(
       for (const workspaceDoc of workspaceSnapshot.docs) {
         const data = workspaceDoc.data();
         const workspaceId = workspaceDoc.id;
-        const businessName =
-          clean(stringValue(data.business_name)) ??
-          clean(stringValue(data.legal_business_name)) ??
-          clean(stringValue(data.owner_name));
+        const businessName = workspaceProfileDisplayName(data);
         const isQaWorkspace = isPlatformQaWorkspace({
           workspaceId,
           businessName,
-          legalName: clean(stringValue(data.legal_business_name)),
+          legalName: workspaceProfileLegalName(data),
           ownerName: clean(stringValue(data.owner_name)),
           ownerEmail: clean(stringValue(data.owner_email)),
         });
@@ -4442,8 +4441,7 @@ export const getPlatformAdminSnapshot = onRequest(
         const workspaceDoc = workspaceId ? workspaceSnapshot.docs.find((doc) => doc.id === workspaceId) : null;
         const workspaceData = workspaceDoc?.data() ?? null;
         const businessName =
-          clean(stringValue(workspaceData?.business_name)) ??
-          clean(stringValue(workspaceData?.legal_business_name)) ??
+          workspaceProfileDisplayName(workspaceData) ??
           clean(stringValue(workspaceData?.owner_name)) ??
           workspaceId ??
           'Orbit Ledger workspace';
@@ -5363,10 +5361,7 @@ export const manageBackofficeUserContextSession = onRequest(
     const expiresAt = admin.firestore.Timestamp.fromDate(
       new Date(now.getTime() + (mode === 'act_as_user' ? 15 : 30) * 60 * 1000)
     );
-    const targetWorkspaceName =
-      clean(stringValue(resolved.workspace.business_name)) ??
-      clean(stringValue(resolved.workspace.legal_business_name)) ??
-      'Orbit Ledger workspace';
+    const targetWorkspaceName = workspaceProfileDisplayName(resolved.workspace) ?? 'Orbit Ledger workspace';
     const allowActions = mode === 'act_as_user';
     const sessionData: BackofficeUserContextSessionData = {
       session_id: sessionId,
@@ -12590,9 +12585,8 @@ function normalizePlatformAdminDocumentVaultRecord(
     'unknown_workspace';
   const workspace = workspaceById.get(workspaceId) ?? {};
   const workspaceName =
-    clean(stringValue(workspace.business_name)) ??
+    workspaceProfileDisplayName(workspace) ??
     clean(stringValue(workspace.company_name)) ??
-    clean(stringValue(workspace.legal_name)) ??
     clean(stringValue(workspace.display_name)) ??
     workspaceId;
   const workspaceEmail =
@@ -15093,7 +15087,7 @@ function buildOfficeInvitationEmailSubject(
   invitation: FirebaseFirestore.DocumentData,
   workspace: FirebaseFirestore.DocumentData
 ) {
-  const businessName = clean(stringValue(workspace.business_name)) ?? 'an Orbit Ledger workspace';
+  const businessName = workspaceProfileDisplayName(workspace) ?? 'an Orbit Ledger workspace';
   return `You are invited to ${businessName} on Orbit Ledger`;
 }
 
@@ -15102,7 +15096,7 @@ function buildOfficeInvitationEmailText(
   workspace: FirebaseFirestore.DocumentData,
   inviteUrl: string
 ) {
-  const businessName = clean(stringValue(workspace.business_name)) ?? 'this workspace';
+  const businessName = workspaceProfileDisplayName(workspace) ?? 'this workspace';
   const role = clean(stringValue(invitation.role)) ?? 'team member';
   const invitedByName = clean(stringValue(invitation.invited_by_name));
   const expiresAt = clean(stringValue(invitation.expires_at));
@@ -15124,7 +15118,7 @@ function buildOfficeInvitationEmailHtml(
   workspace: FirebaseFirestore.DocumentData,
   inviteUrl: string
 ) {
-  const businessName = escapeHtml(clean(stringValue(workspace.business_name)) ?? 'this workspace');
+  const businessName = escapeHtml(workspaceProfileDisplayName(workspace) ?? 'this workspace');
   const role = escapeHtml(clean(stringValue(invitation.role)) ?? 'team member');
   const invitedByName = escapeHtml(clean(stringValue(invitation.invited_by_name)) ?? 'A workspace admin');
   const expiresAt = escapeHtml(clean(stringValue(invitation.expires_at))?.slice(0, 10) ?? 'the expiry date shown in Orbit Ledger');
@@ -15157,7 +15151,7 @@ function buildOfficeOwnershipTransferEmailSubject(
   transfer: FirebaseFirestore.DocumentData,
   workspace: FirebaseFirestore.DocumentData
 ) {
-  const businessName = clean(stringValue(workspace.business_name)) ?? 'an Orbit Ledger workspace';
+  const businessName = workspaceProfileDisplayName(workspace) ?? 'an Orbit Ledger workspace';
   return `Ownership transfer approval needed for ${businessName}`;
 }
 
@@ -15165,7 +15159,7 @@ function buildOfficeOwnershipTransferEmailText(
   transfer: FirebaseFirestore.DocumentData,
   workspace: FirebaseFirestore.DocumentData
 ) {
-  const businessName = clean(stringValue(workspace.business_name)) ?? 'this workspace';
+  const businessName = workspaceProfileDisplayName(workspace) ?? 'this workspace';
   const requestedByEmail = clean(stringValue(transfer.requested_by_email)) ?? 'the current owner';
   const expiresAt = clean(stringValue(transfer.expires_at));
   return [
@@ -15185,7 +15179,7 @@ function buildOfficeOwnershipTransferEmailHtml(
   transfer: FirebaseFirestore.DocumentData,
   workspace: FirebaseFirestore.DocumentData
 ) {
-  const businessName = escapeHtml(clean(stringValue(workspace.business_name)) ?? 'this workspace');
+  const businessName = escapeHtml(workspaceProfileDisplayName(workspace) ?? 'this workspace');
   const requestedByEmail = escapeHtml(clean(stringValue(transfer.requested_by_email)) ?? 'the current owner');
   const expiresAt = escapeHtml(clean(stringValue(transfer.expires_at))?.slice(0, 10) ?? 'the expiry date shown in Orbit Ledger');
   const teamUrl = escapeHtml(`${getOrbitLedgerWebAppUrl()}/team`);
@@ -15848,6 +15842,280 @@ function workspaceFunctionProfileOptionalPayload(input: Record<string, unknown>)
     bounced_payment_template: clean(stringValue(input.bouncedPaymentTemplate)),
     default_language: clean(stringValue(input.defaultLanguage)),
   };
+}
+
+export function buildFunctionWorkspaceProfileDatabasePayload(input: Record<string, unknown>) {
+  const profile = buildFunctionWorkspaceProfileView(input);
+  const searchTokens = buildFunctionProfileSearchTokens([
+    profile.displayName,
+    profile.legalName,
+    profile.documentName,
+    profile.ownerName,
+    profile.entityLabel,
+    profile.entitySubtypeLabel,
+    profile.identityLine,
+    profile.documentAddress,
+    clean(stringValue(input.email)),
+    clean(stringValue(input.phone)),
+  ]);
+
+  return {
+    profile_summary_version: 1,
+    profile_display_name: profile.displayName,
+    profile_legal_name: profile.legalName,
+    profile_document_name: profile.documentName,
+    profile_owner_name: profile.ownerName,
+    profile_entity_label: profile.entityLabel,
+    profile_entity_subtype_label: profile.entitySubtypeLabel,
+    profile_verification_status_label: humanizeProfileValue(
+      clean(stringValue(input.entityVerificationStatus)) ?? 'draft'
+    ),
+    profile_registered_address: profile.registeredAddress,
+    profile_business_address: profile.businessAddress,
+    profile_principal_place_of_business: profile.principalPlaceOfBusiness,
+    profile_document_address: profile.documentAddress,
+    profile_contact_line: profile.contactLine,
+    profile_tax_identity_line: profile.taxIdentityLine,
+    profile_registration_identity_line: profile.registrationIdentityLine,
+    profile_identity_line: profile.identityLine,
+    profile_export_name: toProfileExportName(profile.displayName),
+    profile_search_text: searchTokens.join(' '),
+    profile_search_tokens: searchTokens,
+    profile_has_tax_profile: profile.hasTaxProfile,
+    profile_has_protected_identity: profile.hasProtectedIdentity,
+  };
+}
+
+function buildFunctionWorkspaceProfileView(input: Record<string, unknown>) {
+  const entityType = normalizeFunctionEntityType(input.entityType);
+  const displayName =
+    clean(stringValue(input.businessName)) ??
+    clean(stringValue(input.business_name)) ??
+    clean(stringValue(input.profile_display_name)) ??
+    clean(stringValue(input.legalName)) ??
+    clean(stringValue(input.legal_name)) ??
+    'Orbit Ledger workspace';
+  const legalName = clean(stringValue(input.legalName)) ?? clean(stringValue(input.legal_name)) ?? displayName;
+  const ownerName =
+    clean(stringValue(input.ownerName)) ??
+    clean(stringValue(input.owner_name)) ??
+    clean(stringValue(input.contactPerson)) ??
+    clean(stringValue(input.contact_person)) ??
+    displayName;
+  const entitySubtype = normalizeFunctionEntitySubtype(input.entitySubtype ?? input.entity_subtype);
+  const registeredAddress = functionRegisteredAddress(input);
+  const principalPlaceOfBusiness =
+    clean(stringValue(input.principalPlaceOfBusiness)) ?? clean(stringValue(input.principal_place_of_business));
+  const businessAddress = principalPlaceOfBusiness ?? functionBusinessAddress(input);
+  const taxIdentityLine = compactFunctionProfileParts([
+    labelValue('GSTIN', clean(stringValue(input.gstin))),
+    labelValue(entityType === 'company' ? 'Company PAN' : 'PAN', clean(stringValue(input.pan))),
+    labelValue('Tax No.', clean(stringValue(input.taxNumber)) ?? clean(stringValue(input.tax_number))),
+  ]).join(' | ');
+  const registrationIdentityLine = compactFunctionProfileParts([
+    labelValue('CIN', clean(stringValue(input.cin))),
+    labelValue('LLPIN', clean(stringValue(input.llpin))),
+    labelValue('Registration', clean(stringValue(input.registrationNumber)) ?? clean(stringValue(input.registration_number))),
+    labelValue(
+      'Nonprofit Reg.',
+      clean(stringValue(input.nonprofitRegistrationNumber)) ?? clean(stringValue(input.nonprofit_registration_number))
+    ),
+    labelValue('Darpan', clean(stringValue(input.ngoDarpanId)) ?? clean(stringValue(input.ngo_darpan_id))),
+    labelValue(
+      '12A/12AB',
+      clean(stringValue(input.taxExemption12A12ABNumber)) ?? clean(stringValue(input.tax_exemption_12a_12ab_number))
+    ),
+    labelValue(
+      '80G',
+      clean(stringValue(input.taxDeduction80GNumber)) ?? clean(stringValue(input.tax_deduction_80g_number))
+    ),
+    labelValue('FCRA', clean(stringValue(input.fcraRegistrationNumber)) ?? clean(stringValue(input.fcra_registration_number))),
+    labelValue('CSR-1', clean(stringValue(input.csrRegistrationNumber)) ?? clean(stringValue(input.csr_registration_number))),
+  ]).join(' | ');
+  const entityLabel = functionEntityLabel(entityType);
+  const entitySubtypeLabel = entitySubtype ? functionEntitySubtypeLabel(entitySubtype) : null;
+  const identityLine = compactFunctionProfileParts([
+    entityLabel,
+    entitySubtypeLabel,
+    registrationIdentityLine,
+    taxIdentityLine,
+  ]).join(' | ');
+
+  return {
+    displayName,
+    legalName,
+    documentName: legalName || displayName,
+    ownerName,
+    entityLabel,
+    entitySubtypeLabel,
+    registeredAddress,
+    principalPlaceOfBusiness,
+    businessAddress,
+    documentAddress: registeredAddress ?? businessAddress,
+    contactLine: compactFunctionProfileParts([
+      clean(stringValue(input.phone)),
+      clean(stringValue(input.email)),
+      clean(stringValue(input.website)),
+    ]).join(' | '),
+    taxIdentityLine,
+    registrationIdentityLine,
+    identityLine,
+    hasTaxProfile: Boolean(
+      clean(stringValue(input.gstin)) ||
+        clean(stringValue(input.pan)) ||
+        clean(stringValue(input.taxNumber)) ||
+        clean(stringValue(input.tax_number)) ||
+        numberOrNull(input.defaultTaxRate) !== null ||
+        numberOrNull(input.default_tax_rate) !== null
+    ),
+    hasProtectedIdentity: Boolean(
+      clean(stringValue(input.cin)) ||
+        clean(stringValue(input.llpin)) ||
+        clean(stringValue(input.pan)) ||
+        clean(stringValue(input.gstin))
+    ),
+  };
+}
+
+function workspaceProfileDisplayName(data: unknown): string | null {
+  const record = asRecord(data);
+  if (!record) {
+    return null;
+  }
+  return (
+    clean(stringValue(record.profile_display_name)) ??
+    clean(stringValue(record.business_name)) ??
+    clean(stringValue(record.display_name)) ??
+    clean(stringValue(record.legal_name)) ??
+    clean(stringValue(record.legal_business_name)) ??
+    clean(stringValue(record.owner_name))
+  );
+}
+
+function workspaceProfileLegalName(data: unknown): string | null {
+  const record = asRecord(data);
+  if (!record) {
+    return null;
+  }
+  return (
+    clean(stringValue(record.profile_legal_name)) ??
+    clean(stringValue(record.legal_name)) ??
+    clean(stringValue(record.legal_business_name)) ??
+    clean(stringValue(record.profile_document_name)) ??
+    clean(stringValue(record.business_name))
+  );
+}
+
+function functionRegisteredAddress(input: Record<string, unknown>): string | null {
+  const registeredOffice =
+    clean(stringValue(input.registeredOfficeAddress)) ?? clean(stringValue(input.registered_office_address));
+  if (registeredOffice) {
+    return registeredOffice;
+  }
+  const addressLine1 = clean(stringValue(input.addressLine1)) ?? clean(stringValue(input.address_line_1));
+  const addressLine2 = clean(stringValue(input.addressLine2)) ?? clean(stringValue(input.address_line_2));
+  if (!addressLine1 && !addressLine2) {
+    return null;
+  }
+  return compactFunctionProfileParts([
+    addressLine1,
+    addressLine2,
+    clean(stringValue(input.town)),
+    clean(stringValue(input.city)),
+    clean(stringValue(input.stateCode)) ?? clean(stringValue(input.state_code)),
+    clean(stringValue(input.postalCode)) ?? clean(stringValue(input.postal_code)),
+    clean(stringValue(input.countryCode)) ?? clean(stringValue(input.country_code)),
+  ]).join(', ');
+}
+
+function functionBusinessAddress(input: Record<string, unknown>): string {
+  const address = compactFunctionProfileParts([
+    clean(stringValue(input.address)),
+    clean(stringValue(input.town)),
+    clean(stringValue(input.city)),
+    clean(stringValue(input.stateCode)) ?? clean(stringValue(input.state_code)),
+    clean(stringValue(input.postalCode)) ?? clean(stringValue(input.postal_code)),
+    clean(stringValue(input.countryCode)) ?? clean(stringValue(input.country_code)),
+  ]).join(', ');
+  return address || 'Address not saved';
+}
+
+function compactFunctionProfileParts(parts: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  return parts
+    .map((part) => clean(part))
+    .filter((part): part is string => Boolean(part))
+    .filter((part) => {
+      const key = part.toLowerCase();
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+}
+
+function labelValue(label: string, value: string | null | undefined): string | null {
+  return value ? `${label}: ${value}` : null;
+}
+
+function functionEntityLabel(value: string | null) {
+  if (value === 'freelancer_individual') return 'Freelancer / Individual';
+  if (value === 'partnership_firm') return 'Partnership Firm';
+  if (value === 'llp') return 'LLP';
+  if (value === 'company') return 'Company';
+  if (value === 'nonprofit_charity') return 'Nonprofit / Charity';
+  return 'Sole Proprietorship';
+}
+
+function functionEntitySubtypeLabel(value: string) {
+  return {
+    private_limited: 'Private Limited',
+    one_person_company: 'One Person Company',
+    public_limited: 'Public Limited',
+    other_company: 'Other Company',
+    charitable_trust: 'Charitable Trust',
+    registered_society: 'Registered Society',
+    section_8_company: 'Section 8 Company',
+    ngo_voluntary_organization: 'NGO / Voluntary Organization',
+    religious_charitable_institution: 'Religious / Charitable Institution',
+    other_nonprofit: 'Other Nonprofit',
+  }[value] ?? value;
+}
+
+function buildFunctionProfileSearchTokens(parts: Array<string | null | undefined>): string[] {
+  const tokens = new Set<string>();
+  for (const part of parts) {
+    const normalized = part?.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (!normalized) {
+      continue;
+    }
+    for (const token of normalized.split(/\s+/)) {
+      if (token.length >= 2) {
+        tokens.add(token);
+      }
+      if (tokens.size >= 48) {
+        return [...tokens];
+      }
+    }
+  }
+  return [...tokens];
+}
+
+function toProfileExportName(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'workspace';
+}
+
+function humanizeProfileValue(value: string): string {
+  return value
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function functionPaymentInstructionPayload(details: Record<string, unknown> | null) {

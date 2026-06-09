@@ -36,6 +36,7 @@ import {
   type EntityProfileRevisionAuditInput,
   type EntityProfileRevisionSourceData,
 } from './entity-profile-revisions';
+import { buildWorkspaceProfileDatabasePayload } from './workspace-profile-database';
 
 export type WorkspaceProfileInput = {
   businessName: string;
@@ -132,6 +133,28 @@ export type WorkspaceSettingsAuditInput = EntityProfileRevisionAuditInput;
 
 type FirestoreWorkspaceDoc = {
   business_name: string;
+  profile_summary_version?: number | null;
+  profile_display_name?: string | null;
+  profile_legal_name?: string | null;
+  profile_document_name?: string | null;
+  profile_owner_name?: string | null;
+  profile_entity_label?: string | null;
+  profile_entity_subtype_label?: string | null;
+  profile_verification_status_label?: string | null;
+  profile_registered_address?: string | null;
+  profile_business_address?: string | null;
+  profile_principal_place_of_business?: string | null;
+  profile_document_address?: string | null;
+  profile_contact_line?: string | null;
+  profile_tax_identity_line?: string | null;
+  profile_registration_identity_line?: string | null;
+  profile_identity_line?: string | null;
+  profile_export_name?: string | null;
+  profile_search_text?: string | null;
+  profile_search_tokens?: string[] | null;
+  profile_has_tax_profile?: boolean | null;
+  profile_has_protected_identity?: boolean | null;
+  profile_summary_updated_at?: Timestamp | string | FieldValue;
   legal_name?: string | null;
   owner_name: string;
   contact_person?: string | null;
@@ -309,6 +332,7 @@ export async function createWorkspace(
   const payload: FirestoreWorkspaceDoc = {
     business_name: input.businessName.trim(),
     ...workspaceProfileOptionalPayload(input),
+    ...buildWorkspaceProfileDatabasePayload(input),
     owner_name: input.ownerName.trim(),
     phone: input.phone.trim(),
     email: input.email.trim(),
@@ -330,6 +354,7 @@ export async function createWorkspace(
     data_state: 'profile_only',
     created_at: serverTimestamp(),
     updated_at: serverTimestamp(),
+    profile_summary_updated_at: serverTimestamp(),
     server_revision: 1,
   };
 
@@ -420,6 +445,7 @@ export async function updateWorkspaceProfile(
     transaction.update(workspaceRef, {
       business_name: input.businessName.trim(),
       ...workspaceProfileOptionalPayload(input),
+      ...buildWorkspaceProfileDatabasePayload(input),
       owner_name: input.ownerName.trim(),
       phone: input.phone.trim(),
       email: input.email.trim(),
@@ -437,6 +463,7 @@ export async function updateWorkspaceProfile(
       signature_uri: input.signatureUri ?? null,
       ...paymentInstructionPayload(input.paymentInstructions),
       updated_at: serverTimestamp(),
+      profile_summary_updated_at: serverTimestamp(),
       server_revision: nextRevision,
     });
 
@@ -486,6 +513,7 @@ export async function updateWorkspaceProfileAudited(
     transaction.update(workspaceRef, {
       business_name: input.businessName.trim(),
       ...workspaceProfileOptionalPayload(input),
+      ...buildWorkspaceProfileDatabasePayload(input),
       owner_name: input.ownerName.trim(),
       phone: input.phone.trim(),
       email: input.email.trim(),
@@ -503,6 +531,7 @@ export async function updateWorkspaceProfileAudited(
       signature_uri: input.signatureUri ?? null,
       ...paymentInstructionPayload(input.paymentInstructions),
       updated_at: serverTimestamp(),
+      profile_summary_updated_at: serverTimestamp(),
       server_revision: nextRevision,
     });
 
@@ -569,6 +598,7 @@ export async function updateWorkspacePaymentInstructionsAudited(
     transaction.update(workspaceRef, {
       business_name: input.businessName.trim(),
       ...workspaceProfileOptionalPayload(input),
+      ...buildWorkspaceProfileDatabasePayload(input),
       owner_name: input.ownerName.trim(),
       phone: input.phone.trim(),
       email: input.email.trim(),
@@ -586,6 +616,7 @@ export async function updateWorkspacePaymentInstructionsAudited(
       signature_uri: input.signatureUri ?? null,
       ...paymentInstructionPayload(input.paymentInstructions),
       updated_at: serverTimestamp(),
+      profile_summary_updated_at: serverTimestamp(),
       server_revision: nextRevision,
     });
 
