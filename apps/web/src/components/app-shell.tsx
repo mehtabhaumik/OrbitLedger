@@ -13,21 +13,42 @@ import { useUserContext } from '@/providers/user-context-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
-const workspaceNavItems: Array<{ href: Route; label: string }> = [
-  { href: '/dashboard', label: 'Home' },
-  { href: '/customers', label: 'Customers' },
-  { href: '/transactions', label: 'Transactions' },
-  { href: '/payments' as Route, label: 'Payments' },
-  { href: '/invoices', label: 'Invoices' },
-  { href: '/products' as Route, label: 'Products' },
-  { href: '/documents' as Route, label: 'Documents' },
-  { href: '/templates' as Route, label: 'Templates' },
-  { href: '/reports', label: 'Reports' },
-  { href: '/market' as Route, label: 'Market' },
-  { href: '/team' as Route, label: 'Team' },
-  { href: '/backup', label: 'Backup' },
-  { href: '/support' as Route, label: 'Support' },
-  { href: '/settings', label: 'Settings' },
+const workspaceNavSections: Array<{
+  label: string;
+  items: Array<{ href: Route; label: string }>;
+}> = [
+  {
+    label: 'Overview',
+    items: [{ href: '/dashboard', label: 'Home' }],
+  },
+  {
+    label: 'Money flow',
+    items: [
+      { href: '/customers', label: 'Customers' },
+      { href: '/invoices', label: 'Invoices' },
+      { href: '/payments' as Route, label: 'Payments' },
+      { href: '/transactions', label: 'Transactions' },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { href: '/products' as Route, label: 'Products' },
+      { href: '/documents' as Route, label: 'Documents' },
+      { href: '/templates' as Route, label: 'Templates' },
+      { href: '/reports', label: 'Reports' },
+    ],
+  },
+  {
+    label: 'Workspace',
+    items: [
+      { href: '/market' as Route, label: 'Market' },
+      { href: '/team' as Route, label: 'Team' },
+      { href: '/backup', label: 'Backup' },
+      { href: '/support' as Route, label: 'Support' },
+      { href: '/settings', label: 'Settings' },
+    ],
+  },
 ];
 
 export function AppShell({
@@ -118,22 +139,26 @@ export function AppShell({
         </div>
 
         <div className="ol-sidebar-group ol-sidebar-nav-group">
-          <div className="ol-sidebar-group-label">Navigation</div>
-          <nav className="ol-nav">
-            {workspaceNavItems.map((item) => {
-              const active = isActiveRoute(pathname, item.href);
-              return (
-                <Link
-                  aria-current={active ? 'page' : undefined}
-                  href={item.href}
-                  key={item.href}
-                  className={`ol-nav-link${active ? ' is-active' : ''}`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+          {workspaceNavSections.map((section) => (
+            <div className="ol-sidebar-nav-section" key={section.label}>
+              <div className="ol-sidebar-group-label">{section.label}</div>
+              <nav className="ol-nav" aria-label={section.label}>
+                {section.items.map((item) => {
+                  const active = isActiveRoute(pathname, item.href);
+                  return (
+                    <Link
+                      aria-current={active ? 'page' : undefined}
+                      href={item.href}
+                      key={item.href}
+                      className={`ol-nav-link${active ? ' is-active' : ''}`}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          ))}
         </div>
 
         {hasBackofficeAccess ? (

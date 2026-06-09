@@ -261,107 +261,103 @@ function TemplatePreviewCore({
         </Link>
       </header>
 
-      <section className="ol-template-preview-controls">
-        <div>
-          <strong>Premium branding controls</strong>
-          <p>
-            Pro templates can carry your logo, signature, custom colors, and watermark. These controls are for sample preview only.
-          </p>
-        </div>
-        <label className="ol-color-control">
-          Header color
-          <input disabled={!isProTemplate} type="color" value={accentColor} onChange={(event) => setAccentColor(event.target.value)} />
-        </label>
-        <label className="ol-color-control">
-          Background
-          <input disabled={!isProTemplate} type="color" value={surfaceColor} onChange={(event) => setSurfaceColor(event.target.value)} />
-        </label>
-        <label className="ol-color-control">
-          Line color
-          <input disabled={!isProTemplate} type="color" value={lineColor} onChange={(event) => setLineColor(event.target.value)} />
-        </label>
-        <label className="ol-color-control">
-          Font color
-          <input disabled={!isProTemplate} type="color" value={textColor} onChange={(event) => setTextColor(event.target.value)} />
-        </label>
-        <label className="ol-field ol-template-watermark-field">
-          <span className="ol-field-label">Watermark text</span>
-          <input
-            className="ol-input"
-            disabled={!isProTemplate || Boolean(watermarkImageUrl || useLogoWatermark)}
-            maxLength={24}
-            value={watermarkText}
-            onChange={(event) => setWatermarkText(event.target.value)}
-          />
-        </label>
-        <div className="ol-preview-watermark-upload">
-          <span className="ol-field-label">Watermark image</span>
-          <div className="ol-preview-watermark-upload-row">
-            <label className={`ol-button-secondary ${!isProTemplate ? 'is-disabled' : ''}`}>
-              Upload image
-              <input
-                accept="image/png,image/jpeg,image/webp"
-                disabled={!isProTemplate}
-                type="file"
-                onChange={(event) => handleWatermarkImagePicked(event.target.files?.[0] ?? null)}
-              />
-            </label>
-            {watermarkImageUrl ? (
-              <button
-                className="ol-button-ghost"
-                disabled={!isProTemplate}
-                type="button"
-                onClick={() => {
-                  setWatermarkImageUrl(null);
-                  setWatermarkImageName(null);
-                }}
-              >
-                Remove
-              </button>
-            ) : null}
+      {isProTemplate ? (
+        <section className="ol-template-preview-controls">
+          <div>
+            <strong>Premium branding controls</strong>
+            <p>
+              Pro templates can carry your logo, signature, custom colors, and watermark. These controls are for sample preview only.
+            </p>
           </div>
-          <span className={watermarkUploadError ? 'ol-field-error' : 'ol-preview-watermark-helper'}>
-            {watermarkUploadError ??
-              (watermarkImageName
-                ? `Selected: ${watermarkImageName}`
-                : 'Preview only · PNG, JPG, or WebP under 2 MB')}
-          </span>
-        </div>
-        <label className="ol-field ol-template-watermark-field">
-          <span className="ol-field-label">Watermark opacity</span>
-          <input
-            className="ol-range"
-            disabled={!isProTemplate}
-            max="0.3"
-            min="0.02"
-            step="0.01"
-            type="range"
-            value={watermarkOpacity}
-            onChange={(event) => setWatermarkOpacity(Number(event.target.value))}
-          />
-          <span className="ol-field-helper">{Math.round(watermarkOpacity * 100)}%</span>
-        </label>
-        <label className="ol-toggle-row">
-          <input checked={includeLogo} disabled={!isProTemplate} type="checkbox" onChange={(event) => setIncludeLogo(event.target.checked)} />
-          Logo
-        </label>
-        <label className="ol-toggle-row">
-          <input checked={includeSignature} disabled={!isProTemplate} type="checkbox" onChange={(event) => setIncludeSignature(event.target.checked)} />
-          Signature
-        </label>
-        <label className="ol-toggle-row">
-          <input
-            checked={useLogoWatermark}
-            disabled={!isProTemplate || Boolean(watermarkImageUrl)}
-            type="checkbox"
-            onChange={(event) => setUseLogoWatermark(event.target.checked)}
-          />
-          Logo watermark
-        </label>
-        {!isProTemplate ? (
-          <span className="ol-template-control-note">Open a Pro template to try branding controls.</span>
-        ) : null}
-      </section>
+          <label className="ol-color-control">
+            Header color
+            <input type="color" value={accentColor} onChange={(event) => setAccentColor(event.target.value)} />
+          </label>
+          <label className="ol-color-control">
+            Background
+            <input type="color" value={surfaceColor} onChange={(event) => setSurfaceColor(event.target.value)} />
+          </label>
+          <label className="ol-color-control">
+            Line color
+            <input type="color" value={lineColor} onChange={(event) => setLineColor(event.target.value)} />
+          </label>
+          <label className="ol-color-control">
+            Font color
+            <input type="color" value={textColor} onChange={(event) => setTextColor(event.target.value)} />
+          </label>
+          <label className="ol-field ol-template-watermark-field">
+            <span className="ol-field-label">Watermark text</span>
+            <input
+              className="ol-input"
+              disabled={Boolean(watermarkImageUrl || useLogoWatermark)}
+              maxLength={24}
+              value={watermarkText}
+              onChange={(event) => setWatermarkText(event.target.value)}
+            />
+          </label>
+          <div className="ol-preview-watermark-upload">
+            <span className="ol-field-label">Watermark image</span>
+            <div className="ol-preview-watermark-upload-row">
+              <label className="ol-button-secondary">
+                Upload image
+                <input
+                  accept="image/png,image/jpeg,image/webp"
+                  type="file"
+                  onChange={(event) => handleWatermarkImagePicked(event.target.files?.[0] ?? null)}
+                />
+              </label>
+              {watermarkImageUrl ? (
+                <button
+                  className="ol-button-ghost"
+                  type="button"
+                  onClick={() => {
+                    setWatermarkImageUrl(null);
+                    setWatermarkImageName(null);
+                  }}
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+            <span className={watermarkUploadError ? 'ol-field-error' : 'ol-preview-watermark-helper'}>
+              {watermarkUploadError ??
+                (watermarkImageName
+                  ? `Selected: ${watermarkImageName}`
+                  : 'Preview only - PNG, JPG, or WebP under 2 MB')}
+            </span>
+          </div>
+          <label className="ol-field ol-template-watermark-field">
+            <span className="ol-field-label">Watermark opacity</span>
+            <input
+              className="ol-range"
+              max="0.3"
+              min="0.02"
+              step="0.01"
+              type="range"
+              value={watermarkOpacity}
+              onChange={(event) => setWatermarkOpacity(Number(event.target.value))}
+            />
+            <span className="ol-field-helper">{Math.round(watermarkOpacity * 100)}%</span>
+          </label>
+          <label className="ol-toggle-row">
+            <input checked={includeLogo} type="checkbox" onChange={(event) => setIncludeLogo(event.target.checked)} />
+            Logo
+          </label>
+          <label className="ol-toggle-row">
+            <input checked={includeSignature} type="checkbox" onChange={(event) => setIncludeSignature(event.target.checked)} />
+            Signature
+          </label>
+          <label className="ol-toggle-row">
+            <input
+              checked={useLogoWatermark}
+              disabled={Boolean(watermarkImageUrl)}
+              type="checkbox"
+              onChange={(event) => setUseLogoWatermark(event.target.checked)}
+            />
+            Logo watermark
+          </label>
+        </section>
+      ) : null}
 
       <iframe
         className="ol-template-preview-full-frame"

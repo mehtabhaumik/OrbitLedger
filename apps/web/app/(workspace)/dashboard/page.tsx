@@ -389,6 +389,46 @@ export default function DashboardPage() {
     () => buildDashboardLivePaymentStatuses(invoices, providerEvents),
     [invoices, providerEvents]
   );
+  const dashboardOperatingSystem = useMemo(() => {
+    const receivableTotal = dashboardSnapshot?.receivableTotal ?? unpaidInvoiceAmount;
+    const overdueAmount = overdueInvoices.reduce(
+      (total, invoice) => total + Math.max(invoice.totalAmount - invoice.paidAmount, 0),
+      0
+    );
+    const recentPayments = dashboardSnapshot?.recentPayments ?? expectedCash;
+    const pendingAmount = Math.max(receivableTotal - overdueAmount - recentPayments, 0);
+    const collectQueue = followUpCustomers.slice(0, 3).map((customer) => ({
+      initials: getInitials(customer.name),
+      name: customer.name,
+      detail: customer.health.label,
+      amount: formatCurrency(customer.balance, currency),
+      status: customer.health.rank === 'high_risk' ? 'High risk' : 'Follow up',
+    }));
+    const liveRadar = livePaymentStatuses.slice(0, 2).map((item) => ({
+      name: item.invoice.customerName ?? item.invoice.invoiceNumber,
+      amount: formatCurrency(Math.max(item.invoice.totalAmount - item.invoice.paidAmount, 0), currency),
+      when: formatLivePaymentLinkStatusTime(item.status.updatedAt),
+      active: item.status.state === 'invoice_paid' || item.status.state === 'captured',
+    }));
+
+    return {
+      collectQueue,
+      liveRadar,
+      overdueAmount,
+      pendingAmount,
+      receivableTotal,
+      recentPayments,
+    };
+  }, [
+    currency,
+    dashboardSnapshot?.receivableTotal,
+    dashboardSnapshot?.recentPayments,
+    expectedCash,
+    followUpCustomers,
+    livePaymentStatuses,
+    overdueInvoices,
+    unpaidInvoiceAmount,
+  ]);
   const dashboardAnalytics = useMemo(
     () =>
       buildDashboardAnalytics({
@@ -530,22 +570,18 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      <section className="ol-panel-dark ol-action-center-hero">
-        <div className="ol-panel-header">
-          <div>
-            <div className="ol-chip-row" style={{ marginBottom: 14 }}>
-              <span className={`ol-chip ol-chip--${dailyCenter.topAction.tone === 'danger' ? 'warning' : dailyCenter.topAction.tone}`}>
-                {dailyCenter.topAction.priority === 'critical' ? 'Priority' : 'Today'}
-              </span>
-              <span className="ol-chip ol-chip--success">{activeWorkspace?.businessName ?? 'Workspace'}</span>
-            </div>
-            <div className="ol-onboarding-headline ol-action-center-title">{dailyCenter.topAction.title}</div>
-            <p className="ol-panel-copy" style={{ maxWidth: 620 }}>
-              {dailyCenter.topAction.message}
-            </p>
-            <strong className="ol-action-center-value">{dailyCenter.topAction.value}</strong>
+      <section className="ol-workspace-os-hero" aria-labelledby="workspace-os-title">
+        <div className="ol-workspace-os-copy">
+          <div className="ol-chip-row">
+            <span className={`ol-chip ol-chip--${dailyCenter.topAction.tone === 'danger' ? 'warning' : dailyCenter.topAction.tone}`}>
+              {dailyCenter.topAction.priority === 'critical' ? 'Priority' : 'Today'}
+            </span>
+            <span className="ol-chip ol-chip--success">{activeWorkspace?.businessName ?? 'Workspace'}</span>
           </div>
-          <div className="ol-actions">
+          <h1 id="workspace-os-title">{dailyCenter.topAction.title}</h1>
+          <p>{dailyCenter.topAction.message}</p>
+          <strong>{dailyCenter.topAction.value}</strong>
+          <div className="ol-workspace-os-actions">
             <ActionCenterCta target={dailyCenter.topAction.action.target} onOpen={setActiveDialog}>
               {dailyCenter.topAction.action.label}
             </ActionCenterCta>
@@ -553,6 +589,104 @@ export default function DashboardPage() {
               Record payment
             </Link>
           </div>
+        </div>
+
+        <div className="ol-workspace-os-bento" aria-label="Workspace operating system snapshot">
+          <article className="ol-workspace-os-tile ol-workspace-os-tile--receivable">
+            <div className="ol-workspace-os-tile-head">
+              <span>Total receivables</span>
+              <em>{formatCurrency(dashboardOperatingSystem.recentPayments, currency)} collected recently</em>
+            </div>
+            <div className="ol-workspace-os-total">
+              {formatCurrency(dashboardOperatingSystem.receivableTotal, currency)}
+            </div>
+            <div className="ol-workspace-os-bars" aria-hidden="true">
+              <span style={{ flexGrow: Math.max(dashboardOperatingSystem.recentPayments, 1) }} />
+              <span style={{ flexGrow: Math.max(dashboardOperatingSystem.overdueAmount, 1) }} />
+              <span style={{ flexGrow: Math.max(dashboardOperatingSystem.pendingAmount, 1) }} />
+            </div>
+            <div className="ol-workspace-os-split">
+              <span>Collected {formatCurrency(dashboardOperatingSystem.recentPayments, currency)}</span>
+              <span>Overdue {formatCurrency(dashboardOperatingSystem.overdueAmount, currency)}</span>
+              <span>Pending {formatCurrency(dashboardOperatingSystem.pendingAmount, currency)}</span>
+            </div>
+          </article>
+
+          <article className="ol-workspace-os-tile ol-workspace-os-tile--radar">
+            <div className="ol-workspace-os-tile-head">
+              <span>Live radar</span>
+              <i aria-hidden="true" />
+            </div>
+            <div className="ol-workspace-os-radar-list">
+              {(dashboardOperatingSystem.liveRadar.length
+                ? dashboardOperatingSystem.liveRadar
+                : [
+                    { name: 'No live event yet', amount: formatCurrency(0, currency), when: 'Ready', active: false },
+                    { name: 'Payment links', amount: 'Watching', when: 'Now', active: false },
+                  ]
+              ).map((row) => (
+                <span className={row.active ? 'is-active' : undefined} key={`${row.name}-${row.when}`}>
+                  <b>{row.name}</b>
+                  <em>{row.amount}</em>
+                  <small>{row.when}</small>
+                </span>
+              ))}
+            </div>
+          </article>
+
+          <article className="ol-workspace-os-tile ol-workspace-os-tile--close">
+            <div className="ol-workspace-os-tile-head">
+              <span>Daily close</span>
+              <em>{closingRitual.completion.completed}/{closingRitual.completion.total - 1} checks</em>
+            </div>
+            <div className="ol-workspace-os-check-list">
+              {closingRitual.steps.filter((step) => step.id !== 'review').slice(0, 3).map((step) => (
+                <span className={step.completed ? 'is-done' : undefined} key={step.id}>
+                  {step.title}
+                </span>
+              ))}
+            </div>
+          </article>
+
+          <article className="ol-workspace-os-tile ol-workspace-os-tile--collect">
+            <div className="ol-workspace-os-collect-head">
+              <span>Collect today - {followUpCustomers.length} customers</span>
+              <button type="button" onClick={() => setActiveDialog('collections')}>
+                View all
+              </button>
+            </div>
+            <div className="ol-workspace-os-collect-list">
+              {(dashboardOperatingSystem.collectQueue.length
+                ? dashboardOperatingSystem.collectQueue
+                : [{ initials: 'OL', name: 'No collection risk', detail: 'Customer balances are calm', amount: formatCurrency(0, currency), status: 'Clear' }]
+              ).map((row) => (
+                <span key={`${row.name}-${row.amount}`}>
+                  <b>{row.initials}</b>
+                  <strong>
+                    {row.name}
+                    <small>{row.detail}</small>
+                  </strong>
+                  <i>{row.status}</i>
+                  <em>{row.amount}</em>
+                </span>
+              ))}
+            </div>
+          </article>
+
+          <article className="ol-workspace-os-tile ol-workspace-os-tile--flow">
+            <div className="ol-workspace-os-stage-row">
+              {['Draft', 'Sent', 'Reminder', 'Paid'].map((stage, index) => (
+                <span className={index === 1 || index === 2 ? 'is-active' : undefined} key={stage}>
+                  {stage}
+                </span>
+              ))}
+            </div>
+            <div className="ol-workspace-os-balance-note">
+              <span>Unpaid invoices</span>
+              <strong>{unpaidInvoices.length}</strong>
+              <em>{overdueInvoices.length} overdue</em>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -1945,6 +2079,17 @@ function formatCurrency(value: number, currency: string) {
     currency,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function getInitials(value: string) {
+  return (
+    value
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('') || 'OL'
+  );
 }
 
 function parseClosingAmount(value: string): number | null {

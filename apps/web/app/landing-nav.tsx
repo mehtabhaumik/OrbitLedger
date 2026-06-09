@@ -5,9 +5,8 @@ import type { Route } from 'next';
 import { useEffect, useState } from 'react';
 
 const landingLinks = [
+  { href: '#product', label: 'Product' },
   { href: '#templates', label: 'Templates' },
-  { href: '#how-it-works', label: 'How it works' },
-  { href: '#office', label: 'Office' },
   { href: '#pricing', label: 'Pricing' },
   { href: '/privacy', label: 'Privacy' },
 ] as const;
