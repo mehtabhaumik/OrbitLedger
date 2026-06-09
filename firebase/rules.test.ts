@@ -272,6 +272,28 @@ describe('Firestore workspace rules', () => {
     await assertFails(staffAudit.doc('staff-audit').set(settingsAuditPayload('workspace-1', 'staff-1')));
   });
 
+  it('restricts entity profile revisions to owners and Office admins', async () => {
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'admin-1', 'admin');
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'accountant-1', 'accountant');
+    await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'staff-1', 'staff');
+
+    const ownerRevisions = testEnv.authenticatedContext('owner-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('entity_profile_revisions');
+    const adminRevisions = testEnv.authenticatedContext('admin-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('entity_profile_revisions');
+    const accountantRevisions = testEnv.authenticatedContext('accountant-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('entity_profile_revisions');
+    const staffRevisions = testEnv.authenticatedContext('staff-1').firestore()
+      .collection('workspaces').doc('workspace-1').collection('entity_profile_revisions');
+
+    await assertSucceeds(ownerRevisions.doc('owner-revision').set(entityProfileRevisionPayload('workspace-1', 'owner-1')));
+    await assertSucceeds(adminRevisions.doc('admin-revision').set(entityProfileRevisionPayload('workspace-1', 'admin-1')));
+    await assertSucceeds(accountantRevisions.doc('owner-revision').get());
+    await assertFails(accountantRevisions.doc('accountant-revision').set(entityProfileRevisionPayload('workspace-1', 'accountant-1')));
+    await assertFails(staffRevisions.doc('owner-revision').get());
+    await assertFails(staffRevisions.doc('staff-revision').set(entityProfileRevisionPayload('workspace-1', 'staff-1')));
+  });
+
   it('lets active Office members discover shared workspaces through membership lookup', async () => {
     await seedWorkspaceWithOfficeMember('workspace-1', 'owner-1', 'manager-1', 'manager');
 
@@ -744,5 +766,38 @@ function settingsAuditPayload(workspaceId: string, actorUid: string) {
     server_revision_before: 1,
     server_revision_after: 2,
     created_at: '2026-05-17T00:00:00.000Z',
+  };
+}
+
+function entityProfileRevisionPayload(workspaceId: string, actorUid: string) {
+  return {
+    workspace_id: workspaceId,
+    action: 'profile_updated',
+    actor_uid: actorUid,
+    actor_email: `${actorUid}@example.com`,
+    source: 'user',
+    approval_status: 'accepted',
+    reason: 'Address change reason: Office relocation. Changed: Workspace address.',
+    changed_fields: ['Workspace address'],
+    changes: [
+      {
+        field: 'address',
+        label: 'Workspace address',
+        previous_value: 'Old office',
+        next_value: 'New office',
+      },
+    ],
+    previous_snapshot: {
+      businessName: 'Asha Traders',
+      address: 'Old office',
+    },
+    next_snapshot: {
+      businessName: 'Asha Traders',
+      address: 'New office',
+    },
+    linked_document_ids: [],
+    server_revision_before: 1,
+    server_revision_after: 2,
+    created_at: '2026-06-09T18:00:00.000Z',
   };
 }

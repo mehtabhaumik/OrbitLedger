@@ -848,7 +848,18 @@ export default function SettingsPage() {
           reason: addressAuditReason ?? 'Protected settings updated',
         });
       } else {
-        await updateWorkspaceProfile(workspace.workspaceId, workspace.serverRevision, nextInput);
+        await updateWorkspaceProfile(
+          workspace.workspaceId,
+          workspace.serverRevision,
+          nextInput,
+          user
+            ? {
+                actorUid: user.uid,
+                actorEmail: user.email,
+                reason: 'Entity profile updated',
+              }
+            : null
+        );
       }
       await refresh();
       setAddressReasonRequest(null);
@@ -928,7 +939,18 @@ export default function SettingsPage() {
           reason: successMessage,
         });
       } else {
-        await updateWorkspaceProfile(workspace.workspaceId, workspace.serverRevision, nextInput);
+        await updateWorkspaceProfile(
+          workspace.workspaceId,
+          workspace.serverRevision,
+          nextInput,
+          user
+            ? {
+                actorUid: user.uid,
+                actorEmail: user.email,
+                reason: successMessage,
+              }
+            : null
+        );
       }
       await refresh();
       showToast(successMessage, 'success');

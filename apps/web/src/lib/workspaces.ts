@@ -31,6 +31,11 @@ import {
 import { getWebAuthReady, getWebFirebaseProjectId, getWebFirestore } from './firebase';
 import { buildAuditProtectedSettingsChanges } from './audit-protected-settings';
 import { buildPaymentInstructionAuditChanges } from './payment-settings-hardening';
+import {
+  buildEntityProfileRevisionRecord,
+  type EntityProfileRevisionAuditInput,
+  type EntityProfileRevisionSourceData,
+} from './entity-profile-revisions';
 
 export type WorkspaceProfileInput = {
   businessName: string;
@@ -123,11 +128,7 @@ export type PaymentSettingsAuditInput = {
   reason?: string | null;
 };
 
-export type WorkspaceSettingsAuditInput = {
-  actorUid: string;
-  actorEmail?: string | null;
-  reason?: string | null;
-};
+export type WorkspaceSettingsAuditInput = EntityProfileRevisionAuditInput;
 
 type FirestoreWorkspaceDoc = {
   business_name: string;
@@ -385,7 +386,8 @@ async function createTrustedWorkspace(
 export async function updateWorkspaceProfile(
   workspaceId: string,
   expectedRevision: number,
-  input: WorkspaceProfileInput
+  input: WorkspaceProfileInput,
+  audit?: EntityProfileRevisionAuditInput | null
 ): Promise<OrbitWorkspaceSummary> {
   const firestore = getWebFirestore();
   const workspaceRef = doc(firestore, 'workspaces', workspaceId);
@@ -395,9 +397,25 @@ export async function updateWorkspaceProfile(
     const current = snapshot.data() as FirestoreWorkspaceDoc | undefined;
     const currentRevision = current?.server_revision ?? 0;
 
+    if (!current) {
+      throw new Error('Workspace could not be found.');
+    }
     if (currentRevision !== expectedRevision) {
       throw new Error('Workspace was changed elsewhere. Refresh before saving again.');
     }
+
+    const nextRevision = currentRevision + 1;
+    const profileRevisionRecord = audit
+      ? buildEntityProfileRevisionRecord({
+          workspaceId,
+          previous: workspaceRevisionSourceFromDoc(current),
+          next: input,
+          audit,
+          serverRevisionBefore: currentRevision,
+          serverRevisionAfter: nextRevision,
+          createdAt: serverTimestamp(),
+        })
+      : null;
 
     transaction.update(workspaceRef, {
       business_name: input.businessName.trim(),
@@ -419,8 +437,13 @@ export async function updateWorkspaceProfile(
       signature_uri: input.signatureUri ?? null,
       ...paymentInstructionPayload(input.paymentInstructions),
       updated_at: serverTimestamp(),
-      server_revision: currentRevision + 1,
+      server_revision: nextRevision,
     });
+
+    if (profileRevisionRecord) {
+      const revisionRef = doc(collection(firestore, 'workspaces', workspaceId, 'entity_profile_revisions'));
+      transaction.set(revisionRef, profileRevisionRecord);
+    }
   });
 
   const next = await getDoc(workspaceRef);
@@ -450,6 +473,15 @@ export async function updateWorkspaceProfileAudited(
 
     const changes = buildAuditProtectedSettingsChanges(workspaceAuditSourceFromDoc(current), input);
     const nextRevision = currentRevision + 1;
+    const profileRevisionRecord = buildEntityProfileRevisionRecord({
+      workspaceId,
+      previous: workspaceRevisionSourceFromDoc(current),
+      next: input,
+      audit,
+      serverRevisionBefore: currentRevision,
+      serverRevisionAfter: nextRevision,
+      createdAt: serverTimestamp(),
+    });
 
     transaction.update(workspaceRef, {
       business_name: input.businessName.trim(),
@@ -495,6 +527,11 @@ export async function updateWorkspaceProfileAudited(
         server_revision_after: nextRevision,
         created_at: serverTimestamp(),
       });
+    }
+
+    if (profileRevisionRecord) {
+      const revisionRef = doc(collection(firestore, 'workspaces', workspaceId, 'entity_profile_revisions'));
+      transaction.set(revisionRef, profileRevisionRecord);
     }
   });
 
@@ -1084,6 +1121,48 @@ function workspaceAuditSourceFromDoc(data: FirestoreWorkspaceDoc) {
     authorizedPersonName: data.authorized_person_name,
     authorizedPersonTitle: data.authorized_person_title,
     signatureUri: data.signature_uri,
+  };
+}
+
+function workspaceRevisionSourceFromDoc(data: FirestoreWorkspaceDoc): EntityProfileRevisionSourceData {
+  return {
+    businessName: data.business_name,
+    legalName: data.legal_name,
+    ownerName: data.owner_name,
+    contactPerson: data.contact_person,
+    businessType: data.business_type,
+    entityType: data.entity_type,
+    entitySubtype: data.entity_subtype,
+    entityVerificationStatus: data.entity_verification_status,
+    entityComplianceFlags: data.entity_compliance_flags,
+    phone: data.phone,
+    whatsapp: data.whatsapp,
+    email: data.email,
+    website: data.website,
+    address: data.address,
+    addressLine1: data.address_line_1,
+    addressLine2: data.address_line_2,
+    city: data.city,
+    town: data.town,
+    postalCode: data.postal_code,
+    stateCode: data.state_code,
+    gstin: data.gstin,
+    pan: data.pan,
+    cin: data.cin,
+    llpin: data.llpin,
+    taxNumber: data.tax_number,
+    registrationNumber: data.registration_number,
+    registeredOfficeAddress: data.registered_office_address,
+    principalPlaceOfBusiness: data.principal_place_of_business,
+    additionalPlacesOfBusiness: data.additional_places_of_business,
+    nonprofitRegistrationNumber: data.nonprofit_registration_number,
+    nonprofitRegistrationAuthority: data.nonprofit_registration_authority,
+    ngoDarpanId: data.ngo_darpan_id,
+    taxExemption12A12ABNumber: data.tax_exemption_12a_12ab_number,
+    taxDeduction80GNumber: data.tax_deduction_80g_number,
+    fcraRegistrationNumber: data.fcra_registration_number,
+    csrRegistrationNumber: data.csr_registration_number,
+    placeOfSupply: data.place_of_supply,
   };
 }
 
