@@ -8,6 +8,7 @@ import type {
   OrbitEntityVerificationStatus,
 } from '@orbit-ledger/contracts';
 import {
+  ORBIT_ENTITY_TYPE_OPTIONS,
   buildSmartInvoiceNumber,
   getManualPaymentInstructionTemplate,
   type ManualPaymentInstructionDetails,
@@ -37,6 +38,15 @@ import {
   validatePhone,
 } from '@/lib/form-validation';
 import { INDIA_COUNTRY, INDIAN_STATES, getDefaultIndianCity, getIndianCityOptions } from '@/lib/india';
+import {
+  WEB_ENTITY_SUBTYPE_LABELS,
+  buildWebEntityProfileUiModel,
+  getEntityBusinessNameLabel,
+  getEntityOwnerNameLabel,
+  getEntityPanLabel,
+  isEntityProfileFieldRequiredForVerification,
+  shouldShowEntityProfileField,
+} from '@/lib/entity-profile-ui';
 import {
   DEFAULT_WEB_USER_SETTINGS,
   loadWebUserSettings,
@@ -99,8 +109,20 @@ type ProfileFormState = {
   postalCode: string;
   gstin: string;
   pan: string;
+  cin: string;
+  llpin: string;
   taxNumber: string;
   registrationNumber: string;
+  registeredOfficeAddress: string;
+  principalPlaceOfBusiness: string;
+  additionalPlacesOfBusiness: string;
+  nonprofitRegistrationNumber: string;
+  nonprofitRegistrationAuthority: string;
+  ngoDarpanId: string;
+  taxExemption12A12ABNumber: string;
+  taxDeduction80GNumber: string;
+  fcraRegistrationNumber: string;
+  csrRegistrationNumber: string;
   placeOfSupply: string;
   defaultTaxTreatment: string;
   defaultPaymentTerms: string;
@@ -152,7 +174,7 @@ type UserSettingsSaveState = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
 
 const settingsHubLinks = [
   { href: '#my-settings', label: 'My Settings' },
-  { href: '#company-settings', label: 'Company Settings' },
+  { href: '#company-settings', label: 'Entity Settings' },
   { href: '#invoice-document-settings', label: 'Invoice & Documents' },
   { href: '#payment-settings', label: 'Payment Settings' },
   { href: '#security-settings', label: 'Security' },
@@ -208,8 +230,20 @@ export default function SettingsPage() {
     postalCode: '',
     gstin: '',
     pan: '',
+    cin: '',
+    llpin: '',
     taxNumber: '',
     registrationNumber: '',
+    registeredOfficeAddress: '',
+    principalPlaceOfBusiness: '',
+    additionalPlacesOfBusiness: '',
+    nonprofitRegistrationNumber: '',
+    nonprofitRegistrationAuthority: '',
+    ngoDarpanId: '',
+    taxExemption12A12ABNumber: '',
+    taxDeduction80GNumber: '',
+    fcraRegistrationNumber: '',
+    csrRegistrationNumber: '',
     placeOfSupply: '',
     defaultTaxTreatment: '',
     defaultPaymentTerms: '',
@@ -315,8 +349,20 @@ export default function SettingsPage() {
       postalCode: activeWorkspace.postalCode ?? '',
       gstin: activeWorkspace.gstin ?? '',
       pan: activeWorkspace.pan ?? '',
+      cin: activeWorkspace.cin ?? '',
+      llpin: activeWorkspace.llpin ?? '',
       taxNumber: activeWorkspace.taxNumber ?? '',
       registrationNumber: activeWorkspace.registrationNumber ?? '',
+      registeredOfficeAddress: activeWorkspace.registeredOfficeAddress ?? '',
+      principalPlaceOfBusiness: activeWorkspace.principalPlaceOfBusiness ?? '',
+      additionalPlacesOfBusiness: activeWorkspace.additionalPlacesOfBusiness?.join('\n') ?? '',
+      nonprofitRegistrationNumber: activeWorkspace.nonprofitRegistrationNumber ?? '',
+      nonprofitRegistrationAuthority: activeWorkspace.nonprofitRegistrationAuthority ?? '',
+      ngoDarpanId: activeWorkspace.ngoDarpanId ?? '',
+      taxExemption12A12ABNumber: activeWorkspace.taxExemption12A12ABNumber ?? '',
+      taxDeduction80GNumber: activeWorkspace.taxDeduction80GNumber ?? '',
+      fcraRegistrationNumber: activeWorkspace.fcraRegistrationNumber ?? '',
+      csrRegistrationNumber: activeWorkspace.csrRegistrationNumber ?? '',
       placeOfSupply: activeWorkspace.placeOfSupply ?? '',
       defaultTaxTreatment: activeWorkspace.defaultTaxTreatment ?? '',
       defaultPaymentTerms: activeWorkspace.defaultPaymentTerms ?? '',
@@ -499,6 +545,16 @@ export default function SettingsPage() {
   }).invoiceNumber;
   const paymentInstructionChanges = buildPaymentInstructionAuditChanges(workspace.paymentInstructions, paymentInstructions);
   const paymentInstructionSummary = summarizePaymentInstructionChanges(paymentInstructionChanges);
+  const entityProfileUi = buildWebEntityProfileUiModel({
+    entityType: profile.entityType,
+    entitySubtype: profile.entitySubtype,
+    entityVerificationStatus: profile.entityVerificationStatus,
+    entityComplianceFlags: profile.entityComplianceFlags,
+  });
+  const showEntityField = (field: Parameters<typeof shouldShowEntityProfileField>[1]) =>
+    shouldShowEntityProfileField(entityProfileUi, field);
+  const isEntityFieldRequired = (field: Parameters<typeof isEntityProfileFieldRequiredForVerification>[1]) =>
+    isEntityProfileFieldRequiredForVerification(entityProfileUi, field);
 
   function validateField(field: ProfileFieldKey, candidate = profile) {
     if (field === 'businessName') {
@@ -540,6 +596,45 @@ export default function SettingsPage() {
       const nextError = validateField(field as ProfileFieldKey, next);
       setFieldErrors((current) => ({ ...current, [field as ProfileFieldKey]: nextError }));
     }
+  }
+
+  function handleEntityTypeChange(value: string) {
+    const entityType = value as OrbitEntityType;
+    const option = ORBIT_ENTITY_TYPE_OPTIONS.find((entry) => entry.type === entityType);
+    setProfile((current) => ({
+      ...current,
+      entityType,
+      entitySubtype: option?.allowedSubtypes[0] ?? null,
+      entityComplianceFlags:
+        entityType === 'nonprofit_charity'
+          ? current.entityComplianceFlags
+          : {
+              ...current.entityComplianceFlags,
+              donationReceiptsEnabled: false,
+              has12A12AB: false,
+              has80G: false,
+              receivesForeignContribution: false,
+              hasFcra: false,
+              acceptsCsrFunding: false,
+            },
+    }));
+  }
+
+  function handleEntitySubtypeChange(value: string) {
+    setProfile((current) => ({
+      ...current,
+      entitySubtype: value ? (value as OrbitEntitySubtype) : null,
+    }));
+  }
+
+  function handleComplianceFlagChange(field: keyof OrbitEntityComplianceFlags, checked: boolean) {
+    setProfile((current) => ({
+      ...current,
+      entityComplianceFlags: {
+        ...current.entityComplianceFlags,
+        [field]: checked,
+      },
+    }));
   }
 
   function handleUseCompanyAddressForRegistered(checked: boolean) {
@@ -588,20 +683,20 @@ export default function SettingsPage() {
       postalCode: nextProfile.postalCode,
       gstin: nextProfile.gstin,
       pan: nextProfile.pan,
-      cin: workspace.cin ?? null,
-      llpin: workspace.llpin ?? null,
+      cin: nextProfile.cin,
+      llpin: nextProfile.llpin,
       taxNumber: nextProfile.taxNumber,
       registrationNumber: nextProfile.registrationNumber,
-      registeredOfficeAddress: workspace.registeredOfficeAddress ?? null,
-      principalPlaceOfBusiness: workspace.principalPlaceOfBusiness ?? null,
-      additionalPlacesOfBusiness: workspace.additionalPlacesOfBusiness ?? null,
-      nonprofitRegistrationNumber: workspace.nonprofitRegistrationNumber ?? null,
-      nonprofitRegistrationAuthority: workspace.nonprofitRegistrationAuthority ?? null,
-      ngoDarpanId: workspace.ngoDarpanId ?? null,
-      taxExemption12A12ABNumber: workspace.taxExemption12A12ABNumber ?? null,
-      taxDeduction80GNumber: workspace.taxDeduction80GNumber ?? null,
-      fcraRegistrationNumber: workspace.fcraRegistrationNumber ?? null,
-      csrRegistrationNumber: workspace.csrRegistrationNumber ?? null,
+      registeredOfficeAddress: nextProfile.registeredOfficeAddress,
+      principalPlaceOfBusiness: nextProfile.principalPlaceOfBusiness,
+      additionalPlacesOfBusiness: splitProfileLines(nextProfile.additionalPlacesOfBusiness),
+      nonprofitRegistrationNumber: nextProfile.nonprofitRegistrationNumber,
+      nonprofitRegistrationAuthority: nextProfile.nonprofitRegistrationAuthority,
+      ngoDarpanId: nextProfile.ngoDarpanId,
+      taxExemption12A12ABNumber: nextProfile.taxExemption12A12ABNumber,
+      taxDeduction80GNumber: nextProfile.taxDeduction80GNumber,
+      fcraRegistrationNumber: nextProfile.fcraRegistrationNumber,
+      csrRegistrationNumber: nextProfile.csrRegistrationNumber,
       placeOfSupply: nextProfile.placeOfSupply,
       defaultTaxTreatment: nextProfile.defaultTaxTreatment,
       defaultPaymentTerms: nextProfile.defaultPaymentTerms,
@@ -698,9 +793,9 @@ export default function SettingsPage() {
         await updateWorkspaceProfile(workspace.workspaceId, workspace.serverRevision, nextInput);
       }
       await refresh();
-      showToast('Company profile saved.', 'success');
+      showToast('Entity profile saved.', 'success');
     } catch (nextError) {
-      showToast(nextError instanceof Error ? nextError.message : 'Company profile could not be saved.', 'danger');
+      showToast(nextError instanceof Error ? nextError.message : 'Entity profile could not be saved.', 'danger');
     } finally {
       setIsSaving(false);
     }
@@ -961,14 +1056,14 @@ export default function SettingsPage() {
   }
 
   return (
-    <AppShell title="Settings" subtitle="Personal choices, company details, documents, payments, security, and backups.">
+    <AppShell title="Settings" subtitle="Personal choices, entity details, documents, payments, security, and backups.">
       <div className="ol-settings-hub">
         <section className="ol-settings-hero">
           <div>
             <p className="ol-eyebrow">Settings</p>
             <h2>Make Orbit Ledger remember how this business works.</h2>
             <p>
-              Keep daily preferences, company details, document style, payment details, and safety controls in clear sections.
+              Keep daily preferences, entity details, document style, payment details, and safety controls in clear sections.
             </p>
           </div>
           <span className="ol-chip ol-chip--success">Ready</span>
@@ -987,7 +1082,7 @@ export default function SettingsPage() {
             <div>
               <div className="ol-panel-title">My Settings</div>
               <p className="ol-panel-copy">
-                Personal preferences are saved for this user and this business. They do not change company-wide settings.
+                Personal preferences are saved for this user and this workspace. They do not change entity-wide settings.
               </p>
             </div>
             <span aria-live="polite" className={`ol-chip ${getUserSettingsSaveChipClass(userSettingsSaveState)}`}>
@@ -1065,7 +1160,7 @@ export default function SettingsPage() {
             <div className="ol-form-band-header">
               <div>
                 <div className="ol-form-band-title">Screen comfort and exports</div>
-                <p className="ol-form-band-copy">These are personal display and download preferences. They do not change company records.</p>
+                <p className="ol-form-band-copy">These are personal display and download preferences. They do not change workspace records.</p>
               </div>
             </div>
             <div className="ol-form-band-grid">
@@ -1121,19 +1216,161 @@ export default function SettingsPage() {
       <form className="ol-panel-glass ol-settings-section" id="company-settings" onSubmit={saveWorkspaceProfile}>
         <div className="ol-panel-header">
           <div>
-            <div className="ol-panel-title">Company Settings</div>
+            <div className="ol-panel-title">Entity Settings</div>
             <p className="ol-panel-copy">
-              Keep the business identity consistent across invoices, reports, settings, and backup names.
+              Keep the right identity fields visible for this workspace type across invoices, reports, settings, and backup names.
             </p>
           </div>
         </div>
 
         <div className="ol-form-grid">
+          <div className="ol-form-band">
+            <div className="ol-form-band-header">
+              <div>
+                <div className="ol-form-band-title">Entity type</div>
+                <p className="ol-form-band-copy">{entityProfileUi.entityDescription}</p>
+              </div>
+              <span className="ol-chip ol-chip--primary">{entityProfileUi.entityLabel}</span>
+            </div>
+            <div className="ol-form-band-grid">
+              <label className="ol-field">
+                <span className="ol-field-label ol-field-label--with-meta">
+                  <span className="ol-field-label-text">
+                    Profile type
+                    <span className="ol-required-badge">Required</span>
+                  </span>
+                  <SettingsFieldHelp help="Choose the legal or business structure for this workspace. Orbit Ledger shows only the fields that apply to that type." label="Profile type" />
+                </span>
+                <select
+                  className="ol-select"
+                  required
+                  value={profile.entityType}
+                  onChange={(event) => handleEntityTypeChange(event.target.value)}
+                >
+                  {ORBIT_ENTITY_TYPE_OPTIONS.map((option) => (
+                    <option key={option.type} value={option.type}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {entityProfileUi.subtypeOptions.length ? (
+                <label className="ol-field">
+                  <span className="ol-field-label ol-field-label--with-meta">
+                    <span className="ol-field-label-text">
+                      Subtype
+                      <span className="ol-required-badge">Required</span>
+                    </span>
+                    <SettingsFieldHelp help="Subtype controls which registration fields appear. For example, Section 8 nonprofits use CIN while trusts and societies do not." label="Subtype" />
+                  </span>
+                  <select
+                    className="ol-select"
+                    value={profile.entitySubtype ?? entityProfileUi.subtypeOptions[0] ?? ''}
+                    onChange={(event) => handleEntitySubtypeChange(event.target.value)}
+                  >
+                    {entityProfileUi.subtypeOptions.map((subtype) => (
+                      <option key={subtype} value={subtype}>
+                        {WEB_ENTITY_SUBTYPE_LABELS[subtype]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+            <div className="ol-form-band-grid ol-form-band-grid--compact">
+              <label className="ol-inline-check ol-inline-check--panel">
+                <input
+                  checked={profile.entityComplianceFlags.gstRegistered}
+                  type="checkbox"
+                  onChange={(event) => handleComplianceFlagChange('gstRegistered', event.target.checked)}
+                />
+                <span>
+                  <strong>GST registered</strong>
+                  <small>Shows GSTIN and principal-place fields for GST-ready records.</small>
+                </span>
+              </label>
+              {profile.entityType !== 'freelancer_individual' ? (
+                <label className="ol-inline-check ol-inline-check--panel">
+                  <input
+                    checked={profile.entityComplianceFlags.hasUdyam}
+                    type="checkbox"
+                    onChange={(event) => handleComplianceFlagChange('hasUdyam', event.target.checked)}
+                  />
+                  <span>
+                    <strong>Udyam registered</strong>
+                    <small>Keeps MSME/Udyam proof available for later verification.</small>
+                  </span>
+                </label>
+              ) : null}
+              {profile.entityType === 'nonprofit_charity' ? (
+                <>
+                  <label className="ol-inline-check ol-inline-check--panel">
+                    <input
+                      checked={profile.entityComplianceFlags.donationReceiptsEnabled}
+                      type="checkbox"
+                      onChange={(event) => handleComplianceFlagChange('donationReceiptsEnabled', event.target.checked)}
+                    />
+                    <span>
+                      <strong>Donation receipts</strong>
+                      <small>Shows 80G fields when donation receipts are enabled.</small>
+                    </span>
+                  </label>
+                  <label className="ol-inline-check ol-inline-check--panel">
+                    <input
+                      checked={profile.entityComplianceFlags.has12A12AB}
+                      type="checkbox"
+                      onChange={(event) => handleComplianceFlagChange('has12A12AB', event.target.checked)}
+                    />
+                    <span>
+                      <strong>12A / 12AB</strong>
+                      <small>Shows income-tax exemption registration fields.</small>
+                    </span>
+                  </label>
+                  <label className="ol-inline-check ol-inline-check--panel">
+                    <input
+                      checked={profile.entityComplianceFlags.has80G}
+                      type="checkbox"
+                      onChange={(event) => handleComplianceFlagChange('has80G', event.target.checked)}
+                    />
+                    <span>
+                      <strong>80G approved</strong>
+                      <small>Shows donor deduction registration details.</small>
+                    </span>
+                  </label>
+                  <label className="ol-inline-check ol-inline-check--panel">
+                    <input
+                      checked={profile.entityComplianceFlags.receivesForeignContribution || profile.entityComplianceFlags.hasFcra}
+                      type="checkbox"
+                      onChange={(event) => {
+                        handleComplianceFlagChange('receivesForeignContribution', event.target.checked);
+                        handleComplianceFlagChange('hasFcra', event.target.checked);
+                      }}
+                    />
+                    <span>
+                      <strong>FCRA / foreign contribution</strong>
+                      <small>Shows FCRA registration or prior-permission fields.</small>
+                    </span>
+                  </label>
+                  <label className="ol-inline-check ol-inline-check--panel">
+                    <input
+                      checked={profile.entityComplianceFlags.acceptsCsrFunding}
+                      type="checkbox"
+                      onChange={(event) => handleComplianceFlagChange('acceptsCsrFunding', event.target.checked)}
+                    />
+                    <span>
+                      <strong>CSR funding</strong>
+                      <small>Shows CSR registration fields for charity funding records.</small>
+                    </span>
+                  </label>
+                </>
+              ) : null}
+            </div>
+          </div>
           <div className="ol-form-row ol-form-row--auto">
             <ProfileField
               error={fieldErrors.businessName}
               help="Required. This appears on invoices, statements, reports, settings, and backup names."
-              label="Business name"
+              label={getEntityBusinessNameLabel(profile.entityType)}
               required
               value={profile.businessName}
               onBlur={() => handleFieldBlur('businessName')}
@@ -1142,7 +1379,7 @@ export default function SettingsPage() {
             <ProfileField
               error={fieldErrors.ownerName}
               help="Required. Used as the primary owner contact on internal workspace records."
-              label="Owner name"
+              label={getEntityOwnerNameLabel(profile.entityType)}
               required
               value={profile.ownerName}
               onBlur={() => handleFieldBlur('ownerName')}
@@ -1150,7 +1387,7 @@ export default function SettingsPage() {
             />
             <ProfileField
               error={fieldErrors.phone}
-              help="Required. Add the best reachable business phone for company and support records."
+              help="Required. Add the best reachable phone for workspace and support records."
               inputMode="tel"
               label="Phone"
               required
@@ -1225,9 +1462,39 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="ol-form-band-grid">
-              <ProfileField label="Legal business name" value={profile.legalName} onChange={(value) => handleFieldChange('legalName', value)} />
-              <ProfileField label="Business type" value={profile.businessType} onChange={(value) => handleFieldChange('businessType', value)} />
-              <ProfileField label="Contact person" value={profile.contactPerson} onChange={(value) => handleFieldChange('contactPerson', value)} />
+              {showEntityField('legalName') ? (
+                <ProfileField
+                  help="The legal name used for verification and formal documents for this entity type."
+                  label={profile.entityType === 'nonprofit_charity' ? 'Legal organization name' : 'Legal name'}
+                  requiredBadge={isEntityFieldRequired('legalName')}
+                  value={profile.legalName}
+                  onChange={(value) => handleFieldChange('legalName', value)}
+                />
+              ) : null}
+              <ProfileField
+                help="Day-to-day contact name for follow-up, workspace records, and support context."
+                label={profile.entityType === 'nonprofit_charity' ? 'Operations contact' : 'Contact person'}
+                value={profile.contactPerson}
+                onChange={(value) => handleFieldChange('contactPerson', value)}
+              />
+              {showEntityField('registeredOfficeAddress') ? (
+                <ProfileField
+                  help="Registered office or principal registered address for this entity type."
+                  label={profile.entityType === 'nonprofit_charity' ? 'Registered / principal office' : 'Registered office address'}
+                  requiredBadge={isEntityFieldRequired('registeredOfficeAddress')}
+                  value={profile.registeredOfficeAddress}
+                  onChange={(value) => handleFieldChange('registeredOfficeAddress', value)}
+                />
+              ) : null}
+              {showEntityField('principalPlaceOfBusiness') ? (
+                <ProfileField
+                  help="The primary place where the business or organization operates."
+                  label="Principal place of business"
+                  requiredBadge={isEntityFieldRequired('principalPlaceOfBusiness')}
+                  value={profile.principalPlaceOfBusiness}
+                  onChange={(value) => handleFieldChange('principalPlaceOfBusiness', value)}
+                />
+              ) : null}
               <ProfileField inputMode="tel" label="WhatsApp" value={profile.whatsapp} onChange={(value) => handleFieldChange('whatsapp', value)} />
               <ProfileField label="Website" value={profile.website} onChange={(value) => handleFieldChange('website', value)} />
             </div>
@@ -1246,8 +1513,8 @@ export default function SettingsPage() {
                 onChange={(event) => handleUseCompanyAddressForRegistered(event.target.checked)}
               />
               <span>
-                <strong>Use company address</strong>
-                <small>Copy the company address into the registered-address fields used on invoices and statements.</small>
+                <strong>Use workspace address</strong>
+                <small>Copy the workspace address into the registered-address fields used on invoices and statements.</small>
               </span>
             </label>
             <div className="ol-form-band-grid">
@@ -1268,21 +1535,118 @@ export default function SettingsPage() {
                 </select>
               </label>
               <ProfileField label="Town / village" value={profile.town} onChange={(value) => handleFieldChange('town', value)} />
-              <ProfileField label="PIN / postcode" value={profile.postalCode} onChange={(value) => handleFieldChange('postalCode', value)} />
+              <ProfileField
+                label="PIN / postcode"
+                requiredBadge={isEntityFieldRequired('postalCode')}
+                value={profile.postalCode}
+                onChange={(value) => handleFieldChange('postalCode', value)}
+              />
+              {showEntityField('additionalPlacesOfBusiness') ? (
+                <ProfileTextArea
+                  help="Add one additional place per line. These become structured records in later verification phases."
+                  label="Additional places of business"
+                  value={profile.additionalPlacesOfBusiness}
+                  onChange={(value) => handleFieldChange('additionalPlacesOfBusiness', value)}
+                />
+              ) : null}
             </div>
           </div>
           <div className="ol-form-band">
             <div className="ol-form-band-header">
               <div>
-                <div className="ol-form-band-title">Tax identity</div>
-                <p className="ol-form-band-copy">Optional tax and registration details used on customer-facing documents.</p>
+                <div className="ol-form-band-title">Tax and registration identity</div>
+                <p className="ol-form-band-copy">Only fields that apply to {entityProfileUi.entityLabel.toLowerCase()} profiles are shown here.</p>
               </div>
             </div>
             <div className="ol-form-band-grid">
-              <ProfileField label="GSTIN" value={profile.gstin} onChange={(value) => handleFieldChange('gstin', value.toUpperCase())} />
-              <ProfileField label="PAN" value={profile.pan} onChange={(value) => handleFieldChange('pan', value.toUpperCase())} />
+              {showEntityField('cin') ? (
+                <ProfileField
+                  help="Corporate Identification Number. Required for company and Section 8 company profiles."
+                  label="CIN"
+                  requiredBadge={isEntityFieldRequired('cin')}
+                  value={profile.cin}
+                  onChange={(value) => handleFieldChange('cin', value.toUpperCase())}
+                />
+              ) : null}
+              {showEntityField('llpin') ? (
+                <ProfileField
+                  help="LLP Identification Number for Limited Liability Partnership profiles."
+                  label="LLPIN"
+                  requiredBadge={isEntityFieldRequired('llpin')}
+                  value={profile.llpin}
+                  onChange={(value) => handleFieldChange('llpin', value.toUpperCase())}
+                />
+              ) : null}
+              {showEntityField('pan') || showEntityField('companyPan') ? (
+                <ProfileField
+                  help="Permanent Account Number for the selected entity type."
+                  label={getEntityPanLabel(profile.entityType)}
+                  requiredBadge={isEntityFieldRequired('pan') || isEntityFieldRequired('companyPan')}
+                  value={profile.pan}
+                  onChange={(value) => handleFieldChange('pan', value.toUpperCase())}
+                />
+              ) : null}
+              {showEntityField('gstin') ? (
+                <ProfileField
+                  help="Shown only when GST registered is selected."
+                  label="GSTIN"
+                  requiredBadge={isEntityFieldRequired('gstin')}
+                  value={profile.gstin}
+                  onChange={(value) => handleFieldChange('gstin', value.toUpperCase())}
+                />
+              ) : null}
               <ProfileField label="VAT / tax number" value={profile.taxNumber} onChange={(value) => handleFieldChange('taxNumber', value)} />
-              <ProfileField label="Registration number" value={profile.registrationNumber} onChange={(value) => handleFieldChange('registrationNumber', value)} />
+              {profile.entityType === 'nonprofit_charity' ? (
+                <>
+                  <ProfileField
+                    help="Trust deed, society, NGO, or charity registration number."
+                    label="Nonprofit registration number"
+                    requiredBadge={isEntityFieldRequired('nonprofitRegistrationNumber')}
+                    value={profile.nonprofitRegistrationNumber}
+                    onChange={(value) => handleFieldChange('nonprofitRegistrationNumber', value)}
+                  />
+                  <ProfileField
+                    label="Registration authority"
+                    value={profile.nonprofitRegistrationAuthority}
+                    onChange={(value) => handleFieldChange('nonprofitRegistrationAuthority', value)}
+                  />
+                  <ProfileField label="NGO Darpan ID" value={profile.ngoDarpanId} onChange={(value) => handleFieldChange('ngoDarpanId', value)} />
+                  {showEntityField('taxExemption12A12ABNumber') ? (
+                    <ProfileField
+                      label="12A / 12AB number"
+                      requiredBadge={isEntityFieldRequired('taxExemption12A12ABNumber')}
+                      value={profile.taxExemption12A12ABNumber}
+                      onChange={(value) => handleFieldChange('taxExemption12A12ABNumber', value)}
+                    />
+                  ) : null}
+                  {showEntityField('taxDeduction80GNumber') ? (
+                    <ProfileField
+                      label="80G number"
+                      requiredBadge={isEntityFieldRequired('taxDeduction80GNumber')}
+                      value={profile.taxDeduction80GNumber}
+                      onChange={(value) => handleFieldChange('taxDeduction80GNumber', value)}
+                    />
+                  ) : null}
+                  {showEntityField('fcraRegistrationNumber') ? (
+                    <ProfileField
+                      label="FCRA registration / permission"
+                      requiredBadge={isEntityFieldRequired('fcraRegistrationNumber')}
+                      value={profile.fcraRegistrationNumber}
+                      onChange={(value) => handleFieldChange('fcraRegistrationNumber', value)}
+                    />
+                  ) : null}
+                  {showEntityField('csrRegistrationNumber') ? (
+                    <ProfileField
+                      label="CSR registration"
+                      requiredBadge={isEntityFieldRequired('csrRegistrationNumber')}
+                      value={profile.csrRegistrationNumber}
+                      onChange={(value) => handleFieldChange('csrRegistrationNumber', value)}
+                    />
+                  ) : null}
+                </>
+              ) : (
+                <ProfileField label="Registration number" value={profile.registrationNumber} onChange={(value) => handleFieldChange('registrationNumber', value)} />
+              )}
               <ProfileField label="Place of supply" value={profile.placeOfSupply} onChange={(value) => handleFieldChange('placeOfSupply', value)} />
             </div>
           </div>
@@ -1290,7 +1654,7 @@ export default function SettingsPage() {
 
         <div className="ol-actions ol-form-actions">
           <button className="ol-button" disabled={isSaving} type="submit">
-            {isSaving ? 'Saving...' : 'Save company profile'}
+            {isSaving ? 'Saving...' : 'Save entity profile'}
           </button>
         </div>
       </form>
@@ -1907,7 +2271,7 @@ export default function SettingsPage() {
           <div>
             <div className="ol-panel-title">Security + Device Settings</div>
             <p className="ol-panel-copy">
-              These controls stay on this browser. They are separate from your sign-in password, company details, and business backups.
+              These controls stay on this browser. They are separate from your sign-in password, entity details, and business backups.
             </p>
           </div>
           <span className={`ol-chip ${isEnabled ? 'ol-chip--premium' : 'ol-chip--warning'}`}>
@@ -2307,6 +2671,14 @@ function withCompanyAddressAsRegistered(profile: ProfileFormState): ProfileFormS
   };
 }
 
+function splitProfileLines(value: string) {
+  const entries = value
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return entries.length ? entries : null;
+}
+
 function ProfileField({
   error,
   help,
@@ -2317,6 +2689,7 @@ function ProfileField({
   onChange,
   placeholder,
   required = false,
+  requiredBadge = false,
   type = 'text',
   value,
 }: {
@@ -2328,6 +2701,7 @@ function ProfileField({
   maxLength?: number;
   placeholder?: string;
   required?: boolean;
+  requiredBadge?: boolean;
   error?: string | null;
   onBlur?(): void;
   onChange(value: string): void;
@@ -2337,7 +2711,7 @@ function ProfileField({
       <span className="ol-field-label ol-field-label--with-meta">
         <span className="ol-field-label-text">
           {label}
-          {required ? <span className="ol-required-badge">Required</span> : null}
+          {required || requiredBadge ? <span className="ol-required-badge">Required</span> : null}
         </span>
         {help ? <SettingsFieldHelp help={help} label={label} /> : null}
       </span>
@@ -2354,6 +2728,33 @@ function ProfileField({
         onChange={(event) => onChange(event.target.value)}
       />
       {error ? <span className="ol-field-error">{error}</span> : null}
+    </label>
+  );
+}
+
+function ProfileTextArea({
+  help,
+  label,
+  onChange,
+  value,
+}: {
+  help?: string;
+  label: string;
+  value: string;
+  onChange(value: string): void;
+}) {
+  return (
+    <label className="ol-field">
+      <span className="ol-field-label ol-field-label--with-meta">
+        <span className="ol-field-label-text">{label}</span>
+        {help ? <SettingsFieldHelp help={help} label={label} /> : null}
+      </span>
+      <textarea
+        className="ol-textarea"
+        rows={4}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </label>
   );
 }
