@@ -385,7 +385,7 @@ export default function SettingsPage() {
       email: activeWorkspace.email,
       website: activeWorkspace.website ?? '',
       address: activeWorkspace.address,
-      addressLine1: activeWorkspace.addressLine1 ?? '',
+      addressLine1: activeWorkspace.addressLine1 ?? activeWorkspace.address ?? '',
       addressLine2: activeWorkspace.addressLine2 ?? '',
       city: activeWorkspace.city ?? getDefaultIndianCity(activeWorkspace.stateCode || 'GJ'),
       town: activeWorkspace.town ?? '',
@@ -672,10 +672,10 @@ export default function SettingsPage() {
           }
         : { ...profile, [field]: value };
 
-    if (useCompanyAddressForRegistered && (field === 'address' || field === 'stateCode')) {
-      next = withCompanyAddressAsRegistered(next);
+    if (useCompanyAddressForRegistered && isPrimaryBusinessAddressField(field)) {
+      next = withBusinessAddressAsLegalLocations(next);
     }
-    if (['addressLine1', 'addressLine2', 'city', 'town'].includes(field)) {
+    if (field === 'registeredOfficeAddress' || field === 'principalPlaceOfBusiness') {
       setUseCompanyAddressForRegistered(false);
     }
     if (isAddressReasonField(field)) {
@@ -733,7 +733,7 @@ export default function SettingsPage() {
     if (!checked) {
       return;
     }
-    setProfile((current) => withCompanyAddressAsRegistered(current));
+    setProfile((current) => withBusinessAddressAsLegalLocations(current));
   }
 
   function handleFieldBlur(field: ProfileFieldKey) {
@@ -752,6 +752,10 @@ export default function SettingsPage() {
   }
 
   function buildWorkspaceProfileInput(nextProfile = profile) {
+    const primaryBusinessAddress = buildPrimaryBusinessAddress(nextProfile);
+    const registeredOfficeAddress = nextProfile.registeredOfficeAddress.trim() || primaryBusinessAddress;
+    const principalPlaceOfBusiness = nextProfile.principalPlaceOfBusiness.trim() || primaryBusinessAddress;
+
     return {
       businessName: nextProfile.businessName.trim(),
       legalName: nextProfile.legalName,
@@ -766,7 +770,7 @@ export default function SettingsPage() {
       whatsapp: nextProfile.whatsapp,
       email: nextProfile.email.trim(),
       website: nextProfile.website,
-      address: nextProfile.address.trim(),
+      address: primaryBusinessAddress,
       addressLine1: nextProfile.addressLine1,
       addressLine2: nextProfile.addressLine2,
       city: nextProfile.city,
@@ -778,8 +782,8 @@ export default function SettingsPage() {
       llpin: nextProfile.llpin,
       taxNumber: nextProfile.taxNumber,
       registrationNumber: nextProfile.registrationNumber,
-      registeredOfficeAddress: nextProfile.registeredOfficeAddress,
-      principalPlaceOfBusiness: nextProfile.principalPlaceOfBusiness,
+      registeredOfficeAddress,
+      principalPlaceOfBusiness,
       additionalPlacesOfBusiness: splitProfileLines(nextProfile.additionalPlacesOfBusiness),
       nonprofitRegistrationNumber: nextProfile.nonprofitRegistrationNumber,
       nonprofitRegistrationAuthority: nextProfile.nonprofitRegistrationAuthority,
@@ -1611,11 +1615,6 @@ export default function SettingsPage() {
               onBlur={() => handleFieldBlur('email')}
               onChange={(value) => handleFieldChange('email', value)}
             />
-            <ProfileField
-              label="Address"
-              value={profile.address}
-              onChange={(value) => handleFieldChange('address', value)}
-            />
             <label className="ol-field">
               <span className="ol-field-label">Country</span>
               <select className="ol-select" disabled value={INDIA_COUNTRY.code}>
@@ -1680,24 +1679,6 @@ export default function SettingsPage() {
                 value={profile.contactPerson}
                 onChange={(value) => handleFieldChange('contactPerson', value)}
               />
-              {showEntityField('registeredOfficeAddress') ? (
-                <ProfileField
-                  help="Registered office or principal registered address for this entity type."
-                  label={profile.entityType === 'nonprofit_charity' ? 'Registered / principal office' : 'Registered office address'}
-                  requiredBadge={isEntityFieldRequired('registeredOfficeAddress')}
-                  value={profile.registeredOfficeAddress}
-                  onChange={(value) => handleFieldChange('registeredOfficeAddress', value)}
-                />
-              ) : null}
-              {showEntityField('principalPlaceOfBusiness') ? (
-                <ProfileField
-                  help="The primary place where the business or organization operates."
-                  label="Principal place of business"
-                  requiredBadge={isEntityFieldRequired('principalPlaceOfBusiness')}
-                  value={profile.principalPlaceOfBusiness}
-                  onChange={(value) => handleFieldChange('principalPlaceOfBusiness', value)}
-                />
-              ) : null}
               <ProfileField inputMode="tel" label="WhatsApp" value={profile.whatsapp} onChange={(value) => handleFieldChange('whatsapp', value)} />
               <ProfileField label="Website" value={profile.website} onChange={(value) => handleFieldChange('website', value)} />
             </div>
@@ -1705,23 +1686,17 @@ export default function SettingsPage() {
           <div className="ol-form-band">
             <div className="ol-form-band-header">
               <div>
-                <div className="ol-form-band-title">Registered address</div>
-                <p className="ol-form-band-copy">Structured address fields keep documents and exports cleaner than one long address line.</p>
+                <div className="ol-form-band-title">Business address</div>
+                <p className="ol-form-band-copy">This is the primary address used on documents, exports, and workspace records.</p>
               </div>
             </div>
-            <label className="ol-inline-check ol-inline-check--panel">
-              <input
-                checked={useCompanyAddressForRegistered}
-                type="checkbox"
-                onChange={(event) => handleUseCompanyAddressForRegistered(event.target.checked)}
-              />
-              <span>
-                <strong>Use workspace address</strong>
-                <small>Copy the workspace address into the registered-address fields used on invoices and statements.</small>
-              </span>
-            </label>
             <div className="ol-form-band-grid">
-              <ProfileField label="Address line 1" value={profile.addressLine1} onChange={(value) => handleFieldChange('addressLine1', value)} />
+              <ProfileField
+                help="Use the main business, billing, or operating address. Legal and GST address fields below can stay blank when they are the same."
+                label="Address line 1"
+                value={profile.addressLine1}
+                onChange={(value) => handleFieldChange('addressLine1', value)}
+              />
               <ProfileField label="Address line 2" value={profile.addressLine2} onChange={(value) => handleFieldChange('addressLine2', value)} />
               <label className="ol-field">
                 <span className="ol-field-label">City</span>
@@ -1746,7 +1721,7 @@ export default function SettingsPage() {
               />
               {showEntityField('additionalPlacesOfBusiness') ? (
                 <ProfileTextArea
-                  help="Add one additional place per line. These become structured records in later verification phases."
+                  help="Add only locations that are different from the primary business address, one per line."
                   label="Additional places of business"
                   value={profile.additionalPlacesOfBusiness}
                   onChange={(value) => handleFieldChange('additionalPlacesOfBusiness', value)}
@@ -1754,6 +1729,49 @@ export default function SettingsPage() {
               ) : null}
             </div>
           </div>
+          {(showEntityField('registeredOfficeAddress') || showEntityField('principalPlaceOfBusiness')) ? (
+            <div className="ol-form-band">
+              <div className="ol-form-band-header">
+                <div>
+                  <div className="ol-form-band-title">Legal and GST address</div>
+                  <p className="ol-form-band-copy">Leave these blank when they are the same as the business address above.</p>
+                </div>
+              </div>
+              <label className="ol-inline-check ol-inline-check--panel">
+                <input
+                  checked={useCompanyAddressForRegistered}
+                  type="checkbox"
+                  onChange={(event) => handleUseCompanyAddressForRegistered(event.target.checked)}
+                />
+                <span>
+                  <strong>Same as business address</strong>
+                  <small>Copy the business address into legal and GST address fields that apply to this entity.</small>
+                </span>
+              </label>
+              <div className="ol-form-band-grid">
+                {showEntityField('registeredOfficeAddress') ? (
+                  <ProfileField
+                    help="Only enter this when the legal registered office is different from the business address."
+                    label={profile.entityType === 'nonprofit_charity' ? 'Registered / principal office' : 'Legal registered address'}
+                    placeholder={buildPrimaryBusinessAddress(profile) || 'Same as business address'}
+                    requiredBadge={isEntityFieldRequired('registeredOfficeAddress')}
+                    value={profile.registeredOfficeAddress}
+                    onChange={(value) => handleFieldChange('registeredOfficeAddress', value)}
+                  />
+                ) : null}
+                {showEntityField('principalPlaceOfBusiness') ? (
+                  <ProfileField
+                    help="Only enter this when the GST principal place of business is different from the business address."
+                    label="GST principal place"
+                    placeholder={buildPrimaryBusinessAddress(profile) || 'Same as business address'}
+                    requiredBadge={isEntityFieldRequired('principalPlaceOfBusiness')}
+                    value={profile.principalPlaceOfBusiness}
+                    onChange={(value) => handleFieldChange('principalPlaceOfBusiness', value)}
+                  />
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           <div className="ol-form-band">
             <div className="ol-form-band-header">
               <div>
@@ -3047,14 +3065,33 @@ function defaultRecurringEmailBody(): string {
   return 'Hello {{customerName}},\n\nYour invoice {{invoiceNumber}} is attached.\n\nYou can pay here:\n{{paymentLink}}\n\nThank you,\n{{businessName}}';
 }
 
-function withCompanyAddressAsRegistered(profile: ProfileFormState): ProfileFormState {
+function withBusinessAddressAsLegalLocations(profile: ProfileFormState): ProfileFormState {
+  const primaryBusinessAddress = buildPrimaryBusinessAddress(profile);
   return {
     ...profile,
-    addressLine1: profile.address.trim(),
-    addressLine2: '',
-    city: profile.city || getDefaultIndianCity(profile.stateCode || 'GJ'),
-    town: '',
+    registeredOfficeAddress: primaryBusinessAddress,
+    principalPlaceOfBusiness: primaryBusinessAddress,
   };
+}
+
+function buildPrimaryBusinessAddress(profile: ProfileFormState): string {
+  const stateName = INDIAN_STATES.find((state) => state.code === profile.stateCode)?.name ?? profile.stateCode;
+  const addressParts = [
+    profile.addressLine1,
+    profile.addressLine2,
+    profile.town,
+    profile.city,
+    stateName,
+    profile.postalCode,
+  ]
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return addressParts.length ? addressParts.join(', ') : profile.address.trim();
+}
+
+function isPrimaryBusinessAddressField(field: keyof ProfileFormState) {
+  return ['addressLine1', 'addressLine2', 'city', 'town', 'postalCode', 'stateCode'].includes(field);
 }
 
 function splitProfileLines(value: string) {

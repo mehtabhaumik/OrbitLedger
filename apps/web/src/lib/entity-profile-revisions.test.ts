@@ -58,7 +58,7 @@ describe('entity profile revision engine', () => {
         'Entity type',
         'Entity compliance flags',
         'CIN',
-        'Registered office address',
+        'Legal registered address',
       ])
     );
     expect(record?.previous_snapshot.registeredOfficeAddress).toBe('Old office');

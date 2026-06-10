@@ -44,19 +44,19 @@ export const WEB_ADDRESS_CHANGE_REASON_OPTIONS = [
 ] as const satisfies readonly WebAddressChangeReasonOption[];
 
 const addressFieldLabels: Record<WebAddressChangeField, string> = {
-  address: 'Workspace address',
-  addressLine1: 'Registered address line 1',
-  addressLine2: 'Registered address line 2',
-  city: 'Registered city',
-  town: 'Registered town or village',
+  address: 'Business address summary',
+  addressLine1: 'Business address line 1',
+  addressLine2: 'Business address line 2',
+  city: 'Business city',
+  town: 'Business town or village',
   postalCode: 'PIN or postcode',
   stateCode: 'State',
-  registeredOfficeAddress: 'Registered office address',
-  principalPlaceOfBusiness: 'Principal place of business',
+  registeredOfficeAddress: 'Legal registered address',
+  principalPlaceOfBusiness: 'GST principal place',
   additionalPlacesOfBusiness: 'Additional places of business',
 };
 
-const addressFields = Object.keys(addressFieldLabels) as WebAddressChangeField[];
+const addressFields = Object.keys(addressFieldLabels).filter((field) => field !== 'address') as WebAddressChangeField[];
 
 export function buildWorkspaceAddressChanges(
   previous: WebAddressChangeSource | null | undefined,

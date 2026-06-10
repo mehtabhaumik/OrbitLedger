@@ -9,7 +9,7 @@ import {
 } from './address-change-reason';
 
 describe('address change reason flow', () => {
-  it('detects workspace, registered, and principal address changes', () => {
+  it('detects business, legal, and GST address changes without double-counting the summary', () => {
     const changes = buildWorkspaceAddressChanges(
       {
         address: 'Old shop',
@@ -34,7 +34,6 @@ describe('address change reason flow', () => {
     );
 
     expect(changes.map((change) => change.field)).toEqual([
-      'address',
       'addressLine1',
       'city',
       'postalCode',
@@ -42,7 +41,7 @@ describe('address change reason flow', () => {
       'principalPlaceOfBusiness',
       'additionalPlacesOfBusiness',
     ]);
-    expect(summarizeAddressChanges(changes)).toContain('Registered office address');
+    expect(summarizeAddressChanges(changes)).toContain('Legal registered address');
     expect(buildAddressChangeRequestKey(changes)).toContain('New office');
   });
 
@@ -66,11 +65,11 @@ describe('address change reason flow', () => {
   it('requires custom text only for Other and formats the audit reason', () => {
     const changes = buildWorkspaceAddressChanges(
       {
-        address: 'Old shop',
+        addressLine1: 'Old shop',
         stateCode: 'GJ',
       },
       {
-        address: 'New shop',
+        addressLine1: 'New shop',
         stateCode: 'GJ',
       }
     );
@@ -79,7 +78,7 @@ describe('address change reason flow', () => {
     expect(isAddressChangeReasonComplete('other', 'Fix')).toBe(false);
     expect(isAddressChangeReasonComplete('other', 'Lease correction')).toBe(true);
     expect(formatAddressChangeAuditReason('other', 'Lease correction', changes)).toBe(
-      'Address change reason: Lease correction. Changed: Workspace address.'
+      'Address change reason: Lease correction. Changed: Business address line 1.'
     );
   });
 });
