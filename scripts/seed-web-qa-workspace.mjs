@@ -9,8 +9,39 @@ const storageBucket =
   process.env.ORBIT_LEDGER_FIREBASE_STORAGE_BUCKET ||
   process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_STORAGE_BUCKET ||
   'orbit-ledger-f41c2.firebasestorage.app';
-const ownerEmail = requireEnv('ORBIT_LEDGER_QA_EMAIL');
-const ownerPassword = requireEnv('ORBIT_LEDGER_QA_PASSWORD');
+/**
+ * Emulator mode.
+ *
+ * The Firebase emulators expose the same REST surface as production under a
+ * localhost prefix, so pointing the host at them is enough - no separate
+ * seeding path to keep in sync. Set ORBIT_LEDGER_USE_EMULATORS=true (which
+ * `npm run emulators:seed` does) to seed locally instead of the live project.
+ */
+const useEmulators = /^(1|true|yes)$/i.test(process.env.ORBIT_LEDGER_USE_EMULATORS?.trim() || '');
+const emulatorHost = process.env.ORBIT_LEDGER_EMULATOR_HOST?.trim() || '127.0.0.1';
+const authPort = process.env.ORBIT_LEDGER_AUTH_EMULATOR_PORT?.trim() || '9099';
+const firestorePort = process.env.ORBIT_LEDGER_FIRESTORE_EMULATOR_PORT?.trim() || '8085';
+const storagePort = process.env.ORBIT_LEDGER_STORAGE_EMULATOR_PORT?.trim() || '9199';
+
+const authBase = useEmulators
+  ? `http://${emulatorHost}:${authPort}/identitytoolkit.googleapis.com`
+  : 'https://identitytoolkit.googleapis.com';
+const firestoreBase = useEmulators
+  ? `http://${emulatorHost}:${firestorePort}`
+  : 'https://firestore.googleapis.com';
+const storageBase = useEmulators
+  ? `http://${emulatorHost}:${storagePort}`
+  : 'https://firebasestorage.googleapis.com';
+
+// Credentials are only a real secret against the live project. Under the
+// emulator any value works, so default them rather than forcing the operator to
+// invent and export a throwaway password.
+const ownerEmail = useEmulators
+  ? process.env.ORBIT_LEDGER_QA_EMAIL?.trim() || 'qa.owner@orbit-ledger.test'
+  : requireEnv('ORBIT_LEDGER_QA_EMAIL');
+const ownerPassword = useEmulators
+  ? process.env.ORBIT_LEDGER_QA_PASSWORD?.trim() || 'emulator-only-password'
+  : requireEnv('ORBIT_LEDGER_QA_PASSWORD');
 const viewerEmail = process.env.ORBIT_LEDGER_QA_VIEWER_EMAIL?.trim() || '';
 const viewerPassword = process.env.ORBIT_LEDGER_QA_VIEWER_PASSWORD?.trim() || '';
 let workspaceId = process.env.ORBIT_LEDGER_QA_WORKSPACE_ID?.trim() || '';
@@ -45,8 +76,15 @@ async function main() {
   if (viewer) {
     ids.officeMemberViewer = viewer.localId;
   }
-  const firestoreAccessToken = process.env.ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN?.trim() || owner.idToken;
-  const storageAccessToken = process.env.ORBIT_LEDGER_STORAGE_ADMIN_ACCESS_TOKEN?.trim() || owner.idToken;
+  // Seeding writes documents no end user is allowed to author directly (office
+  // membership rows, server_revision fields), so it needs to run above the
+  // security rules. Against the live project that means a real admin token; the
+  // emulators accept the literal bearer token "owner" for the same purpose.
+  const seedAdminToken = useEmulators ? 'owner' : owner.idToken;
+  const firestoreAccessToken =
+    process.env.ORBIT_LEDGER_FIRESTORE_ADMIN_ACCESS_TOKEN?.trim() || seedAdminToken;
+  const storageAccessToken =
+    process.env.ORBIT_LEDGER_STORAGE_ADMIN_ACCESS_TOKEN?.trim() || seedAdminToken;
 
   await seedFirestore(owner, firestoreAccessToken);
   await seedStorage(storageAccessToken);
@@ -435,7 +473,7 @@ async function getOrCreateUser(email, password) {
     return signedIn;
   }
 
-  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
+  const response = await fetch(`${authBase}/v1/accounts:signUp?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, returnSecureToken: true }),
@@ -450,7 +488,7 @@ async function getOrCreateUser(email, password) {
 }
 
 async function signInUser(email, password) {
-  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`, {
+  const response = await fetch(`${authBase}/v1/accounts:signInWithPassword?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, returnSecureToken: true }),
@@ -526,7 +564,7 @@ async function createDocument(idToken, path, data) {
 
 async function uploadStorageObject(idToken, name, bytes, contentType) {
   const response = await fetch(
-    `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(storageBucket)}/o?uploadType=media&name=${encodeURIComponent(name)}`,
+    `${storageBase}/v0/b/${encodeURIComponent(storageBucket)}/o?uploadType=media&name=${encodeURIComponent(name)}`,
     {
       method: 'POST',
       headers: {
@@ -543,11 +581,11 @@ async function uploadStorageObject(idToken, name, bytes, contentType) {
 }
 
 function firestoreDocumentUrl(path) {
-  return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}`;
+  return `${firestoreBase}/v1/projects/${projectId}/databases/(default)/documents/${path}`;
 }
 
 function firestoreCollectionUrl(path) {
-  return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}`;
+  return `${firestoreBase}/v1/projects/${projectId}/databases/(default)/documents/${path}`;
 }
 
 function toFirestoreFields(data) {

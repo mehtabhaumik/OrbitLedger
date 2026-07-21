@@ -5,16 +5,18 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from '
 import {
   type Auth,
   browserLocalPersistence,
+  connectAuthEmulator,
   getAuth,
   GoogleAuthProvider,
   setPersistence,
 } from 'firebase/auth';
 import {
+  connectFirestoreEmulator,
   initializeFirestore,
   enableIndexedDbPersistence,
   type Firestore,
 } from 'firebase/firestore';
-import { getStorage, type FirebaseStorage } from 'firebase/storage';
+import { connectStorageEmulator, getStorage, type FirebaseStorage } from 'firebase/storage';
 
 import { resolveOrbitLedgerAuthDomain } from './auth-domain';
 
@@ -36,6 +38,27 @@ const defaultDevelopmentConfig = {
 
 const appEnvironment = process.env.NEXT_PUBLIC_ORBIT_LEDGER_ENV || 'development';
 const isProductionEnvironment = appEnvironment === 'production';
+
+/**
+ * Local emulator mode, used by the visual-baseline suite so signed-in screens
+ * can be captured without touching the live project.
+ *
+ * Hard-gated off in production: a build that talked to localhost would fail
+ * silently and confusingly, so the flag is ignored rather than trusted there.
+ */
+const useEmulators =
+  !isProductionEnvironment &&
+  /^(1|true|yes)$/i.test(process.env.NEXT_PUBLIC_ORBIT_LEDGER_USE_EMULATORS?.trim() || '');
+const emulatorHost = process.env.NEXT_PUBLIC_ORBIT_LEDGER_EMULATOR_HOST?.trim() || '127.0.0.1';
+const emulatorPorts = {
+  auth: Number(process.env.NEXT_PUBLIC_ORBIT_LEDGER_AUTH_EMULATOR_PORT || 9099),
+  firestore: Number(process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIRESTORE_EMULATOR_PORT || 8085),
+  storage: Number(process.env.NEXT_PUBLIC_ORBIT_LEDGER_STORAGE_EMULATOR_PORT || 9199),
+};
+
+let authEmulatorConnected = false;
+let firestoreEmulatorConnected = false;
+let storageEmulatorConnected = false;
 
 const configuredAuthDomain = resolveFirebaseEnv(
   process.env.NEXT_PUBLIC_ORBIT_LEDGER_FIREBASE_AUTH_DOMAIN,
@@ -105,6 +128,12 @@ export function getWebFirebaseApp() {
 
 export function getWebAuth() {
   const auth = getAuth(getWebFirebaseApp());
+  if (useEmulators && !authEmulatorConnected) {
+    authEmulatorConnected = true;
+    // warnings:false suppresses the emulator's fixed-position banner, which
+    // would otherwise appear in every visual baseline screenshot.
+    connectAuthEmulator(auth, `http://${emulatorHost}:${emulatorPorts.auth}`, { disableWarnings: true });
+  }
   if (!persistenceInitialized) {
     persistenceInitialized = true;
     authPersistencePromise = setPersistence(auth, browserLocalPersistence).catch(() => undefined);
@@ -126,7 +155,13 @@ export function getWebFirestore() {
     });
   }
   const firestore = firestoreInstance;
-  if (!firestorePersistenceInitialized && typeof window !== 'undefined') {
+  if (useEmulators && !firestoreEmulatorConnected) {
+    firestoreEmulatorConnected = true;
+    connectFirestoreEmulator(firestore, emulatorHost, emulatorPorts.firestore);
+  }
+  // IndexedDB persistence is skipped against the emulator: a cached copy of a
+  // previous seed would survive a re-seed and quietly serve stale data.
+  if (!useEmulators && !firestorePersistenceInitialized && typeof window !== 'undefined') {
     firestorePersistenceInitialized = true;
     void enableIndexedDbPersistence(firestore).catch(() => undefined);
   }
@@ -137,12 +172,34 @@ export function getWebStorage() {
   if (!storageInstance) {
     storageInstance = getStorage(getWebFirebaseApp());
   }
+  if (useEmulators && !storageEmulatorConnected) {
+    storageEmulatorConnected = true;
+    connectStorageEmulator(storageInstance, emulatorHost, emulatorPorts.storage);
+  }
 
   return storageInstance;
 }
 
 export function getWebFirebaseProjectId() {
   return firebaseConfig.projectId;
+}
+
+const FUNCTIONS_REGION = 'asia-south1';
+
+/**
+ * Resolves the callable-endpoint URL for a deployed function.
+ *
+ * Previously each caller built this string itself, which meant emulator support
+ * would have had to be repeated in ~37 places (and the region was pinned in all
+ * of them). Routing through here keeps that single-sourced.
+ */
+export function getWebFunctionUrl(functionName: string) {
+  const projectId = getWebFirebaseProjectId();
+  if (useEmulators) {
+    const port = Number(process.env.NEXT_PUBLIC_ORBIT_LEDGER_FUNCTIONS_EMULATOR_PORT || 5001);
+    return `http://${emulatorHost}:${port}/${projectId}/${FUNCTIONS_REGION}/${functionName}`;
+  }
+  return `https://${FUNCTIONS_REGION}-${projectId}.cloudfunctions.net/${functionName}`;
 }
 
 export function createGoogleProvider() {
@@ -153,6 +210,13 @@ export function createGoogleProvider() {
 
 function initializeWebAppCheck(app: ReturnType<typeof initializeApp>) {
   if (typeof window === 'undefined' || appCheckInstance) {
+    return;
+  }
+
+  // The emulators do not enforce App Check, and loading the reCAPTCHA
+  // Enterprise provider against them only adds a third-party request that can
+  // fail offline and stall the visual-baseline run.
+  if (useEmulators) {
     return;
   }
 
