@@ -2,7 +2,7 @@
 
 import type { OrbitLedgerPaidPlanId } from '@orbit-ledger/core';
 
-import { getWebAuth, getWebFirebaseProjectId } from './firebase';
+import { getWebAuth, getWebFunctionUrl } from './firebase';
 import type { WebPlatformAdminOffer, WebPlatformAdminOfferPlanPrice } from './platform-admin';
 import type { WebPlanCatalogItem } from './web-monetization';
 
@@ -84,6 +84,5 @@ export function offerTargetPlanIds(offer: WebPlatformAdminOffer): OrbitLedgerPai
 }
 
 function getEligiblePlatformOffersUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/getEligiblePlatformOffers`;
+  return getWebFunctionUrl('getEligiblePlatformOffers');
 }

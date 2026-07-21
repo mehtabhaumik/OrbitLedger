@@ -1,6 +1,6 @@
 'use client';
 
-import { getWebAuth, getWebFirebaseProjectId } from './firebase';
+import { getWebAuth, getWebFunctionUrl } from './firebase';
 
 export type WebUserContextMode = 'open_workspace' | 'view_as_user' | 'act_as_user';
 export type WebUserContextStatus = 'active' | 'ended' | 'expired';
@@ -97,8 +97,7 @@ export async function endWebUserContextSession(): Promise<void> {
 }
 
 function getUserContextSessionUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/manageBackofficeUserContextSession`;
+  return getWebFunctionUrl('manageBackofficeUserContextSession');
 }
 
 function userContextErrorMessage(error: string) {

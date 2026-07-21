@@ -14,7 +14,7 @@ import {
   type DocumentData,
 } from 'firebase/firestore';
 
-import { getWebAuth, getWebFirebaseProjectId, getWebFirestore } from './firebase';
+import { getWebAuth, getWebFirestore, getWebFunctionUrl } from './firebase';
 
 export type CreateWebSupportDiagnosticConsentInput = {
   workspaceId: string;
@@ -279,18 +279,15 @@ export async function revokeWebSupportDiagnosticConsent(input: {
 }
 
 function getCreateSupportDiagnosticConsentUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/createSupportDiagnosticConsent`;
+  return getWebFunctionUrl('createSupportDiagnosticConsent');
 }
 
 function getSubmitSupportRequestUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/submitFounderSafeSupportRequest`;
+  return getWebFunctionUrl('submitFounderSafeSupportRequest');
 }
 
 function getRevokeSupportDiagnosticConsentUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/revokeSupportDiagnosticConsent`;
+  return getWebFunctionUrl('revokeSupportDiagnosticConsent');
 }
 
 function supportCaseStatus(value: unknown): OfficeSupportCaseStatus {

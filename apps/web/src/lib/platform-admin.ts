@@ -1,6 +1,6 @@
 import type { PlatformAdminRole, PlatformAdminRoleSource, PlatformAdminStatus } from '@orbit-ledger/core';
 
-import { getWebAuth, getWebFirebaseProjectId } from './firebase';
+import { getWebAuth, getWebFunctionUrl } from './firebase';
 export { isWebPlatformAdminAllowed } from './platform-admin-access';
 
 export type WebPlatformAdminUserStatus = 'active' | 'disabled' | 'no_workspace';
@@ -1214,38 +1214,31 @@ export async function recordWebPlatformAdminReportEvent(input: {
 }
 
 function getPlatformAdminSnapshotUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/getPlatformAdminSnapshot`;
+  return getWebFunctionUrl('getPlatformAdminSnapshot');
 }
 
 function getPlatformAdminAccountUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/managePlatformAdminAccount`;
+  return getWebFunctionUrl('managePlatformAdminAccount');
 }
 
 function getPlatformAdminUserUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/managePlatformAdminUser`;
+  return getWebFunctionUrl('managePlatformAdminUser');
 }
 
 function getPlatformAdminAuditTrailUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/getPlatformAdminAuditTrail`;
+  return getWebFunctionUrl('getPlatformAdminAuditTrail');
 }
 
 function getPlatformAdminDocumentVaultUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/getPlatformAdminDocumentVault`;
+  return getWebFunctionUrl('getPlatformAdminDocumentVault');
 }
 
 function getPlatformAdminOfferUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/managePlatformAdminOffer`;
+  return getWebFunctionUrl('managePlatformAdminOffer');
 }
 
 function getPlatformAdminReportEventUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/recordPlatformAdminReportEvent`;
+  return getWebFunctionUrl('recordPlatformAdminReportEvent');
 }
 
 function platformAdminErrorMessage(error: string): string {

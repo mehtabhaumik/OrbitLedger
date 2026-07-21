@@ -8,7 +8,7 @@ import type {
   OrbitLedgerProviderPriceStatus,
 } from '@orbit-ledger/core';
 
-import { getWebAuth, getWebFirebaseProjectId } from './firebase';
+import { getWebAuth, getWebFunctionUrl } from './firebase';
 import type { WebCheckoutIntent } from './web-monetization';
 
 export type SubscriptionCheckoutResult = {
@@ -295,18 +295,15 @@ export async function manageSubscriptionBillingDocument(
 }
 
 function getCreateSubscriptionCheckoutUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/createSubscriptionCheckout`;
+  return getWebFunctionUrl('createSubscriptionCheckout');
 }
 
 function getCreateBillingPortalSessionUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/createBillingPortalSession`;
+  return getWebFunctionUrl('createBillingPortalSession');
 }
 
 function getManageSubscriptionBillingDocumentUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/manageSubscriptionBillingDocument`;
+  return getWebFunctionUrl('manageSubscriptionBillingDocument');
 }
 
 function billingDocumentErrorMessage(error: string) {

@@ -27,7 +27,7 @@ import {
   type DocumentData,
 } from 'firebase/firestore';
 
-import { getWebAuth, getWebFirebaseProjectId, getWebFirestore } from './firebase';
+import { getWebAuth, getWebFirestore, getWebFunctionUrl } from './firebase';
 import { getWebOperationsEmailAllowlist, getWebPlatformAdminEmailAllowlist } from './platform-admin-access';
 
 export type WebOfficeAdminQueueRecord = {
@@ -2246,48 +2246,39 @@ function parseInternalAdminEmailAllowlist(): string[] {
 }
 
 function getResolveOfficeAccessRequestUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/resolveOfficeAccessRequest`;
+  return getWebFunctionUrl('resolveOfficeAccessRequest');
 }
 
 function getRecordOfficeSupportReviewUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/recordOfficeSupportReview`;
+  return getWebFunctionUrl('recordOfficeSupportReview');
 }
 
 function getRecordSupportCaseAdminActionUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/recordSupportCaseAdminAction`;
+  return getWebFunctionUrl('recordSupportCaseAdminAction');
 }
 
 function getAssignOfficeSupportTicketUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/assignOfficeSupportTicket`;
+  return getWebFunctionUrl('assignOfficeSupportTicket');
 }
 
 function getOfficeSupportSnapshotUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/getOfficeSupportSnapshot`;
+  return getWebFunctionUrl('getOfficeSupportSnapshot');
 }
 
 function getUpdateOfficeSupportNotificationPreferencesUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/updateOfficeSupportNotificationPreferences`;
+  return getWebFunctionUrl('updateOfficeSupportNotificationPreferences');
 }
 
 function getRecordOfficeSupportReportEventUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/recordOfficeSupportReportEvent`;
+  return getWebFunctionUrl('recordOfficeSupportReportEvent');
 }
 
 function getSendOfficeSupportReplyUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/sendOfficeSupportReply`;
+  return getWebFunctionUrl('sendOfficeSupportReply');
 }
 
 function getQueueSupportCaseFollowUpEmailUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/queueSupportCaseFollowUpEmail`;
+  return getWebFunctionUrl('queueSupportCaseFollowUpEmail');
 }
 
 function officeReviewErrorMessage(error: string) {

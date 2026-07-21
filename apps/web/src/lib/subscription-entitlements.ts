@@ -12,7 +12,7 @@ import {
   where,
 } from 'firebase/firestore';
 
-import { getWebAuth, getWebFirebaseProjectId, getWebFirestore } from './firebase';
+import { getWebAuth, getWebFirestore, getWebFunctionUrl } from './firebase';
 import {
   parseWebServerSubscriptionEntitlement,
   type WebPlanChangeKind,
@@ -514,6 +514,5 @@ async function manageSubscriptionRenewalChange(
 }
 
 function getManageSubscriptionRenewalChangeUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/manageSubscriptionRenewalChange`;
+  return getWebFunctionUrl('manageSubscriptionRenewalChange');
 }

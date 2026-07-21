@@ -1,6 +1,6 @@
 'use client';
 
-import { getWebAuth, getWebFirebaseProjectId } from './firebase';
+import { getWebAuth, getWebFunctionUrl } from './firebase';
 
 export type RazorpayCheckoutResult = {
   checkoutId: string;
@@ -64,6 +64,5 @@ export async function createRazorpayCheckoutLink(
 }
 
 function getCreateRazorpayCheckoutUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/createRazorpayCheckout`;
+  return getWebFunctionUrl('createRazorpayCheckout');
 }

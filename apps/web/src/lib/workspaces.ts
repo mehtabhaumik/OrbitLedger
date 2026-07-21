@@ -28,7 +28,7 @@ import {
   where,
 } from 'firebase/firestore';
 
-import { getWebAuthReady, getWebFirebaseProjectId, getWebFirestore } from './firebase';
+import { getWebAuthReady, getWebFirestore, getWebFunctionUrl } from './firebase';
 import { buildAuditProtectedSettingsChanges } from './audit-protected-settings';
 import { buildPaymentInstructionAuditChanges } from './payment-settings-hardening';
 import {
@@ -738,13 +738,11 @@ function safeAggregateNumber(value: unknown): number {
 }
 
 function getListUserWorkspacesUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/listUserWorkspaces`;
+  return getWebFunctionUrl('listUserWorkspaces');
 }
 
 function getCreateUserWorkspaceUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/createUserWorkspace`;
+  return getWebFunctionUrl('createUserWorkspace');
 }
 
 async function requestTrustedWorkspaceApi<T>(url: string, method: 'GET' | 'POST', body?: unknown): Promise<T> {

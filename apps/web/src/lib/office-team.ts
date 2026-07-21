@@ -36,7 +36,7 @@ import {
   type Timestamp,
 } from 'firebase/firestore';
 
-import { getWebAuth, getWebFirebaseProjectId, getWebFirestore } from './firebase';
+import { getWebAuth, getWebFirestore, getWebFunctionUrl } from './firebase';
 import { resolveWebFeatureAccess, type WebSubscriptionStatus } from './web-monetization';
 
 export type WebOfficeTeamMetric = {
@@ -1200,43 +1200,35 @@ function isoValue(value: unknown) {
 }
 
 function getAcceptOfficeInvitationUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/acceptOfficeInvitation`;
+  return getWebFunctionUrl('acceptOfficeInvitation');
 }
 
 function getCreateOfficeInvitationUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/createOfficeInvitation`;
+  return getWebFunctionUrl('createOfficeInvitation');
 }
 
 function getRevokeOfficeInvitationUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/revokeOfficeInvitation`;
+  return getWebFunctionUrl('revokeOfficeInvitation');
 }
 
 function getSendOfficeInvitationEmailUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/sendOfficeInvitationEmail`;
+  return getWebFunctionUrl('sendOfficeInvitationEmail');
 }
 
 function getUpdateOfficeMemberAccessUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/updateOfficeMemberAccess`;
+  return getWebFunctionUrl('updateOfficeMemberAccess');
 }
 
 function getRequestOfficeOwnershipTransferUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/requestOfficeOwnershipTransfer`;
+  return getWebFunctionUrl('requestOfficeOwnershipTransfer');
 }
 
 function getResolveOfficeOwnershipTransferUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/resolveOfficeOwnershipTransfer`;
+  return getWebFunctionUrl('resolveOfficeOwnershipTransfer');
 }
 
 function getResendOfficeOwnershipTransferNotificationUrl() {
-  const projectId = getWebFirebaseProjectId();
-  return `https://asia-south1-${projectId}.cloudfunctions.net/resendOfficeOwnershipTransferNotification`;
+  return getWebFunctionUrl('resendOfficeOwnershipTransferNotification');
 }
 
 async function requestTrustedOfficeMemberAccessUpdate(input: {

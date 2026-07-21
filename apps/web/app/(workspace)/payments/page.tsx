@@ -15,7 +15,7 @@ import {
 } from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
-import { getWebFirebaseProjectId } from '@/lib/firebase';
+import { getWebFirebaseProjectId, getWebFunctionUrl } from '@/lib/firebase';
 import { buildWebLiveCollectionsSetupStatus } from '@/lib/live-collections-setup-status';
 import { getWebPaymentProviderPlan } from '@/lib/payment-provider-mode';
 import { resolveWebFeatureAccess } from '@/lib/web-monetization';
@@ -70,11 +70,11 @@ export default function PaymentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [busyManualPaymentId, setBusyManualPaymentId] = useState<string | null>(null);
-  const projectId = getWebFirebaseProjectId();
   const providerPlan = getWebPaymentProviderPlan();
   const liveCollectionsSetupStatus = buildWebLiveCollectionsSetupStatus(providerPlan);
   const paymentReversalAccess = resolveWebFeatureAccess(subscription, 'payment_reversals');
-  const webhookUrl = `https://asia-south1-${projectId}.cloudfunctions.net/providerWebhook`;
+  const webhookUrl = getWebFunctionUrl('providerWebhook');
+  const projectId = getWebFirebaseProjectId();
   const [paymentPageUrl, setPaymentPageUrl] = useState(`https://${projectId}.web.app/pay`);
   const providerReadiness = getPaymentProviderReadiness({
     mode: providerPlan.mode,
