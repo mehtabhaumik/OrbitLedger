@@ -1,0 +1,505 @@
+/* =============================================================================
+   Orbit Ledger design tokens
+   =============================================================================
+
+   Two layers:
+
+     1. PRIMITIVES  --ol-<hue>-<step>   raw ramp values. Never used by components.
+     2. SEMANTIC    --primary, --text…  what components actually reference.
+
+   Only semantic tokens may appear in component CSS. That indirection is what
+   makes the theme swappable: light/dark differ only in which primitive each
+   semantic token points at, so a component written against --text is correct in
+   both modes without knowing either exists.
+
+   The semantic names here intentionally match the ones the current globals.css
+   already consumes (527 var() usages), so this file can be adopted without
+   touching component CSS in the same commit.
+
+   Colour choices are validated, not eyeballed:
+     - categorical chart slots pass the CVD/lightness/chroma gates in both modes
+     - every semantic ink/status token passes WCAG AA (>=4.5:1) on its surface
+   Re-run those checks before changing any value here.
+   ========================================================================== */
+
+:root {
+  /* ---------------------------------------------------------------------
+     LAYER 1 - PRIMITIVES
+     --------------------------------------------------------------------- */
+
+  /* Violet - brand. Deliberately not the SaaS blue the old skin used; blue is
+     what every ledger product reaches for, and it is why the app read as
+     generic. */
+  --ol-violet-50: #f1effe;
+  --ol-violet-100: #e4e0fd;
+  --ol-violet-200: #c9c1fb;
+  --ol-violet-300: #a99cf7;
+  --ol-violet-400: #8b7dff;
+  --ol-violet-500: #6a58ec;
+  --ol-violet-600: #4f3dd9;
+  --ol-violet-700: #3f2fbf;
+  --ol-violet-800: #322595;
+  --ol-violet-900: #241a6d;
+
+  /* Slate - structure and ink, tuned cool to sit under violet. Replaces the
+     five near-identical navies and five near-identical greys in the old file. */
+  --ol-slate-0: #ffffff;
+  --ol-slate-25: #fbfbfe;
+  --ol-slate-50: #f7f8fc;
+  --ol-slate-100: #eef0f7;
+  --ol-slate-200: #e3e7f0;
+  --ol-slate-300: #c9d0e0;
+  --ol-slate-400: #a3abc4;
+  --ol-slate-500: #7c85a8;
+  --ol-slate-600: #6b7392;
+  --ol-slate-700: #4a5270;
+  --ol-slate-800: #262b44;
+  --ol-slate-850: #151829;
+  --ol-slate-900: #10132a;
+  --ol-slate-950: #0b0d18;
+  --ol-slate-1000: #080a12;
+
+  /* Status ramps. Reserved: never reused as a chart series colour. */
+  --ol-green-400: #3dd9a0;
+  --ol-green-600: #0e7c5a;
+  --ol-green-700: #0a6147;
+  --ol-amber-400: #f0b429;
+  --ol-amber-600: #9a6200;
+  --ol-amber-700: #7c4e00;
+  --ol-rose-400: #ff6b85;
+  --ol-rose-600: #c42a47;
+  --ol-rose-700: #9e2039;
+
+  /* Accent hues used for meaning, not decoration. */
+  --ol-grape-600: #6d4ac4;   /* tax */
+  --ol-grape-400: #b39cf0;
+  --ol-orchid-600: #a032a8;  /* premium / pro */
+  --ol-orchid-400: #e08ce6;
+
+  /* Signal cyan - the "live" accent. Reserved for realtime/streaming states
+     (live collections feed, sync pulse) so it keeps its meaning. */
+  --ol-signal-400: #22d3ee;
+  --ol-signal-600: #0b93ad;
+
+  /* ---------------------------------------------------------------------
+     TYPOGRAPHY
+     --------------------------------------------------------------------- */
+  --font-display: var(--font-space-grotesk), 'Space Grotesk', system-ui, sans-serif;
+  --font-sans: var(--font-inter), Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-jetbrains-mono), 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* Modular scale, 1.200 minor third, 16px base. Fewer, more separated sizes
+     than the old file - the density complaint is largely a hierarchy problem,
+     and hierarchy needs visible jumps between levels. */
+  --text-2xs: 0.694rem;   /* 11.1px - legal/meta only */
+  --text-xs: 0.833rem;    /* 13.3px - labels, table meta */
+  --text-sm: 0.9rem;      /* 14.4px - secondary body */
+  --text-base: 1rem;      /* 16px   - body */
+  --text-lg: 1.2rem;      /* 19.2px - card titles */
+  --text-xl: 1.44rem;     /* 23px   - section titles */
+  --text-2xl: 1.728rem;   /* 27.6px - page titles */
+  --text-3xl: 2.074rem;   /* 33.2px - hero metrics */
+  --text-4xl: 2.488rem;   /* 39.8px - marketing display */
+  --text-5xl: 3.583rem;   /* 57.3px - landing hero */
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.7;
+
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-caps: 0.08em;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ---------------------------------------------------------------------
+     SPACING - 4px base. Every gap/pad in the app resolves to one of these.
+     --------------------------------------------------------------------- */
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4  */
+  --space-2: 0.5rem;    /* 8  */
+  --space-3: 0.75rem;   /* 12 */
+  --space-4: 1rem;      /* 16 */
+  --space-5: 1.25rem;   /* 20 */
+  --space-6: 1.5rem;    /* 24 */
+  --space-8: 2rem;      /* 32 */
+  --space-10: 2.5rem;   /* 40 */
+  --space-12: 3rem;     /* 48 */
+  --space-16: 4rem;     /* 64 */
+  --space-20: 5rem;     /* 80 */
+  --space-24: 6rem;     /* 96 */
+
+  /* ---------------------------------------------------------------------
+     RADII / SIZING
+     --------------------------------------------------------------------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-full: 999px;
+
+  --control-height: 44px;
+  --control-height-sm: 36px;
+  --control-height-lg: 52px;
+  --control-radius: var(--radius-md);
+
+  --sidebar-width: 264px;
+  --sidebar-width-collapsed: 72px;
+  --topbar-height: 68px;
+  --section-stack-gap: var(--space-6);
+  --content-max: 1440px;
+
+  /* ---------------------------------------------------------------------
+     MOTION - durations short enough to feel instant. "Cool animation" that
+     delays a ledger lookup is a bug, so anything gating content stays <=200ms.
+     --------------------------------------------------------------------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-normal: 200ms;
+  --duration-slow: 320ms;
+  --duration-deliberate: 520ms;  /* chart draw-in, celebratory only */
+
+  /* ---------------------------------------------------------------------
+     LAYER 2 - SEMANTIC (LIGHT, default)
+     --------------------------------------------------------------------- */
+
+  /* Surfaces */
+  --bg: var(--ol-slate-50);
+  --bg-deep: var(--ol-slate-100);
+  --background: var(--ol-slate-50);      /* was referenced but never defined */
+  --shell: var(--ol-slate-25);
+  --surface: var(--ol-slate-0);
+  --surface-solid: var(--ol-slate-0);
+  --surface-raised: var(--ol-slate-0);
+  --surface-muted: var(--ol-slate-50);
+  --surface-sunken: var(--ol-slate-100);
+  --surface-strong: var(--ol-slate-0);
+  --surface-dark: var(--ol-slate-900);
+  --surface-inverse: var(--ol-slate-900);
+
+  /* Lines */
+  --border: var(--ol-slate-200);
+  --border-strong: var(--ol-slate-300);
+  --border-subtle: var(--ol-slate-100);
+  --line: var(--ol-slate-200);            /* was referenced but never defined */
+  --glass-border: rgba(255, 255, 255, 0.7);
+
+  /* Ink */
+  --text: var(--ol-slate-900);
+  --text-strong: var(--ol-slate-950);     /* was referenced but never defined */
+  --text-secondary: var(--ol-slate-700);
+  --text-muted: var(--ol-slate-600);
+  --text-soft: var(--ol-slate-500);
+  --muted-strong: var(--ol-slate-700);    /* was referenced but never defined */
+  --text-on-primary: var(--ol-slate-0);
+  --text-inverse: var(--ol-slate-25);
+
+  /* Brand */
+  --primary: var(--ol-violet-600);
+  --primary-strong: var(--ol-violet-700);
+  --primary-soft: var(--ol-violet-400);
+  --primary-surface: var(--ol-violet-50);
+  --primary-border: var(--ol-violet-200);
+
+  /* Status */
+  --success: var(--ol-green-600);
+  --success-strong: var(--ol-green-700);
+  --success-surface: #e6f7f1;
+  --warning: var(--ol-amber-600);
+  --warning-strong: var(--ol-amber-700);  /* was referenced but never defined */
+  --warning-surface: #fdf3e0;
+  --danger: var(--ol-rose-600);
+  --danger-strong: var(--ol-rose-700);
+  --danger-surface: #fdecef;
+  --tax: var(--ol-grape-600);
+  --tax-surface: #f2ecfd;
+  --premium: var(--ol-orchid-600);
+  --premium-surface: #fbeafc;
+  --signal: var(--ol-signal-600);
+  --signal-surface: #e0f7fb;
+
+  /* Ledger-specific ink used by statement/invoice surfaces */
+  --ledger-ink: var(--ol-slate-900);
+  --ledger-muted: var(--ol-slate-600);
+  --ledger-line: var(--ol-slate-200);
+  --ledger-line-soft: var(--ol-slate-100);
+
+  /* Elevation. Two-part shadows: a tight contact shadow plus a soft ambient
+     one, so cards read as lifted rather than blurred. */
+  --shadow-soft: 0 1px 2px rgba(16, 19, 42, 0.04);   /* was referenced, undefined */
+  --shadow-xs: 0 1px 2px rgba(16, 19, 42, 0.05);
+  --shadow-sm: 0 1px 2px rgba(16, 19, 42, 0.05), 0 2px 6px rgba(16, 19, 42, 0.04);
+  --shadow: 0 1px 2px rgba(16, 19, 42, 0.05), 0 10px 24px rgba(16, 19, 42, 0.06);
+  --shadow-strong: 0 1px 2px rgba(16, 19, 42, 0.06), 0 20px 48px rgba(16, 19, 42, 0.1);
+  --shadow-focus: 0 0 0 3px var(--ol-violet-100);
+  --shadow-inset: inset 0 1px 2px rgba(16, 19, 42, 0.05);
+
+  /* Chart surface + categorical slots. Fixed order - never cycled, never
+     reassigned by rank. Slots 1-4 are the cap for scatter/bubble forms. */
+  --chart-surface: var(--ol-slate-0);
+  --chart-grid: var(--ol-slate-200);
+  --chart-axis: var(--ol-slate-500);
+  --ol-admin-chart-0: #5b4be8;
+  --ol-admin-chart-1: #008300;
+  --ol-admin-chart-2: #e87ba4;
+  --ol-admin-chart-3: #eda100;
+  --ol-admin-chart-4: #1baf7a;
+  --ol-admin-chart-5: #eb6834;
+  --ol-admin-chart-6: #2a78d6;
+  --ol-admin-chart-7: #e34948;
+  --chart-1: var(--ol-admin-chart-0);
+  --chart-2: var(--ol-admin-chart-1);
+  --chart-3: var(--ol-admin-chart-2);
+  --chart-4: var(--ol-admin-chart-3);
+  --chart-5: var(--ol-admin-chart-4);
+  --chart-6: var(--ol-admin-chart-5);
+  --chart-7: var(--ol-admin-chart-6);
+  --chart-8: var(--ol-admin-chart-7);
+
+  /* Sequential ramp (magnitude) - single hue, light to dark. */
+  --chart-seq-1: #e4e0fd;
+  --chart-seq-2: #c9c1fb;
+  --chart-seq-3: #a99cf7;
+  --chart-seq-4: #6a58ec;
+  --chart-seq-5: #4f3dd9;
+  --chart-seq-6: #322595;
+
+  /* Diverging (polarity) - two poles, neutral grey midpoint, never a hue. */
+  --chart-div-neg: var(--ol-rose-600);
+  --chart-div-mid: var(--ol-slate-300);
+  --chart-div-pos: var(--ol-green-600);
+
+  color-scheme: light;
+}
+
+/* ===========================================================================
+   DARK THEME
+   Dark is a *selected* set of steps, not an inversion. Both the OS preference
+   and the explicit toggle are honoured, and the toggle wins in both directions
+   (the :not() guard lets an explicit light stamp beat OS dark).
+   ======================================================================== */
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme='light'])) {
+    color-scheme: dark;
+
+    --bg: var(--ol-slate-950);
+    --bg-deep: var(--ol-slate-1000);
+    --background: var(--ol-slate-950);
+    --shell: var(--ol-slate-950);
+    --surface: var(--ol-slate-850);
+    --surface-solid: var(--ol-slate-850);
+    --surface-raised: var(--ol-slate-850);
+    --surface-muted: #11142250;
+    --surface-sunken: var(--ol-slate-1000);
+    --surface-strong: #1b1f33;
+    --surface-dark: var(--ol-slate-1000);
+    --surface-inverse: var(--ol-slate-25);
+
+    --border: var(--ol-slate-800);
+    --border-strong: #343a58;
+    --border-subtle: #1e2236;
+    --line: var(--ol-slate-800);
+    --glass-border: rgba(255, 255, 255, 0.08);
+
+    --text: #f2f4ff;
+    --text-strong: #ffffff;
+    --text-secondary: #a9b0ce;
+    --text-muted: #a9b0ce;
+    --text-soft: var(--ol-slate-500);
+    --muted-strong: #c2c8e0;
+    --text-on-primary: #ffffff;
+    --text-inverse: var(--ol-slate-900);
+
+    --primary: var(--ol-violet-400);
+    --primary-strong: var(--ol-violet-300);
+    --primary-soft: var(--ol-violet-500);
+    --primary-surface: #1e1b45;
+    --primary-border: #392f7a;
+
+    --success: var(--ol-green-400);
+    --success-strong: #6ae7bb;
+    --success-surface: #0c2b23;
+    --warning: var(--ol-amber-400);
+    --warning-strong: #f7cc63;
+    --warning-surface: #2e2109;
+    --danger: var(--ol-rose-400);
+    --danger-strong: #ff98a9;
+    --danger-surface: #33131c;
+    --tax: var(--ol-grape-400);
+    --tax-surface: #221a3d;
+    --premium: var(--ol-orchid-400);
+    --premium-surface: #2e1330;
+    --signal: var(--ol-signal-400);
+    --signal-surface: #0a2b33;
+
+    --ledger-ink: #f2f4ff;
+    --ledger-muted: #a9b0ce;
+    --ledger-line: var(--ol-slate-800);
+    --ledger-line-soft: #1e2236;
+
+    /* Dark elevation leans on borders and darker ambient, not bigger blur. */
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 24px rgba(0, 0, 0, 0.36);
+    --shadow-strong: 0 1px 2px rgba(0, 0, 0, 0.6), 0 20px 48px rgba(0, 0, 0, 0.5);
+    --shadow-focus: 0 0 0 3px #392f7a;
+    --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+
+    --chart-surface: var(--ol-slate-850);
+    --chart-grid: var(--ol-slate-800);
+    --chart-axis: var(--ol-slate-500);
+    --ol-admin-chart-0: #9085e9;
+    --ol-admin-chart-1: #008300;
+    --ol-admin-chart-2: #d55181;
+    --ol-admin-chart-3: #c98500;
+    --ol-admin-chart-4: #199e70;
+    --ol-admin-chart-5: #d95926;
+    --ol-admin-chart-6: #3987e5;
+    --ol-admin-chart-7: #e66767;
+
+    --chart-seq-1: #241a6d;
+    --chart-seq-2: #322595;
+    --chart-seq-3: #3f2fbf;
+    --chart-seq-4: #6a58ec;
+    --chart-seq-5: #a99cf7;
+    --chart-seq-6: #c9c1fb;
+
+    --chart-div-neg: var(--ol-rose-400);
+    --chart-div-mid: var(--ol-slate-700);
+    --chart-div-pos: var(--ol-green-400);
+  }
+}
+
+/* Explicit toggle. Duplicated rather than shared so it can override OS light. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: var(--ol-slate-950);
+  --bg-deep: var(--ol-slate-1000);
+  --background: var(--ol-slate-950);
+  --shell: var(--ol-slate-950);
+  --surface: var(--ol-slate-850);
+  --surface-solid: var(--ol-slate-850);
+  --surface-raised: var(--ol-slate-850);
+  --surface-muted: #11142250;
+  --surface-sunken: var(--ol-slate-1000);
+  --surface-strong: #1b1f33;
+  --surface-dark: var(--ol-slate-1000);
+  --surface-inverse: var(--ol-slate-25);
+
+  --border: var(--ol-slate-800);
+  --border-strong: #343a58;
+  --border-subtle: #1e2236;
+  --line: var(--ol-slate-800);
+  --glass-border: rgba(255, 255, 255, 0.08);
+
+  --text: #f2f4ff;
+  --text-strong: #ffffff;
+  --text-secondary: #a9b0ce;
+  --text-muted: #a9b0ce;
+  --text-soft: var(--ol-slate-500);
+  --muted-strong: #c2c8e0;
+  --text-on-primary: #ffffff;
+  --text-inverse: var(--ol-slate-900);
+
+  --primary: var(--ol-violet-400);
+  --primary-strong: var(--ol-violet-300);
+  --primary-soft: var(--ol-violet-500);
+  --primary-surface: #1e1b45;
+  --primary-border: #392f7a;
+
+  --success: var(--ol-green-400);
+  --success-strong: #6ae7bb;
+  --success-surface: #0c2b23;
+  --warning: var(--ol-amber-400);
+  --warning-strong: #f7cc63;
+  --warning-surface: #2e2109;
+  --danger: var(--ol-rose-400);
+  --danger-strong: #ff98a9;
+  --danger-surface: #33131c;
+  --tax: var(--ol-grape-400);
+  --tax-surface: #221a3d;
+  --premium: var(--ol-orchid-400);
+  --premium-surface: #2e1330;
+  --signal: var(--ol-signal-400);
+  --signal-surface: #0a2b33;
+
+  --ledger-ink: #f2f4ff;
+  --ledger-muted: #a9b0ce;
+  --ledger-line: var(--ol-slate-800);
+  --ledger-line-soft: #1e2236;
+
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 24px rgba(0, 0, 0, 0.36);
+  --shadow-strong: 0 1px 2px rgba(0, 0, 0, 0.6), 0 20px 48px rgba(0, 0, 0, 0.5);
+  --shadow-focus: 0 0 0 3px #392f7a;
+  --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+
+  --chart-surface: var(--ol-slate-850);
+  --chart-grid: var(--ol-slate-800);
+  --chart-axis: var(--ol-slate-500);
+  --ol-admin-chart-0: #9085e9;
+  --ol-admin-chart-1: #008300;
+  --ol-admin-chart-2: #d55181;
+  --ol-admin-chart-3: #c98500;
+  --ol-admin-chart-4: #199e70;
+  --ol-admin-chart-5: #d95926;
+  --ol-admin-chart-6: #3987e5;
+  --ol-admin-chart-7: #e66767;
+
+  --chart-seq-1: #241a6d;
+  --chart-seq-2: #322595;
+  --chart-seq-3: #3f2fbf;
+  --chart-seq-4: #6a58ec;
+  --chart-seq-5: #a99cf7;
+  --chart-seq-6: #c9c1fb;
+
+  --chart-div-neg: var(--ol-rose-400);
+  --chart-div-mid: var(--ol-slate-700);
+  --chart-div-pos: var(--ol-green-400);
+}
+
+/* ===========================================================================
+   MOTION SAFETY
+   Applies to the whole app, not per-component, so no future animation can
+   opt out of it by omission.
+   ======================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ===========================================================================
+   MONEY
+   Every figure in a ledger must align on the decimal. Applied globally rather
+   than per-component because a misaligned column is a correctness problem, not
+   a styling preference.
+   ======================================================================== */
+.ol-amount,
+.ol-metric-value,
+.ol-money,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'cv01' 1;
+}
