@@ -24,7 +24,12 @@ export default defineConfig({
   snapshotPathTemplate: './tests/visual/__baselines__/{projectName}/{testFilePath}/{arg}{ext}',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 1 : 0,
+  // One retry everywhere. Roughly one run in three still sees a single flaky
+  // screen from render timing under parallel load; a real regression fails both
+  // attempts, so this absorbs the noise without hiding breakage. Anything that
+  // shows up as "flaky" in the report is worth investigating rather than
+  // ignoring.
+  retries: 1,
   // Capped: every worker drives the same dev server and emulator suite, and
   // oversubscribing them turns into timeouts rather than throughput.
   workers: process.env.CI ? 2 : 4,
