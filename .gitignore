@@ -34,6 +34,10 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 firestore-debug.log
+firebase-debug.log
+ui-debug.log
+pubsub-debug.log
+database-debug.log
 artifacts/
 
 # macOS
