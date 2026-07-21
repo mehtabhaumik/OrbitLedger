@@ -92,6 +92,15 @@ if (javaHome === undefined) {
 }
 
 const env = { ...process.env };
+
+// The functions emulator enforces its own admin allowlist, separately from the
+// client-side NEXT_PUBLIC_* one. Without this, getPlatformAdminSnapshot returns
+// 403 and the platform console renders "Internal access only" - so the visual
+// baselines would capture a restricted screen instead of the real 3,600-line
+// admin surface the reskin needs to cover.
+env.ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS =
+  process.env.ORBIT_LEDGER_INTERNAL_ADMIN_EMAILS || 'qa.owner@orbit-ledger.test';
+
 if (javaHome) {
   env.JAVA_HOME = javaHome;
   env.PATH = `${javaHome}/bin:${env.PATH}`;
