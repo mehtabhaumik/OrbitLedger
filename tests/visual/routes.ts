@@ -127,9 +127,12 @@ async function waitForWorkspaceReady(page: Page) {
       });
   }
 
-  // Short final settle for list rows and chart values that paint just after the
-  // loader clears.
-  await page.waitForTimeout(600);
+  await waitForAsyncPanelsSettled(page);
+
+  // Fixed settle for list rows and chart values that paint just after the
+  // loader clears. Driven by Playwright's own timer, so the frozen page clock
+  // does not affect it.
+  await page.waitForTimeout(1_200);
 
   // Stop timer-driven motion before the screenshot. Playwright's
   // `animations: 'disabled'` only freezes CSS animations and transitions; the
@@ -138,4 +141,36 @@ async function waitForWorkspaceReady(page: Page) {
   await page.clock.pauseAt(FROZEN_CLOCK).catch(() => {
     // Clock not installed for this context - nothing to pause.
   });
+}
+
+/**
+ * Waits for panels that fetch their own data after the shell has rendered.
+ *
+ * The back-office consoles paint their chrome immediately and fill the body
+ * once a snapshot call returns. Waiting for a loading *indicator* to disappear
+ * does not work: the placeholder copy has not even mounted at the moment the
+ * check first runs, so the wait passes instantly and the operations baseline
+ * was captured with an entirely empty main area - its diff then measured
+ * empty-versus-loaded rather than anything the reskin did.
+ *
+ * So this waits for the rendered text to stop changing instead, which needs no
+ * per-screen knowledge and cannot be invalidated by copy edits.
+ */
+async function waitForAsyncPanelsSettled(page: Page) {
+  // The back-office consoles paint their sidebar and header immediately, then
+  // fill the main column once a snapshot Cloud Function returns (~2s idle, more
+  // under load). There is no loader element to wait on, and the operations
+  // baseline was otherwise captured as an empty shell - its diff would have
+  // measured empty-versus-loaded rather than anything the reskin did.
+  //
+  // The loaded state renders several .ol-panel blocks in the main area; the
+  // empty shell renders none. Waiting for a handful to exist is a concrete
+  // "content arrived" signal that needs no per-screen copy knowledge. Pages
+  // that never render panels (or fewer) simply hit the short timeout and are
+  // screenshotted as-is - correct for them, since they have no async body.
+  await page
+    .locator('main .ol-panel')
+    .nth(2)
+    .waitFor({ state: 'attached', timeout: 15_000 })
+    .catch(() => {});
 }

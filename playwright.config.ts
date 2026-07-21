@@ -30,9 +30,11 @@ export default defineConfig({
   // shows up as "flaky" in the report is worth investigating rather than
   // ignoring.
   retries: 1,
-  // Capped: every worker drives the same dev server and emulator suite, and
-  // oversubscribing them turns into timeouts rather than throughput.
-  workers: process.env.CI ? 2 : 4,
+  // Two workers, not more. Every worker drives the same Next dev server and the
+  // single functions emulator; at 4 the admin-console snapshot calls contended
+  // badly enough to blow the per-test timeout, so higher parallelism produced
+  // timeouts instead of throughput.
+  workers: 2,
   // Generous, because a cold Next dev route compile plus a full-page screenshot
   // of a 3,000-line screen genuinely exceeds the 30s default.
   timeout: 90_000,
