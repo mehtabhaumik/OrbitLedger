@@ -1,8 +1,40 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter, JetBrains_Mono, Space_Grotesk } from 'next/font/google';
 import type { ReactNode } from 'react';
 import './globals.css';
 
 import { WebAppProviders } from '@/providers/web-app-providers';
+
+/**
+ * Fonts are self-hosted through next/font rather than named in a CSS stack.
+ *
+ * The previous setup listed "Inter" in globals.css but never loaded it, so the
+ * app silently rendered in whatever the OS supplied - San Francisco on macOS,
+ * Segoe UI on Windows - and typography differed per visitor. next/font also
+ * inlines the @font-face with size-adjust metrics, which removes the layout
+ * shift a late webfont would otherwise cause.
+ */
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-jetbrains-mono',
+});
+
+// Display face for headings. Loaded now so the family is available to the
+// reskin, but not preloaded: nothing renders in it yet, and preloading a font
+// the first paint never uses just competes for bandwidth on the critical path.
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-space-grotesk',
+  preload: false,
+});
 
 const siteUrl = process.env.NEXT_PUBLIC_ORBIT_LEDGER_SITE_URL ?? 'https://orbitledger.rudraix.com';
 const landingDescription =
@@ -102,7 +134,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
       <body>
         <WebAppProviders>{children}</WebAppProviders>
       </body>

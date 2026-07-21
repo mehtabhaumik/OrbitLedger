@@ -55,6 +55,7 @@ body {
     linear-gradient(135deg, #fbfcfe 0%, var(--bg) 54%, var(--bg-deep) 100%);
   color: var(--text);
   font-family:
+    var(--font-inter),
     Inter,
     ui-sans-serif,
     -apple-system,
@@ -16838,7 +16839,7 @@ body::before {
 
 .ol-revamp-workflow b {
   color: #356dd6;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 10px;
   letter-spacing: 0.08em;
 }
@@ -17020,7 +17021,7 @@ body::before {
   padding-block: 20px;
   border-top: 1px solid rgba(218, 226, 237, 0.96);
   color: #8390a1;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
