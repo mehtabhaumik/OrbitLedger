@@ -46,7 +46,12 @@ const viewerEmail = process.env.ORBIT_LEDGER_QA_VIEWER_EMAIL?.trim() || '';
 const viewerPassword = process.env.ORBIT_LEDGER_QA_VIEWER_PASSWORD?.trim() || '';
 let workspaceId = process.env.ORBIT_LEDGER_QA_WORKSPACE_ID?.trim() || '';
 
-const now = new Date();
+// Fixed under emulators so seeded timestamps are identical on every re-seed.
+// Relative labels ("Active recently", "due in 7 days") are rendered from these,
+// and a wall-clock base makes them drift between visual-baseline runs. The
+// visual suite freezes the browser clock to the same instant.
+const SEED_EPOCH = '2026-07-15T10:00:00.000Z';
+const now = useEmulators ? new Date(process.env.ORBIT_LEDGER_SEED_NOW || SEED_EPOCH) : new Date();
 const nowIso = now.toISOString();
 const today = nowIso.slice(0, 10);
 const billingMonth = today.slice(0, 7);
