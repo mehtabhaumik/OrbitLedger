@@ -81,9 +81,14 @@ export async function stabilize(page: Page) {
   await page.addStyleTag({
     content: `
       *, *::before, *::after {
-        animation-duration: 0s !important;
-        animation-delay: 0s !important;
-        animation-iteration-count: 1 !important;
+        /* Transitions and caret only. Deliberately NOT overriding animations:
+           Playwright's toHaveScreenshot animations:'disabled' already freezes
+           them correctly - finite ones fast-forward to their end (a fade-in
+           lands visible), infinite ones cancel to their 0% frame (a fade-out
+           cycle stays visible). Forcing animation-iteration-count:1 here broke
+           that: it turned the infinite template-showcase cycle
+           (0% opacity:1 -> 100% opacity:0) into a single run that ended
+           hidden, so the templates/market pages captured blank. */
         transition-duration: 0s !important;
         transition-delay: 0s !important;
         caret-color: transparent !important;
