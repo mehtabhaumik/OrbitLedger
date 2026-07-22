@@ -838,7 +838,7 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: inset 0 0 0 1px rgba(170, 198, 240, 0.72);
 }
 
@@ -1617,7 +1617,7 @@ a:focus-visible {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: 0 2px 8px rgba(22, 34, 53, 0.18);
   transition: transform 160ms ease;
 }
@@ -4170,7 +4170,7 @@ a:focus-visible {
   height: 76px;
   place-items: center;
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
   font-size: 26px;
   font-weight: 950;
@@ -4641,7 +4641,7 @@ a:focus-visible {
   scrollbar-width: thin;
   border: 1px solid rgba(191, 205, 225, 0.78);
   border-radius: 16px;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .ol-platform-admin-report-table {
@@ -5872,7 +5872,7 @@ a:focus-visible {
 
 .ol-template-showcase-preview {
   --showcase-accent: var(--primary-strong);
-  --showcase-soft: #eef4ff;
+  --showcase-soft: var(--surface-muted);
   --showcase-line: rgba(36, 93, 181, 0.22);
   display: grid;
   min-height: 520px;
@@ -5886,37 +5886,37 @@ a:focus-visible {
 
 .ol-template-showcase-preview--tax {
   --showcase-accent: #1f6a5d;
-  --showcase-soft: #edf8f5;
+  --showcase-soft: var(--surface-muted);
   --showcase-line: rgba(31, 106, 93, 0.24);
 }
 
 .ol-template-showcase-preview--service {
   --showcase-accent: #a4681c;
-  --showcase-soft: #fff7ea;
+  --showcase-soft: var(--surface-muted);
   --showcase-line: rgba(164, 104, 28, 0.26);
 }
 
 .ol-template-showcase-preview--letterhead {
   --showcase-accent: #263449;
-  --showcase-soft: #eef2f7;
+  --showcase-soft: var(--surface-muted);
   --showcase-line: rgba(38, 52, 73, 0.22);
 }
 
 .ol-template-showcase-preview--compact {
   --showcase-accent: #374151;
-  --showcase-soft: #f4f6f8;
+  --showcase-soft: var(--surface-muted);
   --showcase-line: rgba(55, 65, 81, 0.22);
 }
 
 .ol-template-showcase-preview--payment {
   --showcase-accent: #933d38;
-  --showcase-soft: #fff1ef;
+  --showcase-soft: var(--surface-muted);
   --showcase-line: rgba(147, 61, 56, 0.26);
 }
 
 .ol-template-showcase-preview--premium {
   --showcase-accent: var(--primary);
-  --showcase-soft: #f5f0ff;
+  --showcase-soft: var(--primary-surface);
   --showcase-line: rgba(112, 68, 189, 0.24);
 }
 
@@ -6295,7 +6295,7 @@ a:focus-visible {
 }
 
 .ol-template-preview-full-frame {
-  background: #eef3f8;
+  background: var(--surface-muted);
   border: 1px solid var(--border);
   border-radius: 18px;
   box-shadow: 0 20px 54px rgba(34, 68, 120, 0.14);
@@ -8224,7 +8224,7 @@ a:focus-visible {
   height: 26px;
   border: 1px solid rgba(205, 216, 232, 0.92);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--surface);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
     0 4px 10px rgba(20, 32, 51, 0.06);
@@ -9333,7 +9333,7 @@ a:focus-visible {
   height: 104px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .ol-instrument-preview img {
@@ -9757,7 +9757,7 @@ a:focus-visible {
 
 .ol-landing-page {
   min-height: 100vh;
-  background: #f7f9fc;
+  background: var(--surface-muted);
   color: var(--text);
 }
 
@@ -9878,7 +9878,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(184, 202, 229, 0.82);
   border-radius: 28px;
-  background-color: #ffffff;
+  background-color: var(--surface);
   background:
     radial-gradient(circle at 14% 0%, rgba(67, 126, 236, 0.1), transparent 34%),
     linear-gradient(180deg, #ffffff, #f8fbff);
@@ -9942,7 +9942,7 @@ a:focus-visible {
   padding: 0 14px;
   border: 1px solid rgba(199, 213, 233, 0.74);
   border-radius: 16px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
   font-size: 15px;
   font-weight: 900;
@@ -10084,7 +10084,7 @@ a:focus-visible {
 }
 
 .ol-command-toolbar span.is-active {
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
 }
 
@@ -10403,7 +10403,7 @@ a:focus-visible {
 .ol-template-preview {
   --template-index: 0;
   --template-accent: #214f48;
-  --template-soft: #eef6f3;
+  --template-soft: var(--surface-muted);
   --template-line: rgba(33, 79, 72, 0.12);
   position: absolute;
   inset: 0;
@@ -10428,32 +10428,32 @@ a:focus-visible {
 
 .ol-template-preview--basic {
   --template-accent: var(--primary);
-  --template-soft: #edf3ff;
+  --template-soft: var(--surface-muted);
 }
 
 .ol-template-preview--gst {
   --template-accent: #236c5f;
-  --template-soft: #eef8f5;
+  --template-soft: var(--surface-muted);
 }
 
 .ol-template-preview--service {
   --template-accent: #925f13;
-  --template-soft: #fff7ea;
+  --template-soft: var(--surface-muted);
 }
 
 .ol-template-preview--letterhead {
   --template-accent: var(--text);
-  --template-soft: #eef2f7;
+  --template-soft: var(--surface-muted);
 }
 
 .ol-template-preview--payment {
   --template-accent: #8d3430;
-  --template-soft: #fff1ef;
+  --template-soft: var(--surface-muted);
 }
 
 .ol-template-preview--premium {
   --template-accent: var(--primary);
-  --template-soft: #f5f0ff;
+  --template-soft: var(--primary-surface);
 }
 
 .ol-template-ribbon {
@@ -10843,7 +10843,7 @@ a:focus-visible {
   padding: 0 14px;
   border: 1px solid rgba(190, 204, 225, 0.9);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text-muted);
   font-weight: 850;
   animation: orbit-template-tab-cycle 24s ease-in-out infinite;
@@ -10897,7 +10897,7 @@ a:focus-visible {
   padding: 12px 14px;
   border: 1px solid rgba(204, 216, 234, 0.9);
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--surface-muted);
   color: var(--text);
   font-weight: 800;
 }
@@ -10920,7 +10920,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(190, 204, 225, 0.9);
   border-radius: 18px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
   font-size: 22px;
   font-weight: 900;
@@ -10940,7 +10940,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(190, 204, 225, 0.9);
   border-radius: 16px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
   font-weight: 900;
   text-align: center;
@@ -10993,7 +10993,7 @@ a:focus-visible {
   19%,
   100% {
     border-color: rgba(190, 204, 225, 0.9);
-    background: #ffffff;
+    background: var(--surface);
     color: var(--text-muted);
   }
 }
@@ -12998,7 +12998,7 @@ a:focus-visible {
   padding: 0 14px;
   border: 1px solid rgba(178, 195, 221, 0.92);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--surface);
   color: #4e5d73;
   font-size: 12px;
   font-weight: 950;
@@ -13008,13 +13008,13 @@ a:focus-visible {
 
 .ol-template-plan-badge--pro {
   border-color: rgba(112, 68, 189, 0.28);
-  background: #f5f0ff;
+  background: var(--primary-surface);
   color: var(--primary-strong);
 }
 
 .ol-template-plan-badge--free {
   border-color: rgba(37, 95, 194, 0.24);
-  background: #edf4ff;
+  background: var(--surface-muted);
   color: var(--primary);
 }
 
@@ -13318,7 +13318,7 @@ a:focus-visible {
   padding: 0 12px;
   border: 1px solid rgba(188, 205, 228, 0.82);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--surface);
   color: #31435b;
   font-size: 12px;
   font-weight: 950;
@@ -13705,7 +13705,7 @@ a:focus-visible {
   padding: 8px 12px;
   border: 1px solid rgba(190, 204, 225, 0.82);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--primary);
   font-size: 13px;
   font-weight: 900;
@@ -14798,7 +14798,7 @@ a:focus-visible {
   flex: 0 0 auto;
   border: 2px solid rgba(36, 116, 81, 0.36);
   border-radius: 50%;
-  background: #e8f8f1;
+  background: var(--surface-muted);
   color: #247451;
   font-size: 25px;
   box-shadow: 0 0 0 8px rgba(47, 139, 99, 0.08);
@@ -15229,7 +15229,7 @@ a:focus-visible {
   height: clamp(72px, 8vw, 104px);
   border: 3px solid rgba(36, 116, 81, 0.34);
   border-radius: 50%;
-  background: #e8f8f1;
+  background: var(--surface-muted);
   color: #247451;
   font-size: clamp(38px, 5vw, 58px);
   font-weight: 950;
@@ -15876,7 +15876,7 @@ body::before {
   min-height: 52px;
   padding: 12px;
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--surface);
   border-color: rgba(226, 232, 240, 0.96);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.045);
 }
@@ -15885,7 +15885,7 @@ body::before {
   min-height: 28px;
   padding-inline: 9px;
   border-radius: 8px;
-  background: #f3f6fb;
+  background: var(--surface-muted);
   color: #4c5a70;
   border-color: rgba(218, 226, 237, 0.96);
   font-size: 10px;
@@ -15916,12 +15916,12 @@ body::before {
 .ol-nav-link:hover {
   transform: none;
   color: var(--text);
-  background: #f5f7fb;
+  background: var(--surface-muted);
 }
 
 .ol-nav-link.is-active {
   color: var(--text);
-  background: #eef4ff;
+  background: var(--surface-muted);
   border-color: rgba(185, 207, 242, 0.9);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8);
 }
@@ -15935,7 +15935,7 @@ body::before {
 
 .ol-workspace-guide {
   border-radius: 12px;
-  background: #f7f9fc;
+  background: var(--surface-muted);
   border-color: rgba(218, 226, 237, 0.9);
   box-shadow: none;
 }
@@ -16027,7 +16027,7 @@ body::before {
 }
 
 .ol-button-secondary {
-  background: #ffffff;
+  background: var(--surface);
   border-color: rgba(218, 226, 237, 0.96);
 }
 
@@ -16042,7 +16042,7 @@ body::before {
 .ol-textarea {
   border-radius: 8px;
   border-color: rgba(209, 219, 233, 0.96);
-  background-color: #ffffff;
+  background-color: var(--surface);
   box-shadow: none;
 }
 
@@ -16052,13 +16052,13 @@ body::before {
 }
 
 .ol-account-chip {
-  background: #ffffff;
+  background: var(--surface);
   border-color: rgba(218, 226, 237, 0.96);
   color: #273449;
 }
 
 .ol-account-avatar {
-  background: #eef4ff;
+  background: var(--surface-muted);
   box-shadow: none;
 }
 
@@ -16280,7 +16280,7 @@ body::before {
 
 .ol-os-bars span:nth-child(3) {
   width: 48px;
-  background: #d9e2ee;
+  background: var(--surface-muted);
 }
 
 .ol-os-split {
@@ -16316,7 +16316,7 @@ body::before {
 }
 
 .ol-os-radar-list span.is-active {
-  background: #f0f5ff;
+  background: var(--surface-muted);
   box-shadow: inset 0 0 0 1px rgba(190, 207, 239, 0.78);
 }
 
@@ -16365,7 +16365,7 @@ body::before {
   height: 15px;
   border: 1px solid #cfd9e7;
   border-radius: 5px;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .ol-os-check-list span.is-done {
@@ -16407,7 +16407,7 @@ body::before {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #f1f4f8;
+  background: var(--surface-muted);
   color: #273449;
   font-size: 10px;
   letter-spacing: 0.04em;
@@ -16478,7 +16478,7 @@ body::before {
   content: "";
   width: 28px;
   height: 1px;
-  background: #d8e1ec;
+  background: var(--surface-muted);
 }
 
 .ol-os-stage-row span.is-active {
@@ -16498,7 +16498,7 @@ body::before {
   padding: 12px 14px;
   border: 1px solid rgba(218, 226, 237, 0.96);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .ol-os-balance-note span,
@@ -16671,7 +16671,7 @@ body::before {
   padding: 0 12px;
   border: 1px solid rgba(209, 219, 233, 0.92);
   border-radius: 999px;
-  background: #f4f7fb;
+  background: var(--surface-muted);
   color: var(--primary);
   font-size: 12px;
   font-weight: 760;
@@ -16838,7 +16838,7 @@ body::before {
 .ol-revamp-feature-grid article {
   min-height: 216px;
   padding: clamp(24px, 3vw, 34px);
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .ol-revamp-feature-grid h3 {
@@ -16910,7 +16910,7 @@ body::before {
 .ol-revamp-footer {
   margin-top: clamp(72px, 8vw, 112px);
   border-top: 1px solid rgba(218, 226, 237, 0.96);
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .ol-revamp-footer-main {
@@ -17016,7 +17016,7 @@ body::before {
   padding: 0 11px;
   border: 1px solid rgba(218, 226, 237, 0.96);
   border-radius: 8px;
-  background: #f7f9fc;
+  background: var(--surface-muted);
   color: var(--text);
   font-size: 13px;
   line-height: 1.2;
@@ -17119,7 +17119,7 @@ body::before {
 }
 
 .ol-workspace-os-bars span:nth-child(3) {
-  background: #d9e2ee;
+  background: var(--surface-muted);
 }
 
 .ol-workspace-os-split {
@@ -17156,7 +17156,7 @@ body::before {
 }
 
 .ol-workspace-os-radar-list span.is-active {
-  background: #f0f5ff;
+  background: var(--surface-muted);
   box-shadow: inset 0 0 0 1px rgba(190, 207, 239, 0.78);
 }
 
@@ -17207,7 +17207,7 @@ body::before {
   height: 15px;
   border: 1px solid #cfd9e7;
   border-radius: 5px;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .ol-workspace-os-check-list span.is-done {
@@ -17257,7 +17257,7 @@ body::before {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #f1f4f8;
+  background: var(--surface-muted);
   color: #273449;
   font-size: 10px;
   letter-spacing: 0.04em;
@@ -17330,7 +17330,7 @@ body::before {
   content: "";
   width: 28px;
   height: 1px;
-  background: #d8e1ec;
+  background: var(--surface-muted);
 }
 
 .ol-workspace-os-stage-row span.is-active {
@@ -17350,7 +17350,7 @@ body::before {
   padding: 14px 16px;
   border: 1px solid rgba(218, 226, 237, 0.96);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .ol-workspace-os-balance-note span,
