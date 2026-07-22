@@ -11,8 +11,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(244, 246, 249, 0) 26%),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 88%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 0%, transparent) 26%),
     linear-gradient(135deg, #fbfcfe 0%, var(--bg) 54%, var(--bg-deep) 100%);
   color: var(--text);
   font-family:
@@ -34,7 +33,7 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(61, 115, 230, 0.025) 0%, rgba(255, 255, 255, 0) 32%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-soft) 2.5%, transparent) 0%, color-mix(in srgb, var(--surface) 0%, transparent) 32%);
 }
 
 a {
@@ -108,9 +107,8 @@ a:focus-visible {
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-  background:
-    radial-gradient(circle at top left, rgba(47, 131, 247, 0.08), transparent 30%),
-    linear-gradient(180deg, rgba(247, 250, 255, 0.98) 0%, rgba(240, 245, 255, 0.96) 100%);
+  background: radial-gradient(circle at top left, color-mix(in srgb, var(--primary-soft) 8%, transparent), transparent 30%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 96%, transparent) 100%);
 }
 
 .ol-backoffice-sidebar {
@@ -122,8 +120,7 @@ a:focus-visible {
   grid-template-rows: auto minmax(0, 1fr);
   gap: 18px;
   padding: 24px 20px 20px;
-  background:
-    linear-gradient(180deg, rgba(21, 29, 43, 0.98) 0%, rgba(27, 39, 59, 0.96) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-dark) 98%, transparent) 0%, color-mix(in srgb, var(--primary) 96%, transparent) 100%);
   border-right: 1px solid rgba(84, 104, 138, 0.42);
   overflow: hidden;
 }
@@ -142,7 +139,7 @@ a:focus-visible {
 }
 
 .ol-backoffice-sidebar-scroll::-webkit-scrollbar-thumb {
-  background: rgba(137, 178, 255, 0.28);
+  background: color-mix(in srgb, var(--primary-soft) 28%, transparent);
   border-radius: 999px;
 }
 
@@ -154,7 +151,7 @@ a:focus-visible {
   min-height: 52px;
   padding: 14px 16px;
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(147, 197, 253, 0.08) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 10%, transparent) 0%, color-mix(in srgb, var(--primary-soft) 8%, transparent) 100%);
   border: 1px solid rgba(118, 149, 197, 0.28);
 }
 
@@ -176,7 +173,7 @@ a:focus-visible {
   min-height: 32px;
   padding: 0 12px;
   border-radius: 999px;
-  background: rgba(137, 178, 255, 0.16);
+  background: color-mix(in srgb, var(--primary-soft) 16%, transparent);
   color: #dbeafe;
   border: 1px solid rgba(137, 178, 255, 0.34);
   font-size: 12px;
@@ -216,7 +213,7 @@ a:focus-visible {
   padding: 12px 14px;
   border-radius: 14px;
   color: rgba(241, 245, 249, 0.88);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--surface) 4%, transparent);
   border: 1px solid transparent;
   font-weight: 700;
   line-height: 1.35;
@@ -226,13 +223,13 @@ a:focus-visible {
 
 .ol-backoffice-nav-link:hover,
 .ol-backoffice-nav-link:focus-visible {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface) 8%, transparent);
   border-color: rgba(137, 178, 255, 0.3);
   transform: translateX(1px);
 }
 
 .ol-backoffice-nav-link.is-active {
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.2) 0%, rgba(147, 197, 253, 0.14) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-soft) 20%, transparent) 0%, color-mix(in srgb, var(--primary-soft) 14%, transparent) 100%);
   border-color: rgba(96, 165, 250, 0.5);
   color: #eff6ff;
 }
@@ -242,7 +239,7 @@ a:focus-visible {
   gap: 6px;
   padding: 16px;
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(186, 230, 253, 0.08) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 8%, transparent) 0%, color-mix(in srgb, var(--primary-surface) 8%, transparent) 100%);
   border: 1px solid rgba(118, 149, 197, 0.24);
 }
 
@@ -269,7 +266,7 @@ a:focus-visible {
   padding: 14px;
   border-radius: 16px;
   border: 1px solid rgba(118, 149, 197, 0.22);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--surface) 4%, transparent);
   color: rgba(241, 245, 249, 0.92);
   transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
@@ -287,13 +284,13 @@ a:focus-visible {
 
 .ol-backoffice-area-card:hover,
 .ol-backoffice-area-card:focus-visible {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface) 8%, transparent);
   border-color: rgba(137, 178, 255, 0.3);
   transform: translateX(1px);
 }
 
 .ol-backoffice-area-card.is-active {
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.18) 0%, rgba(147, 197, 253, 0.12) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-soft) 18%, transparent) 0%, color-mix(in srgb, var(--primary-soft) 12%, transparent) 100%);
   border-color: rgba(96, 165, 250, 0.46);
 }
 
@@ -312,7 +309,7 @@ a:focus-visible {
   gap: 20px;
   align-items: flex-start;
   padding: 28px 32px 20px;
-  background: linear-gradient(180deg, rgba(247, 250, 255, 0.98) 0%, rgba(247, 250, 255, 0.92) 82%, rgba(247, 250, 255, 0) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 92%, transparent) 82%, color-mix(in srgb, var(--surface-muted) 0%, transparent) 100%);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
@@ -367,8 +364,7 @@ a:focus-visible {
   flex-direction: column;
   gap: 18px;
   overflow-y: auto;
-  background:
-    linear-gradient(180deg, rgba(15, 23, 38, 0.99) 0%, rgba(21, 32, 52, 0.985) 100%) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 99%, transparent) 0%, color-mix(in srgb, var(--primary) 98.5%, transparent) 100%) !important;
   color: #eff6ff;
 }
 
@@ -383,7 +379,7 @@ a:focus-visible {
 .ol-backoffice-mobile-panel .ol-backoffice-status-card,
 .ol-backoffice-mobile-panel .ol-backoffice-area-card,
 .ol-backoffice-mobile-panel .ol-backoffice-nav-link {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface) 8%, transparent);
   border-color: rgba(137, 178, 255, 0.28);
 }
 
@@ -396,7 +392,7 @@ a:focus-visible {
 
 .ol-backoffice-mobile-panel .ol-backoffice-area-card.is-active,
 .ol-backoffice-mobile-panel .ol-backoffice-nav-link.is-active {
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.28) 0%, rgba(147, 197, 253, 0.18) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-soft) 28%, transparent) 0%, color-mix(in srgb, var(--primary-soft) 18%, transparent) 100%);
   border-color: rgba(96, 165, 250, 0.56);
 }
 
@@ -409,8 +405,7 @@ a:focus-visible {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 18px;
   padding: 24px 20px 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(247, 250, 255, 0.8) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 88%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 80%, transparent) 100%);
   border-right: 1px solid rgba(183, 197, 219, 0.72);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
@@ -430,7 +425,7 @@ a:focus-visible {
   min-height: 44px;
   padding: 12px 14px;
   border-radius: 12px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(247, 250, 255, 0.72) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 72%, transparent) 100%);
   border: 1px solid rgba(190, 204, 225, 0.72);
   box-shadow: 0 12px 34px rgba(20, 32, 51, 0.06);
   overflow: hidden;
@@ -472,7 +467,7 @@ a:focus-visible {
   min-height: 32px;
   padding: 0 12px;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(243, 238, 255, 0.95) 0%, rgba(248, 242, 255, 0.82) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 95%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 82%, transparent) 100%);
   color: var(--premium);
   border: 1px solid rgba(205, 180, 255, 0.66);
   font-size: 12px;
@@ -528,12 +523,12 @@ a:focus-visible {
 .ol-nav-link:hover {
   transform: translateX(2px);
   color: var(--text);
-  background: rgba(255, 255, 255, 0.56);
+  background: color-mix(in srgb, var(--surface) 56%, transparent);
 }
 
 .ol-nav-link.is-active {
   color: var(--primary-strong);
-  background: linear-gradient(180deg, rgba(231, 241, 255, 0.98) 0%, rgba(246, 250, 255, 0.96) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 96%, transparent) 100%);
   border-color: rgba(86, 150, 230, 0.88);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.72),
@@ -647,7 +642,7 @@ a:focus-visible {
 .ol-pay-notice {
   border: 1px solid rgba(47, 131, 247, 0.22);
   border-radius: 8px;
-  background: rgba(47, 131, 247, 0.08);
+  background: color-mix(in srgb, var(--primary-soft) 8%, transparent);
   color: var(--text);
   font-size: 14px;
   font-weight: 700;
@@ -800,7 +795,7 @@ a:focus-visible {
 }
 
 .ol-chip--muted {
-  background: rgba(241, 245, 249, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--muted-strong);
   border-color: var(--line);
 }
@@ -872,7 +867,7 @@ a:focus-visible {
   align-items: center;
   gap: 20px;
   padding: 0 28px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.7) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 82%, transparent) 0%, color-mix(in srgb, var(--surface) 70%, transparent) 100%);
   border-bottom: 1px solid rgba(190, 204, 225, 0.78);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -913,7 +908,7 @@ a:focus-visible {
   margin-bottom: 20px;
   border-radius: 22px;
   border: 1px solid rgba(47, 131, 247, 0.22);
-  background: linear-gradient(135deg, rgba(47, 131, 247, 0.12), rgba(255, 255, 255, 0.96));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary-soft) 12%, transparent), color-mix(in srgb, var(--surface) 96%, transparent));
 }
 
 .ol-user-context-banner strong {
@@ -930,7 +925,7 @@ a:focus-visible {
 
 .ol-user-context-banner[data-mode="act_as_user"] {
   border-color: rgba(180, 57, 82, 0.28);
-  background: linear-gradient(135deg, rgba(180, 57, 82, 0.12), rgba(255, 255, 255, 0.96));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--danger) 12%, transparent), color-mix(in srgb, var(--surface) 96%, transparent));
 }
 
 .ol-topbar-actions .ol-topbar-select {
@@ -959,7 +954,7 @@ a:focus-visible {
   min-height: var(--control-height);
   border-radius: var(--control-radius);
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.98);
+  background: color-mix(in srgb, var(--surface) 98%, transparent);
   color: var(--text);
   padding: 0 14px;
   font-size: 14px;
@@ -1014,7 +1009,7 @@ a:focus-visible {
   padding: 4px;
   border: 1px solid rgba(185, 198, 218, 0.86);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.98);
+  background: color-mix(in srgb, var(--surface) 98%, transparent);
   cursor: pointer;
 }
 
@@ -1039,7 +1034,7 @@ a:focus-visible {
   cursor: not-allowed;
   opacity: 0.78;
   color: var(--text-muted);
-  background: linear-gradient(180deg, rgba(244, 247, 251, 0.95) 0%, rgba(239, 244, 250, 0.9) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 95%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 90%, transparent) 100%);
 }
 
 .ol-button,
@@ -1094,14 +1089,14 @@ a:focus-visible {
 
 .ol-button-secondary {
   color: var(--text);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 251, 254, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   border-color: var(--border);
   box-shadow: 0 6px 14px rgba(20, 32, 51, 0.045);
 }
 
 .ol-button-ghost {
   color: var(--primary);
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface) 8%, transparent);
   border-color: rgba(162, 190, 232, 0.54);
 }
 
@@ -1121,7 +1116,7 @@ a:focus-visible {
 .ol-icon-button--danger {
   color: #a3344d;
   border-color: rgba(218, 154, 168, 0.86);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 246, 248, 0.92) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 92%, transparent) 100%);
 }
 
 .ol-page-content {
@@ -1137,8 +1132,7 @@ a:focus-visible {
   min-width: 0;
   padding: 10px 28px;
   border-bottom: 1px solid rgba(190, 204, 225, 0.72);
-  background:
-    linear-gradient(180deg, rgba(248, 252, 250, 0.96) 0%, rgba(241, 249, 246, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 94%, transparent) 100%);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
@@ -1174,7 +1168,7 @@ a:focus-visible {
   padding: 22px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(247, 250, 255, 0.88) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 88%, transparent) 100%);
   box-shadow: var(--shadow-soft);
 }
 
@@ -1212,7 +1206,7 @@ a:focus-visible {
   padding: 10px;
   border: 1px solid rgba(193, 207, 228, 0.72);
   border-radius: 16px;
-  background: rgba(247, 250, 255, 0.88);
+  background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
   box-shadow: 0 14px 34px rgba(26, 39, 61, 0.1);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -1227,7 +1221,7 @@ a:focus-visible {
   padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
   color: var(--text);
   font-size: 13px;
   font-weight: 800;
@@ -1268,7 +1262,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(203, 214, 232, 0.78);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.76);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
 }
 
 .ol-settings-toggle-title {
@@ -1295,7 +1289,7 @@ a:focus-visible {
   overflow: hidden;
   border: 1px solid rgba(203, 214, 232, 0.78);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
 
 .ol-table-card-header {
@@ -1368,7 +1362,7 @@ a:focus-visible {
   padding: 10px;
   border: 1px solid rgba(203, 214, 232, 0.68);
   border-radius: 12px;
-  background: rgba(247, 250, 255, 0.72);
+  background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
 }
 
 .ol-conflict-invoice-row strong,
@@ -1382,7 +1376,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px dashed rgba(169, 184, 207, 0.78);
   border-radius: 14px;
-  background: rgba(247, 250, 255, 0.68);
+  background: color-mix(in srgb, var(--surface-muted) 68%, transparent);
 }
 
 .ol-empty-state strong {
@@ -1425,7 +1419,7 @@ a:focus-visible {
   padding: 10px 12px;
   border: 1px solid rgba(203, 214, 232, 0.78);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
   overflow-wrap: anywhere;
 }
 
@@ -1443,17 +1437,17 @@ a:focus-visible {
 .ol-settings-save-row[data-state="saving"],
 .ol-settings-save-row[data-state="loading"] {
   border-color: rgba(246, 221, 167, 0.95);
-  background: rgba(255, 249, 236, 0.84);
+  background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
 }
 
 .ol-settings-save-row[data-state="saved"] {
   border-color: rgba(177, 226, 209, 0.9);
-  background: rgba(238, 250, 246, 0.84);
+  background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
 }
 
 .ol-settings-save-row[data-state="error"] {
   border-color: rgba(255, 194, 194, 0.95);
-  background: rgba(255, 244, 244, 0.86);
+  background: color-mix(in srgb, var(--surface-muted) 86%, transparent);
 }
 
 .ol-settings-payment-guard {
@@ -1476,7 +1470,7 @@ a:focus-visible {
   padding: 14px 16px;
   border: 1px solid rgba(200, 213, 233, 0.78);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   color: var(--text-soft);
   font-size: 12px;
   font-weight: 650;
@@ -1507,7 +1501,7 @@ a:focus-visible {
   padding: 15px 16px;
   border: 1px solid rgba(200, 213, 233, 0.78);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
 .ol-live-collections-setup-card > div {
@@ -1539,12 +1533,12 @@ a:focus-visible {
 .ol-live-collections-setup-card[data-tone="blocked"] > div,
 .ol-live-collections-setup-card[data-tone="warning"] > div {
   border-color: rgba(225, 187, 104, 0.5);
-  background: rgba(255, 250, 239, 0.76);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
 }
 
 .ol-live-collections-setup-card[data-tone="success"] > div {
   border-color: rgba(139, 210, 184, 0.58);
-  background: rgba(239, 250, 246, 0.78);
+  background: color-mix(in srgb, var(--surface-muted) 78%, transparent);
 }
 
 @media (max-width: 820px) {
@@ -1560,7 +1554,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(203, 214, 232, 0.78);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
 
 .ol-settings-preview-card strong {
@@ -1583,7 +1577,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(203, 214, 232, 0.78);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
   cursor: pointer;
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
@@ -1605,7 +1599,7 @@ a:focus-visible {
   height: 26px;
   border-radius: 999px;
   border: 1px solid rgba(169, 184, 207, 0.84);
-  background: rgba(231, 237, 247, 0.9);
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   transition: background 160ms ease, border-color 160ms ease;
 }
 
@@ -1662,7 +1656,7 @@ a:focus-visible {
   padding: 0 9px;
   border: 1px solid rgba(177, 226, 209, 0.92);
   border-radius: 999px;
-  background: rgba(238, 250, 246, 0.88);
+  background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
   color: var(--success);
   font-size: 11px;
   font-style: normal;
@@ -1671,13 +1665,13 @@ a:focus-visible {
 
 .ol-settings-toggle em[data-tone="off"] {
   border-color: rgba(203, 214, 232, 0.88);
-  background: rgba(247, 249, 253, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: var(--text-muted);
 }
 
 .ol-settings-toggle em[data-tone="neutral"] {
   border-color: rgba(191, 205, 225, 0.84);
-  background: rgba(244, 248, 254, 0.9);
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   color: var(--primary-strong);
 }
 
@@ -1739,19 +1733,18 @@ a:focus-visible {
 }
 
 .ol-panel {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 252, 255, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
 }
 
 .ol-panel-glass {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(249, 251, 254, 0.8) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 90%, transparent) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border-color: var(--border);
 }
 
 .ol-panel-dark {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(246, 249, 253, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 94%, transparent) 100%);
   border-color: var(--border);
   box-shadow: var(--shadow);
   color: var(--text);
@@ -1764,7 +1757,7 @@ a:focus-visible {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0) 28%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 34%, transparent) 0%, color-mix(in srgb, var(--surface) 0%, transparent) 28%);
 }
 
 .ol-panel-header {
@@ -1860,7 +1853,7 @@ a:focus-visible {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
   padding: 16px;
   text-align: left;
   transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
@@ -1877,7 +1870,7 @@ a:focus-visible {
 .ol-support-case-row--active {
   border-color: rgba(16, 73, 176, 0.4);
   box-shadow: 0 22px 40px rgba(13, 40, 86, 0.12);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(237, 244, 255, 0.95) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 95%, transparent) 100%);
 }
 
 .ol-support-nav-button {
@@ -1917,7 +1910,7 @@ a:focus-visible {
   min-height: 34px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(14, 31, 52, 0.08);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
   font-size: 14px;
   font-weight: 800;
   color: var(--text);
@@ -1932,7 +1925,7 @@ a:focus-visible {
 .ol-support-empty-state {
   border: 1px solid var(--border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.84);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
   padding: 16px;
 }
 
@@ -1988,7 +1981,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(217, 227, 241, 0.92);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
 
 .ol-support-inline-actions {
@@ -2046,7 +2039,7 @@ a:focus-visible {
   gap: 14px;
   padding: 18px;
   border-radius: 20px;
-  background: linear-gradient(180deg, rgba(244, 248, 253, 0.96) 0%, rgba(233, 242, 252, 0.88) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 88%, transparent) 100%);
   border: 1px solid rgba(16, 73, 176, 0.12);
 }
 
@@ -2091,11 +2084,11 @@ a:focus-visible {
 }
 
 .ol-support-message[data-kind="internal_note"] {
-  background: rgba(248, 250, 255, 0.96);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
 }
 
 .ol-support-message[data-kind="operator_reply"] {
-  background: rgba(239, 247, 255, 0.95);
+  background: color-mix(in srgb, var(--surface-muted) 95%, transparent);
 }
 
 .ol-support-band-spacing {
@@ -2156,7 +2149,7 @@ a:focus-visible {
   min-height: 128px;
   padding: 18px;
   border-radius: var(--radius-lg);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(250, 252, 255, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 99%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   border: 1px solid var(--border);
   box-shadow: 0 12px 30px rgba(26, 38, 58, 0.06);
   overflow: hidden;
@@ -2238,7 +2231,7 @@ a:focus-visible {
   padding: 0 12px;
   border: 1px solid rgba(191, 205, 225, 0.76);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
   color: var(--text);
   font-size: 14px;
   font-weight: 900;
@@ -2258,7 +2251,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(204, 216, 235, 0.86);
   border-radius: 20px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(249, 252, 255, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 99%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   box-shadow: 0 14px 34px rgba(26, 38, 58, 0.06);
 }
 
@@ -2288,23 +2281,23 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
   border-radius: 14px;
-  background: rgba(234, 243, 255, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: var(--primary-strong);
   font-weight: 950;
 }
 
 .ol-action-card[data-tone="warning"] .ol-action-icon {
-  background: rgba(255, 246, 224, 0.94);
+  background: color-mix(in srgb, var(--warning-surface) 94%, transparent);
   color: var(--warning);
 }
 
 .ol-action-card[data-tone="danger"] .ol-action-icon {
-  background: rgba(255, 235, 235, 0.96);
+  background: color-mix(in srgb, var(--surface-muted) 96%, transparent);
   color: var(--danger);
 }
 
 .ol-action-card[data-tone="success"] .ol-action-icon {
-  background: rgba(237, 250, 245, 0.96);
+  background: color-mix(in srgb, var(--surface-muted) 96%, transparent);
   color: var(--success);
 }
 
@@ -2423,7 +2416,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(204, 216, 235, 0.86);
   border-radius: 20px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(249, 252, 255, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 99%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   box-shadow: 0 14px 34px rgba(26, 38, 58, 0.06);
 }
 
@@ -2564,7 +2557,7 @@ a:focus-visible {
   display: block;
   min-height: 8px;
   border-radius: 999px 999px 6px 6px;
-  background: linear-gradient(180deg, rgba(47, 131, 247, 0.9) 0%, rgba(28, 105, 216, 0.82) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-soft) 90%, transparent) 0%, color-mix(in srgb, var(--primary) 82%, transparent) 100%);
 }
 
 .ol-bar-chart-item em {
@@ -2783,7 +2776,7 @@ a:focus-visible {
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(225, 232, 243, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
 }
 
 .ol-segment-bar-row em i,
@@ -2826,7 +2819,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(204, 216, 235, 0.86);
   border-radius: 20px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 252, 255, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   box-shadow: 0 14px 34px rgba(26, 38, 58, 0.06);
 }
 
@@ -2872,7 +2865,7 @@ a:focus-visible {
   padding: 0 10px;
   border: 1px solid rgba(191, 205, 225, 0.78);
   border-radius: 999px;
-  background: rgba(244, 248, 254, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: var(--primary-strong);
   font-size: 13px;
   font-weight: 950;
@@ -2880,13 +2873,13 @@ a:focus-visible {
 
 .ol-coach-card[data-tone="warning"] .ol-coach-score {
   border-color: rgba(236, 202, 142, 0.82);
-  background: rgba(255, 248, 232, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--warning);
 }
 
 .ol-coach-card[data-tone="danger"] .ol-coach-score {
   border-color: rgba(237, 172, 172, 0.82);
-  background: rgba(255, 241, 241, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--danger);
 }
 
@@ -2903,7 +2896,7 @@ a:focus-visible {
   padding: 0 10px;
   border: 1px solid rgba(211, 220, 234, 0.86);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 820;
@@ -2914,7 +2907,7 @@ a:focus-visible {
   padding: 12px;
   border: 1px solid rgba(211, 220, 234, 0.82);
   border-radius: 14px;
-  background: rgba(247, 250, 254, 0.86);
+  background: color-mix(in srgb, var(--surface-muted) 86%, transparent);
   color: var(--text-muted);
   font-size: 13px;
   line-height: 1.55;
@@ -2933,7 +2926,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(204, 216, 235, 0.82);
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 252, 255, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   box-shadow: 0 12px 28px rgba(26, 38, 58, 0.05);
 }
 
@@ -2995,7 +2988,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(204, 216, 235, 0.84);
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 252, 255, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   box-shadow: 0 12px 28px rgba(26, 38, 58, 0.05);
 }
 
@@ -3046,7 +3039,7 @@ a:focus-visible {
   padding: 0 9px;
   border: 1px solid rgba(211, 220, 234, 0.86);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
   color: var(--text-muted);
   font-size: 11.5px;
   font-weight: 850;
@@ -3066,7 +3059,7 @@ a:focus-visible {
   padding: 12px;
   border: 1px solid rgba(211, 220, 234, 0.82);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
 
 .ol-recovery-guardrail span {
@@ -3076,7 +3069,7 @@ a:focus-visible {
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  background: rgba(226, 247, 239, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--success);
   font-size: 12px;
   font-weight: 950;
@@ -3108,7 +3101,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(204, 216, 235, 0.86);
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 252, 255, 0.95) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 95%, transparent) 100%);
   box-shadow: 0 16px 34px rgba(26, 38, 58, 0.06);
 }
 
@@ -3143,7 +3136,7 @@ a:focus-visible {
   height: 34px;
   padding: 0 10px;
   border-radius: 12px;
-  background: rgba(230, 238, 252, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: var(--primary);
   font-size: 12px;
   font-weight: 950;
@@ -3198,7 +3191,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(204, 216, 235, 0.86);
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 252, 255, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   box-shadow: 0 14px 30px rgba(26, 38, 58, 0.055);
   color: inherit;
   text-decoration: none;
@@ -3231,7 +3224,7 @@ a:focus-visible {
   height: 32px;
   padding: 0 9px;
   border-radius: 12px;
-  background: rgba(230, 238, 252, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: var(--primary);
   font-size: 11px;
   font-weight: 950;
@@ -3277,7 +3270,7 @@ a:focus-visible {
   padding: 15px;
   border: 1px solid rgba(204, 216, 235, 0.84);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.74);
+  background: color-mix(in srgb, var(--surface) 74%, transparent);
 }
 
 .ol-closing-step[data-tone="success"] {
@@ -3331,7 +3324,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(204, 216, 235, 0.84);
   border-radius: 18px;
-  background: rgba(248, 251, 255, 0.9);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
 }
 
 .ol-closing-check-grid {
@@ -3349,23 +3342,23 @@ a:focus-visible {
   padding: 15px;
   border: 1px solid rgba(204, 216, 235, 0.84);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.76);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
   cursor: pointer;
 }
 
 .ol-closing-check[data-tone="success"] {
   border-color: rgba(177, 226, 209, 0.9);
-  background: rgba(241, 252, 248, 0.82);
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
 }
 
 .ol-closing-check[data-tone="warning"] {
   border-color: rgba(236, 202, 142, 0.9);
-  background: rgba(255, 249, 236, 0.82);
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
 }
 
 .ol-closing-check[data-tone="danger"] {
   border-color: rgba(237, 172, 172, 0.88);
-  background: rgba(255, 246, 246, 0.82);
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
 }
 
 .ol-closing-check input {
@@ -3446,28 +3439,28 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, rgba(234, 243, 255, 0.94) 0%, rgba(244, 248, 255, 0.88) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 94%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 88%, transparent) 100%);
   color: var(--primary);
   font-weight: 900;
 }
 
 .ol-list-icon[data-tone="success"] {
-  background: rgba(235, 250, 245, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--success);
 }
 
 .ol-list-icon[data-tone="warning"] {
-  background: rgba(255, 248, 232, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--warning);
 }
 
 .ol-list-icon[data-tone="danger"] {
-  background: rgba(255, 241, 241, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--danger);
 }
 
 .ol-list-icon[data-tone="neutral"] {
-  background: rgba(244, 247, 251, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--text-muted);
 }
 
@@ -3493,7 +3486,7 @@ a:focus-visible {
   display: grid;
   place-items: center;
   padding: 22px;
-  background: rgba(15, 23, 38, 0.42);
+  background: color-mix(in srgb, var(--primary) 42%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -3507,7 +3500,7 @@ a:focus-visible {
   overflow: hidden;
   border: 1px solid rgba(211, 220, 234, 0.92);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.98);
+  background: color-mix(in srgb, var(--surface) 98%, transparent);
   box-shadow: 0 28px 80px rgba(15, 23, 38, 0.24);
 }
 
@@ -3558,7 +3551,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 251, 254, 0.92) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 92%, transparent) 100%);
 }
 
 .ol-dialog-customer-main {
@@ -3607,7 +3600,7 @@ a:focus-visible {
   scrollbar-width: thin;
   border-radius: 18px;
   border: 1px solid rgba(191, 205, 225, 0.82);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(247, 250, 255, 0.92) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 92%, transparent) 100%);
   box-shadow: var(--shadow);
 }
 
@@ -3626,7 +3619,7 @@ a:focus-visible {
 .ol-platform-admin-admin-list::-webkit-scrollbar-track,
 .ol-platform-admin-document-table-wrap::-webkit-scrollbar-track,
 .ol-platform-admin-audit-list::-webkit-scrollbar-track {
-  background: rgba(238, 244, 251, 0.98);
+  background: color-mix(in srgb, var(--surface-muted) 98%, transparent);
   border-radius: 999px;
 }
 
@@ -3638,7 +3631,7 @@ a:focus-visible {
 .ol-platform-admin-audit-list::-webkit-scrollbar-thumb {
   border: 2px solid rgba(238, 244, 251, 0.98);
   border-radius: 999px;
-  background: rgba(56, 111, 222, 0.5);
+  background: color-mix(in srgb, var(--primary-soft) 50%, transparent);
 }
 
 .ol-table-tools {
@@ -3648,7 +3641,7 @@ a:focus-visible {
   gap: 16px;
   padding: 18px;
   border-bottom: 1px solid rgba(191, 205, 225, 0.82);
-  background: rgba(248, 251, 255, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
 .ol-table-actions {
@@ -3666,7 +3659,7 @@ a:focus-visible {
 .ol-table-summary {
   padding: 12px 18px;
   border-bottom: 1px solid rgba(191, 205, 225, 0.72);
-  background: rgba(255, 255, 255, 0.62);
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
@@ -3688,7 +3681,7 @@ a:focus-visible {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   border-bottom: 1px solid rgba(191, 205, 225, 0.82);
-  background: linear-gradient(180deg, rgba(248, 251, 255, 0.95) 0%, rgba(242, 247, 253, 0.95) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 95%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 95%, transparent) 100%);
 }
 
 .ol-table-row {
@@ -3697,7 +3690,7 @@ a:focus-visible {
 }
 
 .ol-table-row:hover {
-  background: rgba(247, 250, 255, 0.88);
+  background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
 }
 
 .ol-table-row a {
@@ -3721,8 +3714,7 @@ a:focus-visible {
   --ol-admin-chart-3: #a83c52;
   --ol-admin-chart-4: var(--primary);
   --ol-admin-chart-5: #0f7f9d;
-  background:
-    linear-gradient(180deg, rgba(246, 249, 253, 0.96) 0%, rgba(238, 244, 251, 0.94) 100%),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 94%, transparent) 100%),
     var(--background);
 }
 
@@ -3752,7 +3744,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(191, 205, 225, 0.86);
   border-radius: 24px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 250, 255, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 94%, transparent) 100%);
   box-shadow: 0 18px 38px rgba(36, 54, 82, 0.07);
 }
 
@@ -3791,7 +3783,7 @@ a:focus-visible {
 
 .ol-platform-admin-sidebar a:hover,
 .ol-platform-admin-sidebar a:focus-visible {
-  background: rgba(56, 111, 222, 0.1);
+  background: color-mix(in srgb, var(--primary-soft) 10%, transparent);
   color: var(--primary-strong);
   outline: none;
 }
@@ -3816,7 +3808,7 @@ a:focus-visible {
 .ol-platform-admin-table-card {
   border: 1px solid rgba(191, 205, 225, 0.86);
   border-radius: 24px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 251, 254, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   box-shadow: 0 22px 46px rgba(36, 54, 82, 0.08);
 }
 
@@ -3827,7 +3819,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(191, 205, 225, 0.86);
   border-radius: 22px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 251, 254, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
 }
 
 .ol-platform-admin-hero {
@@ -3913,8 +3905,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(191, 205, 225, 0.86);
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 251, 254, 0.94) 100%),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%),
     #ffffff;
   box-shadow: 0 22px 46px rgba(36, 54, 82, 0.08);
 }
@@ -3958,7 +3949,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(191, 205, 225, 0.78);
   border-radius: 18px;
-  background: rgba(248, 251, 255, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
 .ol-platform-admin-quick-actions strong,
@@ -3993,7 +3984,7 @@ a:focus-visible {
   padding: 12px;
   border: 1px solid rgba(191, 205, 225, 0.72);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.84);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
 }
 
 .ol-platform-admin-status-signal span {
@@ -4038,8 +4029,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(191, 205, 225, 0.78);
   border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(246, 249, 254, 0.88) 100%),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 88%, transparent) 100%),
     #ffffff;
 }
 
@@ -4062,7 +4052,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(191, 205, 225, 0.76);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
   box-shadow: 0 14px 30px rgba(36, 54, 82, 0.05);
 }
 
@@ -4104,7 +4094,7 @@ a:focus-visible {
 .ol-platform-admin-chart-title a:hover,
 .ol-platform-admin-chart-title a:focus-visible {
   border-color: rgba(56, 111, 222, 0.62);
-  background: rgba(56, 111, 222, 0.08);
+  background: color-mix(in srgb, var(--primary-soft) 8%, transparent);
   outline: none;
 }
 
@@ -4131,7 +4121,7 @@ a:focus-visible {
   width: 100%;
   min-height: 8px;
   border-radius: 10px 10px 4px 4px;
-  background: linear-gradient(180deg, var(--ol-admin-chart-0) 0%, rgba(56, 111, 222, 0.5) 100%);
+  background: linear-gradient(180deg, var(--ol-admin-chart-0) 0%, color-mix(in srgb, var(--primary-soft) 50%, transparent) 100%);
 }
 
 .ol-platform-admin-trend-column strong {
@@ -4188,7 +4178,7 @@ a:focus-visible {
   min-height: 36px;
   border: 1px solid rgba(191, 205, 225, 0.72);
   border-radius: 999px;
-  background: rgba(238, 244, 251, 0.9);
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
 }
 
 .ol-platform-admin-stacked-track span {
@@ -4231,7 +4221,7 @@ a:focus-visible {
   overflow: hidden;
   height: 10px;
   border-radius: 999px;
-  background: rgba(238, 244, 251, 0.96);
+  background: color-mix(in srgb, var(--surface-muted) 96%, transparent);
 }
 
 .ol-platform-admin-horizontal-row b {
@@ -4287,7 +4277,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(191, 205, 225, 0.76);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
 }
 
 .ol-platform-admin-area-card span {
@@ -4321,7 +4311,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(191, 205, 225, 0.82);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.94);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
   box-shadow: 0 14px 32px rgba(36, 54, 82, 0.06);
 }
 
@@ -4384,7 +4374,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(191, 205, 225, 0.78);
   border-radius: 16px;
-  background: rgba(248, 251, 255, 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
 }
 
 .ol-platform-admin-status strong {
@@ -4427,7 +4417,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(191, 205, 225, 0.76);
   border-radius: 18px;
-  background: rgba(248, 251, 255, 0.9);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
 }
 
 .ol-platform-admin-filter-summary strong {
@@ -4471,7 +4461,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(191, 205, 225, 0.72);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.88);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
 }
 
 .ol-platform-admin-admin-form {
@@ -4482,7 +4472,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(191, 205, 225, 0.78);
   border-radius: 20px;
-  background: rgba(248, 251, 255, 0.94);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
 }
 
 .ol-platform-admin-admin-form h2 {
@@ -4540,14 +4530,14 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(191, 205, 225, 0.78);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
   cursor: pointer;
   text-align: left;
 }
 
 .ol-platform-admin-report-option[data-active='true'] {
   border-color: rgba(56, 111, 222, 0.72);
-  background: rgba(239, 244, 255, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   box-shadow: inset 4px 0 0 rgba(56, 111, 222, 0.78);
 }
 
@@ -4578,7 +4568,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(191, 205, 225, 0.78);
   border-radius: 20px;
-  background: rgba(248, 251, 255, 0.9);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
 }
 
 .ol-platform-admin-report-summary {
@@ -4621,7 +4611,7 @@ a:focus-visible {
   padding: 8px 10px;
   border: 1px solid rgba(191, 205, 225, 0.72);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 850;
@@ -4665,7 +4655,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(191, 205, 225, 0.76);
   border-radius: 18px;
-  background: rgba(248, 251, 255, 0.9);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
 }
 
 .ol-platform-admin-safety-card strong {
@@ -4719,7 +4709,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(191, 205, 225, 0.78);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.92);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
 }
 
 .ol-platform-admin-selected-summary {
@@ -4733,7 +4723,7 @@ a:focus-visible {
   padding: 12px;
   border: 1px solid rgba(191, 205, 225, 0.72);
   border-radius: 14px;
-  background: rgba(248, 251, 255, 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 780;
@@ -4755,7 +4745,7 @@ a:focus-visible {
   gap: 14px;
   padding: 18px;
   border-bottom: 1px solid rgba(191, 205, 225, 0.78);
-  background: rgba(248, 251, 255, 0.84);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
 }
 
 .ol-platform-admin-document-company,
@@ -4817,7 +4807,7 @@ a:focus-visible {
   padding: 16px 14px;
   border-top: 1px solid rgba(191, 205, 225, 0.72);
   border-bottom: 1px solid rgba(191, 205, 225, 0.72);
-  background: rgba(255, 255, 255, 0.92);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
   color: var(--text);
   vertical-align: top;
 }
@@ -4870,7 +4860,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(191, 205, 225, 0.72);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
 }
 
 .ol-platform-admin-audit-row strong {
@@ -4969,7 +4959,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(191, 205, 225, 0.78);
   border-radius: 20px;
-  background: rgba(248, 251, 255, 0.92);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
 }
 
 .ol-platform-admin-user-registry-note strong {
@@ -4993,7 +4983,7 @@ a:focus-visible {
   gap: 14px;
   padding: 16px 18px 18px;
   border-bottom: 1px solid rgba(191, 205, 225, 0.78);
-  background: rgba(248, 251, 255, 0.84);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
 }
 
 .ol-platform-admin-user-toolbar-grid {
@@ -5028,7 +5018,7 @@ a:focus-visible {
   scrollbar-width: thin;
   border: 1px solid rgba(191, 205, 225, 0.78);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.94);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
 }
 
 .ol-platform-admin-user-table {
@@ -5046,7 +5036,7 @@ a:focus-visible {
 }
 
 .ol-platform-admin-user-table th {
-  background: rgba(248, 251, 255, 0.94);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
   color: var(--text-soft);
   font-size: 11px;
   font-weight: 950;
@@ -5079,7 +5069,7 @@ a:focus-visible {
 }
 
 .ol-platform-admin-user-table-row[data-selected='true'] td {
-  background: rgba(239, 244, 255, 0.82);
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
 }
 
 .ol-platform-admin-user-table-user {
@@ -5168,7 +5158,7 @@ a:focus-visible {
   min-width: 1140px;
   padding: 14px 18px;
   border-bottom: 1px solid rgba(191, 205, 225, 0.78);
-  background: rgba(248, 251, 255, 0.88);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
 }
 
 .ol-platform-admin-user-list-head span {
@@ -5219,7 +5209,7 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
   border-radius: 14px;
-  background: rgba(56, 111, 222, 0.11);
+  background: color-mix(in srgb, var(--primary-soft) 11%, transparent);
   color: var(--primary-strong);
   font-size: 13px;
   font-weight: 900;
@@ -5258,7 +5248,7 @@ a:focus-visible {
   justify-content: center;
   margin-top: 0;
   border-radius: 14px;
-  background: rgba(56, 111, 222, 0.11);
+  background: color-mix(in srgb, var(--primary-soft) 11%, transparent);
   color: var(--primary-strong);
   font-size: 13px;
   font-weight: 900;
@@ -5295,7 +5285,7 @@ a:focus-visible {
   padding: 0 10px;
   border-radius: 999px;
   border: 1px solid rgba(191, 205, 225, 0.8);
-  background: rgba(247, 250, 255, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 900;
@@ -5303,25 +5293,25 @@ a:focus-visible {
 
 .ol-platform-admin-status-pill[data-tone="success"] {
   border-color: rgba(177, 226, 209, 0.92);
-  background: rgba(238, 250, 246, 0.9);
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   color: var(--success);
 }
 
 .ol-platform-admin-status-pill[data-tone="warning"] {
   border-color: rgba(238, 211, 152, 0.9);
-  background: rgba(255, 248, 235, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--warning-strong);
 }
 
 .ol-platform-admin-status-pill[data-tone="danger"] {
   border-color: rgba(244, 185, 188, 0.92);
-  background: rgba(255, 242, 243, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--danger);
 }
 
 .ol-platform-admin-status-pill[data-tone="premium"] {
   border-color: rgba(178, 194, 247, 0.92);
-  background: rgba(239, 244, 255, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--primary-strong);
 }
 
@@ -5608,7 +5598,7 @@ a:focus-visible {
   min-height: 32px;
   border: 1px solid rgba(184, 199, 221, 0.9);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
   color: var(--text-muted);
   cursor: pointer;
   font-size: 12px;
@@ -5618,7 +5608,7 @@ a:focus-visible {
 
 .ol-filter-pill--active {
   border-color: rgba(48, 126, 246, 0.44);
-  background: rgba(48, 126, 246, 0.12);
+  background: color-mix(in srgb, var(--primary-soft) 12%, transparent);
   color: var(--primary);
 }
 
@@ -5643,7 +5633,7 @@ a:focus-visible {
   padding: 10px 12px 10px 14px;
   border: 1px solid rgba(187, 203, 226, 0.92);
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 251, 255, 0.96) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 96%, transparent) 100%);
   color: var(--text);
   cursor: pointer;
   font-family: inherit;
@@ -5677,7 +5667,7 @@ a:focus-visible {
 .ol-multi-select-count {
   border-radius: 999px;
   padding: 4px 8px;
-  background: rgba(47, 131, 247, 0.12);
+  background: color-mix(in srgb, var(--primary-soft) 12%, transparent);
   color: var(--primary);
   font-size: 11px;
   font-weight: 900;
@@ -5694,7 +5684,7 @@ a:focus-visible {
   padding: 8px;
   border: 1px solid rgba(187, 203, 226, 0.92);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.98);
+  background: color-mix(in srgb, var(--surface) 98%, transparent);
   box-shadow: 0 18px 42px rgba(20, 32, 51, 0.16);
 }
 
@@ -5713,7 +5703,7 @@ a:focus-visible {
 }
 
 .ol-multi-select-option:hover {
-  background: rgba(238, 245, 255, 0.9);
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
 }
 
 .ol-multi-select-option input {
@@ -5735,7 +5725,7 @@ a:focus-visible {
   gap: 8px;
   padding: 10px 18px 14px 62px;
   border-bottom: 1px solid rgba(191, 205, 225, 0.56);
-  background: rgba(248, 251, 255, 0.72);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
   min-width: 920px;
 }
 
@@ -5747,7 +5737,7 @@ a:focus-visible {
   padding: 10px 12px;
   border: 1px solid rgba(191, 205, 225, 0.72);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.84);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
@@ -5768,7 +5758,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(187, 203, 226, 0.9);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.84);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
   color: var(--text);
   cursor: pointer;
   font: inherit;
@@ -5811,7 +5801,7 @@ a:focus-visible {
   display: block;
   height: 6px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(48, 126, 246, 0.24), rgba(77, 185, 155, 0.18));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary-soft) 24%, transparent), color-mix(in srgb, var(--success) 18%, transparent));
 }
 
 .ol-template-preview-lines i:nth-child(2) {
@@ -5835,8 +5825,7 @@ a:focus-visible {
   overflow: hidden;
   padding: 18px;
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.9)),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 90%, transparent)),
     var(--surface);
   box-shadow:
     0 24px 60px rgba(34, 68, 120, 0.12),
@@ -5879,8 +5868,7 @@ a:focus-visible {
   padding: 20px;
   border: 1px solid rgba(205, 218, 238, 0.86);
   border-radius: 22px;
-  background:
-    radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--showcase-accent) 14%, transparent), transparent 34%),
+  background: radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--showcase-accent) 14%, transparent), transparent 34%),
     linear-gradient(180deg, #f8fbff, #edf4ff);
 }
 
@@ -5930,8 +5918,7 @@ a:focus-visible {
   padding: 22px;
   border: 1px solid color-mix(in srgb, var(--showcase-accent) 28%, rgba(205, 218, 238, 0.92));
   border-radius: 18px;
-  background:
-    linear-gradient(180deg, var(--showcase-soft) 0 8px, transparent 8px),
+  background: linear-gradient(180deg, var(--showcase-soft) 0 8px, transparent 8px),
     #fff;
   box-shadow:
     0 24px 56px rgba(30, 50, 82, 0.16),
@@ -5940,8 +5927,7 @@ a:focus-visible {
 
 .ol-template-showcase-preview--letterhead .ol-template-showcase-paper,
 .ol-template-showcase-preview--premium .ol-template-showcase-paper {
-  background:
-    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--showcase-accent) 16%, transparent), transparent 38%),
+  background: radial-gradient(circle at 100% 0, color-mix(in srgb, var(--showcase-accent) 16%, transparent), transparent 38%),
     linear-gradient(180deg, var(--showcase-soft) 0 52px, #fff 52px);
 }
 
@@ -5953,7 +5939,7 @@ a:focus-visible {
   padding: 6px 10px;
   border: 1px solid color-mix(in srgb, var(--showcase-accent) 26%, rgba(205, 218, 238, 0.92));
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   color: var(--showcase-accent);
   font-size: 10px;
   font-weight: 950;
@@ -6065,7 +6051,7 @@ a:focus-visible {
   padding: 12px;
   border: 1px solid var(--showcase-line);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.74);
+  background: color-mix(in srgb, var(--surface) 74%, transparent);
 }
 
 .ol-template-showcase-billto > div {
@@ -6083,7 +6069,7 @@ a:focus-visible {
   overflow: hidden;
   border: 1px solid var(--showcase-line);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
 .ol-template-showcase-table-head,
@@ -6132,7 +6118,7 @@ a:focus-visible {
   padding: 10px 12px;
   border: 1px solid var(--showcase-line);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
 
 .ol-template-showcase-lines small {
@@ -6193,7 +6179,7 @@ a:focus-visible {
   border: 2px solid var(--showcase-line);
   border-left: 9px solid var(--showcase-accent);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.84);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
 }
 
 .ol-template-showcase-payment span,
@@ -6222,8 +6208,7 @@ a:focus-visible {
   place-items: center;
   border: 1px dashed color-mix(in srgb, var(--showcase-accent) 44%, transparent);
   border-radius: 18px;
-  background:
-    linear-gradient(45deg, rgba(16, 24, 39, 0.08) 25%, transparent 25% 50%, rgba(16, 24, 39, 0.08) 50% 75%, transparent 75%),
+  background: linear-gradient(45deg, color-mix(in srgb, var(--primary) 8%, transparent) 25%, transparent 25% 50%, color-mix(in srgb, var(--primary) 8%, transparent) 50% 75%, transparent 75%),
     #fff;
   background-size: 14px 14px;
   color: var(--showcase-accent);
@@ -6238,9 +6223,8 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid var(--showcase-line);
   border-radius: 18px;
-  background:
-    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--showcase-accent) 18%, transparent), transparent 40%),
-    rgba(255, 255, 255, 0.76);
+  background: radial-gradient(circle at 100% 0, color-mix(in srgb, var(--showcase-accent) 18%, transparent), transparent 40%),
+    color-mix(in srgb, var(--surface) 76%, transparent);
 }
 
 .ol-template-showcase-premium-mark {
@@ -6267,8 +6251,7 @@ a:focus-visible {
 }
 
 .ol-template-preview-page {
-  background:
-    radial-gradient(circle at 20% 0%, rgba(47, 131, 247, 0.12), transparent 32%),
+  background: radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--primary-soft) 12%, transparent), transparent 32%),
     var(--background);
   display: grid;
   gap: 18px;
@@ -6279,7 +6262,7 @@ a:focus-visible {
 
 .ol-template-preview-toolbar {
   align-items: center;
-  background: rgba(255, 255, 255, 0.88);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
   border: 1px solid var(--border);
   border-radius: 18px;
   box-shadow: 0 18px 44px rgba(34, 68, 120, 0.1);
@@ -6305,7 +6288,7 @@ a:focus-visible {
 
 .ol-template-preview-controls {
   align-items: start;
-  background: rgba(255, 255, 255, 0.88);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
   border: 1px solid var(--border);
   border-radius: 18px;
   box-shadow: 0 18px 44px rgba(34, 68, 120, 0.08);
@@ -6396,7 +6379,7 @@ a:focus-visible {
 
 .ol-preview-watermark-helper {
   align-items: center;
-  background: rgba(244, 247, 252, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   border: 1px solid rgba(211, 218, 228, 0.9);
   border-radius: 10px;
   color: var(--text-muted);
@@ -6445,7 +6428,7 @@ a:focus-visible {
   overflow-x: auto;
   border: 1px solid rgba(191, 205, 225, 0.82);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
 
 .ol-plan-compare-row {
@@ -6482,7 +6465,7 @@ a:focus-visible {
 }
 
 .ol-plan-compare-row--head {
-  background: linear-gradient(180deg, rgba(248, 251, 255, 0.95) 0%, rgba(242, 247, 253, 0.95) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 95%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 95%, transparent) 100%);
   color: var(--text-soft);
   font-size: 12px;
   letter-spacing: 0.08em;
@@ -6579,12 +6562,12 @@ a:focus-visible {
   padding: 18px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(250, 252, 255, 0.78) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 90%, transparent) 0%, color-mix(in srgb, var(--surface) 78%, transparent) 100%);
 }
 
 .ol-panel-dark .ol-form-band {
   border-color: var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(250, 252, 255, 0.82) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent) 0%, color-mix(in srgb, var(--surface) 82%, transparent) 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
@@ -6649,7 +6632,7 @@ a:focus-visible {
   padding: 14px 16px;
   border: 1px solid rgba(205, 217, 235, 0.82);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
 
 .ol-inline-check input {
@@ -6699,7 +6682,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(205, 217, 235, 0.82);
   border-radius: var(--control-radius);
-  background: rgba(255, 255, 255, 0.74);
+  background: color-mix(in srgb, var(--surface) 74%, transparent);
 }
 
 .ol-verification-doc-list-head {
@@ -6721,7 +6704,7 @@ a:focus-visible {
   min-width: 28px;
   padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(236, 243, 255, 0.9);
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   color: var(--primary-strong);
   font-size: 12px;
   font-weight: 900;
@@ -6733,7 +6716,7 @@ a:focus-visible {
   padding: 12px;
   border: 1px solid rgba(216, 226, 241, 0.8);
   border-radius: var(--control-radius);
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
 .ol-verification-doc-title-row {
@@ -6761,7 +6744,7 @@ a:focus-visible {
   padding: 4px 8px;
   border: 1px solid rgba(205, 217, 235, 0.72);
   border-radius: 999px;
-  background: rgba(247, 250, 255, 0.84);
+  background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 800;
@@ -6822,7 +6805,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(205, 217, 235, 0.82);
   border-radius: var(--control-radius);
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
 .ol-document-vault-reason {
@@ -6855,7 +6838,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(205, 216, 233, 0.82);
   border-radius: var(--control-radius);
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
 
 .ol-fast-entry-review-head,
@@ -6896,7 +6879,7 @@ a:focus-visible {
   padding: 9px 10px;
   border: 1px solid rgba(216, 224, 237, 0.9);
   border-radius: 12px;
-  background: rgba(248, 251, 255, 0.8);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
 }
 
 .ol-fast-entry-field span {
@@ -6917,7 +6900,7 @@ a:focus-visible {
   padding: 9px 11px;
   border: 1px solid rgba(236, 202, 142, 0.82);
   border-radius: 12px;
-  background: rgba(255, 248, 231, 0.76);
+  background: color-mix(in srgb, var(--surface-muted) 76%, transparent);
   color: #6d5012;
   font-size: 12.5px;
   font-weight: 800;
@@ -7012,7 +6995,7 @@ a:focus-visible {
   border: 1px solid rgba(214, 96, 112, 0.22);
   border-radius: 999px;
   padding: 2px 6px;
-  background: rgba(255, 244, 246, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: #a83d52;
   font-size: 9.5px;
   font-weight: 820;
@@ -7034,7 +7017,7 @@ a:focus-visible {
   place-items: center;
   border: 1px solid rgba(83, 119, 160, 0.28);
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(239, 246, 255, 0.88));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface-muted) 88%, transparent));
   box-shadow: 0 6px 14px rgba(54, 78, 114, 0.08);
   color: var(--primary-strong);
   cursor: pointer;
@@ -7061,7 +7044,7 @@ a:focus-visible {
   padding: 10px 12px;
   border: 1px solid rgba(136, 158, 190, 0.28);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.98);
+  background: color-mix(in srgb, var(--surface) 98%, transparent);
   box-shadow: 0 18px 36px rgba(43, 61, 92, 0.16);
   color: var(--text-muted);
   font-size: 12px;
@@ -7092,7 +7075,7 @@ a:focus-visible {
 .ol-field.is-invalid .ol-select,
 .ol-field.is-invalid .ol-textarea {
   border-color: rgba(214, 96, 112, 0.78);
-  background: linear-gradient(180deg, rgba(255, 248, 249, 0.98) 0%, rgba(255, 242, 245, 0.96) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 96%, transparent) 100%);
   box-shadow:
     0 0 0 3px rgba(214, 96, 112, 0.12),
     0 8px 18px rgba(110, 40, 52, 0.08);
@@ -7103,7 +7086,7 @@ a:focus-visible {
   padding: 5px 8px;
   border: 1px solid rgba(214, 96, 112, 0.28);
   border-radius: 999px;
-  background: rgba(255, 244, 246, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: #a83d52;
   font-size: 11px;
   font-weight: 760;
@@ -7127,7 +7110,7 @@ a:focus-visible {
   border-radius: var(--control-radius);
   padding: 12px 14px;
   border: 1px solid rgba(185, 204, 231, 0.92);
-  background: linear-gradient(180deg, rgba(247, 251, 255, 0.96) 0%, rgba(240, 247, 255, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 94%, transparent) 100%);
   color: #2c4466;
   font-weight: 650;
   font-size: 13px;
@@ -7148,36 +7131,36 @@ a:focus-visible {
 
 .ol-message--danger {
   border-color: rgba(223, 150, 161, 0.86);
-  background: linear-gradient(180deg, rgba(255, 245, 247, 0.96) 0%, rgba(255, 239, 242, 0.95) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 95%, transparent) 100%);
   color: #a43850;
 }
 
 .ol-message[data-tone="danger"] {
   border-color: rgba(223, 150, 161, 0.86);
-  background: linear-gradient(180deg, rgba(255, 245, 247, 0.96) 0%, rgba(255, 239, 242, 0.95) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 95%, transparent) 100%);
   color: #a43850;
 }
 
 .ol-message--warning {
   border-color: rgba(236, 202, 142, 0.86);
-  background: linear-gradient(180deg, rgba(255, 250, 237, 0.96) 0%, rgba(255, 246, 224, 0.95) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--warning-surface) 95%, transparent) 100%);
   color: #8a6214;
 }
 
 .ol-message[data-tone="warning"] {
   border-color: rgba(236, 202, 142, 0.86);
-  background: linear-gradient(180deg, rgba(255, 250, 237, 0.96) 0%, rgba(255, 246, 224, 0.95) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--warning-surface) 95%, transparent) 100%);
   color: #8a6214;
 }
 
 .ol-message--success {
   border-color: rgba(177, 226, 209, 0.88);
-  background: linear-gradient(180deg, rgba(234, 250, 244, 0.96) 0%, rgba(244, 253, 248, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
 }
 
 .ol-message[data-tone="success"] {
   border-color: rgba(177, 226, 209, 0.88);
-  background: linear-gradient(180deg, rgba(234, 250, 244, 0.96) 0%, rgba(244, 253, 248, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   color: var(--success);
 }
 
@@ -7186,7 +7169,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(208, 219, 235, 0.88);
   border-radius: var(--control-radius);
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
 
 .ol-card-mini-label {
@@ -7217,7 +7200,7 @@ a:focus-visible {
   padding: 10px 10px 10px 14px;
   border-radius: 14px;
   border: 1px solid rgba(188, 204, 229, 0.9);
-  background: rgba(255, 255, 255, 0.96);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: 0 18px 42px rgba(20, 32, 51, 0.18);
   color: var(--text);
   font-size: 13px;
@@ -7252,7 +7235,7 @@ a:focus-visible {
   padding: 5px 10px;
   border: 1px solid rgba(151, 177, 216, 0.82);
   border-radius: 999px;
-  background: rgba(239, 245, 255, 0.96);
+  background: color-mix(in srgb, var(--surface-muted) 96%, transparent);
   color: var(--primary-strong);
   font: inherit;
   font-size: 12px;
@@ -7289,7 +7272,7 @@ a:focus-visible {
   height: 28px;
   border: 0;
   border-radius: 999px;
-  background: rgba(234, 240, 249, 0.9);
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   color: var(--text-muted);
   font-size: 18px;
   line-height: 1;
@@ -7322,7 +7305,7 @@ a:focus-visible {
   padding: 10px 12px;
   border: 1px solid rgba(166, 218, 190, 0.9);
   border-radius: 20px;
-  background: rgba(247, 255, 251, 0.96);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: 0 22px 48px rgba(18, 54, 38, 0.16);
   color: var(--text);
   cursor: pointer;
@@ -7398,7 +7381,7 @@ a:focus-visible {
   overflow: hidden;
   border: 1px solid rgba(188, 204, 229, 0.92);
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.98);
+  background: color-mix(in srgb, var(--surface) 98%, transparent);
   box-shadow: 0 26px 70px rgba(20, 32, 51, 0.22);
 }
 
@@ -7422,7 +7405,7 @@ a:focus-visible {
   height: 34px;
   border: 1px solid rgba(190, 204, 224, 0.86);
   border-radius: 999px;
-  background: rgba(245, 248, 253, 0.96);
+  background: color-mix(in srgb, var(--surface-muted) 96%, transparent);
   color: var(--text-muted);
   font-size: 18px;
   font-weight: 900;
@@ -7447,7 +7430,7 @@ a:focus-visible {
   padding: 12px;
   border: 1px solid rgba(214, 224, 238, 0.88);
   border-radius: 18px;
-  background: rgba(248, 251, 255, 0.9);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
   color: var(--text);
   cursor: pointer;
   text-align: left;
@@ -7509,7 +7492,7 @@ a:focus-visible {
   display: grid;
   place-items: center;
   padding: 22px;
-  background: rgba(11, 22, 38, 0.42);
+  background: color-mix(in srgb, var(--primary) 42%, transparent);
   backdrop-filter: blur(14px);
 }
 
@@ -7522,9 +7505,8 @@ a:focus-visible {
   padding: 30px;
   border: 1px solid rgba(144, 218, 182, 0.88);
   border-radius: 30px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(174, 244, 207, 0.34), transparent 42%),
-    rgba(255, 255, 255, 0.98);
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--success-surface) 34%, transparent), transparent 42%),
+    color-mix(in srgb, var(--surface) 98%, transparent);
   box-shadow: 0 32px 90px rgba(12, 40, 28, 0.28);
   color: var(--text);
   text-align: center;
@@ -7542,7 +7524,7 @@ a:focus-visible {
   height: 104px;
   border: 6px solid rgba(37, 135, 88, 0.9);
   border-radius: 999px;
-  background: linear-gradient(145deg, rgba(236, 255, 244, 0.96), rgba(209, 248, 226, 0.9));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--surface-muted) 96%, transparent), color-mix(in srgb, var(--success-surface) 90%, transparent));
   box-shadow:
     0 0 0 14px rgba(78, 205, 135, 0.12),
     0 18px 36px rgba(34, 122, 79, 0.22);
@@ -7630,9 +7612,8 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(197, 211, 230, 0.92);
   border-radius: 22px;
-  background:
-    radial-gradient(circle at 12% 0%, rgba(64, 117, 220, 0.1), transparent 32%),
-    rgba(255, 255, 255, 0.94);
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--primary-soft) 10%, transparent), transparent 32%),
+    color-mix(in srgb, var(--surface) 94%, transparent);
   box-shadow: 0 18px 44px rgba(42, 58, 84, 0.08);
   color: var(--text);
   text-decoration: none;
@@ -7658,23 +7639,20 @@ a:focus-visible {
 
 .ol-live-payment-status-card[data-tone="success"] {
   border-color: rgba(115, 210, 154, 0.78);
-  background:
-    radial-gradient(circle at 12% 0%, rgba(96, 210, 143, 0.18), transparent 34%),
-    rgba(249, 255, 251, 0.96);
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--success) 18%, transparent), transparent 34%),
+    color-mix(in srgb, var(--surface) 96%, transparent);
 }
 
 .ol-live-payment-status-card[data-tone="warning"] {
   border-color: rgba(224, 177, 89, 0.66);
-  background:
-    radial-gradient(circle at 12% 0%, rgba(245, 188, 72, 0.14), transparent 34%),
-    rgba(255, 252, 245, 0.96);
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--warning) 14%, transparent), transparent 34%),
+    color-mix(in srgb, var(--surface) 96%, transparent);
 }
 
 .ol-live-payment-status-card[data-tone="danger"] {
   border-color: rgba(226, 127, 127, 0.66);
-  background:
-    radial-gradient(circle at 12% 0%, rgba(240, 93, 93, 0.12), transparent 34%),
-    rgba(255, 248, 248, 0.96);
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--warning) 12%, transparent), transparent 34%),
+    color-mix(in srgb, var(--surface-muted) 96%, transparent);
 }
 
 .ol-live-payment-status-card[data-tone="info"] {
@@ -7686,27 +7664,23 @@ a:focus-visible {
   height: 42px;
   border: 1px solid rgba(177, 197, 226, 0.92);
   border-radius: 15px;
-  background:
-    radial-gradient(circle at 50% 50%, rgba(84, 132, 221, 0.94) 0 34%, transparent 36%),
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--primary-soft) 94%, transparent) 0 34%, transparent 36%),
     linear-gradient(145deg, #f8fbff, #e8effc);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
 
 .ol-live-payment-status-card[data-tone="success"] .ol-live-payment-status-mark {
-  background:
-    radial-gradient(circle at 50% 50%, rgba(35, 140, 88, 0.94) 0 34%, transparent 36%),
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--success) 94%, transparent) 0 34%, transparent 36%),
     linear-gradient(145deg, #f4fff8, #ddf8e8);
 }
 
 .ol-live-payment-status-card[data-tone="warning"] .ol-live-payment-status-mark {
-  background:
-    radial-gradient(circle at 50% 50%, rgba(183, 126, 25, 0.94) 0 34%, transparent 36%),
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--warning) 94%, transparent) 0 34%, transparent 36%),
     linear-gradient(145deg, #fffaf0, #f8ebca);
 }
 
 .ol-live-payment-status-card[data-tone="danger"] .ol-live-payment-status-mark {
-  background:
-    radial-gradient(circle at 50% 50%, rgba(178, 64, 64, 0.94) 0 34%, transparent 36%),
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--warning) 94%, transparent) 0 34%, transparent 36%),
     linear-gradient(145deg, #fff6f6, #f8dddd);
 }
 
@@ -7757,18 +7731,16 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(115, 210, 154, 0.78);
   border-radius: 22px;
-  background:
-    linear-gradient(135deg, rgba(236, 255, 243, 0.94), rgba(255, 255, 255, 0.98)),
-    radial-gradient(circle at 8% 0%, rgba(90, 190, 132, 0.16), transparent 32%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 94%, transparent), color-mix(in srgb, var(--surface) 98%, transparent)),
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--success) 16%, transparent), transparent 32%);
   box-shadow: 0 20px 46px rgba(42, 58, 84, 0.08);
 }
 
 .ol-live-receipt-card[data-follow-up="adjust"],
 .ol-live-receipt-card[data-follow-up="review"] {
   border-color: rgba(224, 177, 89, 0.66);
-  background:
-    linear-gradient(135deg, rgba(255, 251, 242, 0.96), rgba(255, 255, 255, 0.98)),
-    radial-gradient(circle at 8% 0%, rgba(245, 188, 72, 0.14), transparent 32%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface) 98%, transparent)),
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--warning) 14%, transparent), transparent 32%);
 }
 
 .ol-live-receipt-card strong {
@@ -7806,7 +7778,7 @@ a:focus-visible {
   display: grid;
   place-items: center;
   padding: 22px;
-  background: rgba(15, 23, 38, 0.42);
+  background: color-mix(in srgb, var(--primary) 42%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
@@ -7818,8 +7790,7 @@ a:focus-visible {
   padding: 20px;
   border: 1px solid rgba(205, 216, 233, 0.94);
   border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 250, 255, 0.98) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 98%, transparent) 100%);
   box-shadow: 0 28px 80px rgba(15, 23, 38, 0.26);
 }
 
@@ -7849,7 +7820,7 @@ a:focus-visible {
   margin: 0;
   border-radius: 14px;
   border: 1px solid rgba(211, 220, 234, 0.86);
-  background: rgba(241, 246, 254, 0.72);
+  background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
   padding: 12px 14px;
 }
 
@@ -7857,12 +7828,12 @@ a:focus-visible {
   width: 40px;
   height: 40px;
   border-radius: 14px;
-  background: linear-gradient(135deg, rgba(62, 119, 221, 0.16), rgba(62, 119, 221, 0.3));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary-soft) 16%, transparent), color-mix(in srgb, var(--primary-soft) 30%, transparent));
   border: 1px solid rgba(62, 119, 221, 0.28);
 }
 
 .ol-confirm-card[data-tone="danger"] .ol-confirm-mark {
-  background: linear-gradient(135deg, rgba(193, 73, 93, 0.14), rgba(193, 73, 93, 0.26));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--danger) 14%, transparent), color-mix(in srgb, var(--danger) 26%, transparent));
   border-color: rgba(193, 73, 93, 0.28);
 }
 
@@ -7901,7 +7872,7 @@ a:focus-visible {
   display: grid;
   gap: 6px;
   border: 1px solid rgba(246, 221, 167, 0.94);
-  background: linear-gradient(180deg, rgba(255, 246, 231, 0.96) 0%, rgba(255, 250, 242, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
 }
 
 .ol-note strong {
@@ -7915,16 +7886,14 @@ a:focus-visible {
   padding: 32px;
   display: grid;
   place-items: center;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.58) 0%, rgba(255, 255, 255, 0) 24%),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 58%, transparent) 0%, color-mix(in srgb, var(--surface) 0%, transparent) 24%),
     linear-gradient(135deg, #f6fbff 0%, #edf4fd 56%, #e6eff9 100%);
   color: var(--text);
 }
 
 .ol-auth-page {
-  background:
-    radial-gradient(circle at 18% 8%, rgba(61, 115, 230, 0.12) 0, rgba(61, 115, 230, 0) 28%),
-    radial-gradient(circle at 84% 20%, rgba(51, 138, 115, 0.12) 0, rgba(51, 138, 115, 0) 30%),
+  background: radial-gradient(circle at 18% 8%, color-mix(in srgb, var(--primary-soft) 12%, transparent) 0, color-mix(in srgb, var(--primary-soft) 0%, transparent) 28%),
+    radial-gradient(circle at 84% 20%, color-mix(in srgb, var(--success) 12%, transparent) 0, color-mix(in srgb, var(--success) 0%, transparent) 30%),
     linear-gradient(135deg, #fbfcff 0%, #f2f6fb 54%, #e9f0f8 100%);
 }
 
@@ -7945,7 +7914,7 @@ a:focus-visible {
   padding: 28px;
   border: 1px solid rgba(191, 205, 225, 0.82);
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
   box-shadow: 0 18px 44px rgba(52, 82, 130, 0.12);
   color: var(--text);
   text-align: center;
@@ -7954,9 +7923,8 @@ a:focus-visible {
 .ol-auth-loading-card--inline {
   width: 100%;
   box-shadow: none;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(63, 119, 235, 0.1) 0, transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.9));
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary-soft) 10%, transparent) 0, transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 90%, transparent));
 }
 
 .ol-auth-loading-card .ol-brand-logo {
@@ -7981,9 +7949,8 @@ a:focus-visible {
   border-radius: 26px;
   padding: 28px;
   border: 1px solid rgba(191, 205, 225, 0.82);
-  background:
-    radial-gradient(circle at 18% 0%, rgba(125, 171, 255, 0.22) 0, rgba(125, 171, 255, 0) 34%),
-    linear-gradient(180deg, rgba(20, 31, 49, 0.98) 0%, rgba(17, 27, 43, 0.99) 100%);
+  background: radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--primary-soft) 22%, transparent) 0, color-mix(in srgb, var(--primary-soft) 0%, transparent) 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--primary) 98%, transparent) 0%, color-mix(in srgb, var(--primary) 99%, transparent) 100%);
   box-shadow: 0 22px 58px rgba(21, 31, 48, 0.18);
   color: #f7faff;
   display: grid;
@@ -8005,7 +7972,7 @@ a:focus-visible {
   gap: 6px;
   padding: 16px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.075);
+  background: color-mix(in srgb, var(--surface) 7.5%, transparent);
   border: 1px solid rgba(211, 224, 244, 0.16);
   color: #ffffff;
 }
@@ -8022,7 +7989,7 @@ a:focus-visible {
   border-radius: 26px;
   padding: clamp(24px, 4vw, 38px);
   border: 1px solid rgba(198, 210, 228, 0.88);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 252, 255, 0.95) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 95%, transparent) 100%);
   box-shadow:
     0 24px 64px rgba(20, 32, 51, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -8039,7 +8006,7 @@ a:focus-visible {
   padding: 24px;
   display: grid;
   place-items: center;
-  background: rgba(11, 17, 28, 0.58);
+  background: color-mix(in srgb, var(--surface-dark) 58%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
@@ -8051,7 +8018,7 @@ a:focus-visible {
   padding: 24px;
   display: grid;
   place-items: center;
-  background: rgba(11, 17, 28, 0.56);
+  background: color-mix(in srgb, var(--surface-dark) 56%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
@@ -8060,7 +8027,7 @@ a:focus-visible {
   width: min(1060px, 100%);
   border-radius: 22px;
   border: 1px solid rgba(194, 208, 229, 0.86);
-  background: linear-gradient(180deg, rgba(252, 254, 255, 0.97) 0%, rgba(246, 251, 255, 0.93) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 97%, transparent) 0%, color-mix(in srgb, var(--surface) 93%, transparent) 100%);
   box-shadow:
     0 26px 70px rgba(17, 24, 39, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -8091,8 +8058,7 @@ a:focus-visible {
 .ol-creating-side {
   border-radius: 18px;
   border: 1px solid rgba(103, 129, 166, 0.56);
-  background:
-    linear-gradient(180deg, rgba(28, 44, 70, 0.97) 0%, rgba(21, 35, 58, 0.99) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 97%, transparent) 0%, color-mix(in srgb, var(--primary) 99%, transparent) 100%);
   color: #f5f8ff;
   padding: 18px;
   display: grid;
@@ -8112,7 +8078,7 @@ a:focus-visible {
   padding: 14px 16px;
   border-radius: 14px;
   border: 1px solid rgba(132, 158, 193, 0.54);
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface) 8%, transparent);
   animation: orbit-fade-in 220ms ease-out;
 }
 
@@ -8135,7 +8101,7 @@ a:focus-visible {
   display: grid;
   gap: 14px;
   border: 1px solid rgba(198, 210, 228, 0.88);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(248, 252, 255, 0.93) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 97%, transparent) 0%, color-mix(in srgb, var(--surface) 93%, transparent) 100%);
   box-shadow:
     0 24px 60px rgba(17, 24, 39, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -8159,7 +8125,7 @@ a:focus-visible {
   gap: 4px;
   padding: 4px;
   border-radius: 12px;
-  background: rgba(239, 244, 250, 0.9);
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   border: 1px solid rgba(207, 218, 234, 0.78);
 }
 
@@ -8169,7 +8135,7 @@ a:focus-visible {
   justify-self: stretch;
   padding: 3px;
   border-radius: 999px;
-  background: rgba(239, 244, 250, 0.78);
+  background: color-mix(in srgb, var(--surface-muted) 78%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
@@ -8189,7 +8155,7 @@ a:focus-visible {
 }
 
 .ol-segment.is-active {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 250, 255, 0.9) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 90%, transparent) 100%);
   color: var(--primary);
   box-shadow: 0 6px 12px rgba(20, 32, 51, 0.04);
 }
@@ -8241,7 +8207,7 @@ a:focus-visible {
   padding: 12px 14px;
   border: 1px solid rgba(199, 213, 234, 0.9);
   border-radius: 14px;
-  background: rgba(247, 250, 255, 0.82);
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 750;
@@ -8262,17 +8228,16 @@ a:focus-visible {
   padding: clamp(22px, 3vw, 30px);
   border: 1px solid rgba(194, 209, 232, 0.86);
   border-radius: 28px;
-  background:
-    radial-gradient(circle at 16% 0%, rgba(72, 129, 238, 0.13) 0, transparent 35%),
-    radial-gradient(circle at 86% 16%, rgba(74, 190, 157, 0.12) 0, transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 251, 255, 0.88));
+  background: radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--primary-soft) 13%, transparent) 0, transparent 35%),
+    radial-gradient(circle at 86% 16%, color-mix(in srgb, var(--success) 12%, transparent) 0, transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface) 88%, transparent));
   box-shadow: 0 24px 64px rgba(22, 36, 60, 0.1);
   color: var(--text);
 }
 
 .ol-auth-showcase--compact .ol-chip {
   border-color: rgba(181, 201, 232, 0.78);
-  background: rgba(255, 255, 255, 0.76);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
   color: #275f50;
 }
 
@@ -8292,8 +8257,7 @@ a:focus-visible {
   padding: 20px;
   border: 1px solid rgba(197, 211, 232, 0.88);
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.9)),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 90%, transparent)),
     #ffffff;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
@@ -8306,8 +8270,7 @@ a:focus-visible {
   inset: auto -12% -22% 18%;
   height: 180px;
   border-radius: 999px;
-  background:
-    radial-gradient(circle, rgba(63, 119, 235, 0.16), transparent 68%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary-soft) 16%, transparent), transparent 68%);
   pointer-events: none;
 }
 
@@ -8351,7 +8314,7 @@ a:focus-visible {
   padding: 12px;
   border: 1px solid rgba(207, 219, 237, 0.8);
   border-radius: 18px;
-  background: rgba(248, 251, 255, 0.72);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
 
 .ol-auth-preview-bars i {
@@ -8399,7 +8362,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(199, 213, 234, 0.86);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
 .ol-auth-preview-list strong {
@@ -8445,7 +8408,7 @@ a:focus-visible {
 .ol-auth-divider::after {
   content: "";
   height: 1px;
-  background: rgba(199, 213, 234, 0.88);
+  background: color-mix(in srgb, var(--primary-surface) 88%, transparent);
 }
 
 .ol-auth-reset-row {
@@ -8474,10 +8437,9 @@ a:focus-visible {
   border-radius: 28px;
   padding: 30px;
   border: 1px solid rgba(192, 205, 224, 0.84);
-  background:
-    radial-gradient(circle at 8% 0%, rgba(63, 119, 235, 0.12) 0, transparent 36%),
-    radial-gradient(circle at 96% 18%, rgba(56, 166, 132, 0.1) 0, transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(246, 250, 255, 0.86) 100%);
+  background: radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary-soft) 12%, transparent) 0, transparent 36%),
+    radial-gradient(circle at 96% 18%, color-mix(in srgb, var(--success) 10%, transparent) 0, transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 86%, transparent) 100%);
   box-shadow:
     0 28px 70px rgba(20, 32, 51, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
@@ -8499,7 +8461,7 @@ a:focus-visible {
   border-radius: 999px;
   display: grid;
   place-items: center;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(244, 248, 255, 0.82) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 82%, transparent) 100%);
   border: 1px solid rgba(182, 199, 223, 0.82);
   isolation: isolate;
   overflow: hidden;
@@ -8539,7 +8501,7 @@ a:focus-visible {
   background: conic-gradient(
     from 190deg,
     transparent 0deg 34deg,
-    rgba(111, 74, 248, 0.44) 34deg 112deg,
+    color-mix(in srgb, var(--primary-soft) 44%, transparent) 34deg 112deg,
     var(--premium) 112deg 168deg,
     transparent 168deg 360deg
   );
@@ -8591,9 +8553,8 @@ a:focus-visible {
   position: absolute;
   inset: 8%;
   border-radius: inherit;
-  background:
-    radial-gradient(circle at 38% 34%, rgba(255, 255, 255, 0.96) 0 16%, transparent 17%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(234, 242, 255, 0.68));
+  background: radial-gradient(circle at 38% 34%, color-mix(in srgb, var(--surface) 96%, transparent) 0 16%, transparent 17%),
+    linear-gradient(145deg, color-mix(in srgb, var(--surface) 88%, transparent), color-mix(in srgb, var(--surface-muted) 68%, transparent));
   border: 1px solid rgba(192, 208, 232, 0.78);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
@@ -8612,10 +8573,10 @@ a:focus-visible {
   background: conic-gradient(
     from 18deg,
     transparent 0deg 34deg,
-    rgba(61, 119, 232, 0.1) 34deg 74deg,
+    color-mix(in srgb, var(--primary-soft) 10%, transparent) 34deg 74deg,
     var(--primary) 74deg 132deg,
     transparent 132deg 210deg,
-    rgba(55, 177, 137, 0.86) 210deg 254deg,
+    color-mix(in srgb, var(--success) 86%, transparent) 210deg 254deg,
     transparent 254deg 360deg
   );
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
@@ -8628,10 +8589,10 @@ a:focus-visible {
   background: conic-gradient(
     from 230deg,
     transparent 0deg 42deg,
-    rgba(126, 92, 245, 0.18) 42deg 84deg,
+    color-mix(in srgb, var(--primary-soft) 18%, transparent) 42deg 84deg,
     var(--primary) 84deg 136deg,
     transparent 136deg 236deg,
-    rgba(216, 156, 52, 0.86) 236deg 276deg,
+    color-mix(in srgb, var(--warning) 86%, transparent) 236deg 276deg,
     transparent 276deg 360deg
   );
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
@@ -8642,7 +8603,7 @@ a:focus-visible {
 .ol-brand-orbit-loader__ring--inner {
   inset: 30%;
   border: 1px solid rgba(63, 119, 235, 0.2);
-  background: radial-gradient(circle, rgba(63, 119, 235, 0.1), transparent 64%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary-soft) 10%, transparent), transparent 64%);
   animation: orbit-loader-breathe 1.8s ease-in-out infinite;
 }
 
@@ -8652,8 +8613,7 @@ a:focus-visible {
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(237, 244, 255, 0.92)),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface-muted) 92%, transparent)),
     #ffffff;
   border: 1px solid rgba(190, 207, 234, 0.9);
   box-shadow:
@@ -8673,7 +8633,7 @@ a:focus-visible {
   width: 100%;
   height: 10px;
   border-radius: 999px;
-  background: rgba(221, 230, 242, 0.82);
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
   overflow: hidden;
 }
 
@@ -8698,7 +8658,7 @@ a:focus-visible {
   padding: 12px 14px;
   border-radius: 14px;
   border: 1px solid rgba(203, 214, 232, 0.72);
-  background: rgba(255, 255, 255, 0.58);
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
   color: var(--text-muted);
   transition:
     transform 180ms ease,
@@ -8711,7 +8671,7 @@ a:focus-visible {
   transform: translateX(2px);
   color: var(--text);
   border-color: rgba(166, 195, 235, 0.88);
-  background: linear-gradient(180deg, rgba(234, 243, 255, 0.94) 0%, rgba(246, 250, 255, 0.88) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 94%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 88%, transparent) 100%);
 }
 
 .ol-loading-step.is-active .ol-dot {
@@ -8740,7 +8700,7 @@ a:focus-visible {
   padding: 18px;
   border-radius: 18px;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 252, 255, 0.9) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 90%, transparent) 100%);
   box-shadow: 0 10px 24px rgba(26, 38, 58, 0.045);
   display: grid;
   gap: 10px;
@@ -8754,19 +8714,19 @@ a:focus-visible {
   bottom: 18px;
   width: 3px;
   border-radius: 999px;
-  background: rgba(126, 164, 228, 0.62);
+  background: color-mix(in srgb, var(--primary-soft) 62%, transparent);
 }
 
 .ol-showcase-card[data-tone="primary"]::before {
-  background: rgba(87, 149, 248, 0.86);
+  background: color-mix(in srgb, var(--primary-soft) 86%, transparent);
 }
 
 .ol-showcase-card[data-tone="tax"]::before {
-  background: rgba(151, 126, 255, 0.86);
+  background: color-mix(in srgb, var(--primary-soft) 86%, transparent);
 }
 
 .ol-showcase-card[data-tone="success"]::before {
-  background: rgba(92, 187, 154, 0.86);
+  background: color-mix(in srgb, var(--success) 86%, transparent);
 }
 
 .ol-showcase-card-kicker {
@@ -8849,14 +8809,13 @@ a:focus-visible {
 .ol-auth-showcase .ol-showcase-card,
 .ol-onboarding-showcase .ol-showcase-card {
   border-color: rgba(226, 235, 249, 0.18);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.08));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 13%, transparent), color-mix(in srgb, var(--surface) 8%, transparent));
   box-shadow: none;
 }
 
 .ol-auth-showcase .ol-showcase-card-kicker,
 .ol-onboarding-showcase .ol-showcase-card-kicker {
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--surface) 10%, transparent);
   border-color: rgba(226, 235, 249, 0.22);
   color: #dce9ff;
 }
@@ -8898,7 +8857,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(211, 224, 244, 0.16);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.075);
+  background: color-mix(in srgb, var(--surface) 7.5%, transparent);
 }
 
 .ol-auth-command-preview span {
@@ -8956,7 +8915,7 @@ a:focus-visible {
   min-height: 34px;
   padding: 0 11px;
   border-radius: 999px;
-  background: rgba(246, 249, 253, 0.95);
+  background: color-mix(in srgb, var(--surface-muted) 95%, transparent);
   border: 1px solid rgba(209, 220, 236, 0.88);
   color: var(--text-muted);
   font-size: 12px;
@@ -8964,14 +8923,14 @@ a:focus-visible {
 }
 
 .ol-onboarding-step.is-active {
-  background: rgba(255, 255, 255, 0.98);
+  background: color-mix(in srgb, var(--surface) 98%, transparent);
   color: var(--primary-strong);
   border-color: rgba(165, 191, 229, 0.96);
   box-shadow: 0 4px 10px rgba(37, 74, 128, 0.06);
 }
 
 .ol-onboarding-step.is-complete {
-  background: rgba(240, 249, 245, 0.96);
+  background: color-mix(in srgb, var(--surface-muted) 96%, transparent);
   color: #237b64;
   border-color: rgba(181, 220, 207, 0.92);
 }
@@ -8983,7 +8942,7 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.95);
+  background: color-mix(in srgb, var(--surface) 95%, transparent);
   font-size: 11px;
   font-weight: 800;
 }
@@ -9035,13 +8994,13 @@ a:focus-visible {
 }
 
 .ol-showcase-badge--premium {
-  background: rgba(255, 240, 255, 0.9);
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   color: var(--premium);
   border-color: rgba(231, 191, 235, 0.8);
 }
 
 .ol-showcase-badge--success {
-  background: rgba(234, 250, 244, 0.9);
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   color: var(--success);
   border-color: rgba(177, 226, 209, 0.78);
 }
@@ -9052,7 +9011,7 @@ a:focus-visible {
   padding: 15px 16px;
   border-radius: 14px;
   border: 1px solid rgba(205, 216, 233, 0.9);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(250, 252, 255, 0.9) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 90%, transparent) 100%);
   box-shadow: 0 8px 18px rgba(20, 32, 51, 0.04);
 }
 
@@ -9089,8 +9048,7 @@ a:focus-visible {
   padding: 12px;
   border: 1px solid rgba(205, 217, 235, 0.86);
   border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(249, 252, 255, 0.88));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface) 88%, transparent));
 }
 
 .ol-review-item {
@@ -9100,7 +9058,7 @@ a:focus-visible {
   padding: 14px 16px;
   border-radius: 14px;
   border: 1px solid rgba(203, 214, 232, 0.78);
-  background: rgba(255, 255, 255, 0.66);
+  background: color-mix(in srgb, var(--surface) 66%, transparent);
 }
 
 .ol-business-review-item {
@@ -9124,7 +9082,7 @@ a:focus-visible {
   padding: 18px;
   border-radius: 18px;
   border: 1px solid rgba(204, 216, 235, 0.86);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 252, 255, 0.94));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface) 94%, transparent));
 }
 
 .ol-health-score-card[data-tone="healthy"] {
@@ -9164,7 +9122,7 @@ a:focus-visible {
   padding: 13px 14px;
   border: 1px solid rgba(211, 220, 234, 0.86);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
   color: inherit;
   text-align: left;
 }
@@ -9234,7 +9192,7 @@ a:focus-visible {
   padding: 14px;
   border-radius: 16px;
   border: 1px solid rgba(203, 214, 232, 0.84);
-  background: rgba(255, 255, 255, 0.68);
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
 }
 
 .ol-asset-preview {
@@ -9245,7 +9203,7 @@ a:focus-visible {
   place-items: center;
   overflow: hidden;
   border: 1px dashed rgba(135, 159, 194, 0.82);
-  background: linear-gradient(180deg, rgba(246, 250, 255, 0.94) 0%, rgba(239, 246, 255, 0.84) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 94%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 84%, transparent) 100%);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 800;
@@ -9306,7 +9264,7 @@ a:focus-visible {
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--control-radius);
-  background: rgba(255, 255, 255, 0.76);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
 }
 
 .ol-proof-upload-card span {
@@ -9343,7 +9301,7 @@ a:focus-visible {
 .ol-proof-file-icon {
   display: grid;
   place-items: center;
-  background: linear-gradient(180deg, rgba(244, 248, 254, 0.98) 0%, rgba(237, 243, 255, 0.92) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 92%, transparent) 100%);
   color: var(--primary-strong);
   font-size: 20px;
   font-weight: 900;
@@ -9378,7 +9336,7 @@ a:focus-visible {
   padding: 16px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
   box-shadow: 0 10px 24px rgba(26, 38, 58, 0.045);
 }
 
@@ -9413,8 +9371,7 @@ a:focus-visible {
 
 .ol-pricing-panel {
   color: var(--text);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 250, 254, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 94%, transparent) 100%);
   border-color: var(--border);
 }
 
@@ -9441,8 +9398,7 @@ a:focus-visible {
   align-content: start;
   padding: 20px;
   border-color: rgba(211, 220, 234, 0.92);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(249, 251, 254, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 99%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   box-shadow: 0 14px 34px rgba(26, 38, 58, 0.08);
 }
 
@@ -9476,7 +9432,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px solid rgba(177, 226, 209, 0.88);
   border-radius: var(--control-radius);
-  background: linear-gradient(180deg, rgba(234, 250, 244, 0.96) 0%, rgba(244, 253, 248, 0.94) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   color: var(--text-muted);
 }
 
@@ -9500,8 +9456,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(177, 226, 209, 0.92);
   border-radius: 22px;
-  background:
-    linear-gradient(135deg, rgba(238, 250, 246, 0.98) 0%, rgba(248, 251, 255, 0.96) 100%),
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 96%, transparent) 100%),
     #ffffff;
   box-shadow: 0 18px 38px rgba(25, 105, 82, 0.08);
 }
@@ -9551,7 +9506,7 @@ a:focus-visible {
   padding: 10px 12px;
   border: 1px solid rgba(177, 226, 209, 0.88);
   border-radius: 14px;
-  background: rgba(238, 250, 246, 0.82);
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
   color: #167456;
   font-size: 13px;
   font-weight: 900;
@@ -9569,9 +9524,8 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(178, 199, 230, 0.88);
   border-radius: var(--control-radius);
-  background:
-    radial-gradient(circle at 0% 0%, rgba(63, 119, 235, 0.13) 0, transparent 38%),
-    linear-gradient(180deg, rgba(247, 250, 255, 0.98) 0%, rgba(255, 255, 255, 0.94) 100%);
+  background: radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--primary-soft) 13%, transparent) 0, transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   color: var(--text);
 }
 
@@ -9607,7 +9561,7 @@ a:focus-visible {
   padding: 11px 12px 11px 34px;
   border: 1px solid rgba(199, 213, 234, 0.84);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.76);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
   color: var(--text);
   font-size: 13px;
   font-weight: 760;
@@ -9679,7 +9633,7 @@ a:focus-visible {
   padding: 10px;
   border: 1px solid rgba(190, 204, 225, 0.72);
   border-radius: 14px;
-  background: rgba(247, 250, 255, 0.88);
+  background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
   box-shadow: 0 16px 38px rgba(20, 32, 51, 0.12);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -9714,7 +9668,7 @@ a:focus-visible {
   padding: 10px;
   border: 1px solid rgba(190, 204, 225, 0.82);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.98);
+  background: color-mix(in srgb, var(--surface) 98%, transparent);
   box-shadow: 0 18px 44px rgba(20, 32, 51, 0.16);
 }
 
@@ -9727,7 +9681,7 @@ a:focus-visible {
 .ol-button-danger-subtle {
   color: #a3344d;
   border-color: rgba(218, 154, 168, 0.86);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 246, 248, 0.92) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 92%, transparent) 100%);
 }
 
 .ol-actions--compact {
@@ -9771,7 +9725,7 @@ a:focus-visible {
   gap: 20px;
   min-height: 76px;
   padding: 14px clamp(18px, 4vw, 56px);
-  background: rgba(247, 249, 252, 0.9);
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   border-bottom: 1px solid rgba(205, 216, 232, 0.76);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -9833,8 +9787,7 @@ a:focus-visible {
   gap: 5px;
   border: 1px solid rgba(170, 192, 226, 0.78);
   border-radius: 16px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 253, 0.96));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface-muted) 96%, transparent));
   color: var(--text);
   box-shadow: 0 14px 30px rgba(35, 57, 92, 0.1);
 }
@@ -9862,7 +9815,7 @@ a:focus-visible {
   position: absolute;
   inset: 0;
   border: 0;
-  background: rgba(10, 18, 32, 0.42);
+  background: color-mix(in srgb, var(--primary) 42%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -9879,8 +9832,7 @@ a:focus-visible {
   border: 1px solid rgba(184, 202, 229, 0.82);
   border-radius: 28px;
   background-color: var(--surface);
-  background:
-    radial-gradient(circle at 14% 0%, rgba(67, 126, 236, 0.1), transparent 34%),
+  background: radial-gradient(circle at 14% 0%, color-mix(in srgb, var(--primary-soft) 10%, transparent), transparent 34%),
     linear-gradient(180deg, #ffffff, #f8fbff);
   box-shadow: 0 28px 80px rgba(20, 34, 56, 0.24);
 }
@@ -9906,7 +9858,7 @@ a:focus-visible {
   height: 42px;
   border: 1px solid rgba(174, 194, 222, 0.78);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
   color: var(--text);
 }
 
@@ -9978,8 +9930,7 @@ a:focus-visible {
   gap: clamp(28px, 4vw, 46px);
   padding: clamp(34px, 6vw, 82px) clamp(18px, 4vw, 56px) clamp(42px, 6vw, 88px);
   border-bottom: 1px solid rgba(205, 216, 232, 0.72);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 249, 252, 0.92) 100%),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 92%, transparent) 100%),
     #f7f9fc;
 }
 
@@ -9999,7 +9950,7 @@ a:focus-visible {
   padding: 0 12px;
   border: 1px solid rgba(178, 196, 224, 0.8);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
   color: var(--primary-strong);
   font-size: 12px;
   font-weight: 900;
@@ -10041,9 +9992,8 @@ a:focus-visible {
   padding: clamp(16px, 2.2vw, 30px);
   border: 1px solid rgba(180, 196, 220, 0.84);
   border-radius: 24px;
-  background:
-    radial-gradient(circle at 18% 0%, rgba(82, 135, 255, 0.28) 0, rgba(82, 135, 255, 0) 34%),
-    radial-gradient(circle at 78% 12%, rgba(118, 208, 180, 0.2) 0, rgba(118, 208, 180, 0) 32%),
+  background: radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--primary-soft) 28%, transparent) 0, color-mix(in srgb, var(--primary-soft) 0%, transparent) 34%),
+    radial-gradient(circle at 78% 12%, color-mix(in srgb, var(--success) 20%, transparent) 0, color-mix(in srgb, var(--success) 0%, transparent) 32%),
     var(--surface-dark);
   box-shadow: 0 28px 80px rgba(21, 31, 48, 0.24);
   overflow: hidden;
@@ -10077,7 +10027,7 @@ a:focus-visible {
   padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--surface) 6%, transparent);
   color: rgba(230, 237, 248, 0.76);
   font-size: 12px;
   font-weight: 850;
@@ -10103,7 +10053,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface) 8%, transparent);
   color: #ffffff;
   overflow: hidden;
   transition:
@@ -10216,7 +10166,7 @@ a:focus-visible {
   padding: 0 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface) 8%, transparent);
   color: rgba(245, 248, 255, 0.86);
   font-size: 12px;
   font-weight: 850;
@@ -10242,7 +10192,7 @@ a:focus-visible {
   width: 58px;
   height: 58px;
   border-radius: 999px;
-  background: conic-gradient(#76d0b4 0 74%, rgba(255, 255, 255, 0.14) 74% 100%);
+  background: conic-gradient(#76d0b4 0 74%, color-mix(in srgb, var(--surface) 14%, transparent) 74% 100%);
 }
 
 .ol-command-health-ring span {
@@ -10264,7 +10214,7 @@ a:focus-visible {
 }
 
 .ol-command-card--auto {
-  background: rgba(70, 107, 230, 0.2);
+  background: color-mix(in srgb, var(--primary-soft) 20%, transparent);
 }
 
 .ol-landing-section,
@@ -10294,9 +10244,8 @@ a:focus-visible {
   padding: 18px clamp(18px, 3vw, 28px);
   border: 1px solid rgba(198, 214, 239, 0.94);
   border-radius: 20px;
-  background:
-    radial-gradient(circle at 0% 0%, rgba(61, 115, 230, 0.1) 0, transparent 34%),
-    rgba(255, 255, 255, 0.94);
+  background: radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--primary-soft) 10%, transparent) 0, transparent 34%),
+    color-mix(in srgb, var(--surface) 94%, transparent);
   box-shadow: 0 18px 48px rgba(22, 34, 54, 0.1);
 }
 
@@ -10347,7 +10296,7 @@ a:focus-visible {
 .ol-landing-final {
   border: 1px solid rgba(200, 212, 230, 0.9);
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
   box-shadow: 0 18px 46px rgba(22, 34, 54, 0.08);
 }
 
@@ -10415,8 +10364,7 @@ a:focus-visible {
   padding: clamp(22px, 4vw, 48px);
   border: 1px solid color-mix(in srgb, var(--template-accent) 34%, rgba(174, 190, 214, 0.8));
   border-radius: 18px;
-  background:
-    linear-gradient(180deg, var(--template-soft) 0 14px, transparent 14px),
+  background: linear-gradient(180deg, var(--template-soft) 0 14px, transparent 14px),
     #ffffff;
   box-shadow: 0 18px 54px rgba(22, 34, 54, 0.12);
   opacity: 0;
@@ -10470,7 +10418,7 @@ a:focus-visible {
   padding: 0 12px;
   border: 1px solid color-mix(in srgb, var(--template-accent) 36%, transparent);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.8);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
   color: var(--template-accent);
   font-size: 12px;
   font-weight: 900;
@@ -10541,7 +10489,7 @@ a:focus-visible {
   padding: 14px 16px;
   border: 1px solid color-mix(in srgb, var(--template-accent) 24%, rgba(210, 221, 238, 0.96));
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
 
 .ol-template-customer-band span,
@@ -10625,7 +10573,7 @@ a:focus-visible {
   padding: 0 14px;
   border: 1px solid color-mix(in srgb, var(--template-accent) 16%, rgba(210, 221, 238, 0.9));
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
 
 .ol-template-basic-list span,
@@ -10652,7 +10600,7 @@ a:focus-visible {
   padding: 14px;
   border: 1px dashed color-mix(in srgb, var(--template-accent) 28%, rgba(210, 221, 238, 0.96));
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.8);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
 }
 
 .ol-template-service-layout p strong,
@@ -10756,9 +10704,8 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid color-mix(in srgb, var(--template-accent) 28%, rgba(210, 221, 238, 0.92));
   border-radius: 24px;
-  background:
-    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--template-accent) 20%, transparent), transparent 42%),
-    rgba(255, 255, 255, 0.78);
+  background: radial-gradient(circle at 100% 0, color-mix(in srgb, var(--template-accent) 20%, transparent), transparent 42%),
+    color-mix(in srgb, var(--surface) 78%, transparent);
 }
 
 .ol-template-premium-watermark {
@@ -10797,8 +10744,7 @@ a:focus-visible {
   display: block;
   height: 54px;
   border-radius: 12px;
-  background:
-    linear-gradient(90deg, var(--template-line) 0 22%, transparent 22% 28%, rgba(19, 26, 39, 0.08) 28% 100%),
+  background: linear-gradient(90deg, var(--template-line) 0 22%, transparent 22% 28%, color-mix(in srgb, var(--surface-dark) 8%, transparent) 28% 100%),
     #f3f6fb;
 }
 
@@ -10814,7 +10760,7 @@ a:focus-visible {
   min-height: 58px;
   border: 1px dashed color-mix(in srgb, var(--template-accent) 34%, rgba(190, 204, 225, 0.9));
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 850;
@@ -11115,7 +11061,7 @@ a:focus-visible {
     gap: 5px;
     border-radius: 12px;
     border: 1px solid rgba(180, 198, 224, 0.86);
-    background: rgba(255, 255, 255, 0.94);
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
     color: var(--text);
     box-shadow: 0 12px 28px rgba(20, 32, 51, 0.08);
   }
@@ -11139,7 +11085,7 @@ a:focus-visible {
     position: absolute;
     inset: 0;
     border: 0;
-    background: rgba(13, 23, 41, 0.44);
+    background: color-mix(in srgb, var(--primary) 44%, transparent);
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
   }
@@ -11153,7 +11099,7 @@ a:focus-visible {
     gap: 18px;
     padding: 18px;
     border-right: 1px solid rgba(183, 197, 219, 0.72);
-    background: rgba(248, 251, 255, 0.98);
+    background: color-mix(in srgb, var(--surface) 98%, transparent);
     box-shadow: 24px 0 60px rgba(20, 32, 51, 0.18);
     overflow-y: auto;
   }
@@ -11246,7 +11192,7 @@ a:focus-visible {
     padding: 8px 10px;
     border: 1px solid rgba(205, 216, 232, 0.82);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.72);
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
   }
 
   .ol-landing-nav-actions {
@@ -11776,10 +11722,9 @@ a:focus-visible {
   position: relative;
   isolation: isolate;
   overflow-x: clip;
-  background:
-    radial-gradient(circle at 12% 4%, rgba(74, 130, 255, 0.16) 0, transparent 28rem),
-    radial-gradient(circle at 86% 14%, rgba(37, 184, 151, 0.12) 0, transparent 26rem),
-    radial-gradient(circle at 50% 58%, rgba(167, 132, 255, 0.09) 0, transparent 32rem),
+  background: radial-gradient(circle at 12% 4%, color-mix(in srgb, var(--primary-soft) 16%, transparent) 0, transparent 28rem),
+    radial-gradient(circle at 86% 14%, color-mix(in srgb, var(--success) 12%, transparent) 0, transparent 26rem),
+    radial-gradient(circle at 50% 58%, color-mix(in srgb, var(--primary-soft) 9%, transparent) 0, transparent 32rem),
     linear-gradient(180deg, #ffffff 0%, #f8fbff 46%, #ffffff 100%);
 }
 
@@ -11789,9 +11734,8 @@ a:focus-visible {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background-image:
-    linear-gradient(rgba(121, 143, 180, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(121, 143, 180, 0.07) 1px, transparent 1px);
+  background-image: linear-gradient(color-mix(in srgb, var(--primary-soft) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary-soft) 7%, transparent) 1px, transparent 1px);
   background-size: 56px 56px;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent 72%);
 }
@@ -11799,7 +11743,7 @@ a:focus-visible {
 .ol-landing-nav {
   grid-template-columns: auto minmax(0, 1fr) auto;
   min-height: 72px;
-  background: rgba(255, 255, 255, 0.74);
+  background: color-mix(in srgb, var(--surface) 74%, transparent);
   box-shadow: 0 12px 34px rgba(20, 31, 50, 0.05);
 }
 
@@ -11834,10 +11778,9 @@ a:focus-visible {
   inset: 90px 4vw auto;
   height: 420px;
   border-radius: 999px;
-  background:
-    radial-gradient(circle at 22% 28%, rgba(55, 116, 224, 0.2), transparent 32%),
-    radial-gradient(circle at 75% 18%, rgba(76, 201, 169, 0.18), transparent 30%),
-    radial-gradient(circle at 50% 70%, rgba(152, 117, 255, 0.11), transparent 34%);
+  background: radial-gradient(circle at 22% 28%, color-mix(in srgb, var(--primary-soft) 20%, transparent), transparent 32%),
+    radial-gradient(circle at 75% 18%, color-mix(in srgb, var(--success) 18%, transparent), transparent 30%),
+    radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--primary-soft) 11%, transparent), transparent 34%);
   filter: blur(28px);
   pointer-events: none;
 }
@@ -11852,7 +11795,7 @@ a:focus-visible {
 .ol-eyebrow {
   min-height: 28px;
   border-color: rgba(52, 105, 199, 0.2);
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   color: var(--primary-strong);
   font-size: 11px;
@@ -11895,8 +11838,7 @@ a:focus-visible {
   padding: clamp(18px, 2.8vw, 34px);
   border: 1px solid rgba(154, 177, 211, 0.28);
   border-radius: 34px;
-  background:
-    linear-gradient(135deg, rgba(18, 28, 46, 0.98) 0%, rgba(17, 39, 48, 0.98) 100%),
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 98%, transparent) 0%, color-mix(in srgb, var(--primary) 98%, transparent) 100%),
     var(--surface-dark);
   box-shadow:
     0 34px 90px rgba(24, 40, 66, 0.32),
@@ -11909,7 +11851,7 @@ a:focus-visible {
   position: absolute;
   inset: -35% -18% auto;
   height: 280px;
-  background: radial-gradient(circle, rgba(103, 149, 255, 0.34), transparent 64%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary-soft) 34%, transparent), transparent 64%);
   animation: orbit-command-glow 8s ease-in-out infinite;
 }
 
@@ -11954,9 +11896,8 @@ a:focus-visible {
   padding: clamp(18px, 2vw, 24px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.105), rgba(255, 255, 255, 0.055)),
-    rgba(255, 255, 255, 0.04);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 10.5%, transparent), color-mix(in srgb, var(--surface) 5.5%, transparent)),
+    color-mix(in srgb, var(--surface) 4%, transparent);
   color: #ffffff;
   transition:
     border-color 180ms ease,
@@ -12077,7 +12018,7 @@ a:focus-visible {
   padding: 0 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.09);
+  background: color-mix(in srgb, var(--surface) 9%, transparent);
   color: rgba(250, 252, 255, 0.88);
   font-size: 12px;
   font-weight: 850;
@@ -12103,15 +12044,13 @@ a:focus-visible {
 }
 
 .ol-command-side-card--auto {
-  background:
-    radial-gradient(circle at 88% 12%, rgba(122, 151, 255, 0.24), transparent 42%),
-    rgba(73, 100, 228, 0.16);
+  background: radial-gradient(circle at 88% 12%, color-mix(in srgb, var(--primary-soft) 24%, transparent), transparent 42%),
+    color-mix(in srgb, var(--primary-soft) 16%, transparent);
 }
 
 .ol-command-side-card--verify {
-  background:
-    radial-gradient(circle at 85% 18%, rgba(230, 187, 91, 0.16), transparent 45%),
-    rgba(255, 255, 255, 0.045);
+  background: radial-gradient(circle at 85% 18%, color-mix(in srgb, var(--warning) 16%, transparent), transparent 45%),
+    color-mix(in srgb, var(--surface) 4.5%, transparent);
 }
 
 .ol-landing-beta-banner,
@@ -12123,9 +12062,8 @@ a:focus-visible {
 .ol-landing-pricing,
 .ol-landing-final {
   border: 1px solid rgba(198, 214, 239, 0.72);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(250, 253, 255, 0.82)),
-    rgba(255, 255, 255, 0.82);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface) 82%, transparent)),
+    color-mix(in srgb, var(--surface) 82%, transparent);
   box-shadow: 0 20px 56px rgba(22, 36, 60, 0.08);
 }
 
@@ -12170,10 +12108,9 @@ a:focus-visible {
 .ol-template-stage {
   position: relative;
   border-radius: 30px;
-  background:
-    radial-gradient(circle at 12% 10%, rgba(63, 119, 235, 0.12), transparent 34%),
-    radial-gradient(circle at 88% 28%, rgba(36, 181, 147, 0.11), transparent 32%),
-    rgba(255, 255, 255, 0.86);
+  background: radial-gradient(circle at 12% 10%, color-mix(in srgb, var(--primary-soft) 12%, transparent), transparent 34%),
+    radial-gradient(circle at 88% 28%, color-mix(in srgb, var(--success) 11%, transparent), transparent 32%),
+    color-mix(in srgb, var(--surface) 86%, transparent);
 }
 
 .ol-template-stage::before {
@@ -12270,8 +12207,7 @@ a:focus-visible {
 
 .ol-template-tabs a:hover,
 .ol-template-tabs a:focus-visible {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 248, 255, 0.9));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 90%, transparent));
 }
 
 .ol-template-tab {
@@ -12284,8 +12220,7 @@ a:focus-visible {
   padding: 11px 14px;
   border: 1px solid rgba(190, 204, 225, 0.82);
   border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 251, 255, 0.86));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface) 86%, transparent));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
     0 10px 24px rgba(30, 45, 72, 0.05);
@@ -12315,8 +12250,7 @@ a:focus-visible {
 .ol-template-tab:hover,
 .ol-template-tab:focus-visible {
   border-color: rgba(90, 135, 225, 0.58);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(242, 247, 255, 0.92));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface-muted) 92%, transparent));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
     0 18px 34px rgba(38, 72, 132, 0.1);
@@ -12327,8 +12261,7 @@ a:focus-visible {
 
 .ol-template-tab[aria-pressed="true"] {
   border-color: rgba(61, 115, 230, 0.66);
-  background:
-    linear-gradient(180deg, rgba(237, 244, 255, 0.98), rgba(246, 250, 255, 0.96));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 98%, transparent), color-mix(in srgb, var(--surface-muted) 96%, transparent));
   box-shadow:
     inset 4px 0 0 rgba(61, 115, 230, 0.88),
     0 20px 42px rgba(51, 100, 197, 0.14);
@@ -12393,7 +12326,7 @@ a:focus-visible {
   padding: 0 10px;
   border: 1px solid rgba(204, 216, 234, 0.82);
   border-radius: 999px;
-  background: rgba(247, 250, 255, 0.84);
+  background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 850;
@@ -12435,8 +12368,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(204, 216, 234, 0.7);
   border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(250, 253, 255, 0.78));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 90%, transparent), color-mix(in srgb, var(--surface) 78%, transparent));
   color: var(--text);
   font-size: 15px;
   box-shadow: none;
@@ -12457,9 +12389,8 @@ a:focus-visible {
 }
 
 .ol-landing-final {
-  background:
-    radial-gradient(circle at 20% 0%, rgba(81, 139, 255, 0.28), transparent 34%),
-    radial-gradient(circle at 84% 12%, rgba(92, 218, 179, 0.18), transparent 30%),
+  background: radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--primary-soft) 28%, transparent), transparent 34%),
+    radial-gradient(circle at 84% 12%, color-mix(in srgb, var(--success) 18%, transparent), transparent 30%),
     var(--surface-dark);
   color: #f7faff;
 }
@@ -12925,9 +12856,8 @@ a:focus-visible {
 .ol-landing-template-section .ol-template-stage {
   border-color: rgba(185, 202, 229, 0.94);
   border-radius: 32px;
-  background:
-    linear-gradient(135deg, rgba(244, 248, 253, 0.86) 0 25%, transparent 25% 50%, rgba(244, 248, 253, 0.56) 50% 75%, transparent 75%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 251, 255, 0.9));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 86%, transparent) 0 25%, transparent 25% 50%, color-mix(in srgb, var(--surface-muted) 56%, transparent) 50% 75%, transparent 75%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface) 90%, transparent));
   background-size:
     34px 34px,
     auto;
@@ -12955,7 +12885,7 @@ a:focus-visible {
   min-width: 0;
   border: 1px solid rgba(201, 216, 237, 0.84);
   border-radius: 26px;
-  background: rgba(255, 255, 255, 0.84);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
     0 18px 44px rgba(22, 34, 54, 0.07);
@@ -13023,8 +12953,7 @@ a:focus-visible {
   height: var(--landing-template-height);
   margin: 0;
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(237, 243, 250, 0.72), rgba(255, 255, 255, 0.9));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 72%, transparent), color-mix(in srgb, var(--surface) 90%, transparent));
 }
 
 .ol-landing-template-section .ol-template-preview {
@@ -13047,8 +12976,7 @@ a:focus-visible {
   padding: clamp(20px, 2.35vw, 34px);
   border: 1px solid color-mix(in srgb, var(--template-accent) 34%, rgba(174, 190, 214, 0.84));
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, var(--template-soft) 0 12px, transparent 12px),
+  background: linear-gradient(180deg, var(--template-soft) 0 12px, transparent 12px),
     #ffffff;
   box-shadow:
     0 22px 58px rgba(22, 34, 54, 0.13),
@@ -13132,7 +13060,7 @@ a:focus-visible {
   padding: 0 11px;
   border: 1px solid rgba(190, 204, 225, 0.86);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.84);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 900;
@@ -13199,9 +13127,8 @@ a:focus-visible {
   padding: clamp(22px, 3vw, 34px);
   border: 1px solid rgba(197, 213, 236, 0.86);
   border-radius: 30px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(240, 246, 255, 0.82)),
-    radial-gradient(circle at 10% 0%, rgba(49, 100, 204, 0.12), transparent 38%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-muted) 82%, transparent)),
+    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 38%);
   box-shadow: 0 22px 70px rgba(20, 34, 56, 0.1);
 }
 
@@ -13240,7 +13167,7 @@ a:focus-visible {
   padding: 0 13px;
   border: 1px solid rgba(190, 206, 229, 0.78);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 900;
@@ -13250,9 +13177,8 @@ a:focus-visible {
 .ol-public-page {
   min-height: 100vh;
   padding: clamp(18px, 2.6vw, 34px) 0 clamp(48px, 8vw, 96px);
-  background:
-    radial-gradient(circle at 9% 0%, rgba(50, 122, 240, 0.16), transparent 34%),
-    radial-gradient(circle at 92% 12%, rgba(27, 181, 178, 0.13), transparent 30%),
+  background: radial-gradient(circle at 9% 0%, color-mix(in srgb, var(--primary-soft) 16%, transparent), transparent 34%),
+    radial-gradient(circle at 92% 12%, color-mix(in srgb, var(--success) 13%, transparent), transparent 30%),
     linear-gradient(180deg, #f6f9fd 0%, #eef4fb 48%, #f8fbff 100%);
   color: var(--text);
 }
@@ -13265,7 +13191,7 @@ a:focus-visible {
   padding: 16px clamp(16px, 2.4vw, 26px);
   border: 1px solid rgba(197, 213, 236, 0.82);
   border-radius: 28px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
   box-shadow: 0 18px 56px rgba(20, 34, 56, 0.08);
 }
 
@@ -13281,9 +13207,8 @@ a:focus-visible {
   padding: clamp(28px, 5vw, 64px);
   border: 1px solid rgba(198, 214, 237, 0.84);
   border-radius: 36px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(241, 247, 255, 0.84)),
-    repeating-linear-gradient(90deg, rgba(49, 100, 204, 0.06) 0 1px, transparent 1px 92px);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-muted) 84%, transparent)),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--primary) 6%, transparent) 0 1px, transparent 1px 92px);
   box-shadow: 0 28px 88px rgba(20, 34, 56, 0.1);
 }
 
@@ -13333,7 +13258,7 @@ a:focus-visible {
   padding: clamp(20px, 3vw, 34px);
   border: 1px solid rgba(199, 215, 237, 0.86);
   border-radius: 32px;
-  background: rgba(255, 255, 255, 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
   box-shadow: 0 20px 70px rgba(20, 34, 56, 0.08);
 }
 
@@ -13344,7 +13269,7 @@ a:focus-visible {
   padding: clamp(18px, 2.4vw, 28px);
   border: 1px solid rgba(210, 222, 240, 0.82);
   border-radius: 24px;
-  background: rgba(248, 251, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
 
 .ol-public-section h2 {
@@ -13435,8 +13360,7 @@ a:focus-visible {
 
 .ol-landing-template-section .ol-template-tab[aria-pressed="true"] {
   border-color: color-mix(in srgb, var(--template-tab-accent) 58%, rgba(190, 204, 225, 0.92));
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--template-tab-accent) 9%, #ffffff), rgba(255, 255, 255, 0.94));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--template-tab-accent) 9%, #ffffff), color-mix(in srgb, var(--surface) 94%, transparent));
   box-shadow:
     inset 4px 0 0 var(--template-tab-accent),
     0 18px 36px color-mix(in srgb, var(--template-tab-accent) 14%, transparent);
@@ -13548,9 +13472,8 @@ a:focus-visible {
   display: grid;
   place-items: center;
   padding: 24px;
-  background:
-    radial-gradient(circle at 50% 24%, rgba(67, 127, 255, 0.12), transparent 34%),
-    rgba(248, 251, 255, 0.94);
+  background: radial-gradient(circle at 50% 24%, color-mix(in srgb, var(--primary-soft) 12%, transparent), transparent 34%),
+    color-mix(in srgb, var(--surface) 94%, transparent);
   backdrop-filter: blur(18px);
 }
 
@@ -13618,9 +13541,8 @@ a:focus-visible {
   padding: clamp(26px, 3vw, 42px);
   border: 1px solid rgba(190, 205, 229, 0.82);
   border-radius: 32px;
-  background:
-    radial-gradient(circle at 86% 8%, rgba(80, 135, 255, 0.13), transparent 34%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.9));
+  background: radial-gradient(circle at 86% 8%, color-mix(in srgb, var(--primary-soft) 13%, transparent), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface) 90%, transparent));
   box-shadow:
     0 24px 60px rgba(22, 36, 60, 0.09),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -13632,33 +13554,28 @@ a:focus-visible {
   inset: 0;
   z-index: -1;
   opacity: 0.62;
-  background:
-    linear-gradient(90deg, rgba(61, 115, 230, 0.1), transparent 36%),
-    linear-gradient(180deg, transparent 0, rgba(226, 235, 249, 0.44) 100%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary-soft) 10%, transparent), transparent 36%),
+    linear-gradient(180deg, transparent 0, color-mix(in srgb, var(--surface-muted) 44%, transparent) 100%);
 }
 
 .ol-landing-page .ol-landing-story-card[data-tone="collect"]::before {
-  background:
-    linear-gradient(90deg, rgba(61, 115, 230, 0.12), transparent 38%),
-    radial-gradient(circle at 90% 12%, rgba(82, 194, 154, 0.16), transparent 36%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary-soft) 12%, transparent), transparent 38%),
+    radial-gradient(circle at 90% 12%, color-mix(in srgb, var(--success) 16%, transparent), transparent 36%);
 }
 
 .ol-landing-page .ol-landing-story-card[data-tone="memory"]::before {
-  background:
-    linear-gradient(90deg, rgba(112, 80, 230, 0.1), transparent 38%),
-    radial-gradient(circle at 90% 12%, rgba(61, 115, 230, 0.14), transparent 36%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary-soft) 10%, transparent), transparent 38%),
+    radial-gradient(circle at 90% 12%, color-mix(in srgb, var(--primary-soft) 14%, transparent), transparent 36%);
 }
 
 .ol-landing-page .ol-landing-story-card[data-tone="recurring"]::before {
-  background:
-    linear-gradient(90deg, rgba(31, 148, 117, 0.12), transparent 38%),
-    radial-gradient(circle at 90% 12%, rgba(230, 187, 91, 0.14), transparent 36%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--success) 12%, transparent), transparent 38%),
+    radial-gradient(circle at 90% 12%, color-mix(in srgb, var(--warning) 14%, transparent), transparent 36%);
 }
 
 .ol-landing-page .ol-landing-story-card[data-tone="closing"]::before {
-  background:
-    linear-gradient(90deg, rgba(36, 49, 72, 0.1), transparent 38%),
-    radial-gradient(circle at 90% 12%, rgba(92, 218, 179, 0.16), transparent 36%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 10%, transparent), transparent 38%),
+    radial-gradient(circle at 90% 12%, color-mix(in srgb, var(--success) 16%, transparent), transparent 36%);
 }
 
 .ol-story-card-copy {
@@ -13694,9 +13611,8 @@ a:focus-visible {
   padding: 22px;
   border: 1px solid rgba(194, 208, 231, 0.78);
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(244, 248, 255, 0.72)),
-    rgba(255, 255, 255, 0.72);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 86%, transparent), color-mix(in srgb, var(--surface-muted) 72%, transparent)),
+    color-mix(in srgb, var(--surface) 72%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
 
@@ -13722,9 +13638,8 @@ a:focus-visible {
   display: block;
   height: 76px;
   border-radius: 18px;
-  background:
-    linear-gradient(90deg, rgba(61, 115, 230, 0.82) 0 18%, transparent 18% 24%, rgba(61, 115, 230, 0.36) 24% 52%, transparent 52% 58%, rgba(92, 218, 179, 0.52) 58% 100%),
-    rgba(235, 241, 252, 0.9);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary-soft) 82%, transparent) 0 18%, transparent 18% 24%, color-mix(in srgb, var(--primary-soft) 36%, transparent) 24% 52%, transparent 52% 58%, color-mix(in srgb, var(--success) 52%, transparent) 58% 100%),
+    color-mix(in srgb, var(--surface-muted) 90%, transparent);
   mask: linear-gradient(180deg, transparent 0, #000 14%, #000 86%, transparent 100%);
 }
 
@@ -13743,7 +13658,7 @@ a:focus-visible {
   padding: 0 12px;
   border: 1px solid rgba(194, 208, 231, 0.84);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 850;
@@ -13892,7 +13807,7 @@ a:focus-visible {
   height: 42px;
   border: 1px solid rgba(174, 194, 222, 0.78);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.94);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
   color: var(--text);
   box-shadow: 0 14px 28px rgba(20, 32, 51, 0.08);
   cursor: pointer;
@@ -14247,8 +14162,7 @@ a:focus-visible {
   position: relative;
   isolation: isolate;
   overflow-x: clip;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 251, 255, 0.96) 42%, rgba(255, 255, 255, 0.98) 100%),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 96%, transparent) 42%, color-mix(in srgb, var(--surface) 98%, transparent) 100%),
     #ffffff;
   color: var(--ledger-ink);
 }
@@ -14259,8 +14173,7 @@ a:focus-visible {
   inset: 0;
   z-index: -3;
   pointer-events: none;
-  background-image:
-    linear-gradient(var(--ledger-line) 1px, transparent 1px),
+  background-image: linear-gradient(var(--ledger-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--ledger-line-soft) 1px, transparent 1px);
   background-size: 64px 42px, 64px 42px;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.56), rgba(0, 0, 0, 0.18) 56%, transparent 92%);
@@ -14272,9 +14185,8 @@ a:focus-visible {
   inset: 0;
   z-index: -2;
   pointer-events: none;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.94), transparent 12%, transparent 88%, rgba(255, 255, 255, 0.94)),
-    linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.82) 78%, #ffffff 100%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--surface) 94%, transparent), transparent 12%, transparent 88%, color-mix(in srgb, var(--surface) 94%, transparent)),
+    linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--surface) 82%, transparent) 78%, #ffffff 100%);
 }
 
 .ol-enterprise-ledger-bg {
@@ -14320,7 +14232,7 @@ a:focus-visible {
   padding: 0 14px;
   border: 1px solid rgba(169, 187, 214, 0.28);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.58);
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
   box-shadow: 0 12px 26px rgba(27, 43, 72, 0.04);
   backdrop-filter: blur(3px);
 }
@@ -14367,9 +14279,8 @@ a:focus-visible {
   padding: 10px;
   border: 1px solid rgba(186, 202, 226, 0.68);
   border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(249, 252, 255, 0.78)),
-    rgba(255, 255, 255, 0.78);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 90%, transparent), color-mix(in srgb, var(--surface) 78%, transparent)),
+    color-mix(in srgb, var(--surface) 78%, transparent);
   box-shadow: 0 18px 46px rgba(30, 48, 78, 0.07);
 }
 
@@ -14390,7 +14301,7 @@ a:focus-visible {
   width: 36px;
   height: 2px;
   border-radius: 999px;
-  background: rgba(134, 153, 183, 0.34);
+  background: color-mix(in srgb, var(--primary-soft) 34%, transparent);
 }
 
 .ol-landing-hero-ledger i::after {
@@ -14406,28 +14317,25 @@ a:focus-visible {
 }
 
 .ol-command-frame {
-  background:
-    linear-gradient(180deg, rgba(16, 27, 44, 0.94), rgba(17, 38, 47, 0.96)),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 42px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 88px),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 94%, transparent), color-mix(in srgb, var(--primary) 96%, transparent)),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--surface) 5.5%, transparent) 0 1px, transparent 1px 42px),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--surface) 4.5%, transparent) 0 1px, transparent 1px 88px),
     var(--surface-dark);
 }
 
 .ol-command-frame::before {
   inset: 0;
   height: auto;
-  background:
-    linear-gradient(90deg, transparent 0%, rgba(90, 219, 174, 0.13) 44%, rgba(90, 219, 174, 0.26) 50%, rgba(90, 219, 174, 0.13) 56%, transparent 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 24%);
+  background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--success) 13%, transparent) 44%, color-mix(in srgb, var(--success) 26%, transparent) 50%, color-mix(in srgb, var(--success) 13%, transparent) 56%, transparent 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 6%, transparent), transparent 24%);
   opacity: 0.92;
   animation: ol-ledger-command-scan 9s ease-in-out infinite;
 }
 
 .ol-command-primary-card,
 .ol-command-side-card {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.9)),
-    repeating-linear-gradient(0deg, transparent 0 34px, rgba(121, 143, 180, 0.08) 34px 35px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 90%, transparent)),
+    repeating-linear-gradient(0deg, transparent 0 34px, color-mix(in srgb, var(--primary-soft) 8%, transparent) 34px 35px);
   border-color: rgba(190, 205, 229, 0.34);
   color: var(--text);
 }
@@ -14446,7 +14354,7 @@ a:focus-visible {
 .ol-command-pill-row span,
 .ol-command-side-card b {
   border-color: rgba(193, 207, 229, 0.76);
-  background: rgba(255, 255, 255, 0.74);
+  background: color-mix(in srgb, var(--surface) 74%, transparent);
   color: var(--text-muted);
 }
 
@@ -14455,7 +14363,7 @@ a:focus-visible {
 }
 
 .ol-command-side-card--invoice b {
-  background: rgba(239, 251, 246, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: #247451;
   animation: ol-ledger-stamp 4.8s ease-in-out infinite;
 }
@@ -14468,43 +14376,37 @@ a:focus-visible {
 .ol-landing-trust-section,
 .ol-landing-pricing,
 .ol-landing-final {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 252, 255, 0.9)),
-    repeating-linear-gradient(0deg, transparent 0 38px, rgba(121, 143, 180, 0.055) 38px 39px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface) 90%, transparent)),
+    repeating-linear-gradient(0deg, transparent 0 38px, color-mix(in srgb, var(--primary-soft) 5.5%, transparent) 38px 39px);
   box-shadow: 0 22px 58px rgba(23, 38, 64, 0.075);
 }
 
 .ol-landing-page .ol-landing-story-section .ol-landing-story-card {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.93)),
-    repeating-linear-gradient(0deg, transparent 0 42px, rgba(121, 143, 180, 0.055) 42px 43px);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface) 93%, transparent)),
+    repeating-linear-gradient(0deg, transparent 0 42px, color-mix(in srgb, var(--primary-soft) 5.5%, transparent) 42px 43px);
 }
 
 .ol-landing-page .ol-landing-story-section .ol-landing-story-card::before {
   opacity: 1;
-  background:
-    linear-gradient(90deg, rgba(61, 115, 230, 0.12), transparent 34%),
-    linear-gradient(180deg, rgba(245, 249, 255, 0), rgba(234, 241, 251, 0.42));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary-soft) 12%, transparent), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 0%, transparent), color-mix(in srgb, var(--surface-muted) 42%, transparent));
 }
 
 .ol-story-card-panel {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(245, 249, 254, 0.82)),
-    repeating-linear-gradient(0deg, transparent 0 34px, rgba(121, 143, 180, 0.07) 34px 35px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-muted) 82%, transparent)),
+    repeating-linear-gradient(0deg, transparent 0 34px, color-mix(in srgb, var(--primary-soft) 7%, transparent) 34px 35px);
 }
 
 .ol-story-card-panel i {
-  background:
-    linear-gradient(90deg, rgba(38, 95, 191, 0.86) 0 20%, transparent 20% 27%, rgba(38, 95, 191, 0.28) 27% 52%, transparent 52% 60%, rgba(46, 139, 99, 0.58) 60% 100%),
-    repeating-linear-gradient(0deg, transparent 0 15px, rgba(121, 143, 180, 0.12) 15px 16px),
-    rgba(237, 243, 252, 0.9);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 86%, transparent) 0 20%, transparent 20% 27%, color-mix(in srgb, var(--primary) 28%, transparent) 27% 52%, transparent 52% 60%, color-mix(in srgb, var(--success) 58%, transparent) 60% 100%),
+    repeating-linear-gradient(0deg, transparent 0 15px, color-mix(in srgb, var(--primary-soft) 12%, transparent) 15px 16px),
+    color-mix(in srgb, var(--surface-muted) 90%, transparent);
 }
 
 .ol-landing-final {
-  background:
-    linear-gradient(135deg, rgba(15, 24, 40, 0.98), rgba(17, 38, 47, 0.98)),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 42px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 88px),
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 98%, transparent), color-mix(in srgb, var(--primary) 98%, transparent)),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--surface) 5%, transparent) 0 1px, transparent 1px 42px),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--surface) 4%, transparent) 0 1px, transparent 1px 88px),
     var(--surface-dark);
 }
 
@@ -14662,9 +14564,8 @@ a:focus-visible {
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(190, 205, 229, 0.5);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(245, 249, 255, 0.88)),
-    repeating-linear-gradient(0deg, transparent 0 34px, rgba(121, 143, 180, 0.08) 34px 35px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 95%, transparent), color-mix(in srgb, var(--surface-muted) 88%, transparent)),
+    repeating-linear-gradient(0deg, transparent 0 34px, color-mix(in srgb, var(--primary-soft) 8%, transparent) 34px 35px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
   color: var(--text);
 }
@@ -14744,7 +14645,7 @@ a:focus-visible {
   padding: 0 12px;
   border: 1px solid rgba(47, 139, 99, 0.22);
   border-radius: 999px;
-  background: rgba(235, 249, 243, 0.88);
+  background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
   color: #247451;
   font-size: 12px;
   font-weight: 900;
@@ -14775,7 +14676,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(47, 139, 99, 0.22);
   border-radius: 22px;
-  background: rgba(244, 252, 248, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   box-shadow: 0 20px 42px rgba(32, 75, 61, 0.14);
 }
 
@@ -14808,9 +14709,8 @@ a:focus-visible {
 .ol-command-dashboard .ol-command-side-card {
   min-height: 132px;
   border-color: rgba(190, 205, 229, 0.5);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.88)),
-    repeating-linear-gradient(0deg, transparent 0 34px, rgba(121, 143, 180, 0.08) 34px 35px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 88%, transparent)),
+    repeating-linear-gradient(0deg, transparent 0 34px, color-mix(in srgb, var(--primary-soft) 8%, transparent) 34px 35px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
   transform: none;
 }
@@ -14838,9 +14738,8 @@ a:focus-visible {
 }
 
 .ol-command-side-card--close {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 249, 247, 0.88)),
-    repeating-linear-gradient(0deg, transparent 0 34px, rgba(121, 143, 180, 0.08) 34px 35px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 88%, transparent)),
+    repeating-linear-gradient(0deg, transparent 0 34px, color-mix(in srgb, var(--primary-soft) 8%, transparent) 34px 35px);
 }
 
 @media (max-width: 1080px) {
@@ -14941,7 +14840,7 @@ a:focus-visible {
   overflow: hidden;
   border: 1px solid rgba(190, 205, 229, 0.76);
   border-radius: 26px;
-  background: rgba(190, 205, 229, 0.58);
+  background: color-mix(in srgb, var(--primary-soft) 58%, transparent);
   box-shadow: 0 22px 58px rgba(23, 38, 64, 0.08);
 }
 
@@ -14952,15 +14851,13 @@ a:focus-visible {
   gap: 8px;
   min-height: 116px;
   padding: 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.92)),
-    repeating-linear-gradient(0deg, transparent 0 34px, rgba(121, 143, 180, 0.065) 34px 35px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface) 92%, transparent)),
+    repeating-linear-gradient(0deg, transparent 0 34px, color-mix(in srgb, var(--primary-soft) 6.5%, transparent) 34px 35px);
 }
 
 .ol-proof-beta {
-  background:
-    linear-gradient(135deg, rgba(16, 27, 44, 0.98), rgba(18, 45, 55, 0.98)),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 36px);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 98%, transparent), color-mix(in srgb, var(--primary) 98%, transparent)),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--surface) 5%, transparent) 0 1px, transparent 1px 36px);
   color: #ffffff;
 }
 
@@ -15010,7 +14907,7 @@ a:focus-visible {
   right: 9%;
   height: 2px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(47, 139, 99, 0.22), rgba(67, 121, 232, 0.38), rgba(47, 139, 99, 0.22));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--success) 22%, transparent), color-mix(in srgb, var(--primary-soft) 38%, transparent), color-mix(in srgb, var(--success) 22%, transparent));
 }
 
 .ol-product-flow-step {
@@ -15023,9 +14920,8 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(198, 214, 239, 0.78);
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(249, 252, 255, 0.9)),
-    repeating-linear-gradient(0deg, transparent 0 38px, rgba(121, 143, 180, 0.055) 38px 39px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 97%, transparent), color-mix(in srgb, var(--surface) 90%, transparent)),
+    repeating-linear-gradient(0deg, transparent 0 38px, color-mix(in srgb, var(--primary-soft) 5.5%, transparent) 38px 39px);
   box-shadow: 0 18px 44px rgba(22, 36, 60, 0.065);
 }
 
@@ -15130,9 +15026,8 @@ a:focus-visible {
   overflow: hidden;
   border: 1px solid rgba(190, 205, 229, 0.84);
   border-radius: 34px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.92)),
-    repeating-linear-gradient(0deg, transparent 0 42px, rgba(121, 143, 180, 0.055) 42px 43px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface) 92%, transparent)),
+    repeating-linear-gradient(0deg, transparent 0 42px, color-mix(in srgb, var(--primary-soft) 5.5%, transparent) 42px 43px);
   box-shadow:
     0 28px 74px rgba(20, 34, 57, 0.09),
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
@@ -15144,15 +15039,13 @@ a:focus-visible {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background:
-    radial-gradient(circle at 90% 8%, rgba(47, 139, 99, 0.16), transparent 32%),
-    linear-gradient(90deg, rgba(47, 139, 99, 0.08), transparent 40%);
+  background: radial-gradient(circle at 90% 8%, color-mix(in srgb, var(--success) 16%, transparent), transparent 32%),
+    linear-gradient(90deg, color-mix(in srgb, var(--success) 8%, transparent), transparent 40%);
 }
 
 .ol-daily-control-card::before {
-  background:
-    radial-gradient(circle at 92% 8%, rgba(67, 121, 232, 0.15), transparent 32%),
-    linear-gradient(90deg, rgba(67, 121, 232, 0.08), transparent 42%);
+  background: radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--primary-soft) 15%, transparent), transparent 32%),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary-soft) 8%, transparent), transparent 42%);
 }
 
 .ol-live-collections-card,
@@ -15194,7 +15087,7 @@ a:focus-visible {
   padding: 0 13px;
   border: 1px solid rgba(47, 139, 99, 0.25);
   border-radius: 999px;
-  background: rgba(235, 249, 243, 0.92);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: #21724e;
   font-size: 12px;
   font-weight: 950;
@@ -15204,7 +15097,7 @@ a:focus-visible {
 
 .ol-live-status-pill--neutral {
   border-color: rgba(67, 121, 232, 0.25);
-  background: rgba(239, 245, 255, 0.94);
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--primary-strong);
 }
 
@@ -15216,9 +15109,8 @@ a:focus-visible {
   padding: clamp(18px, 2.4vw, 28px);
   border: 1px solid rgba(47, 139, 99, 0.24);
   border-radius: 28px;
-  background:
-    linear-gradient(135deg, rgba(238, 251, 245, 0.98), rgba(255, 255, 255, 0.92)),
-    repeating-linear-gradient(0deg, transparent 0 36px, rgba(47, 139, 99, 0.06) 36px 37px);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 98%, transparent), color-mix(in srgb, var(--surface) 92%, transparent)),
+    repeating-linear-gradient(0deg, transparent 0 36px, color-mix(in srgb, var(--success) 6%, transparent) 36px 37px);
   box-shadow: 0 22px 48px rgba(35, 103, 72, 0.12);
 }
 
@@ -15286,7 +15178,7 @@ a:focus-visible {
   padding: 0 14px;
   border: 1px solid rgba(196, 211, 234, 0.78);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
 .ol-live-event-row strong {
@@ -15322,8 +15214,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(196, 211, 234, 0.82);
   border-radius: 22px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 250, 255, 0.9));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 90%, transparent));
   box-shadow: 0 14px 30px rgba(25, 39, 64, 0.055);
   text-decoration: none;
   transition:
@@ -15377,7 +15268,7 @@ a:focus-visible {
   padding: 12px;
   border: 1px solid rgba(196, 211, 234, 0.78);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.76);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
 }
 
 .ol-daily-control-checks b,
@@ -15461,9 +15352,8 @@ a:focus-visible {
   overflow: hidden;
   border: 1px solid rgba(190, 205, 229, 0.84);
   border-radius: 34px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.92)),
-    repeating-linear-gradient(0deg, transparent 0 42px, rgba(121, 143, 180, 0.052) 42px 43px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface) 92%, transparent)),
+    repeating-linear-gradient(0deg, transparent 0 42px, color-mix(in srgb, var(--primary-soft) 5.2%, transparent) 42px 43px);
   box-shadow:
     0 28px 74px rgba(20, 34, 57, 0.09),
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
@@ -15475,9 +15365,8 @@ a:focus-visible {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background:
-    radial-gradient(circle at 88% 12%, rgba(67, 121, 232, 0.16), transparent 34%),
-    linear-gradient(90deg, rgba(16, 27, 44, 0.045), transparent 42%);
+  background: radial-gradient(circle at 88% 12%, color-mix(in srgb, var(--primary-soft) 16%, transparent), transparent 34%),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 4.5%, transparent), transparent 42%);
 }
 
 .ol-office-rebuild-section {
@@ -15537,9 +15426,8 @@ a:focus-visible {
   padding: clamp(18px, 2.4vw, 28px);
   border: 1px solid rgba(192, 208, 232, 0.86);
   border-radius: 28px;
-  background:
-    linear-gradient(135deg, rgba(16, 27, 44, 0.98), rgba(24, 47, 64, 0.98)),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 40px);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 98%, transparent), color-mix(in srgb, var(--primary) 98%, transparent)),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--surface) 5.5%, transparent) 0 1px, transparent 1px 40px);
   box-shadow:
     0 24px 58px rgba(18, 32, 54, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -15553,7 +15441,7 @@ a:focus-visible {
   padding: 18px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--surface) 6%, transparent);
 }
 
 .ol-office-rebuild-topline span,
@@ -15586,7 +15474,7 @@ a:focus-visible {
   padding: 7px 11px 0;
   border: 1px solid rgba(109, 212, 173, 0.28);
   border-radius: 999px;
-  background: rgba(38, 120, 86, 0.18);
+  background: color-mix(in srgb, var(--success) 18%, transparent);
   color: #bdf2dd;
   font-size: 12px;
   white-space: nowrap;
@@ -15606,7 +15494,7 @@ a:focus-visible {
   padding: 0 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.055);
+  background: color-mix(in srgb, var(--surface) 5.5%, transparent);
 }
 
 .ol-office-company-stack b {
@@ -15639,7 +15527,7 @@ a:focus-visible {
   padding: 16px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--surface) 6%, transparent);
 }
 
 .ol-office-capability-grid strong {
@@ -15683,8 +15571,7 @@ a:focus-visible {
   padding: 20px;
   border: 1px solid rgba(196, 211, 234, 0.84);
   border-radius: 22px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.9));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 90%, transparent));
   box-shadow: 0 16px 34px rgba(22, 36, 60, 0.055);
 }
 
@@ -15845,29 +15732,26 @@ a:focus-visible {
 }
 
 body {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.96) 38%, rgba(243, 247, 251, 0.98) 100%),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 96%, transparent) 38%, color-mix(in srgb, var(--surface-muted) 98%, transparent) 100%),
     var(--bg);
 }
 
 body::before {
-  background:
-    linear-gradient(90deg, rgba(226, 232, 240, 0.28) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(226, 232, 240, 0.3) 1px, transparent 1px);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--surface-muted) 28%, transparent) 1px, transparent 1px),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 30%, transparent) 1px, transparent 1px);
   background-size: 56px 56px;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.34), transparent 48%);
 }
 
 .ol-app-shell {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 252, 0.94)),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 82%, transparent), color-mix(in srgb, var(--surface-muted) 94%, transparent)),
     var(--shell);
 }
 
 .ol-sidebar {
   gap: 20px;
   padding: 24px 16px 18px;
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
   border-right: 1px solid rgba(218, 226, 237, 0.9);
   box-shadow: 18px 0 60px rgba(15, 23, 42, 0.035);
 }
@@ -15946,7 +15830,7 @@ body::before {
 
 .ol-topbar {
   padding: 0 clamp(22px, 3vw, 42px);
-  background: rgba(248, 250, 252, 0.88);
+  background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
   border-bottom: 1px solid rgba(218, 226, 237, 0.88);
   box-shadow: 0 14px 40px rgba(15, 23, 42, 0.035);
 }
@@ -15988,7 +15872,7 @@ body::before {
 
 .ol-panel,
 .ol-panel-glass {
-  background: rgba(255, 255, 255, 0.94);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
 }
 
 .ol-panel-header {
@@ -16065,8 +15949,7 @@ body::before {
 .ol-landing-page {
   --ledger-ink: var(--text);
   --ledger-muted: var(--text-soft);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 48%, rgba(255, 255, 255, 0.98) 100%),
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 96%, transparent) 48%, color-mix(in srgb, var(--surface) 98%, transparent) 100%),
     #ffffff;
 }
 
@@ -16182,7 +16065,7 @@ body::before {
   overflow: hidden;
   border: 1px solid rgba(218, 226, 237, 0.96);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.96);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   padding: clamp(14px, 1.5vw, 18px);
 }
@@ -16197,7 +16080,7 @@ body::before {
 
 .ol-os-tile--flow {
   grid-column: 1 / -1;
-  background: rgba(244, 247, 251, 0.86);
+  background: color-mix(in srgb, var(--surface-muted) 86%, transparent);
 }
 
 .ol-os-tile-label,
@@ -16627,8 +16510,7 @@ body::before {
 /* Full revamp landing page and workspace operating-system shell. */
 .ol-landing-page--revamp {
   min-height: 100vh;
-  background:
-    linear-gradient(180deg, #fbfcfe 0%, #f7f9fc 48%, #ffffff 100%);
+  background: linear-gradient(180deg, #fbfcfe 0%, #f7f9fc 48%, #ffffff 100%);
 }
 
 .ol-landing-page--revamp::before,
@@ -16753,7 +16635,7 @@ body::before {
 
 .ol-revamp-workflow {
   border-block: 1px solid rgba(218, 226, 237, 0.96);
-  background: rgba(244, 247, 251, 0.76);
+  background: color-mix(in srgb, var(--surface-muted) 76%, transparent);
 }
 
 .ol-revamp-workflow > div {
@@ -16832,7 +16714,7 @@ body::before {
   overflow: hidden;
   border: 1px solid rgba(218, 226, 237, 0.96);
   border-radius: 18px;
-  background: rgba(218, 226, 237, 0.96);
+  background: color-mix(in srgb, var(--surface-muted) 96%, transparent);
 }
 
 .ol-revamp-feature-grid article {
@@ -16874,9 +16756,8 @@ body::before {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--surface) 5.5%, transparent) 1px, transparent 1px),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 5.5%, transparent) 1px, transparent 1px);
   background-size: 56px 56px;
 }
 
@@ -16977,7 +16858,7 @@ body::before {
   overflow: hidden;
   border: 1px solid rgba(218, 226, 237, 0.96);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.96);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
@@ -17047,7 +16928,7 @@ body::before {
 
 .ol-workspace-os-tile--flow {
   grid-column: 1 / -1;
-  background: rgba(244, 247, 251, 0.9);
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
 }
 
 .ol-workspace-os-tile-head,
