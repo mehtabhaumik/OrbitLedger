@@ -4,6 +4,8 @@ import type { ReactNode } from 'react';
 
 import type { DashboardAnalytics, DashboardChartPoint, DashboardSegment } from '@/lib/dashboard-analytics';
 
+import { AreaLineChart } from './charts/area-line-chart';
+
 export type DashboardChartInsight =
   | { kind: 'receivable-day'; id: string; label: string }
   | { kind: 'invoice-status'; id: string; label: string }
@@ -25,13 +27,20 @@ type DashboardChartsProps = {
   onOpenPayments(): void;
 };
 
+/**
+ * Segment tones are assigned semantically by dashboard-analytics (paid ->
+ * success, overdue -> danger, …), so they map onto the semantic colour tokens
+ * rather than the categorical --chart-* ramp. Returning CSS var() references
+ * (not hex) is what makes these charts theme- and dark-mode-aware; the old
+ * hardcoded hex map is why chart colours never followed the reskin.
+ */
 const toneColors: Record<DashboardSegment['tone'], string> = {
-  primary: '#2f83f7',
-  success: '#1f9b7b',
-  warning: '#c88312',
-  danger: '#d64b4b',
-  premium: '#b33db8',
-  neutral: '#8792a5',
+  primary: 'var(--primary)',
+  success: 'var(--success)',
+  warning: 'var(--warning)',
+  danger: 'var(--danger)',
+  premium: 'var(--premium)',
+  neutral: 'var(--text-soft)',
 };
 
 export function DashboardCharts({
@@ -52,7 +61,8 @@ export function DashboardCharts({
         onAction={onOpenCollections}
         title="Receivables trend"
       >
-        <LineChart
+        <AreaLineChart
+          ariaLabel="Receivables trend"
           points={analytics.receivablesTrend}
           valueFormatter={(value) => formatCompactCurrency(value, currency)}
           onPointClick={(point) => onOpenInsight({ kind: 'receivable-day', id: point.id ?? point.label, label: point.label })}
@@ -199,65 +209,6 @@ function ChartCard({
       <div className="ol-chart-card-body">{children}</div>
       {isEmpty ? <p className="ol-chart-empty">{emptyText}</p> : null}
     </article>
-  );
-}
-
-function LineChart({
-  onPointClick,
-  points,
-  valueFormatter,
-}: {
-  onPointClick(point: DashboardChartPoint): void;
-  points: DashboardChartPoint[];
-  valueFormatter(value: number): string;
-}) {
-  const values = points.map((point) => point.value);
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values, 0);
-  const range = Math.max(max - min, 1);
-  const path = points
-    .map((point, index) => {
-      const x = points.length <= 1 ? 4 : 4 + (index / (points.length - 1)) * 92;
-      const y = 90 - ((point.value - min) / range) * 72;
-      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
-    })
-    .join(' ');
-
-  return (
-    <div className="ol-chart-shell">
-      <svg className="ol-line-chart" viewBox="0 0 100 100" role="img" aria-label="Receivables trend">
-        <path className="ol-chart-grid-line" d="M4 18 H96 M4 54 H96 M4 90 H96" />
-        <path className="ol-line-chart-fill" d={`${path} L 96 94 L 4 94 Z`} />
-        <path className="ol-line-chart-stroke" d={path} />
-        {points.map((point, index) => {
-          const x = points.length <= 1 ? 4 : 4 + (index / (points.length - 1)) * 92;
-          const y = 90 - ((point.value - min) / range) * 72;
-          return (
-            <circle
-              aria-label={`Open ${point.label}`}
-              className="ol-line-chart-dot"
-              cx={x}
-              cy={y}
-              key={`${point.label}-${index}`}
-              onClick={() => onPointClick(point)}
-              r="2.4"
-              role="button"
-              tabIndex={0}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  onPointClick(point);
-                }
-              }}
-            />
-          );
-        })}
-      </svg>
-      <div className="ol-chart-axis">
-        <span>{points[0]?.label ?? 'Start'}</span>
-        <strong>{valueFormatter(points.at(-1)?.value ?? 0)}</strong>
-        <span>{points.at(-1)?.label ?? 'Now'}</span>
-      </div>
-    </div>
   );
 }
 

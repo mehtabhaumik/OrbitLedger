@@ -1120,6 +1120,9 @@ a:focus-visible {
   display: grid;
   gap: 24px;
   padding: 28px;
+  /* Extra bottom clearance so the last row of content is never left hidden
+     under the fixed live-collections toast (~58px tall, 18px from the edge). */
+  padding-bottom: 104px;
 }
 
 .ol-beta-banner {
@@ -7299,8 +7302,12 @@ a:focus-visible {
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--success) 90%, transparent);
   border-radius: 20px;
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
-  box-shadow: 0 22px 48px color-mix(in srgb, var(--success) 16%, transparent);
+  /* Opaque: the previous 96% surface let the card behind bleed through, which
+     read as the toast merging with content rather than floating above it. */
+  background: var(--surface-strong);
+  box-shadow:
+    var(--shadow-strong),
+    0 22px 48px color-mix(in srgb, var(--success) 16%, transparent);
   color: var(--text);
   cursor: pointer;
   text-align: left;
@@ -17333,5 +17340,252 @@ body::before {
   .ol-revamp-beta-pill i::before,
   .ol-workspace-os-tile-head i::before {
     animation: none !important;
+  }
+}
+
+/* =============================================================================
+   Chart module v2 (.ol-chart2-*)
+   Token-driven SVG charts with animated draw-in, hover crosshair, and tooltip.
+   Motion is gated on prefers-reduced-motion at the source (JS omits the --draw
+   class) and again here as a belt-and-braces guard.
+   ========================================================================== */
+
+.ol-chart2 {
+  position: relative;
+  width: 100%;
+}
+
+.ol-chart2-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.ol-chart2-grid {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.ol-chart2-fill-top {
+  stop-color: var(--chart-1);
+  stop-opacity: 0.32;
+}
+
+.ol-chart2-fill-bottom {
+  stop-color: var(--chart-1);
+  stop-opacity: 0;
+}
+
+.ol-chart2-area {
+  opacity: 0;
+  animation: ol-chart2-area-in var(--duration-deliberate) var(--ease-out) 120ms forwards;
+}
+
+.ol-chart2-line {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--chart-1) 35%, transparent));
+}
+
+/* Draw-in: a long dash offset retracts to reveal the stroke. The dasharray is
+   generously larger than any plotted path length so it reads as one sweep. */
+.ol-chart2-line--draw {
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: ol-chart2-draw var(--duration-deliberate) var(--ease-out) forwards;
+}
+
+.ol-chart2-crosshair {
+  stroke: var(--chart-1);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.ol-chart2-dot-halo {
+  fill: color-mix(in srgb, var(--chart-1) 24%, transparent);
+}
+
+.ol-chart2-dot-core {
+  fill: var(--chart-1);
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
+.ol-chart2-hit {
+  fill: transparent;
+  cursor: pointer;
+  outline: none;
+}
+
+.ol-chart2-hit:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-full);
+}
+
+.ol-chart2-tooltip {
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, -8px);
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 3;
+}
+
+.ol-chart2-tooltip-label {
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ol-chart2-tooltip-value {
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.ol-chart2-axis {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-soft);
+}
+
+.ol-chart2-axis strong {
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+@keyframes ol-chart2-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes ol-chart2-area-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ol-chart2-area,
+  .ol-chart2-line--draw {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* =============================================================================
+   Chart entrance animations + hover (applied to the existing bar/donut/segment
+   charts). Draw-in on appear, hover emphasis; all gated on reduced-motion.
+   ========================================================================== */
+
+/* Vertical bars grow up from the baseline. Transform, not height, so the inline
+   height % that sets each bar's value is untouched. */
+.ol-bar-chart-bar,
+.ol-grouped-chart-item div > span {
+  transform-origin: bottom center;
+  animation: ol-chart2-bar-grow var(--duration-slow) var(--ease-out) both;
+}
+
+.ol-bar-chart-item:nth-child(2) .ol-bar-chart-bar { animation-delay: 40ms; }
+.ol-bar-chart-item:nth-child(3) .ol-bar-chart-bar { animation-delay: 80ms; }
+.ol-bar-chart-item:nth-child(4) .ol-bar-chart-bar { animation-delay: 120ms; }
+.ol-bar-chart-item:nth-child(5) .ol-bar-chart-bar { animation-delay: 160ms; }
+.ol-bar-chart-item:nth-child(6) .ol-bar-chart-bar { animation-delay: 200ms; }
+
+.ol-bar-chart-item,
+.ol-grouped-chart-item {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.ol-bar-chart-item:hover .ol-bar-chart-bar,
+.ol-grouped-chart-item:hover span {
+  filter: brightness(1.08) saturate(1.05);
+}
+
+/* Horizontal fill rails wipe in from the left. */
+.ol-horizontal-bar-row em i,
+.ol-segment-bars em i,
+.ol-segment-bar-row em i {
+  transform-origin: left center;
+  animation: ol-chart2-rail-grow var(--duration-slow) var(--ease-out) both;
+}
+
+.ol-horizontal-bar-row:hover em i,
+.ol-segment-bar-row:hover em i {
+  filter: brightness(1.06) saturate(1.05);
+}
+
+/* Donut eases in with a slight scale + counter-rotation settle. */
+.ol-donut-chart {
+  animation: ol-chart2-donut-in var(--duration-deliberate) var(--ease-out) both;
+  transform-origin: center;
+}
+
+.ol-donut-segment {
+  transition:
+    stroke-width var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+  cursor: pointer;
+}
+
+.ol-donut-wrap:hover .ol-donut-segment {
+  opacity: 0.55;
+}
+
+.ol-donut-wrap .ol-donut-segment:hover {
+  opacity: 1;
+  stroke-width: 12;
+}
+
+@keyframes ol-chart2-bar-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes ol-chart2-rail-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes ol-chart2-donut-in {
+  from { transform: scale(0.86) rotate(-8deg); opacity: 0; }
+  to { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ol-bar-chart-bar,
+  .ol-grouped-chart-item div > span,
+  .ol-horizontal-bar-row em i,
+  .ol-segment-bars em i,
+  .ol-segment-bar-row em i,
+  .ol-donut-chart {
+    animation: none;
+    transform: none;
   }
 }
