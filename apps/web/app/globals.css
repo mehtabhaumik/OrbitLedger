@@ -12,7 +12,7 @@ body {
   padding: 0;
   min-height: 100%;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 88%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 0%, transparent) 26%),
-    linear-gradient(135deg, #fbfcfe 0%, var(--bg) 54%, var(--bg-deep) 100%);
+    linear-gradient(135deg, var(--surface) 0%, var(--bg) 54%, var(--bg-deep) 100%);
   color: var(--text);
   font-family:
     var(--font-inter),
@@ -57,7 +57,7 @@ select:focus,
 textarea:focus,
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid rgba(47, 131, 247, 0.25);
+  outline: 2px solid color-mix(in srgb, var(--primary) 25%, transparent);
   outline-offset: 2px;
 }
 
@@ -121,7 +121,7 @@ a:focus-visible {
   gap: 18px;
   padding: 24px 20px 20px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-dark) 98%, transparent) 0%, color-mix(in srgb, var(--primary) 96%, transparent) 100%);
-  border-right: 1px solid rgba(84, 104, 138, 0.42);
+  border-right: 1px solid color-mix(in srgb, var(--primary) 42%, transparent);
   overflow: hidden;
 }
 
@@ -152,7 +152,7 @@ a:focus-visible {
   padding: 14px 16px;
   border-radius: 18px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 10%, transparent) 0%, color-mix(in srgb, var(--primary-soft) 8%, transparent) 100%);
-  border: 1px solid rgba(118, 149, 197, 0.28);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
 .ol-backoffice-brand-mark {
@@ -175,7 +175,7 @@ a:focus-visible {
   border-radius: 999px;
   background: color-mix(in srgb, var(--primary-soft) 16%, transparent);
   color: #dbeafe;
-  border: 1px solid rgba(137, 178, 255, 0.34);
+  border: 1px solid color-mix(in srgb, var(--primary) 34%, transparent);
   font-size: 12px;
   font-weight: 800;
 }
@@ -187,7 +187,7 @@ a:focus-visible {
 
 .ol-backoffice-nav-label {
   padding: 0 4px;
-  color: rgba(219, 234, 254, 0.72);
+  color: color-mix(in srgb, var(--text-soft) 72%, transparent);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -196,7 +196,7 @@ a:focus-visible {
 
 .ol-backoffice-nav-helper {
   margin: -2px 4px 0;
-  color: rgba(219, 234, 254, 0.68);
+  color: color-mix(in srgb, var(--text-soft) 68%, transparent);
   font-size: 0.86rem;
   line-height: 1.45;
 }
@@ -212,7 +212,7 @@ a:focus-visible {
   min-height: 0;
   padding: 12px 14px;
   border-radius: 14px;
-  color: rgba(241, 245, 249, 0.88);
+  color: color-mix(in srgb, var(--text-soft) 88%, transparent);
   background: color-mix(in srgb, var(--surface) 4%, transparent);
   border: 1px solid transparent;
   font-weight: 700;
@@ -224,13 +224,13 @@ a:focus-visible {
 .ol-backoffice-nav-link:hover,
 .ol-backoffice-nav-link:focus-visible {
   background: color-mix(in srgb, var(--surface) 8%, transparent);
-  border-color: rgba(137, 178, 255, 0.3);
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
   transform: translateX(1px);
 }
 
 .ol-backoffice-nav-link.is-active {
   background: linear-gradient(180deg, color-mix(in srgb, var(--primary-soft) 20%, transparent) 0%, color-mix(in srgb, var(--primary-soft) 14%, transparent) 100%);
-  border-color: rgba(96, 165, 250, 0.5);
+  border-color: color-mix(in srgb, var(--primary) 50%, transparent);
   color: #eff6ff;
 }
 
@@ -240,7 +240,7 @@ a:focus-visible {
   padding: 16px;
   border-radius: 18px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 8%, transparent) 0%, color-mix(in srgb, var(--primary-surface) 8%, transparent) 100%);
-  border: 1px solid rgba(118, 149, 197, 0.24);
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
 }
 
 .ol-backoffice-status-card strong {
@@ -250,7 +250,7 @@ a:focus-visible {
 
 .ol-backoffice-status-card p {
   margin: 0;
-  color: rgba(226, 232, 240, 0.82);
+  color: color-mix(in srgb, var(--text-soft) 82%, transparent);
   font-size: 0.93rem;
   line-height: 1.5;
 }
@@ -265,9 +265,9 @@ a:focus-visible {
   gap: 4px;
   padding: 14px;
   border-radius: 16px;
-  border: 1px solid rgba(118, 149, 197, 0.22);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
   background: color-mix(in srgb, var(--surface) 4%, transparent);
-  color: rgba(241, 245, 249, 0.92);
+  color: color-mix(in srgb, var(--text-soft) 92%, transparent);
   transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 
@@ -277,7 +277,7 @@ a:focus-visible {
 }
 
 .ol-backoffice-area-card span {
-  color: rgba(219, 234, 254, 0.74);
+  color: color-mix(in srgb, var(--text-soft) 74%, transparent);
   font-size: 0.83rem;
   line-height: 1.45;
 }
@@ -285,13 +285,13 @@ a:focus-visible {
 .ol-backoffice-area-card:hover,
 .ol-backoffice-area-card:focus-visible {
   background: color-mix(in srgb, var(--surface) 8%, transparent);
-  border-color: rgba(137, 178, 255, 0.3);
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
   transform: translateX(1px);
 }
 
 .ol-backoffice-area-card.is-active {
   background: linear-gradient(180deg, color-mix(in srgb, var(--primary-soft) 18%, transparent) 0%, color-mix(in srgb, var(--primary-soft) 12%, transparent) 100%);
-  border-color: rgba(96, 165, 250, 0.46);
+  border-color: color-mix(in srgb, var(--primary) 46%, transparent);
 }
 
 .ol-backoffice-main {
@@ -372,7 +372,7 @@ a:focus-visible {
 .ol-backoffice-mobile-panel .ol-backoffice-nav-helper,
 .ol-backoffice-mobile-panel .ol-backoffice-status-card p,
 .ol-backoffice-mobile-panel .ol-backoffice-area-card span {
-  color: rgba(226, 232, 240, 0.9);
+  color: color-mix(in srgb, var(--text-soft) 90%, transparent);
 }
 
 .ol-backoffice-mobile-panel .ol-backoffice-brand,
@@ -380,7 +380,7 @@ a:focus-visible {
 .ol-backoffice-mobile-panel .ol-backoffice-area-card,
 .ol-backoffice-mobile-panel .ol-backoffice-nav-link {
   background: color-mix(in srgb, var(--surface) 8%, transparent);
-  border-color: rgba(137, 178, 255, 0.28);
+  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
 .ol-backoffice-mobile-panel .ol-backoffice-status-card strong,
@@ -393,7 +393,7 @@ a:focus-visible {
 .ol-backoffice-mobile-panel .ol-backoffice-area-card.is-active,
 .ol-backoffice-mobile-panel .ol-backoffice-nav-link.is-active {
   background: linear-gradient(180deg, color-mix(in srgb, var(--primary-soft) 28%, transparent) 0%, color-mix(in srgb, var(--primary-soft) 18%, transparent) 100%);
-  border-color: rgba(96, 165, 250, 0.56);
+  border-color: color-mix(in srgb, var(--primary) 56%, transparent);
 }
 
 .ol-sidebar {
@@ -406,7 +406,7 @@ a:focus-visible {
   gap: 18px;
   padding: 24px 20px 20px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 88%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 80%, transparent) 100%);
-  border-right: 1px solid rgba(183, 197, 219, 0.72);
+  border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
   overflow: hidden;
@@ -426,8 +426,8 @@ a:focus-visible {
   padding: 12px 14px;
   border-radius: 12px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 72%, transparent) 100%);
-  border: 1px solid rgba(190, 204, 225, 0.72);
-  box-shadow: 0 12px 34px rgba(20, 32, 51, 0.06);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--primary) 6%, transparent);
   overflow: hidden;
 }
 
@@ -469,7 +469,7 @@ a:focus-visible {
   border-radius: 999px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 95%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 82%, transparent) 100%);
   color: var(--premium);
-  border: 1px solid rgba(205, 180, 255, 0.66);
+  border: 1px solid color-mix(in srgb, var(--primary) 66%, transparent);
   font-size: 12px;
   font-weight: 800;
 }
@@ -529,10 +529,9 @@ a:focus-visible {
 .ol-nav-link.is-active {
   color: var(--primary-strong);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 96%, transparent) 100%);
-  border-color: rgba(86, 150, 230, 0.88);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
-    0 14px 30px rgba(47, 131, 247, 0.16);
+  border-color: color-mix(in srgb, var(--primary) 88%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 14px 30px color-mix(in srgb, var(--primary) 16%, transparent);
 }
 
 .ol-nav-link.is-active::before {
@@ -541,7 +540,7 @@ a:focus-visible {
   height: 24px;
   border-radius: 999px;
   background: linear-gradient(180deg, var(--primary) 0%, var(--primary-soft) 100%);
-  box-shadow: 0 0 18px rgba(47, 131, 247, 0.42);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 42%, transparent);
 }
 
 .ol-pay-page {
@@ -640,7 +639,7 @@ a:focus-visible {
 }
 
 .ol-pay-notice {
-  border: 1px solid rgba(47, 131, 247, 0.22);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
   border-radius: 8px;
   background: color-mix(in srgb, var(--primary-soft) 8%, transparent);
   color: var(--text);
@@ -662,7 +661,7 @@ a:focus-visible {
 }
 
 .ol-pay-detail {
-  border-bottom: 1px solid rgba(185, 197, 216, 0.45);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
   padding: 0 0 12px;
   display: grid;
   gap: 5px;
@@ -761,37 +760,37 @@ a:focus-visible {
 .ol-chip--primary {
   background: var(--primary-surface);
   color: var(--primary);
-  border-color: rgba(170, 198, 240, 0.8);
+  border-color: color-mix(in srgb, var(--primary) 80%, transparent);
 }
 
 .ol-chip--success {
   background: var(--success-surface);
   color: var(--success);
-  border-color: rgba(177, 226, 209, 0.78);
+  border-color: color-mix(in srgb, var(--success) 78%, transparent);
 }
 
 .ol-chip--warning {
   background: var(--warning-surface);
   color: var(--warning);
-  border-color: rgba(246, 221, 167, 0.9);
+  border-color: color-mix(in srgb, var(--warning) 90%, transparent);
 }
 
 .ol-chip--danger {
   background: var(--danger-surface);
   color: var(--danger);
-  border-color: rgba(255, 194, 194, 0.9);
+  border-color: color-mix(in srgb, var(--danger) 90%, transparent);
 }
 
 .ol-chip--premium {
   background: var(--premium-surface);
   color: var(--premium);
-  border-color: rgba(231, 191, 235, 0.8);
+  border-color: color-mix(in srgb, var(--primary) 80%, transparent);
 }
 
 .ol-chip--tax {
   background: var(--tax-surface);
   color: var(--tax);
-  border-color: rgba(206, 190, 255, 0.82);
+  border-color: color-mix(in srgb, var(--primary) 82%, transparent);
 }
 
 .ol-chip--muted {
@@ -818,7 +817,7 @@ a:focus-visible {
   min-height: 38px;
   padding: 4px 10px 4px 5px;
   border-radius: 999px;
-  border: 1px solid rgba(170, 198, 240, 0.8);
+  border: 1px solid color-mix(in srgb, var(--primary) 80%, transparent);
   background: var(--primary-surface);
   color: var(--primary);
   font-size: 12px;
@@ -834,7 +833,7 @@ a:focus-visible {
   justify-content: center;
   border-radius: 999px;
   background: var(--surface);
-  box-shadow: inset 0 0 0 1px rgba(170, 198, 240, 0.72);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 72%, transparent);
 }
 
 .ol-account-name {
@@ -868,7 +867,7 @@ a:focus-visible {
   gap: 20px;
   padding: 0 28px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 82%, transparent) 0%, color-mix(in srgb, var(--surface) 70%, transparent) 100%);
-  border-bottom: 1px solid rgba(190, 204, 225, 0.78);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
@@ -907,7 +906,7 @@ a:focus-visible {
   padding: 16px 18px;
   margin-bottom: 20px;
   border-radius: 22px;
-  border: 1px solid rgba(47, 131, 247, 0.22);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
   background: linear-gradient(135deg, color-mix(in srgb, var(--primary-soft) 12%, transparent), color-mix(in srgb, var(--surface) 96%, transparent));
 }
 
@@ -924,7 +923,7 @@ a:focus-visible {
 }
 
 .ol-user-context-banner[data-mode="act_as_user"] {
-  border-color: rgba(180, 57, 82, 0.28);
+  border-color: color-mix(in srgb, var(--danger) 28%, transparent);
   background: linear-gradient(135deg, color-mix(in srgb, var(--danger) 12%, transparent), color-mix(in srgb, var(--surface) 96%, transparent));
 }
 
@@ -1007,7 +1006,7 @@ a:focus-visible {
   width: 54px;
   height: 46px;
   padding: 4px;
-  border: 1px solid rgba(185, 198, 218, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 98%, transparent);
   cursor: pointer;
@@ -1016,16 +1015,15 @@ a:focus-visible {
 .ol-input:hover,
 .ol-select:hover,
 .ol-textarea:hover {
-  border-color: rgba(168, 186, 214, 0.96);
+  border-color: color-mix(in srgb, var(--primary) 96%, transparent);
 }
 
 .ol-input:focus,
 .ol-select:focus,
 .ol-textarea:focus {
-  border-color: rgba(61, 115, 230, 0.72);
-  box-shadow:
-    0 0 0 4px rgba(61, 115, 230, 0.12),
-    0 8px 18px rgba(35, 65, 115, 0.06);
+  border-color: color-mix(in srgb, var(--primary) 72%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent),
+    0 8px 18px color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .ol-input:disabled,
@@ -1082,8 +1080,7 @@ a:focus-visible {
 .ol-button {
   color: #ffffff;
   background: linear-gradient(180deg, var(--primary) 0%, var(--primary-strong) 100%);
-  box-shadow:
-    0 8px 16px rgba(61, 115, 230, 0.18),
+  box-shadow: 0 8px 16px color-mix(in srgb, var(--primary) 18%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.26);
 }
 
@@ -1091,13 +1088,13 @@ a:focus-visible {
   color: var(--text);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   border-color: var(--border);
-  box-shadow: 0 6px 14px rgba(20, 32, 51, 0.045);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--primary) 4.5%, transparent);
 }
 
 .ol-button-ghost {
   color: var(--primary);
   background: color-mix(in srgb, var(--surface) 8%, transparent);
-  border-color: rgba(162, 190, 232, 0.54);
+  border-color: color-mix(in srgb, var(--primary) 54%, transparent);
 }
 
 .ol-icon-button {
@@ -1115,7 +1112,7 @@ a:focus-visible {
 
 .ol-icon-button--danger {
   color: var(--danger);
-  border-color: rgba(218, 154, 168, 0.86);
+  border-color: color-mix(in srgb, var(--danger) 86%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 92%, transparent) 100%);
 }
 
@@ -1131,7 +1128,7 @@ a:focus-visible {
   gap: 12px;
   min-width: 0;
   padding: 10px 28px;
-  border-bottom: 1px solid rgba(190, 204, 225, 0.72);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 94%, transparent) 100%);
   color: var(--text-muted);
   font-size: 13px;
@@ -1204,10 +1201,10 @@ a:focus-visible {
   gap: 8px;
   max-width: 100%;
   padding: 10px;
-  border: 1px solid rgba(193, 207, 228, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
-  box-shadow: 0 14px 34px rgba(26, 39, 61, 0.1);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--primary) 10%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
@@ -1232,7 +1229,7 @@ a:focus-visible {
 
 .ol-settings-jump-nav a:hover,
 .ol-settings-jump-nav a:focus-visible {
-  border-color: rgba(47, 131, 247, 0.42);
+  border-color: color-mix(in srgb, var(--primary) 42%, transparent);
   color: var(--primary);
 }
 
@@ -1260,7 +1257,7 @@ a:focus-visible {
   gap: 14px;
   min-width: 0;
   padding: 16px;
-  border: 1px solid rgba(203, 214, 232, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 76%, transparent);
 }
@@ -1287,7 +1284,7 @@ a:focus-visible {
 
 .ol-table-card {
   overflow: hidden;
-  border: 1px solid rgba(203, 214, 232, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
@@ -1299,7 +1296,7 @@ a:focus-visible {
   justify-content: space-between;
   gap: 8px 14px;
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(203, 214, 232, 0.68);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
 }
 
 .ol-table-card-header strong {
@@ -1326,7 +1323,7 @@ a:focus-visible {
 }
 
 .ol-stacked-list-item + .ol-stacked-list-item {
-  border-top: 1px solid rgba(203, 214, 232, 0.58);
+  border-top: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
 }
 
 .ol-stacked-list-item strong,
@@ -1360,7 +1357,7 @@ a:focus-visible {
   gap: 10px;
   min-width: 0;
   padding: 10px;
-  border: 1px solid rgba(203, 214, 232, 0.68);
+  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
 }
@@ -1374,7 +1371,7 @@ a:focus-visible {
   display: grid;
   gap: 4px;
   padding: 16px;
-  border: 1px dashed rgba(169, 184, 207, 0.78);
+  border: 1px dashed color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface-muted) 68%, transparent);
 }
@@ -1417,7 +1414,7 @@ a:focus-visible {
   gap: 8px 14px;
   min-height: 44px;
   padding: 10px 12px;
-  border: 1px solid rgba(203, 214, 232, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   overflow-wrap: anywhere;
@@ -1436,17 +1433,17 @@ a:focus-visible {
 
 .ol-settings-save-row[data-state="saving"],
 .ol-settings-save-row[data-state="loading"] {
-  border-color: rgba(246, 221, 167, 0.95);
+  border-color: color-mix(in srgb, var(--warning) 95%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
 }
 
 .ol-settings-save-row[data-state="saved"] {
-  border-color: rgba(177, 226, 209, 0.9);
+  border-color: color-mix(in srgb, var(--success) 90%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
 }
 
 .ol-settings-save-row[data-state="error"] {
-  border-color: rgba(255, 194, 194, 0.95);
+  border-color: color-mix(in srgb, var(--danger) 95%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 86%, transparent);
 }
 
@@ -1468,7 +1465,7 @@ a:focus-visible {
   gap: 5px;
   min-width: 0;
   padding: 14px 16px;
-  border: 1px solid rgba(200, 213, 233, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
   color: var(--text-soft);
@@ -1499,7 +1496,7 @@ a:focus-visible {
   min-width: 0;
   margin: 0;
   padding: 15px 16px;
-  border: 1px solid rgba(200, 213, 233, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
@@ -1532,12 +1529,12 @@ a:focus-visible {
 
 .ol-live-collections-setup-card[data-tone="blocked"] > div,
 .ol-live-collections-setup-card[data-tone="warning"] > div {
-  border-color: rgba(225, 187, 104, 0.5);
+  border-color: color-mix(in srgb, var(--warning) 50%, transparent);
   background: color-mix(in srgb, var(--surface) 76%, transparent);
 }
 
 .ol-live-collections-setup-card[data-tone="success"] > div {
-  border-color: rgba(139, 210, 184, 0.58);
+  border-color: color-mix(in srgb, var(--success) 58%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 78%, transparent);
 }
 
@@ -1552,7 +1549,7 @@ a:focus-visible {
   gap: 8px;
   min-width: 0;
   padding: 16px;
-  border: 1px solid rgba(203, 214, 232, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
@@ -1575,7 +1572,7 @@ a:focus-visible {
   align-items: flex-start;
   min-width: 0;
   padding: 14px;
-  border: 1px solid rgba(203, 214, 232, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   cursor: pointer;
@@ -1583,8 +1580,8 @@ a:focus-visible {
 }
 
 .ol-settings-toggle:hover {
-  border-color: rgba(47, 131, 247, 0.28);
-  box-shadow: 0 12px 26px rgba(26, 38, 58, 0.06);
+  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .ol-settings-toggle input {
@@ -1598,7 +1595,7 @@ a:focus-visible {
   width: 44px;
   height: 26px;
   border-radius: 999px;
-  border: 1px solid rgba(169, 184, 207, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   transition: background 160ms ease, border-color 160ms ease;
 }
@@ -1612,12 +1609,12 @@ a:focus-visible {
   height: 18px;
   border-radius: 50%;
   background: var(--surface);
-  box-shadow: 0 2px 8px rgba(22, 34, 53, 0.18);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 18%, transparent);
   transition: transform 160ms ease;
 }
 
 .ol-settings-toggle input:checked + .ol-settings-toggle-control {
-  border-color: rgba(47, 131, 247, 0.58);
+  border-color: color-mix(in srgb, var(--primary) 58%, transparent);
   background: var(--primary);
 }
 
@@ -1626,7 +1623,7 @@ a:focus-visible {
 }
 
 .ol-settings-toggle input:focus-visible + .ol-settings-toggle-control {
-  outline: 3px solid rgba(47, 131, 247, 0.2);
+  outline: 3px solid color-mix(in srgb, var(--primary) 20%, transparent);
   outline-offset: 3px;
 }
 
@@ -1654,7 +1651,7 @@ a:focus-visible {
   min-height: 24px;
   margin-top: 10px;
   padding: 0 9px;
-  border: 1px solid rgba(177, 226, 209, 0.92);
+  border: 1px solid color-mix(in srgb, var(--success) 92%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
   color: var(--success);
@@ -1664,13 +1661,13 @@ a:focus-visible {
 }
 
 .ol-settings-toggle em[data-tone="off"] {
-  border-color: rgba(203, 214, 232, 0.88);
+  border-color: color-mix(in srgb, var(--border) 88%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: var(--text-muted);
 }
 
 .ol-settings-toggle em[data-tone="neutral"] {
-  border-color: rgba(191, 205, 225, 0.84);
+  border-color: color-mix(in srgb, var(--border) 84%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   color: var(--primary-strong);
 }
@@ -1862,14 +1859,14 @@ a:focus-visible {
 .ol-support-nav-button:hover,
 .ol-support-case-row:hover {
   transform: translateY(-1px);
-  border-color: rgba(16, 73, 176, 0.22);
-  box-shadow: 0 18px 30px rgba(13, 40, 86, 0.08);
+  border-color: color-mix(in srgb, var(--primary) 22%, transparent);
+  box-shadow: 0 18px 30px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-support-nav-button--active,
 .ol-support-case-row--active {
-  border-color: rgba(16, 73, 176, 0.4);
-  box-shadow: 0 22px 40px rgba(13, 40, 86, 0.12);
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+  box-shadow: 0 22px 40px color-mix(in srgb, var(--primary) 12%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 95%, transparent) 100%);
 }
 
@@ -1979,7 +1976,7 @@ a:focus-visible {
   display: grid;
   gap: 12px;
   padding: 16px;
-  border: 1px solid rgba(217, 227, 241, 0.92);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 92%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
@@ -2040,7 +2037,7 @@ a:focus-visible {
   padding: 18px;
   border-radius: 20px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 88%, transparent) 100%);
-  border: 1px solid rgba(16, 73, 176, 0.12);
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .ol-support-detail-grid {
@@ -2151,7 +2148,7 @@ a:focus-visible {
   border-radius: var(--radius-lg);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 99%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   border: 1px solid var(--border);
-  box-shadow: 0 12px 30px rgba(26, 38, 58, 0.06);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--primary) 6%, transparent);
   overflow: hidden;
 }
 
@@ -2164,22 +2161,22 @@ a:focus-visible {
   width: 3px;
   border-radius: 999px;
   background: var(--primary);
-  box-shadow: 0 0 18px rgba(47, 131, 247, 0.16);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 16%, transparent);
 }
 
 .ol-metric-card[data-tone="warning"]::after {
   background: var(--warning);
-  box-shadow: 0 0 18px rgba(200, 131, 18, 0.18);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--warning) 18%, transparent);
 }
 
 .ol-metric-card[data-tone="success"]::after {
   background: var(--success);
-  box-shadow: 0 0 18px rgba(31, 155, 123, 0.18);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--success) 18%, transparent);
 }
 
 .ol-metric-card[data-tone="premium"]::after {
   background: var(--premium);
-  box-shadow: 0 0 18px rgba(179, 61, 184, 0.18);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
 .ol-metric-label {
@@ -2229,13 +2226,13 @@ a:focus-visible {
   min-height: 34px;
   margin-top: 16px;
   padding: 0 12px;
-  border: 1px solid rgba(191, 205, 225, 0.76);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   color: var(--text);
   font-size: 14px;
   font-weight: 900;
-  box-shadow: 0 10px 22px rgba(20, 32, 51, 0.06);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .ol-action-center-grid {
@@ -2249,22 +2246,22 @@ a:focus-visible {
   gap: 14px;
   min-height: 142px;
   padding: 16px;
-  border: 1px solid rgba(204, 216, 235, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 20px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 99%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
-  box-shadow: 0 14px 34px rgba(26, 38, 58, 0.06);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .ol-action-card[data-tone="warning"] {
-  border-color: rgba(236, 202, 142, 0.88);
+  border-color: color-mix(in srgb, var(--warning) 88%, transparent);
 }
 
 .ol-action-card[data-tone="danger"] {
-  border-color: rgba(237, 172, 172, 0.9);
+  border-color: color-mix(in srgb, var(--danger) 90%, transparent);
 }
 
 .ol-action-card[data-tone="success"] {
-  border-color: rgba(177, 226, 209, 0.92);
+  border-color: color-mix(in srgb, var(--success) 92%, transparent);
 }
 
 .ol-action-card-main {
@@ -2414,10 +2411,10 @@ a:focus-visible {
   gap: 14px;
   min-height: 300px;
   padding: 18px;
-  border: 1px solid rgba(204, 216, 235, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 20px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 99%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
-  box-shadow: 0 14px 34px rgba(26, 38, 58, 0.06);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .ol-chart-card:nth-child(1),
@@ -2469,12 +2466,12 @@ a:focus-visible {
 
 .ol-chart-grid-line {
   fill: none;
-  stroke: rgba(211, 220, 234, 0.74);
+  stroke: color-mix(in srgb, var(--text-soft) 74%, transparent);
   stroke-width: 0.6;
 }
 
 .ol-line-chart-fill {
-  fill: rgba(47, 131, 247, 0.1);
+  fill: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .ol-line-chart-stroke {
@@ -2548,7 +2545,7 @@ a:focus-visible {
 .ol-segment-list button:focus-visible,
 .ol-segment-bar-row:focus-visible,
 .ol-horizontal-bar-row:focus-visible {
-  outline: 3px solid rgba(47, 131, 247, 0.28);
+  outline: 3px solid color-mix(in srgb, var(--primary) 28%, transparent);
   outline-offset: 3px;
 }
 
@@ -2667,7 +2664,7 @@ a:focus-visible {
 }
 
 .ol-donut-track {
-  stroke: rgba(225, 232, 243, 0.95);
+  stroke: color-mix(in srgb, var(--text-soft) 95%, transparent);
 }
 
 .ol-donut-segment {
@@ -2817,22 +2814,22 @@ a:focus-visible {
   gap: 14px;
   min-height: 250px;
   padding: 18px;
-  border: 1px solid rgba(204, 216, 235, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 20px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
-  box-shadow: 0 14px 34px rgba(26, 38, 58, 0.06);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .ol-coach-card[data-tone="warning"] {
-  border-color: rgba(236, 202, 142, 0.9);
+  border-color: color-mix(in srgb, var(--warning) 90%, transparent);
 }
 
 .ol-coach-card[data-tone="danger"] {
-  border-color: rgba(237, 172, 172, 0.88);
+  border-color: color-mix(in srgb, var(--danger) 88%, transparent);
 }
 
 .ol-coach-card[data-tone="success"] {
-  border-color: rgba(177, 226, 209, 0.92);
+  border-color: color-mix(in srgb, var(--success) 92%, transparent);
 }
 
 .ol-coach-card-head {
@@ -2863,7 +2860,7 @@ a:focus-visible {
   min-width: 40px;
   height: 32px;
   padding: 0 10px;
-  border: 1px solid rgba(191, 205, 225, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: var(--primary-strong);
@@ -2872,13 +2869,13 @@ a:focus-visible {
 }
 
 .ol-coach-card[data-tone="warning"] .ol-coach-score {
-  border-color: rgba(236, 202, 142, 0.82);
+  border-color: color-mix(in srgb, var(--warning) 82%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--warning);
 }
 
 .ol-coach-card[data-tone="danger"] .ol-coach-score {
-  border-color: rgba(237, 172, 172, 0.82);
+  border-color: color-mix(in srgb, var(--danger) 82%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--danger);
 }
@@ -2894,7 +2891,7 @@ a:focus-visible {
   align-items: center;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid rgba(211, 220, 234, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
   color: var(--text-muted);
@@ -2905,7 +2902,7 @@ a:focus-visible {
 .ol-coach-message {
   min-height: 74px;
   padding: 12px;
-  border: 1px solid rgba(211, 220, 234, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface-muted) 86%, transparent);
   color: var(--text-muted);
@@ -2924,26 +2921,26 @@ a:focus-visible {
   gap: 8px;
   min-height: 132px;
   padding: 16px;
-  border: 1px solid rgba(204, 216, 235, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 16px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
-  box-shadow: 0 12px 28px rgba(26, 38, 58, 0.05);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--primary) 5%, transparent);
 }
 
 .ol-trust-memory-card[data-tone="success"] {
-  border-color: rgba(177, 226, 209, 0.9);
+  border-color: color-mix(in srgb, var(--success) 90%, transparent);
 }
 
 .ol-trust-memory-card[data-tone="warning"] {
-  border-color: rgba(236, 202, 142, 0.9);
+  border-color: color-mix(in srgb, var(--warning) 90%, transparent);
 }
 
 .ol-trust-memory-card[data-tone="danger"] {
-  border-color: rgba(237, 172, 172, 0.88);
+  border-color: color-mix(in srgb, var(--danger) 88%, transparent);
 }
 
 .ol-trust-memory-card[data-tone="primary"] {
-  border-color: rgba(170, 198, 243, 0.9);
+  border-color: color-mix(in srgb, var(--primary) 90%, transparent);
 }
 
 .ol-trust-memory-label {
@@ -2986,19 +2983,19 @@ a:focus-visible {
   gap: 10px;
   min-height: 150px;
   padding: 16px;
-  border: 1px solid rgba(204, 216, 235, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 16px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
-  box-shadow: 0 12px 28px rgba(26, 38, 58, 0.05);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--primary) 5%, transparent);
 }
 
 .ol-recovery-action-card[data-tone="warning"],
 .ol-recovery-action-card[data-tone="danger"] {
-  border-color: rgba(236, 202, 142, 0.9);
+  border-color: color-mix(in srgb, var(--warning) 90%, transparent);
 }
 
 .ol-recovery-action-card[data-tone="success"] {
-  border-color: rgba(177, 226, 209, 0.92);
+  border-color: color-mix(in srgb, var(--success) 92%, transparent);
 }
 
 .ol-recovery-action-card strong {
@@ -3037,7 +3034,7 @@ a:focus-visible {
   align-items: center;
   min-height: 26px;
   padding: 0 9px;
-  border: 1px solid rgba(211, 220, 234, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   color: var(--text-muted);
@@ -3057,7 +3054,7 @@ a:focus-visible {
   gap: 10px;
   align-items: flex-start;
   padding: 12px;
-  border: 1px solid rgba(211, 220, 234, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
@@ -3099,26 +3096,26 @@ a:focus-visible {
   gap: 14px;
   min-height: 238px;
   padding: 18px;
-  border: 1px solid rgba(204, 216, 235, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 18px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 95%, transparent) 100%);
-  box-shadow: 0 16px 34px rgba(26, 38, 58, 0.06);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .ol-smart-document-card[data-tone="danger"] {
-  border-color: rgba(237, 172, 172, 0.88);
+  border-color: color-mix(in srgb, var(--danger) 88%, transparent);
 }
 
 .ol-smart-document-card[data-tone="warning"] {
-  border-color: rgba(236, 202, 142, 0.9);
+  border-color: color-mix(in srgb, var(--warning) 90%, transparent);
 }
 
 .ol-smart-document-card[data-tone="success"] {
-  border-color: rgba(177, 226, 209, 0.9);
+  border-color: color-mix(in srgb, var(--success) 90%, transparent);
 }
 
 .ol-smart-document-card[data-tone="primary"] {
-  border-color: rgba(170, 198, 243, 0.9);
+  border-color: color-mix(in srgb, var(--primary) 90%, transparent);
 }
 
 .ol-smart-document-card-top {
@@ -3189,24 +3186,24 @@ a:focus-visible {
   gap: 12px;
   min-height: 210px;
   padding: 16px;
-  border: 1px solid rgba(204, 216, 235, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 18px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
-  box-shadow: 0 14px 30px rgba(26, 38, 58, 0.055);
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--primary) 5.5%, transparent);
   color: inherit;
   text-decoration: none;
 }
 
 .ol-local-intelligence-card[data-tone="danger"] {
-  border-color: rgba(237, 172, 172, 0.88);
+  border-color: color-mix(in srgb, var(--danger) 88%, transparent);
 }
 
 .ol-local-intelligence-card[data-tone="warning"] {
-  border-color: rgba(236, 202, 142, 0.9);
+  border-color: color-mix(in srgb, var(--warning) 90%, transparent);
 }
 
 .ol-local-intelligence-card[data-tone="success"] {
-  border-color: rgba(177, 226, 209, 0.9);
+  border-color: color-mix(in srgb, var(--success) 90%, transparent);
 }
 
 .ol-local-intelligence-card-top {
@@ -3268,21 +3265,21 @@ a:focus-visible {
   gap: 8px;
   min-height: 128px;
   padding: 15px;
-  border: 1px solid rgba(204, 216, 235, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 74%, transparent);
 }
 
 .ol-closing-step[data-tone="success"] {
-  border-color: rgba(177, 226, 209, 0.9);
+  border-color: color-mix(in srgb, var(--success) 90%, transparent);
 }
 
 .ol-closing-step[data-tone="warning"] {
-  border-color: rgba(236, 202, 142, 0.9);
+  border-color: color-mix(in srgb, var(--warning) 90%, transparent);
 }
 
 .ol-closing-step[data-tone="danger"] {
-  border-color: rgba(237, 172, 172, 0.88);
+  border-color: color-mix(in srgb, var(--danger) 88%, transparent);
 }
 
 .ol-closing-step span {
@@ -3322,7 +3319,7 @@ a:focus-visible {
   gap: 16px;
   align-items: end;
   padding: 16px;
-  border: 1px solid rgba(204, 216, 235, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
 }
@@ -3340,24 +3337,24 @@ a:focus-visible {
   align-items: start;
   min-height: 104px;
   padding: 15px;
-  border: 1px solid rgba(204, 216, 235, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 76%, transparent);
   cursor: pointer;
 }
 
 .ol-closing-check[data-tone="success"] {
-  border-color: rgba(177, 226, 209, 0.9);
+  border-color: color-mix(in srgb, var(--success) 90%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
 }
 
 .ol-closing-check[data-tone="warning"] {
-  border-color: rgba(236, 202, 142, 0.9);
+  border-color: color-mix(in srgb, var(--warning) 90%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
 }
 
 .ol-closing-check[data-tone="danger"] {
-  border-color: rgba(237, 172, 172, 0.88);
+  border-color: color-mix(in srgb, var(--danger) 88%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
 }
 
@@ -3498,10 +3495,10 @@ a:focus-visible {
   grid-template-rows: auto minmax(0, 1fr);
   gap: 16px;
   overflow: hidden;
-  border: 1px solid rgba(211, 220, 234, 0.92);
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
   border-radius: 20px;
   background: color-mix(in srgb, var(--surface) 98%, transparent);
-  box-shadow: 0 28px 80px rgba(15, 23, 38, 0.24);
+  box-shadow: 0 28px 80px color-mix(in srgb, var(--surface-dark) 24%, transparent);
 }
 
 .ol-dialog-header {
@@ -3596,10 +3593,10 @@ a:focus-visible {
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-inline: contain;
-  scrollbar-color: rgba(56, 111, 222, 0.48) rgba(238, 244, 251, 0.98);
+  scrollbar-color: color-mix(in srgb, var(--primary) 48%, transparent) color-mix(in srgb, var(--border-subtle) 98%, transparent);
   scrollbar-width: thin;
   border-radius: 18px;
-  border: 1px solid rgba(191, 205, 225, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 92%, transparent) 100%);
   box-shadow: var(--shadow);
 }
@@ -3629,7 +3626,7 @@ a:focus-visible {
 .ol-platform-admin-admin-list::-webkit-scrollbar-thumb,
 .ol-platform-admin-document-table-wrap::-webkit-scrollbar-thumb,
 .ol-platform-admin-audit-list::-webkit-scrollbar-thumb {
-  border: 2px solid rgba(238, 244, 251, 0.98);
+  border: 2px solid color-mix(in srgb, var(--border-subtle) 98%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--primary-soft) 50%, transparent);
 }
@@ -3640,7 +3637,7 @@ a:focus-visible {
   align-items: flex-end;
   gap: 16px;
   padding: 18px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.82);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
@@ -3658,7 +3655,7 @@ a:focus-visible {
 
 .ol-table-summary {
   padding: 12px 18px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.72);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: color-mix(in srgb, var(--surface) 62%, transparent);
   color: var(--text-muted);
   font-size: 13px;
@@ -3680,12 +3677,12 @@ a:focus-visible {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.82);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 95%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 95%, transparent) 100%);
 }
 
 .ol-table-row {
-  border-bottom: 1px solid rgba(191, 205, 225, 0.56);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
   transition: background-color 140ms ease;
 }
 
@@ -3742,10 +3739,10 @@ a:focus-visible {
   display: grid;
   gap: 16px;
   padding: 18px;
-  border: 1px solid rgba(191, 205, 225, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 24px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 94%, transparent) 100%);
-  box-shadow: 0 18px 38px rgba(36, 54, 82, 0.07);
+  box-shadow: 0 18px 38px color-mix(in srgb, var(--primary) 7%, transparent);
 }
 
 .ol-platform-admin-sidebar strong {
@@ -3806,10 +3803,10 @@ a:focus-visible {
 .ol-platform-admin-hero,
 .ol-platform-admin-route-bar,
 .ol-platform-admin-table-card {
-  border: 1px solid rgba(191, 205, 225, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 24px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
-  box-shadow: 0 22px 46px rgba(36, 54, 82, 0.08);
+  box-shadow: 0 22px 46px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-platform-admin-user-context-card,
@@ -3817,7 +3814,7 @@ a:focus-visible {
   display: grid;
   gap: 14px;
   padding: 18px;
-  border: 1px solid rgba(191, 205, 225, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 22px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
 }
@@ -3903,11 +3900,11 @@ a:focus-visible {
   display: grid;
   gap: 18px;
   padding: 18px;
-  border: 1px solid rgba(191, 205, 225, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 24px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%),
-    #ffffff;
-  box-shadow: 0 22px 46px rgba(36, 54, 82, 0.08);
+    var(--surface);
+  box-shadow: 0 22px 46px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-platform-admin-section-head {
@@ -3947,7 +3944,7 @@ a:focus-visible {
   gap: 14px;
   min-width: 0;
   padding: 16px;
-  border: 1px solid rgba(191, 205, 225, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
@@ -3982,7 +3979,7 @@ a:focus-visible {
 .ol-platform-admin-status-signal {
   min-height: 78px;
   padding: 12px;
-  border: 1px solid rgba(191, 205, 225, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 84%, transparent);
 }
@@ -4027,10 +4024,10 @@ a:focus-visible {
   display: grid;
   gap: 16px;
   padding: 16px;
-  border: 1px solid rgba(191, 205, 225, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 20px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 88%, transparent) 100%),
-    #ffffff;
+    var(--surface);
 }
 
 .ol-platform-admin-chart-head h2 {
@@ -4050,10 +4047,10 @@ a:focus-visible {
   min-height: 272px;
   min-width: 0;
   padding: 16px;
-  border: 1px solid rgba(191, 205, 225, 0.76);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
-  box-shadow: 0 14px 30px rgba(36, 54, 82, 0.05);
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--primary) 5%, transparent);
 }
 
 .ol-platform-admin-chart-title {
@@ -4082,7 +4079,7 @@ a:focus-visible {
 .ol-platform-admin-chart-title a {
   flex: 0 0 auto;
   padding: 7px 10px;
-  border: 1px solid rgba(191, 205, 225, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 999px;
   color: var(--primary-strong);
   font-size: 12px;
@@ -4093,7 +4090,7 @@ a:focus-visible {
 
 .ol-platform-admin-chart-title a:hover,
 .ol-platform-admin-chart-title a:focus-visible {
-  border-color: rgba(56, 111, 222, 0.62);
+  border-color: color-mix(in srgb, var(--primary) 62%, transparent);
   background: color-mix(in srgb, var(--primary-soft) 8%, transparent);
   outline: none;
 }
@@ -4151,7 +4148,7 @@ a:focus-visible {
   height: 128px;
   place-items: center;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(31, 45, 66, 0.08);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-platform-admin-donut span {
@@ -4164,7 +4161,7 @@ a:focus-visible {
   color: var(--text);
   font-size: 26px;
   font-weight: 950;
-  box-shadow: 0 8px 20px rgba(36, 54, 82, 0.1);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .ol-platform-admin-stacked-chart {
@@ -4176,7 +4173,7 @@ a:focus-visible {
   display: flex;
   overflow: hidden;
   min-height: 36px;
-  border: 1px solid rgba(191, 205, 225, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
 }
@@ -4275,7 +4272,7 @@ a:focus-visible {
 .ol-platform-admin-area-card {
   min-height: 126px;
   padding: 14px;
-  border: 1px solid rgba(191, 205, 225, 0.76);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 86%, transparent);
 }
@@ -4309,10 +4306,10 @@ a:focus-visible {
 .ol-platform-admin-metric {
   min-height: 126px;
   padding: 18px;
-  border: 1px solid rgba(191, 205, 225, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 20px;
   background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: 0 14px 32px rgba(36, 54, 82, 0.06);
+  box-shadow: 0 14px 32px color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .ol-platform-admin-metric span,
@@ -4372,7 +4369,7 @@ a:focus-visible {
 .ol-platform-admin-status > div {
   min-height: 88px;
   padding: 16px;
-  border: 1px solid rgba(191, 205, 225, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 86%, transparent);
 }
@@ -4415,7 +4412,7 @@ a:focus-visible {
   gap: 6px;
   min-height: 100%;
   padding: 14px;
-  border: 1px solid rgba(191, 205, 225, 0.76);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
 }
@@ -4459,7 +4456,7 @@ a:focus-visible {
   align-items: center;
   min-width: 760px;
   padding: 16px;
-  border: 1px solid rgba(191, 205, 225, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
 }
@@ -4470,7 +4467,7 @@ a:focus-visible {
   gap: 14px;
   min-width: 0;
   padding: 18px;
-  border: 1px solid rgba(191, 205, 225, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 20px;
   background: color-mix(in srgb, var(--surface) 94%, transparent);
 }
@@ -4497,7 +4494,7 @@ a:focus-visible {
 
 .ol-platform-admin-offer-tools {
   padding: 18px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.78);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
 }
 
 .ol-platform-admin-offer-management {
@@ -4528,7 +4525,7 @@ a:focus-visible {
   width: 100%;
   min-height: 92px;
   padding: 14px;
-  border: 1px solid rgba(191, 205, 225, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
   cursor: pointer;
@@ -4536,14 +4533,14 @@ a:focus-visible {
 }
 
 .ol-platform-admin-report-option[data-active='true'] {
-  border-color: rgba(56, 111, 222, 0.72);
+  border-color: color-mix(in srgb, var(--primary) 72%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
-  box-shadow: inset 4px 0 0 rgba(56, 111, 222, 0.78);
+  box-shadow: inset 4px 0 0 color-mix(in srgb, var(--primary) 78%, transparent);
 }
 
 .ol-platform-admin-report-option:hover,
 .ol-platform-admin-report-option:focus-visible {
-  border-color: rgba(56, 111, 222, 0.62);
+  border-color: color-mix(in srgb, var(--primary) 62%, transparent);
   outline: none;
 }
 
@@ -4566,7 +4563,7 @@ a:focus-visible {
   gap: 14px;
   min-width: 0;
   padding: 16px;
-  border: 1px solid rgba(191, 205, 225, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 20px;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
 }
@@ -4609,7 +4606,7 @@ a:focus-visible {
 .ol-platform-admin-report-filters span {
   min-height: 34px;
   padding: 8px 10px;
-  border: 1px solid rgba(191, 205, 225, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 86%, transparent);
   color: var(--text-muted);
@@ -4627,9 +4624,9 @@ a:focus-visible {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-inline: contain;
-  scrollbar-color: rgba(56, 111, 222, 0.48) rgba(238, 244, 251, 0.98);
+  scrollbar-color: color-mix(in srgb, var(--primary) 48%, transparent) color-mix(in srgb, var(--border-subtle) 98%, transparent);
   scrollbar-width: thin;
-  border: 1px solid rgba(191, 205, 225, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 16px;
   background: var(--surface);
 }
@@ -4653,7 +4650,7 @@ a:focus-visible {
   gap: 10px;
   min-height: 160px;
   padding: 16px;
-  border: 1px solid rgba(191, 205, 225, 0.76);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
 }
@@ -4676,7 +4673,7 @@ a:focus-visible {
 .ol-platform-admin-report-table th,
 .ol-platform-admin-report-table td {
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.66);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
   text-align: left;
   vertical-align: top;
   overflow-wrap: anywhere;
@@ -4707,7 +4704,7 @@ a:focus-visible {
   gap: 18px;
   min-width: 0;
   padding: 18px;
-  border: 1px solid rgba(191, 205, 225, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 20px;
   background: color-mix(in srgb, var(--surface) 92%, transparent);
 }
@@ -4721,7 +4718,7 @@ a:focus-visible {
 .ol-platform-admin-selected-summary span {
   min-height: 52px;
   padding: 12px;
-  border: 1px solid rgba(191, 205, 225, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 86%, transparent);
   color: var(--text-muted);
@@ -4736,7 +4733,7 @@ a:focus-visible {
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 14px;
   padding: 18px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.78);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
 }
 
 .ol-platform-admin-document-filters {
@@ -4744,7 +4741,7 @@ a:focus-visible {
   grid-template-columns: minmax(260px, 1.2fr) repeat(4, minmax(0, 0.72fr));
   gap: 14px;
   padding: 18px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.78);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   background: color-mix(in srgb, var(--surface) 84%, transparent);
 }
 
@@ -4781,7 +4778,7 @@ a:focus-visible {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-inline: contain;
-  scrollbar-color: rgba(56, 111, 222, 0.48) rgba(238, 244, 251, 0.98);
+  scrollbar-color: color-mix(in srgb, var(--primary) 48%, transparent) color-mix(in srgb, var(--border-subtle) 98%, transparent);
   scrollbar-width: thin;
   padding: 18px;
 }
@@ -4805,20 +4802,20 @@ a:focus-visible {
 
 .ol-platform-admin-document-table td {
   padding: 16px 14px;
-  border-top: 1px solid rgba(191, 205, 225, 0.72);
-  border-bottom: 1px solid rgba(191, 205, 225, 0.72);
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   color: var(--text);
   vertical-align: top;
 }
 
 .ol-platform-admin-document-table td:first-child {
-  border-left: 1px solid rgba(191, 205, 225, 0.72);
+  border-left: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 18px 0 0 18px;
 }
 
 .ol-platform-admin-document-table td:last-child {
-  border-right: 1px solid rgba(191, 205, 225, 0.72);
+  border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 0 18px 18px 0;
 }
 
@@ -4858,7 +4855,7 @@ a:focus-visible {
   align-items: start;
   min-width: 860px;
   padding: 16px;
-  border: 1px solid rgba(191, 205, 225, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
 }
@@ -4901,7 +4898,7 @@ a:focus-visible {
 .ol-platform-admin-table-head,
 .ol-platform-admin-pagination {
   padding: 18px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.78);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
 }
 
 .ol-platform-admin-table-head {
@@ -4935,7 +4932,7 @@ a:focus-visible {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-inline: contain;
-  scrollbar-color: rgba(56, 111, 222, 0.48) rgba(238, 244, 251, 0.98);
+  scrollbar-color: color-mix(in srgb, var(--primary) 48%, transparent) color-mix(in srgb, var(--border-subtle) 98%, transparent);
   scrollbar-width: thin;
 }
 
@@ -4957,7 +4954,7 @@ a:focus-visible {
 .ol-platform-admin-user-registry-note,
 .ol-platform-admin-user-inspector {
   padding: 16px;
-  border: 1px solid rgba(191, 205, 225, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 20px;
   background: color-mix(in srgb, var(--surface) 92%, transparent);
 }
@@ -4982,7 +4979,7 @@ a:focus-visible {
   display: grid;
   gap: 14px;
   padding: 16px 18px 18px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.78);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   background: color-mix(in srgb, var(--surface) 84%, transparent);
 }
 
@@ -5014,9 +5011,9 @@ a:focus-visible {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-inline: contain;
-  scrollbar-color: rgba(56, 111, 222, 0.48) rgba(238, 244, 251, 0.98);
+  scrollbar-color: color-mix(in srgb, var(--primary) 48%, transparent) color-mix(in srgb, var(--border-subtle) 98%, transparent);
   scrollbar-width: thin;
-  border: 1px solid rgba(191, 205, 225, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 20px;
   background: color-mix(in srgb, var(--surface) 94%, transparent);
 }
@@ -5030,7 +5027,7 @@ a:focus-visible {
 .ol-platform-admin-user-table th,
 .ol-platform-admin-user-table td {
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.66);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
   text-align: left;
   vertical-align: top;
 }
@@ -5157,7 +5154,7 @@ a:focus-visible {
   gap: 18px;
   min-width: 1140px;
   padding: 14px 18px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.78);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   background: color-mix(in srgb, var(--surface) 88%, transparent);
 }
 
@@ -5174,7 +5171,7 @@ a:focus-visible {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-inline: contain;
-  scrollbar-color: rgba(56, 111, 222, 0.48) rgba(238, 244, 251, 0.98);
+  scrollbar-color: color-mix(in srgb, var(--primary) 48%, transparent) color-mix(in srgb, var(--border-subtle) 98%, transparent);
   scrollbar-width: thin;
 }
 
@@ -5187,7 +5184,7 @@ a:focus-visible {
   align-items: center;
   min-width: 1140px;
   padding: 18px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.66);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
 }
 
 .ol-platform-admin-user-row:last-child {
@@ -5284,7 +5281,7 @@ a:focus-visible {
   align-items: center;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(191, 205, 225, 0.8);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: var(--text-muted);
   font-size: 12px;
@@ -5292,25 +5289,25 @@ a:focus-visible {
 }
 
 .ol-platform-admin-status-pill[data-tone="success"] {
-  border-color: rgba(177, 226, 209, 0.92);
+  border-color: color-mix(in srgb, var(--success) 92%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   color: var(--success);
 }
 
 .ol-platform-admin-status-pill[data-tone="warning"] {
-  border-color: rgba(238, 211, 152, 0.9);
+  border-color: color-mix(in srgb, var(--warning) 90%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--warning-strong);
 }
 
 .ol-platform-admin-status-pill[data-tone="danger"] {
-  border-color: rgba(244, 185, 188, 0.92);
+  border-color: color-mix(in srgb, var(--danger) 92%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--danger);
 }
 
 .ol-platform-admin-status-pill[data-tone="premium"] {
-  border-color: rgba(178, 194, 247, 0.92);
+  border-color: color-mix(in srgb, var(--primary) 92%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--primary-strong);
 }
@@ -5324,7 +5321,7 @@ a:focus-visible {
 
 .ol-platform-admin-empty-compact {
   padding: 22px;
-  border: 1px dashed rgba(191, 205, 225, 0.86);
+  border: 1px dashed color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 18px;
 }
 
@@ -5334,7 +5331,7 @@ a:focus-visible {
 
 .ol-platform-admin-pagination {
   justify-content: flex-end;
-  border-top: 1px solid rgba(191, 205, 225, 0.78);
+  border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-bottom: none;
 }
 
@@ -5596,7 +5593,7 @@ a:focus-visible {
 
 .ol-filter-pill {
   min-height: 32px;
-  border: 1px solid rgba(184, 199, 221, 0.9);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 85%, transparent);
   color: var(--text-muted);
@@ -5607,7 +5604,7 @@ a:focus-visible {
 }
 
 .ol-filter-pill--active {
-  border-color: rgba(48, 126, 246, 0.44);
+  border-color: color-mix(in srgb, var(--primary) 44%, transparent);
   background: color-mix(in srgb, var(--primary-soft) 12%, transparent);
   color: var(--primary);
 }
@@ -5631,7 +5628,7 @@ a:focus-visible {
   align-items: center;
   gap: 10px;
   padding: 10px 12px 10px 14px;
-  border: 1px solid rgba(187, 203, 226, 0.92);
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
   border-radius: 14px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 96%, transparent) 100%);
   color: var(--text);
@@ -5682,10 +5679,10 @@ a:focus-visible {
   max-height: 238px;
   overflow: auto;
   padding: 8px;
-  border: 1px solid rgba(187, 203, 226, 0.92);
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 98%, transparent);
-  box-shadow: 0 18px 42px rgba(20, 32, 51, 0.16);
+  box-shadow: 0 18px 42px color-mix(in srgb, var(--primary) 16%, transparent);
 }
 
 .ol-multi-select-option {
@@ -5724,7 +5721,7 @@ a:focus-visible {
   display: grid;
   gap: 8px;
   padding: 10px 18px 14px 62px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.56);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   min-width: 920px;
 }
@@ -5735,7 +5732,7 @@ a:focus-visible {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid rgba(191, 205, 225, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface) 84%, transparent);
   color: var(--text-muted);
@@ -5756,7 +5753,7 @@ a:focus-visible {
   align-content: start;
   gap: 9px;
   padding: 14px;
-  border: 1px solid rgba(187, 203, 226, 0.9);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 84%, transparent);
   color: var(--text);
@@ -5768,8 +5765,8 @@ a:focus-visible {
 
 .ol-template-preview-card:hover,
 .ol-template-preview-card.is-selected {
-  border-color: rgba(48, 126, 246, 0.56);
-  box-shadow: 0 14px 32px rgba(34, 68, 120, 0.11);
+  border-color: color-mix(in srgb, var(--primary) 56%, transparent);
+  box-shadow: 0 14px 32px color-mix(in srgb, var(--primary) 11%, transparent);
   transform: translateY(-1px);
 }
 
@@ -5827,8 +5824,7 @@ a:focus-visible {
   border-radius: 24px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 90%, transparent)),
     var(--surface);
-  box-shadow:
-    0 24px 60px rgba(34, 68, 120, 0.12),
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--primary) 12%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
@@ -5862,50 +5858,50 @@ a:focus-visible {
 .ol-template-showcase-preview {
   --showcase-accent: var(--primary-strong);
   --showcase-soft: var(--surface-muted);
-  --showcase-line: rgba(36, 93, 181, 0.22);
+  --showcase-line: color-mix(in srgb, var(--primary) 22%, transparent);
   display: grid;
   min-height: 520px;
   padding: 20px;
-  border: 1px solid rgba(205, 218, 238, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 22px;
   background: radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--showcase-accent) 14%, transparent), transparent 34%),
-    linear-gradient(180deg, #f8fbff, #edf4ff);
+    linear-gradient(180deg, var(--surface), var(--surface-muted));
 }
 
 .ol-template-showcase-preview--tax {
   --showcase-accent: #1f6a5d;
   --showcase-soft: var(--surface-muted);
-  --showcase-line: rgba(31, 106, 93, 0.24);
+  --showcase-line: color-mix(in srgb, var(--success) 24%, transparent);
 }
 
 .ol-template-showcase-preview--service {
   --showcase-accent: #a4681c;
   --showcase-soft: var(--surface-muted);
-  --showcase-line: rgba(164, 104, 28, 0.26);
+  --showcase-line: color-mix(in srgb, var(--warning) 26%, transparent);
 }
 
 .ol-template-showcase-preview--letterhead {
   --showcase-accent: var(--text-muted);
   --showcase-soft: var(--surface-muted);
-  --showcase-line: rgba(38, 52, 73, 0.22);
+  --showcase-line: color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
 .ol-template-showcase-preview--compact {
   --showcase-accent: var(--text-muted);
   --showcase-soft: var(--surface-muted);
-  --showcase-line: rgba(55, 65, 81, 0.22);
+  --showcase-line: color-mix(in srgb, var(--text) 22%, transparent);
 }
 
 .ol-template-showcase-preview--payment {
   --showcase-accent: #933d38;
   --showcase-soft: var(--surface-muted);
-  --showcase-line: rgba(147, 61, 56, 0.26);
+  --showcase-line: color-mix(in srgb, var(--warning) 26%, transparent);
 }
 
 .ol-template-showcase-preview--premium {
   --showcase-accent: var(--primary);
   --showcase-soft: var(--primary-surface);
-  --showcase-line: rgba(112, 68, 189, 0.24);
+  --showcase-line: color-mix(in srgb, var(--primary) 24%, transparent);
 }
 
 .ol-template-showcase-paper {
@@ -5916,12 +5912,11 @@ a:focus-visible {
   overflow: hidden;
   min-height: 480px;
   padding: 22px;
-  border: 1px solid color-mix(in srgb, var(--showcase-accent) 28%, rgba(205, 218, 238, 0.92));
+  border: 1px solid color-mix(in srgb, var(--showcase-accent) 28%, color-mix(in srgb, var(--border) 92%, transparent));
   border-radius: 18px;
   background: linear-gradient(180deg, var(--showcase-soft) 0 8px, transparent 8px),
     #fff;
-  box-shadow:
-    0 24px 56px rgba(30, 50, 82, 0.16),
+  box-shadow: 0 24px 56px color-mix(in srgb, var(--primary) 16%, transparent),
     0 2px 0 rgba(255, 255, 255, 0.9) inset;
 }
 
@@ -5937,7 +5932,7 @@ a:focus-visible {
   top: 14px;
   z-index: 3;
   padding: 6px 10px;
-  border: 1px solid color-mix(in srgb, var(--showcase-accent) 26%, rgba(205, 218, 238, 0.92));
+  border: 1px solid color-mix(in srgb, var(--showcase-accent) 26%, color-mix(in srgb, var(--border) 92%, transparent));
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
   color: var(--showcase-accent);
@@ -6091,7 +6086,7 @@ a:focus-visible {
 }
 
 .ol-template-showcase-table-row {
-  border-top: 1px solid rgba(210, 221, 238, 0.72);
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   color: var(--text);
   font-size: 12px;
   font-weight: 850;
@@ -6247,7 +6242,7 @@ a:focus-visible {
 .ol-template-showcase-paper footer {
   margin-top: auto;
   padding-top: 12px;
-  border-top: 1px solid rgba(210, 221, 238, 0.74);
+  border-top: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
 }
 
 .ol-template-preview-page {
@@ -6265,7 +6260,7 @@ a:focus-visible {
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   border: 1px solid var(--border);
   border-radius: 18px;
-  box-shadow: 0 18px 44px rgba(34, 68, 120, 0.1);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--primary) 10%, transparent);
   display: flex;
   gap: 16px;
   justify-content: space-between;
@@ -6281,7 +6276,7 @@ a:focus-visible {
   background: var(--surface-muted);
   border: 1px solid var(--border);
   border-radius: 18px;
-  box-shadow: 0 20px 54px rgba(34, 68, 120, 0.14);
+  box-shadow: 0 20px 54px color-mix(in srgb, var(--primary) 14%, transparent);
   min-height: calc(100vh - 142px);
   width: 100%;
 }
@@ -6291,7 +6286,7 @@ a:focus-visible {
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   border: 1px solid var(--border);
   border-radius: 18px;
-  box-shadow: 0 18px 44px rgba(34, 68, 120, 0.08);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--primary) 8%, transparent);
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 148px), 1fr));
@@ -6380,7 +6375,7 @@ a:focus-visible {
 .ol-preview-watermark-helper {
   align-items: center;
   background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
-  border: 1px solid rgba(211, 218, 228, 0.9);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   border-radius: 10px;
   color: var(--text-muted);
   display: block;
@@ -6426,7 +6421,7 @@ a:focus-visible {
 
 .ol-plan-compare {
   overflow-x: auto;
-  border: 1px solid rgba(191, 205, 225, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
@@ -6438,7 +6433,7 @@ a:focus-visible {
   align-items: center;
   min-width: 720px;
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(191, 205, 225, 0.62);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
   color: var(--text-muted);
   font-size: 14px;
   line-height: 1.45;
@@ -6630,7 +6625,7 @@ a:focus-visible {
 .ol-inline-check--panel {
   margin: 14px 0 16px;
   padding: 14px 16px;
-  border: 1px solid rgba(205, 217, 235, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
@@ -6680,7 +6675,7 @@ a:focus-visible {
   gap: 12px;
   min-width: 0;
   padding: 14px;
-  border: 1px solid rgba(205, 217, 235, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: var(--control-radius);
   background: color-mix(in srgb, var(--surface) 74%, transparent);
 }
@@ -6714,7 +6709,7 @@ a:focus-visible {
 .ol-verification-doc-item {
   min-width: 0;
   padding: 12px;
-  border: 1px solid rgba(216, 226, 241, 0.8);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
   border-radius: var(--control-radius);
   background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
@@ -6742,7 +6737,7 @@ a:focus-visible {
 
 .ol-verification-doc-meta span {
   padding: 4px 8px;
-  border: 1px solid rgba(205, 217, 235, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
   color: var(--text-muted);
@@ -6785,7 +6780,7 @@ a:focus-visible {
 
 .ol-inline-error {
   padding: 12px 14px;
-  border: 1px solid rgba(193, 73, 93, 0.22);
+  border: 1px solid color-mix(in srgb, var(--danger) 22%, transparent);
   border-radius: var(--control-radius);
   background: var(--danger-surface);
   color: var(--danger);
@@ -6803,7 +6798,7 @@ a:focus-visible {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   padding: 14px;
-  border: 1px solid rgba(205, 217, 235, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: var(--control-radius);
   background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
@@ -6836,7 +6831,7 @@ a:focus-visible {
   gap: 12px;
   min-width: 0;
   padding: 14px;
-  border: 1px solid rgba(205, 216, 233, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: var(--control-radius);
   background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
@@ -6877,7 +6872,7 @@ a:focus-visible {
   gap: 3px;
   min-width: 0;
   padding: 9px 10px;
-  border: 1px solid rgba(216, 224, 237, 0.9);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 90%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface) 80%, transparent);
 }
@@ -6898,7 +6893,7 @@ a:focus-visible {
 
 .ol-fast-entry-missing {
   padding: 9px 11px;
-  border: 1px solid rgba(236, 202, 142, 0.82);
+  border: 1px solid color-mix(in srgb, var(--warning) 82%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface-muted) 76%, transparent);
   color: var(--warning);
@@ -6992,7 +6987,7 @@ a:focus-visible {
 }
 
 .ol-required-badge {
-  border: 1px solid rgba(214, 96, 112, 0.22);
+  border: 1px solid color-mix(in srgb, var(--danger) 22%, transparent);
   border-radius: 999px;
   padding: 2px 6px;
   background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
@@ -7015,10 +7010,10 @@ a:focus-visible {
   width: 22px;
   height: 22px;
   place-items: center;
-  border: 1px solid rgba(83, 119, 160, 0.28);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
   border-radius: 999px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface-muted) 88%, transparent));
-  box-shadow: 0 6px 14px rgba(54, 78, 114, 0.08);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--primary) 8%, transparent);
   color: var(--primary-strong);
   cursor: pointer;
   font-size: 12px;
@@ -7032,7 +7027,7 @@ a:focus-visible {
 }
 
 .ol-field-info summary:focus-visible {
-  outline: 3px solid rgba(47, 131, 247, 0.28);
+  outline: 3px solid color-mix(in srgb, var(--primary) 28%, transparent);
   outline-offset: 2px;
 }
 
@@ -7042,10 +7037,10 @@ a:focus-visible {
   top: calc(100% + 8px);
   width: min(260px, 78vw);
   padding: 10px 12px;
-  border: 1px solid rgba(136, 158, 190, 0.28);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 98%, transparent);
-  box-shadow: 0 18px 36px rgba(43, 61, 92, 0.16);
+  box-shadow: 0 18px 36px color-mix(in srgb, var(--primary) 16%, transparent);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 650;
@@ -7074,17 +7069,16 @@ a:focus-visible {
 .ol-field.is-invalid .ol-input,
 .ol-field.is-invalid .ol-select,
 .ol-field.is-invalid .ol-textarea {
-  border-color: rgba(214, 96, 112, 0.78);
+  border-color: color-mix(in srgb, var(--danger) 78%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 96%, transparent) 100%);
-  box-shadow:
-    0 0 0 3px rgba(214, 96, 112, 0.12),
-    0 8px 18px rgba(110, 40, 52, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent),
+    0 8px 18px color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
 .ol-field-error {
   width: fit-content;
   padding: 5px 8px;
-  border: 1px solid rgba(214, 96, 112, 0.28);
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: var(--danger);
@@ -7109,7 +7103,7 @@ a:focus-visible {
 .ol-message {
   border-radius: var(--control-radius);
   padding: 12px 14px;
-  border: 1px solid rgba(185, 204, 231, 0.92);
+  border: 1px solid color-mix(in srgb, var(--primary) 92%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 94%, transparent) 100%);
   color: var(--tax);
   font-weight: 650;
@@ -7130,36 +7124,36 @@ a:focus-visible {
 }
 
 .ol-message--danger {
-  border-color: rgba(223, 150, 161, 0.86);
+  border-color: color-mix(in srgb, var(--danger) 86%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 95%, transparent) 100%);
   color: var(--danger);
 }
 
 .ol-message[data-tone="danger"] {
-  border-color: rgba(223, 150, 161, 0.86);
+  border-color: color-mix(in srgb, var(--danger) 86%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 95%, transparent) 100%);
   color: var(--danger);
 }
 
 .ol-message--warning {
-  border-color: rgba(236, 202, 142, 0.86);
+  border-color: color-mix(in srgb, var(--warning) 86%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--warning-surface) 95%, transparent) 100%);
   color: var(--warning);
 }
 
 .ol-message[data-tone="warning"] {
-  border-color: rgba(236, 202, 142, 0.86);
+  border-color: color-mix(in srgb, var(--warning) 86%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--warning-surface) 95%, transparent) 100%);
   color: var(--warning);
 }
 
 .ol-message--success {
-  border-color: rgba(177, 226, 209, 0.88);
+  border-color: color-mix(in srgb, var(--success) 88%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
 }
 
 .ol-message[data-tone="success"] {
-  border-color: rgba(177, 226, 209, 0.88);
+  border-color: color-mix(in srgb, var(--success) 88%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   color: var(--success);
 }
@@ -7167,7 +7161,7 @@ a:focus-visible {
 .ol-card-mini {
   min-width: 0;
   padding: 14px;
-  border: 1px solid rgba(208, 219, 235, 0.88);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   border-radius: var(--control-radius);
   background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
@@ -7199,9 +7193,9 @@ a:focus-visible {
   min-height: 48px;
   padding: 10px 10px 10px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(188, 204, 229, 0.9);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   background: color-mix(in srgb, var(--surface) 96%, transparent);
-  box-shadow: 0 18px 42px rgba(20, 32, 51, 0.18);
+  box-shadow: 0 18px 42px color-mix(in srgb, var(--primary) 18%, transparent);
   color: var(--text);
   font-size: 13px;
   font-weight: 750;
@@ -7233,7 +7227,7 @@ a:focus-visible {
   min-height: 30px;
   margin-top: 2px;
   padding: 5px 10px;
-  border: 1px solid rgba(151, 177, 216, 0.82);
+  border: 1px solid color-mix(in srgb, var(--primary) 82%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 96%, transparent);
   color: var(--primary-strong);
@@ -7244,11 +7238,11 @@ a:focus-visible {
 }
 
 .ol-toast[data-tone="success"] {
-  border-color: rgba(150, 218, 193, 0.92);
+  border-color: color-mix(in srgb, var(--success) 92%, transparent);
 }
 
 .ol-toast[data-tone="danger"] {
-  border-color: rgba(229, 149, 160, 0.92);
+  border-color: color-mix(in srgb, var(--danger) 92%, transparent);
 }
 
 .ol-toast-dot {
@@ -7303,10 +7297,10 @@ a:focus-visible {
   width: min(360px, 100%);
   min-height: 58px;
   padding: 10px 12px;
-  border: 1px solid rgba(166, 218, 190, 0.9);
+  border: 1px solid color-mix(in srgb, var(--success) 90%, transparent);
   border-radius: 20px;
   background: color-mix(in srgb, var(--surface) 96%, transparent);
-  box-shadow: 0 22px 48px rgba(18, 54, 38, 0.16);
+  box-shadow: 0 22px 48px color-mix(in srgb, var(--success) 16%, transparent);
   color: var(--text);
   cursor: pointer;
   text-align: left;
@@ -7351,11 +7345,11 @@ a:focus-visible {
   display: inline-grid;
   place-items: center;
   border-radius: 999px;
-  background: linear-gradient(135deg, #2c8b61, #72d2a6);
+  background: linear-gradient(135deg, var(--success), var(--success));
   color: #fff;
   font-size: 10px;
   font-weight: 950;
-  box-shadow: 0 0 0 7px rgba(99, 207, 158, 0.14);
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--success) 14%, transparent);
 }
 
 .ol-live-feed-orb {
@@ -7379,10 +7373,10 @@ a:focus-visible {
   width: 100%;
   max-height: min(520px, calc(100vh - 120px));
   overflow: hidden;
-  border: 1px solid rgba(188, 204, 229, 0.92);
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
   border-radius: 24px;
   background: color-mix(in srgb, var(--surface) 98%, transparent);
-  box-shadow: 0 26px 70px rgba(20, 32, 51, 0.22);
+  box-shadow: 0 26px 70px color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
 .ol-live-feed-head {
@@ -7391,7 +7385,7 @@ a:focus-visible {
   justify-content: space-between;
   gap: 14px;
   padding: 16px 16px 12px;
-  border-bottom: 1px solid rgba(214, 224, 238, 0.82);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
 }
 
 .ol-live-feed-head > div {
@@ -7403,7 +7397,7 @@ a:focus-visible {
 .ol-live-feed-close {
   width: 34px;
   height: 34px;
-  border: 1px solid rgba(190, 204, 224, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 96%, transparent);
   color: var(--text-muted);
@@ -7428,7 +7422,7 @@ a:focus-visible {
   gap: 12px;
   width: 100%;
   padding: 12px;
-  border: 1px solid rgba(214, 224, 238, 0.88);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 88%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
   color: var(--text);
@@ -7442,19 +7436,19 @@ a:focus-visible {
 .ol-toast-action:focus-visible,
 .ol-live-feed-trigger:hover,
 .ol-live-feed-trigger:focus-visible {
-  border-color: rgba(74, 121, 231, 0.72);
-  box-shadow: 0 0 0 4px rgba(86, 139, 249, 0.12);
+  border-color: color-mix(in srgb, var(--primary) 72%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent);
   outline: none;
 }
 
 .ol-live-feed-item[data-tone="danger"] .ol-live-feed-item-icon {
-  background: linear-gradient(135deg, #a43145, #df6b7d);
-  box-shadow: 0 0 0 7px rgba(219, 88, 111, 0.14);
+  background: linear-gradient(135deg, var(--danger), var(--danger));
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--danger) 14%, transparent);
 }
 
 .ol-live-feed-item[data-tone="warning"] .ol-live-feed-item-icon {
-  background: linear-gradient(135deg, #a86815, #e3b74c);
-  box-shadow: 0 0 0 7px rgba(219, 166, 60, 0.16);
+  background: linear-gradient(135deg, var(--warning), var(--warning));
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--warning) 16%, transparent);
 }
 
 .ol-live-feed-item-icon {
@@ -7503,11 +7497,11 @@ a:focus-visible {
   gap: 18px;
   width: min(520px, 100%);
   padding: 30px;
-  border: 1px solid rgba(144, 218, 182, 0.88);
+  border: 1px solid color-mix(in srgb, var(--success) 88%, transparent);
   border-radius: 30px;
   background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--success-surface) 34%, transparent), transparent 42%),
     color-mix(in srgb, var(--surface) 98%, transparent);
-  box-shadow: 0 32px 90px rgba(12, 40, 28, 0.28);
+  box-shadow: 0 32px 90px color-mix(in srgb, var(--success) 28%, transparent);
   color: var(--text);
   text-align: center;
 }
@@ -7522,12 +7516,11 @@ a:focus-visible {
   position: relative;
   width: 104px;
   height: 104px;
-  border: 6px solid rgba(37, 135, 88, 0.9);
+  border: 6px solid color-mix(in srgb, var(--success) 90%, transparent);
   border-radius: 999px;
   background: linear-gradient(145deg, color-mix(in srgb, var(--surface-muted) 96%, transparent), color-mix(in srgb, var(--success-surface) 90%, transparent));
-  box-shadow:
-    0 0 0 14px rgba(78, 205, 135, 0.12),
-    0 18px 36px rgba(34, 122, 79, 0.22);
+  box-shadow: 0 0 0 14px color-mix(in srgb, var(--success) 12%, transparent),
+    0 18px 36px color-mix(in srgb, var(--success) 22%, transparent);
 }
 
 .ol-paid-confirmation-mark::before {
@@ -7610,11 +7603,11 @@ a:focus-visible {
   width: 100%;
   margin: 16px 0 0;
   padding: 16px;
-  border: 1px solid rgba(197, 211, 230, 0.92);
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
   border-radius: 22px;
   background: radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--primary-soft) 10%, transparent), transparent 32%),
     color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: 0 18px 44px rgba(42, 58, 84, 0.08);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--primary) 8%, transparent);
   color: var(--text);
   text-decoration: none;
 }
@@ -7632,56 +7625,56 @@ a:focus-visible {
 
 .ol-live-payment-status-card--link:hover,
 .ol-live-payment-status-card--link:focus-visible {
-  border-color: rgba(63, 113, 210, 0.46);
-  box-shadow: 0 22px 54px rgba(42, 58, 84, 0.14);
+  border-color: color-mix(in srgb, var(--primary) 46%, transparent);
+  box-shadow: 0 22px 54px color-mix(in srgb, var(--primary) 14%, transparent);
   transform: translateY(-1px);
 }
 
 .ol-live-payment-status-card[data-tone="success"] {
-  border-color: rgba(115, 210, 154, 0.78);
+  border-color: color-mix(in srgb, var(--success) 78%, transparent);
   background: radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--success) 18%, transparent), transparent 34%),
     color-mix(in srgb, var(--surface) 96%, transparent);
 }
 
 .ol-live-payment-status-card[data-tone="warning"] {
-  border-color: rgba(224, 177, 89, 0.66);
+  border-color: color-mix(in srgb, var(--warning) 66%, transparent);
   background: radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--warning) 14%, transparent), transparent 34%),
     color-mix(in srgb, var(--surface) 96%, transparent);
 }
 
 .ol-live-payment-status-card[data-tone="danger"] {
-  border-color: rgba(226, 127, 127, 0.66);
+  border-color: color-mix(in srgb, var(--warning) 66%, transparent);
   background: radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--warning) 12%, transparent), transparent 34%),
     color-mix(in srgb, var(--surface-muted) 96%, transparent);
 }
 
 .ol-live-payment-status-card[data-tone="info"] {
-  border-color: rgba(119, 166, 235, 0.72);
+  border-color: color-mix(in srgb, var(--primary) 72%, transparent);
 }
 
 .ol-live-payment-status-mark {
   width: 42px;
   height: 42px;
-  border: 1px solid rgba(177, 197, 226, 0.92);
+  border: 1px solid color-mix(in srgb, var(--primary) 92%, transparent);
   border-radius: 15px;
   background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--primary-soft) 94%, transparent) 0 34%, transparent 36%),
-    linear-gradient(145deg, #f8fbff, #e8effc);
+    linear-gradient(145deg, var(--surface), var(--surface-muted));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
 
 .ol-live-payment-status-card[data-tone="success"] .ol-live-payment-status-mark {
   background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--success) 94%, transparent) 0 34%, transparent 36%),
-    linear-gradient(145deg, #f4fff8, #ddf8e8);
+    linear-gradient(145deg, var(--surface), var(--success-surface));
 }
 
 .ol-live-payment-status-card[data-tone="warning"] .ol-live-payment-status-mark {
   background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--warning) 94%, transparent) 0 34%, transparent 36%),
-    linear-gradient(145deg, #fffaf0, #f8ebca);
+    linear-gradient(145deg, var(--surface), var(--warning-surface));
 }
 
 .ol-live-payment-status-card[data-tone="danger"] .ol-live-payment-status-mark {
   background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--warning) 94%, transparent) 0 34%, transparent 36%),
-    linear-gradient(145deg, #fff6f6, #f8dddd);
+    linear-gradient(145deg, var(--surface-muted), var(--surface-muted));
 }
 
 .ol-live-payment-status-copy {
@@ -7729,16 +7722,16 @@ a:focus-visible {
   align-items: start;
   margin: 14px 0 0;
   padding: 18px;
-  border: 1px solid rgba(115, 210, 154, 0.78);
+  border: 1px solid color-mix(in srgb, var(--success) 78%, transparent);
   border-radius: 22px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 94%, transparent), color-mix(in srgb, var(--surface) 98%, transparent)),
     radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--success) 16%, transparent), transparent 32%);
-  box-shadow: 0 20px 46px rgba(42, 58, 84, 0.08);
+  box-shadow: 0 20px 46px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-live-receipt-card[data-follow-up="adjust"],
 .ol-live-receipt-card[data-follow-up="review"] {
-  border-color: rgba(224, 177, 89, 0.66);
+  border-color: color-mix(in srgb, var(--warning) 66%, transparent);
   background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface) 98%, transparent)),
     radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--warning) 14%, transparent), transparent 32%);
 }
@@ -7788,10 +7781,10 @@ a:focus-visible {
   display: grid;
   gap: 16px;
   padding: 20px;
-  border: 1px solid rgba(205, 216, 233, 0.94);
+  border: 1px solid color-mix(in srgb, var(--border) 94%, transparent);
   border-radius: 20px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 98%, transparent) 100%);
-  box-shadow: 0 28px 80px rgba(15, 23, 38, 0.26);
+  box-shadow: 0 28px 80px color-mix(in srgb, var(--surface-dark) 26%, transparent);
 }
 
 .ol-confirm-header {
@@ -7819,7 +7812,7 @@ a:focus-visible {
 .ol-confirm-detail {
   margin: 0;
   border-radius: 14px;
-  border: 1px solid rgba(211, 220, 234, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
   padding: 12px 14px;
 }
@@ -7829,12 +7822,12 @@ a:focus-visible {
   height: 40px;
   border-radius: 14px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--primary-soft) 16%, transparent), color-mix(in srgb, var(--primary-soft) 30%, transparent));
-  border: 1px solid rgba(62, 119, 221, 0.28);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
 .ol-confirm-card[data-tone="danger"] .ol-confirm-mark {
   background: linear-gradient(135deg, color-mix(in srgb, var(--danger) 14%, transparent), color-mix(in srgb, var(--danger) 26%, transparent));
-  border-color: rgba(193, 73, 93, 0.28);
+  border-color: color-mix(in srgb, var(--danger) 28%, transparent);
 }
 
 .ol-confirm-actions {
@@ -7846,18 +7839,18 @@ a:focus-visible {
 
 .ol-button-danger {
   min-height: 42px;
-  border: 1px solid rgba(193, 73, 93, 0.72);
+  border: 1px solid color-mix(in srgb, var(--danger) 72%, transparent);
   border-radius: 12px;
-  background: linear-gradient(180deg, #cf5267 0%, #b93f55 100%);
+  background: linear-gradient(180deg, var(--danger) 0%, var(--danger) 100%);
   color: #fff;
   padding: 0 18px;
   font-weight: 850;
-  box-shadow: 0 14px 28px rgba(193, 73, 93, 0.22);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--danger) 22%, transparent);
 }
 
 .ol-input--error {
   border-color: var(--danger) !important;
-  box-shadow: 0 0 0 3px rgba(193, 73, 93, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
 .ol-field-error {
@@ -7871,7 +7864,7 @@ a:focus-visible {
   padding: 18px;
   display: grid;
   gap: 6px;
-  border: 1px solid rgba(246, 221, 167, 0.94);
+  border: 1px solid color-mix(in srgb, var(--warning) 94%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
 }
 
@@ -7887,14 +7880,14 @@ a:focus-visible {
   display: grid;
   place-items: center;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 58%, transparent) 0%, color-mix(in srgb, var(--surface) 0%, transparent) 24%),
-    linear-gradient(135deg, #f6fbff 0%, #edf4fd 56%, #e6eff9 100%);
+    linear-gradient(135deg, var(--surface) 0%, var(--surface-muted) 56%, var(--surface-muted) 100%);
   color: var(--text);
 }
 
 .ol-auth-page {
   background: radial-gradient(circle at 18% 8%, color-mix(in srgb, var(--primary-soft) 12%, transparent) 0, color-mix(in srgb, var(--primary-soft) 0%, transparent) 28%),
     radial-gradient(circle at 84% 20%, color-mix(in srgb, var(--success) 12%, transparent) 0, color-mix(in srgb, var(--success) 0%, transparent) 30%),
-    linear-gradient(135deg, #fbfcff 0%, #f2f6fb 54%, #e9f0f8 100%);
+    linear-gradient(135deg, var(--surface) 0%, var(--surface-muted) 54%, var(--surface-muted) 100%);
 }
 
 .ol-auth-grid,
@@ -7912,10 +7905,10 @@ a:focus-visible {
   justify-items: center;
   gap: 14px;
   padding: 28px;
-  border: 1px solid rgba(191, 205, 225, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 24px;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
-  box-shadow: 0 18px 44px rgba(52, 82, 130, 0.12);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--primary) 12%, transparent);
   color: var(--text);
   text-align: center;
 }
@@ -7948,17 +7941,17 @@ a:focus-visible {
 .ol-onboarding-showcase {
   border-radius: 26px;
   padding: 28px;
-  border: 1px solid rgba(191, 205, 225, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   background: radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--primary-soft) 22%, transparent) 0, color-mix(in srgb, var(--primary-soft) 0%, transparent) 34%),
     linear-gradient(180deg, color-mix(in srgb, var(--primary) 98%, transparent) 0%, color-mix(in srgb, var(--primary) 99%, transparent) 100%);
-  box-shadow: 0 22px 58px rgba(21, 31, 48, 0.18);
+  box-shadow: 0 22px 58px color-mix(in srgb, var(--surface-dark) 18%, transparent);
   color: #f7faff;
   display: grid;
   gap: 20px;
 }
 
 .ol-auth-showcase-copy {
-  color: rgba(231, 237, 247, 0.78);
+  color: color-mix(in srgb, var(--text-soft) 78%, transparent);
   line-height: 1.72;
 }
 
@@ -7973,13 +7966,13 @@ a:focus-visible {
   padding: 16px;
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 7.5%, transparent);
-  border: 1px solid rgba(211, 224, 244, 0.16);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 16%, transparent);
   color: #ffffff;
 }
 
 .ol-auth-feature-copy {
   margin: 0;
-  color: rgba(231, 237, 247, 0.74);
+  color: color-mix(in srgb, var(--text-soft) 74%, transparent);
   font-size: 14px;
   font-weight: 650;
   line-height: 1.55;
@@ -7988,10 +7981,9 @@ a:focus-visible {
 .ol-auth-panel {
   border-radius: 26px;
   padding: clamp(24px, 4vw, 38px);
-  border: 1px solid rgba(198, 210, 228, 0.88);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 95%, transparent) 100%);
-  box-shadow:
-    0 24px 64px rgba(20, 32, 51, 0.12),
+  box-shadow: 0 24px 64px color-mix(in srgb, var(--primary) 12%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -8026,10 +8018,9 @@ a:focus-visible {
 .ol-creating-modal {
   width: min(1060px, 100%);
   border-radius: 22px;
-  border: 1px solid rgba(194, 208, 229, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 97%, transparent) 0%, color-mix(in srgb, var(--surface) 93%, transparent) 100%);
-  box-shadow:
-    0 26px 70px rgba(17, 24, 39, 0.24),
+  box-shadow: 0 26px 70px color-mix(in srgb, var(--surface-dark) 24%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
   overflow: hidden;
 }
@@ -8040,7 +8031,7 @@ a:focus-visible {
   display: flex;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid rgba(192, 207, 229, 0.68);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
 }
 
 .ol-creating-grid {
@@ -8057,7 +8048,7 @@ a:focus-visible {
 
 .ol-creating-side {
   border-radius: 18px;
-  border: 1px solid rgba(103, 129, 166, 0.56);
+  border: 1px solid color-mix(in srgb, var(--primary) 56%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 97%, transparent) 0%, color-mix(in srgb, var(--primary) 99%, transparent) 100%);
   color: #f5f8ff;
   padding: 18px;
@@ -8077,7 +8068,7 @@ a:focus-visible {
   gap: 10px;
   padding: 14px 16px;
   border-radius: 14px;
-  border: 1px solid rgba(132, 158, 193, 0.54);
+  border: 1px solid color-mix(in srgb, var(--primary) 54%, transparent);
   background: color-mix(in srgb, var(--surface) 8%, transparent);
   animation: orbit-fade-in 220ms ease-out;
 }
@@ -8089,7 +8080,7 @@ a:focus-visible {
 }
 
 .ol-creating-tip-copy {
-  color: rgba(224, 232, 244, 0.82);
+  color: color-mix(in srgb, var(--text-soft) 82%, transparent);
   line-height: 1.6;
   font-size: 13px;
 }
@@ -8100,10 +8091,9 @@ a:focus-visible {
   padding: 24px;
   display: grid;
   gap: 14px;
-  border: 1px solid rgba(198, 210, 228, 0.88);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 97%, transparent) 0%, color-mix(in srgb, var(--surface) 93%, transparent) 100%);
-  box-shadow:
-    0 24px 60px rgba(17, 24, 39, 0.22),
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--surface-dark) 22%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
@@ -8126,7 +8116,7 @@ a:focus-visible {
   padding: 4px;
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
-  border: 1px solid rgba(207, 218, 234, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
 }
 
 .ol-auth-tabs {
@@ -8157,7 +8147,7 @@ a:focus-visible {
 .ol-segment.is-active {
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 90%, transparent) 100%);
   color: var(--primary);
-  box-shadow: 0 6px 12px rgba(20, 32, 51, 0.04);
+  box-shadow: 0 6px 12px color-mix(in srgb, var(--primary) 4%, transparent);
 }
 
 .ol-auth-form {
@@ -8188,12 +8178,11 @@ a:focus-visible {
   place-items: center;
   width: 26px;
   height: 26px;
-  border: 1px solid rgba(205, 216, 232, 0.92);
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
   border-radius: 999px;
   background: var(--surface);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 4px 10px rgba(20, 32, 51, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 4px 10px color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .ol-google-mark svg {
@@ -8205,7 +8194,7 @@ a:focus-visible {
 .ol-auth-beta-note {
   margin-top: 2px;
   padding: 12px 14px;
-  border: 1px solid rgba(199, 213, 234, 0.9);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
   color: var(--text-muted);
@@ -8226,17 +8215,17 @@ a:focus-visible {
   gap: 18px;
   min-height: 520px;
   padding: clamp(22px, 3vw, 30px);
-  border: 1px solid rgba(194, 209, 232, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 28px;
   background: radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--primary-soft) 13%, transparent) 0, transparent 35%),
     radial-gradient(circle at 86% 16%, color-mix(in srgb, var(--success) 12%, transparent) 0, transparent 34%),
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface) 88%, transparent));
-  box-shadow: 0 24px 64px rgba(22, 36, 60, 0.1);
+  box-shadow: 0 24px 64px color-mix(in srgb, var(--primary) 10%, transparent);
   color: var(--text);
 }
 
 .ol-auth-showcase--compact .ol-chip {
-  border-color: rgba(181, 201, 232, 0.78);
+  border-color: color-mix(in srgb, var(--primary) 78%, transparent);
   background: color-mix(in srgb, var(--surface) 76%, transparent);
   color: var(--success);
 }
@@ -8255,13 +8244,12 @@ a:focus-visible {
   gap: 18px;
   min-height: 390px;
   padding: 20px;
-  border: 1px solid rgba(197, 211, 232, 0.88);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   border-radius: 24px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 90%, transparent)),
-    #ffffff;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 18px 42px rgba(29, 47, 78, 0.08);
+    var(--surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 18px 42px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-auth-preview-card::before {
@@ -8312,7 +8300,7 @@ a:focus-visible {
   gap: 10px;
   height: 116px;
   padding: 12px;
-  border: 1px solid rgba(207, 219, 237, 0.8);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
@@ -8325,7 +8313,7 @@ a:focus-visible {
 
 .ol-auth-preview-bars i:nth-child(1) {
   height: 42%;
-  background: linear-gradient(180deg, #8edcc1, #4fb692);
+  background: linear-gradient(180deg, var(--success), var(--success));
 }
 
 .ol-auth-preview-bars i:nth-child(2) {
@@ -8334,7 +8322,7 @@ a:focus-visible {
 
 .ol-auth-preview-bars i:nth-child(3) {
   height: 54%;
-  background: linear-gradient(180deg, #e9c569, #d39a36);
+  background: linear-gradient(180deg, var(--warning), var(--warning));
 }
 
 .ol-auth-preview-bars i:nth-child(4) {
@@ -8360,7 +8348,7 @@ a:focus-visible {
   gap: 6px;
   min-height: 78px;
   padding: 14px;
-  border: 1px solid rgba(199, 213, 234, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
@@ -8436,12 +8424,11 @@ a:focus-visible {
 .ol-loading-main {
   border-radius: 28px;
   padding: 30px;
-  border: 1px solid rgba(192, 205, 224, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   background: radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary-soft) 12%, transparent) 0, transparent 36%),
     radial-gradient(circle at 96% 18%, color-mix(in srgb, var(--success) 10%, transparent) 0, transparent 34%),
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 86%, transparent) 100%);
-  box-shadow:
-    0 28px 70px rgba(20, 32, 51, 0.14),
+  box-shadow: 0 28px 70px color-mix(in srgb, var(--primary) 14%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
   display: grid;
   gap: 22px;
@@ -8462,7 +8449,7 @@ a:focus-visible {
   display: grid;
   place-items: center;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 82%, transparent) 100%);
-  border: 1px solid rgba(182, 199, 223, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   isolation: isolate;
   overflow: hidden;
 }
@@ -8472,8 +8459,8 @@ a:focus-visible {
   inset: 0;
   z-index: 0;
   border-radius: 999px;
-  border: 2px solid rgba(47, 131, 247, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(47, 131, 247, 0.06);
+  border: 2px solid color-mix(in srgb, var(--primary) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .ol-loader-ring::before,
@@ -8515,7 +8502,7 @@ a:focus-visible {
   height: 18px;
   border-radius: 999px;
   background: linear-gradient(180deg, var(--primary-soft) 0%, var(--primary) 100%);
-  box-shadow: 0 0 24px rgba(47, 131, 247, 0.36);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--primary) 36%, transparent);
   position: relative;
   z-index: 1;
 }
@@ -8555,10 +8542,9 @@ a:focus-visible {
   border-radius: inherit;
   background: radial-gradient(circle at 38% 34%, color-mix(in srgb, var(--surface) 96%, transparent) 0 16%, transparent 17%),
     linear-gradient(145deg, color-mix(in srgb, var(--surface) 88%, transparent), color-mix(in srgb, var(--surface-muted) 68%, transparent));
-  border: 1px solid rgba(192, 208, 232, 0.78);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 12px 28px rgba(24, 44, 78, 0.08);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 12px 28px color-mix(in srgb, var(--primary) 8%, transparent);
   z-index: -1;
 }
 
@@ -8602,7 +8588,7 @@ a:focus-visible {
 
 .ol-brand-orbit-loader__ring--inner {
   inset: 30%;
-  border: 1px solid rgba(63, 119, 235, 0.2);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
   background: radial-gradient(circle, color-mix(in srgb, var(--primary-soft) 10%, transparent), transparent 64%);
   animation: orbit-loader-breathe 1.8s ease-in-out infinite;
 }
@@ -8614,11 +8600,10 @@ a:focus-visible {
   place-items: center;
   border-radius: 999px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface-muted) 92%, transparent)),
-    #ffffff;
-  border: 1px solid rgba(190, 207, 234, 0.9);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.94),
-    0 10px 24px rgba(48, 88, 160, 0.13);
+    var(--surface);
+  border: 1px solid color-mix(in srgb, var(--primary) 90%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 10px 24px color-mix(in srgb, var(--primary) 13%, transparent);
 }
 
 .ol-brand-orbit-loader__core span {
@@ -8642,7 +8627,7 @@ a:focus-visible {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--primary) 0%, var(--tax) 58%, var(--premium) 100%);
-  box-shadow: 0 0 16px rgba(47, 131, 247, 0.28);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--primary) 28%, transparent);
   transition: width 240ms ease;
 }
 
@@ -8657,7 +8642,7 @@ a:focus-visible {
   gap: 12px;
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(203, 214, 232, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: color-mix(in srgb, var(--surface) 58%, transparent);
   color: var(--text-muted);
   transition:
@@ -8670,7 +8655,7 @@ a:focus-visible {
 .ol-loading-step.is-active {
   transform: translateX(2px);
   color: var(--text);
-  border-color: rgba(166, 195, 235, 0.88);
+  border-color: color-mix(in srgb, var(--primary) 88%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 94%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 88%, transparent) 100%);
 }
 
@@ -8701,7 +8686,7 @@ a:focus-visible {
   border-radius: 18px;
   border: 1px solid var(--border);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 90%, transparent) 100%);
-  box-shadow: 0 10px 24px rgba(26, 38, 58, 0.045);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 4.5%, transparent);
   display: grid;
   gap: 10px;
 }
@@ -8738,7 +8723,7 @@ a:focus-visible {
   padding: 0 12px;
   border-radius: 999px;
   background: var(--primary-surface);
-  border: 1px solid rgba(180, 201, 235, 0.72);
+  border: 1px solid color-mix(in srgb, var(--primary) 72%, transparent);
   color: var(--primary-strong);
   font-size: 12px;
   font-weight: 800;
@@ -8766,7 +8751,7 @@ a:focus-visible {
   min-height: 72px;
   padding: 0 4px 18px;
   margin-bottom: 14px;
-  border-bottom: 1px solid rgba(132, 170, 226, 0.34);
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 34%, transparent);
   min-width: 0;
   overflow: hidden;
 }
@@ -8803,12 +8788,12 @@ a:focus-visible {
 
 .ol-auth-showcase .ol-auth-showcase-copy,
 .ol-onboarding-showcase .ol-auth-showcase-copy {
-  color: rgba(235, 241, 251, 0.86);
+  color: color-mix(in srgb, var(--text-soft) 86%, transparent);
 }
 
 .ol-auth-showcase .ol-showcase-card,
 .ol-onboarding-showcase .ol-showcase-card {
-  border-color: rgba(226, 235, 249, 0.18);
+  border-color: color-mix(in srgb, var(--border-subtle) 18%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 13%, transparent), color-mix(in srgb, var(--surface) 8%, transparent));
   box-shadow: none;
 }
@@ -8816,7 +8801,7 @@ a:focus-visible {
 .ol-auth-showcase .ol-showcase-card-kicker,
 .ol-onboarding-showcase .ol-showcase-card-kicker {
   background: color-mix(in srgb, var(--surface) 10%, transparent);
-  border-color: rgba(226, 235, 249, 0.22);
+  border-color: color-mix(in srgb, var(--border-subtle) 22%, transparent);
   color: #dce9ff;
 }
 
@@ -8837,11 +8822,11 @@ a:focus-visible {
 
 .ol-auth-showcase .ol-showcase-card-copy,
 .ol-onboarding-showcase .ol-showcase-card-copy {
-  color: rgba(235, 241, 251, 0.82);
+  color: color-mix(in srgb, var(--text-soft) 82%, transparent);
 }
 
 .ol-auth-showcase .ol-chip {
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: color-mix(in srgb, var(--border-subtle) 18%, transparent);
 }
 
 .ol-auth-command-preview {
@@ -8855,13 +8840,13 @@ a:focus-visible {
   gap: 8px;
   min-height: 104px;
   padding: 14px;
-  border: 1px solid rgba(211, 224, 244, 0.16);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 16%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 7.5%, transparent);
 }
 
 .ol-auth-command-preview span {
-  color: rgba(231, 237, 247, 0.68);
+  color: color-mix(in srgb, var(--text-soft) 68%, transparent);
   font-size: 12px;
   font-weight: 850;
 }
@@ -8916,7 +8901,7 @@ a:focus-visible {
   padding: 0 11px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 95%, transparent);
-  border: 1px solid rgba(209, 220, 236, 0.88);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 700;
@@ -8925,14 +8910,14 @@ a:focus-visible {
 .ol-onboarding-step.is-active {
   background: color-mix(in srgb, var(--surface) 98%, transparent);
   color: var(--primary-strong);
-  border-color: rgba(165, 191, 229, 0.96);
-  box-shadow: 0 4px 10px rgba(37, 74, 128, 0.06);
+  border-color: color-mix(in srgb, var(--primary) 96%, transparent);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .ol-onboarding-step.is-complete {
   background: color-mix(in srgb, var(--surface-muted) 96%, transparent);
   color: var(--success);
-  border-color: rgba(181, 220, 207, 0.92);
+  border-color: color-mix(in srgb, var(--success) 92%, transparent);
 }
 
 .ol-onboarding-step-number {
@@ -8996,13 +8981,13 @@ a:focus-visible {
 .ol-showcase-badge--premium {
   background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   color: var(--premium);
-  border-color: rgba(231, 191, 235, 0.8);
+  border-color: color-mix(in srgb, var(--primary) 80%, transparent);
 }
 
 .ol-showcase-badge--success {
   background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   color: var(--success);
-  border-color: rgba(177, 226, 209, 0.78);
+  border-color: color-mix(in srgb, var(--success) 78%, transparent);
 }
 
 .ol-onboarding-info-card {
@@ -9010,9 +8995,9 @@ a:focus-visible {
   gap: 8px;
   padding: 15px 16px;
   border-radius: 14px;
-  border: 1px solid rgba(205, 216, 233, 0.9);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 90%, transparent) 100%);
-  box-shadow: 0 8px 18px rgba(20, 32, 51, 0.04);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 4%, transparent);
 }
 
 .ol-onboarding-info-card strong {
@@ -9046,7 +9031,7 @@ a:focus-visible {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 12px;
   padding: 12px;
-  border: 1px solid rgba(205, 217, 235, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 18px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface) 88%, transparent));
 }
@@ -9057,7 +9042,7 @@ a:focus-visible {
   min-width: 0;
   padding: 14px 16px;
   border-radius: 14px;
-  border: 1px solid rgba(203, 214, 232, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   background: color-mix(in srgb, var(--surface) 66%, transparent);
 }
 
@@ -9081,21 +9066,21 @@ a:focus-visible {
   margin: 16px 0;
   padding: 18px;
   border-radius: 18px;
-  border: 1px solid rgba(204, 216, 235, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface) 94%, transparent));
 }
 
 .ol-health-score-card[data-tone="healthy"] {
-  border-color: rgba(177, 226, 209, 0.9);
+  border-color: color-mix(in srgb, var(--success) 90%, transparent);
 }
 
 .ol-health-score-card[data-tone="watch"] {
-  border-color: rgba(236, 202, 142, 0.9);
+  border-color: color-mix(in srgb, var(--warning) 90%, transparent);
 }
 
 .ol-health-score-card[data-tone="action"],
 .ol-health-score-card[data-tone="critical"] {
-  border-color: rgba(237, 172, 172, 0.88);
+  border-color: color-mix(in srgb, var(--danger) 88%, transparent);
 }
 
 .ol-health-score-card > strong {
@@ -9120,7 +9105,7 @@ a:focus-visible {
   gap: 14px;
   min-width: 0;
   padding: 13px 14px;
-  border: 1px solid rgba(211, 220, 234, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 78%, transparent);
   color: inherit;
@@ -9129,8 +9114,8 @@ a:focus-visible {
 
 .ol-health-factor:hover,
 .ol-health-factor:focus-visible {
-  border-color: rgba(88, 132, 205, 0.72);
-  box-shadow: 0 10px 20px rgba(30, 58, 108, 0.08);
+  border-color: color-mix(in srgb, var(--primary) 72%, transparent);
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-health-factor span {
@@ -9191,7 +9176,7 @@ a:focus-visible {
   min-width: 0;
   padding: 14px;
   border-radius: 16px;
-  border: 1px solid rgba(203, 214, 232, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   background: color-mix(in srgb, var(--surface) 68%, transparent);
 }
 
@@ -9202,7 +9187,7 @@ a:focus-visible {
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 1px dashed rgba(135, 159, 194, 0.82);
+  border: 1px dashed color-mix(in srgb, var(--primary) 82%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 94%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 84%, transparent) 100%);
   color: var(--text-muted);
   font-size: 12px;
@@ -9337,7 +9322,7 @@ a:focus-visible {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 86%, transparent);
-  box-shadow: 0 10px 24px rgba(26, 38, 58, 0.045);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 4.5%, transparent);
 }
 
 .ol-market-card-header {
@@ -9397,9 +9382,9 @@ a:focus-visible {
   min-height: 214px;
   align-content: start;
   padding: 20px;
-  border-color: rgba(211, 220, 234, 0.92);
+  border-color: color-mix(in srgb, var(--border) 92%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 99%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
-  box-shadow: 0 14px 34px rgba(26, 38, 58, 0.08);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-panel-dark .ol-pricing-card .ol-market-title,
@@ -9430,7 +9415,7 @@ a:focus-visible {
   gap: 12px;
   margin-bottom: 18px;
   padding: 14px;
-  border: 1px solid rgba(177, 226, 209, 0.88);
+  border: 1px solid color-mix(in srgb, var(--success) 88%, transparent);
   border-radius: var(--control-radius);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
   color: var(--text-muted);
@@ -9454,11 +9439,11 @@ a:focus-visible {
   align-items: center;
   gap: 16px;
   padding: 18px;
-  border: 1px solid rgba(177, 226, 209, 0.92);
+  border: 1px solid color-mix(in srgb, var(--success) 92%, transparent);
   border-radius: 22px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 96%, transparent) 100%),
-    #ffffff;
-  box-shadow: 0 18px 38px rgba(25, 105, 82, 0.08);
+    var(--surface);
+  box-shadow: 0 18px 38px color-mix(in srgb, var(--success) 8%, transparent);
 }
 
 .ol-offer-dashboard-banner--market {
@@ -9504,7 +9489,7 @@ a:focus-visible {
   gap: 8px;
   align-items: center;
   padding: 10px 12px;
-  border: 1px solid rgba(177, 226, 209, 0.88);
+  border: 1px solid color-mix(in srgb, var(--success) 88%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
   color: var(--success);
@@ -9522,7 +9507,7 @@ a:focus-visible {
   gap: 14px;
   margin-bottom: 18px;
   padding: 16px;
-  border: 1px solid rgba(178, 199, 230, 0.88);
+  border: 1px solid color-mix(in srgb, var(--primary) 88%, transparent);
   border-radius: var(--control-radius);
   background: radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--primary-soft) 13%, transparent) 0, transparent 38%),
     linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 100%);
@@ -9559,7 +9544,7 @@ a:focus-visible {
   position: relative;
   min-height: 44px;
   padding: 11px 12px 11px 34px;
-  border: 1px solid rgba(199, 213, 234, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 76%, transparent);
   color: var(--text);
@@ -9576,8 +9561,8 @@ a:focus-visible {
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--primary), #37b189);
-  box-shadow: 0 0 0 5px rgba(61, 119, 232, 0.09);
+  background: linear-gradient(135deg, var(--primary), var(--success));
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 9%, transparent);
 }
 
 .ol-beta-policy-note {
@@ -9602,8 +9587,8 @@ a:focus-visible {
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  border: 3px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 1px rgba(174, 190, 214, 0.82);
+  border: 3px solid color-mix(in srgb, var(--border-subtle) 90%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface-dark) 82%, transparent);
 }
 
 .ol-actions {
@@ -9631,10 +9616,10 @@ a:focus-visible {
   width: fit-content;
   max-width: 100%;
   padding: 10px;
-  border: 1px solid rgba(190, 204, 225, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
-  box-shadow: 0 16px 38px rgba(20, 32, 51, 0.12);
+  box-shadow: 0 16px 38px color-mix(in srgb, var(--primary) 12%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
@@ -9666,10 +9651,10 @@ a:focus-visible {
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: 1px solid rgba(190, 204, 225, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 98%, transparent);
-  box-shadow: 0 18px 44px rgba(20, 32, 51, 0.16);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--primary) 16%, transparent);
 }
 
 .ol-action-menu-list .ol-button,
@@ -9680,7 +9665,7 @@ a:focus-visible {
 
 .ol-button-danger-subtle {
   color: var(--danger);
-  border-color: rgba(218, 154, 168, 0.86);
+  border-color: color-mix(in srgb, var(--danger) 86%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 92%, transparent) 100%);
 }
 
@@ -9726,7 +9711,7 @@ a:focus-visible {
   min-height: 76px;
   padding: 14px clamp(18px, 4vw, 56px);
   background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
-  border-bottom: 1px solid rgba(205, 216, 232, 0.76);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
@@ -9785,11 +9770,11 @@ a:focus-visible {
   justify-content: center;
   flex-direction: column;
   gap: 5px;
-  border: 1px solid rgba(170, 192, 226, 0.78);
+  border: 1px solid color-mix(in srgb, var(--primary) 78%, transparent);
   border-radius: 16px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface-muted) 96%, transparent));
   color: var(--text);
-  box-shadow: 0 14px 30px rgba(35, 57, 92, 0.1);
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .ol-landing-menu-button span {
@@ -9829,12 +9814,12 @@ a:focus-visible {
   align-content: start;
   min-height: min(540px, calc(100dvh - 24px));
   padding: 16px;
-  border: 1px solid rgba(184, 202, 229, 0.82);
+  border: 1px solid color-mix(in srgb, var(--primary) 82%, transparent);
   border-radius: 28px;
   background-color: var(--surface);
   background: radial-gradient(circle at 14% 0%, color-mix(in srgb, var(--primary-soft) 10%, transparent), transparent 34%),
-    linear-gradient(180deg, #ffffff, #f8fbff);
-  box-shadow: 0 28px 80px rgba(20, 34, 56, 0.24);
+    linear-gradient(180deg, var(--surface), var(--surface));
+  box-shadow: 0 28px 80px color-mix(in srgb, var(--primary) 24%, transparent);
 }
 
 .ol-landing-mobile-head {
@@ -9856,7 +9841,7 @@ a:focus-visible {
   flex: 0 0 auto;
   width: 42px;
   height: 42px;
-  border: 1px solid rgba(174, 194, 222, 0.78);
+  border: 1px solid color-mix(in srgb, var(--primary) 78%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 86%, transparent);
   color: var(--text);
@@ -9892,7 +9877,7 @@ a:focus-visible {
   justify-content: space-between;
   min-height: 50px;
   padding: 0 14px;
-  border: 1px solid rgba(199, 213, 233, 0.74);
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
   border-radius: 16px;
   background: var(--surface);
   color: var(--text);
@@ -9904,8 +9889,8 @@ a:focus-visible {
   content: "";
   width: 7px;
   height: 7px;
-  border-top: 2px solid rgba(64, 102, 165, 0.72);
-  border-right: 2px solid rgba(64, 102, 165, 0.72);
+  border-top: 2px solid color-mix(in srgb, var(--primary) 72%, transparent);
+  border-right: 2px solid color-mix(in srgb, var(--primary) 72%, transparent);
   transform: rotate(45deg);
 }
 
@@ -9929,9 +9914,9 @@ a:focus-visible {
   display: grid;
   gap: clamp(28px, 4vw, 46px);
   padding: clamp(34px, 6vw, 82px) clamp(18px, 4vw, 56px) clamp(42px, 6vw, 88px);
-  border-bottom: 1px solid rgba(205, 216, 232, 0.72);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 92%, transparent) 100%),
-    #f7f9fc;
+    var(--surface-muted);
 }
 
 .ol-landing-hero-copy {
@@ -9948,7 +9933,7 @@ a:focus-visible {
   align-items: center;
   min-height: 30px;
   padding: 0 12px;
-  border: 1px solid rgba(178, 196, 224, 0.8);
+  border: 1px solid color-mix(in srgb, var(--primary) 80%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 78%, transparent);
   color: var(--primary-strong);
@@ -9990,12 +9975,12 @@ a:focus-visible {
   width: min(100%, 1280px);
   margin: 0 auto;
   padding: clamp(16px, 2.2vw, 30px);
-  border: 1px solid rgba(180, 196, 220, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 24px;
   background: radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--primary-soft) 28%, transparent) 0, color-mix(in srgb, var(--primary-soft) 0%, transparent) 34%),
     radial-gradient(circle at 78% 12%, color-mix(in srgb, var(--success) 20%, transparent) 0, color-mix(in srgb, var(--success) 0%, transparent) 32%),
     var(--surface-dark);
-  box-shadow: 0 28px 80px rgba(21, 31, 48, 0.24);
+  box-shadow: 0 28px 80px color-mix(in srgb, var(--surface-dark) 24%, transparent);
   overflow: hidden;
 }
 
@@ -10004,7 +9989,7 @@ a:focus-visible {
   justify-content: space-between;
   gap: 12px;
   padding: 0 0 16px;
-  color: rgba(230, 237, 248, 0.72);
+  color: color-mix(in srgb, var(--text-soft) 72%, transparent);
   font-size: 13px;
   font-weight: 800;
 }
@@ -10025,10 +10010,10 @@ a:focus-visible {
   align-items: center;
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 6%, transparent);
-  color: rgba(230, 237, 248, 0.76);
+  color: color-mix(in srgb, var(--text-soft) 76%, transparent);
   font-size: 12px;
   font-weight: 850;
 }
@@ -10051,7 +10036,7 @@ a:focus-visible {
   gap: 8px;
   min-height: 148px;
   padding: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 8%, transparent);
   color: #ffffff;
@@ -10068,15 +10053,15 @@ a:focus-visible {
 .ol-landing-action-card:focus-visible,
 .ol-template-tabs a:hover,
 .ol-template-tabs a:focus-visible {
-  border-color: rgba(125, 171, 255, 0.72);
-  box-shadow: 0 20px 54px rgba(25, 43, 73, 0.16);
+  border-color: color-mix(in srgb, var(--primary) 72%, transparent);
+  box-shadow: 0 20px 54px color-mix(in srgb, var(--primary) 16%, transparent);
   transform: translateY(-2px);
   outline: none;
 }
 
 .ol-command-card span,
 .ol-command-card em {
-  color: rgba(230, 237, 248, 0.74);
+  color: color-mix(in srgb, var(--text-soft) 74%, transparent);
   font-size: 13px;
   font-style: normal;
   font-weight: 800;
@@ -10164,10 +10149,10 @@ a:focus-visible {
   align-items: center;
   min-height: 30px;
   padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 8%, transparent);
-  color: rgba(245, 248, 255, 0.86);
+  color: color-mix(in srgb, var(--text-soft) 86%, transparent);
   font-size: 12px;
   font-weight: 850;
 }
@@ -10192,7 +10177,7 @@ a:focus-visible {
   width: 58px;
   height: 58px;
   border-radius: 999px;
-  background: conic-gradient(#76d0b4 0 74%, color-mix(in srgb, var(--surface) 14%, transparent) 74% 100%);
+  background: conic-gradient(var(--success) 0 74%, color-mix(in srgb, var(--surface) 14%, transparent) 74% 100%);
 }
 
 .ol-command-health-ring span {
@@ -10242,11 +10227,11 @@ a:focus-visible {
   justify-content: space-between;
   gap: 18px;
   padding: 18px clamp(18px, 3vw, 28px);
-  border: 1px solid rgba(198, 214, 239, 0.94);
+  border: 1px solid color-mix(in srgb, var(--border) 94%, transparent);
   border-radius: 20px;
   background: radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--primary-soft) 10%, transparent) 0, transparent 34%),
     color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: 0 18px 48px rgba(22, 34, 54, 0.1);
+  box-shadow: 0 18px 48px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .ol-landing-beta-banner div {
@@ -10294,10 +10279,10 @@ a:focus-visible {
 .ol-template-stage,
 .ol-landing-pricing,
 .ol-landing-final {
-  border: 1px solid rgba(200, 212, 230, 0.9);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   border-radius: 22px;
   background: color-mix(in srgb, var(--surface) 86%, transparent);
-  box-shadow: 0 18px 46px rgba(22, 34, 54, 0.08);
+  box-shadow: 0 18px 46px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-landing-action-card {
@@ -10353,7 +10338,7 @@ a:focus-visible {
   --template-index: 0;
   --template-accent: var(--text-muted);
   --template-soft: var(--surface-muted);
-  --template-line: rgba(33, 79, 72, 0.12);
+  --template-line: color-mix(in srgb, var(--success) 12%, transparent);
   position: absolute;
   inset: 0;
   display: grid;
@@ -10362,11 +10347,11 @@ a:focus-visible {
   min-height: 520px;
   margin: 0;
   padding: clamp(22px, 4vw, 48px);
-  border: 1px solid color-mix(in srgb, var(--template-accent) 34%, rgba(174, 190, 214, 0.8));
+  border: 1px solid color-mix(in srgb, var(--template-accent) 34%, color-mix(in srgb, var(--border) 80%, transparent));
   border-radius: 18px;
   background: linear-gradient(180deg, var(--template-soft) 0 14px, transparent 14px),
-    #ffffff;
-  box-shadow: 0 18px 54px rgba(22, 34, 54, 0.12);
+    var(--surface);
+  box-shadow: 0 18px 54px color-mix(in srgb, var(--primary) 12%, transparent);
   opacity: 0;
   transform: translateX(18px) scale(0.985);
   animation: orbit-template-cycle 24s ease-in-out infinite;
@@ -10466,7 +10451,7 @@ a:focus-visible {
 
 .ol-template-meta {
   padding: 18px;
-  border: 1px solid color-mix(in srgb, var(--template-accent) 20%, rgba(210, 221, 238, 0.96));
+  border: 1px solid color-mix(in srgb, var(--template-accent) 20%, color-mix(in srgb, var(--border) 96%, transparent));
   border-radius: 16px;
   background: var(--template-soft);
 }
@@ -10487,7 +10472,7 @@ a:focus-visible {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  border: 1px solid color-mix(in srgb, var(--template-accent) 24%, rgba(210, 221, 238, 0.96));
+  border: 1px solid color-mix(in srgb, var(--template-accent) 24%, color-mix(in srgb, var(--border) 96%, transparent));
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
@@ -10510,7 +10495,7 @@ a:focus-visible {
   display: grid;
   gap: 0;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--template-accent) 34%, rgba(190, 204, 225, 0.88));
+  border: 1px solid color-mix(in srgb, var(--template-accent) 34%, color-mix(in srgb, var(--border) 88%, transparent));
   border-radius: 4px;
   background: #fff;
 }
@@ -10542,7 +10527,7 @@ a:focus-visible {
 
 .ol-template-tax-row {
   padding: 12px;
-  border-top: 1px solid rgba(210, 221, 238, 0.78);
+  border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
 }
 
 .ol-template-tax-row strong,
@@ -10571,7 +10556,7 @@ a:focus-visible {
   gap: 14px;
   min-height: 54px;
   padding: 0 14px;
-  border: 1px solid color-mix(in srgb, var(--template-accent) 16%, rgba(210, 221, 238, 0.9));
+  border: 1px solid color-mix(in srgb, var(--template-accent) 16%, color-mix(in srgb, var(--border) 90%, transparent));
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
@@ -10598,7 +10583,7 @@ a:focus-visible {
   gap: 4px;
   margin: 0;
   padding: 14px;
-  border: 1px dashed color-mix(in srgb, var(--template-accent) 28%, rgba(210, 221, 238, 0.96));
+  border: 1px dashed color-mix(in srgb, var(--template-accent) 28%, color-mix(in srgb, var(--border) 96%, transparent));
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 80%, transparent);
 }
@@ -10622,7 +10607,7 @@ a:focus-visible {
   align-content: center;
   gap: 8px;
   padding: 18px;
-  border: 1px solid color-mix(in srgb, var(--template-accent) 22%, rgba(210, 221, 238, 0.9));
+  border: 1px solid color-mix(in srgb, var(--template-accent) 22%, color-mix(in srgb, var(--border) 90%, transparent));
   border-radius: 18px;
   background: var(--template-soft);
 }
@@ -10651,7 +10636,7 @@ a:focus-visible {
   justify-self: end;
   min-width: 250px;
   padding-top: 18px;
-  border-top: 2px solid color-mix(in srgb, var(--template-accent) 46%, rgba(190, 204, 225, 0.9));
+  border-top: 2px solid color-mix(in srgb, var(--template-accent) 46%, color-mix(in srgb, var(--border) 90%, transparent));
   color: var(--text-soft);
   font-size: 12px;
   font-weight: 900;
@@ -10670,11 +10655,11 @@ a:focus-visible {
   gap: 8px;
   min-height: 172px;
   padding: 22px;
-  border: 2px solid color-mix(in srgb, var(--template-accent) 36%, rgba(210, 221, 238, 0.92));
+  border: 2px solid color-mix(in srgb, var(--template-accent) 36%, color-mix(in srgb, var(--border) 92%, transparent));
   border-left-width: 10px;
   border-radius: 22px;
   background: #fff;
-  box-shadow: 0 16px 34px rgba(141, 52, 48, 0.1);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--warning) 10%, transparent);
 }
 
 .ol-template-payment-due span,
@@ -10702,7 +10687,7 @@ a:focus-visible {
   position: relative;
   overflow: hidden;
   padding: 18px;
-  border: 1px solid color-mix(in srgb, var(--template-accent) 28%, rgba(210, 221, 238, 0.92));
+  border: 1px solid color-mix(in srgb, var(--template-accent) 28%, color-mix(in srgb, var(--border) 92%, transparent));
   border-radius: 24px;
   background: radial-gradient(circle at 100% 0, color-mix(in srgb, var(--template-accent) 20%, transparent), transparent 42%),
     color-mix(in srgb, var(--surface) 78%, transparent);
@@ -10745,7 +10730,7 @@ a:focus-visible {
   height: 54px;
   border-radius: 12px;
   background: linear-gradient(90deg, var(--template-line) 0 22%, transparent 22% 28%, color-mix(in srgb, var(--surface-dark) 8%, transparent) 28% 100%),
-    #f3f6fb;
+    var(--surface-muted);
 }
 
 .ol-template-payment-row {
@@ -10758,7 +10743,7 @@ a:focus-visible {
   display: grid;
   place-items: center;
   min-height: 58px;
-  border: 1px dashed color-mix(in srgb, var(--template-accent) 34%, rgba(190, 204, 225, 0.9));
+  border: 1px dashed color-mix(in srgb, var(--template-accent) 34%, color-mix(in srgb, var(--border) 90%, transparent));
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   color: var(--text-muted);
@@ -10770,7 +10755,7 @@ a:focus-visible {
 .ol-template-footer {
   margin-top: auto;
   padding-top: 18px;
-  border-top: 1px solid color-mix(in srgb, var(--template-accent) 20%, rgba(210, 221, 238, 0.96));
+  border-top: 1px solid color-mix(in srgb, var(--template-accent) 20%, color-mix(in srgb, var(--border) 96%, transparent));
 }
 
 .ol-template-tabs {
@@ -10787,7 +10772,7 @@ a:focus-visible {
   justify-content: center;
   min-height: 40px;
   padding: 0 14px;
-  border: 1px solid rgba(190, 204, 225, 0.9);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   border-radius: 999px;
   background: var(--surface);
   color: var(--text-muted);
@@ -10801,7 +10786,7 @@ a:focus-visible {
 }
 
 .ol-template-tabs a.is-active {
-  border-color: rgba(61, 115, 230, 0.6);
+  border-color: color-mix(in srgb, var(--primary) 60%, transparent);
   background: var(--primary-surface);
   color: var(--primary-strong);
 }
@@ -10841,7 +10826,7 @@ a:focus-visible {
 
 .ol-landing-story-card li {
   padding: 12px 14px;
-  border: 1px solid rgba(204, 216, 234, 0.9);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   border-radius: 12px;
   background: var(--surface-muted);
   color: var(--text);
@@ -10864,7 +10849,7 @@ a:focus-visible {
   place-items: center;
   min-height: 110px;
   padding: 18px;
-  border: 1px solid rgba(190, 204, 225, 0.9);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   border-radius: 18px;
   background: var(--surface);
   color: var(--text);
@@ -10884,7 +10869,7 @@ a:focus-visible {
   place-items: center;
   min-height: 82px;
   padding: 14px;
-  border: 1px solid rgba(190, 204, 225, 0.9);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   border-radius: 16px;
   background: var(--surface);
   color: var(--text);
@@ -10932,13 +10917,13 @@ a:focus-visible {
 @keyframes orbit-template-tab-cycle {
   0%,
   14% {
-    border-color: rgba(61, 115, 230, 0.6);
+    border-color: color-mix(in srgb, var(--primary) 60%, transparent);
     background: var(--primary-surface);
     color: var(--primary-strong);
   }
   19%,
   100% {
-    border-color: rgba(190, 204, 225, 0.9);
+    border-color: color-mix(in srgb, var(--border) 90%, transparent);
     background: var(--surface);
     color: var(--text-muted);
   }
@@ -11060,10 +11045,10 @@ a:focus-visible {
     flex-direction: column;
     gap: 5px;
     border-radius: 12px;
-    border: 1px solid rgba(180, 198, 224, 0.86);
+    border: 1px solid color-mix(in srgb, var(--primary) 86%, transparent);
     background: color-mix(in srgb, var(--surface) 94%, transparent);
     color: var(--text);
-    box-shadow: 0 12px 28px rgba(20, 32, 51, 0.08);
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--primary) 8%, transparent);
   }
 
   .ol-mobile-menu-button span {
@@ -11098,9 +11083,9 @@ a:focus-visible {
     flex-direction: column;
     gap: 18px;
     padding: 18px;
-    border-right: 1px solid rgba(183, 197, 219, 0.72);
+    border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
     background: color-mix(in srgb, var(--surface) 98%, transparent);
-    box-shadow: 24px 0 60px rgba(20, 32, 51, 0.18);
+    box-shadow: 24px 0 60px color-mix(in srgb, var(--primary) 18%, transparent);
     overflow-y: auto;
   }
 
@@ -11190,7 +11175,7 @@ a:focus-visible {
   .ol-landing-links a {
     flex: 0 0 auto;
     padding: 8px 10px;
-    border: 1px solid rgba(205, 216, 232, 0.82);
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
     border-radius: 999px;
     background: color-mix(in srgb, var(--surface) 72%, transparent);
   }
@@ -11725,7 +11710,7 @@ a:focus-visible {
   background: radial-gradient(circle at 12% 4%, color-mix(in srgb, var(--primary-soft) 16%, transparent) 0, transparent 28rem),
     radial-gradient(circle at 86% 14%, color-mix(in srgb, var(--success) 12%, transparent) 0, transparent 26rem),
     radial-gradient(circle at 50% 58%, color-mix(in srgb, var(--primary-soft) 9%, transparent) 0, transparent 32rem),
-    linear-gradient(180deg, #ffffff 0%, #f8fbff 46%, #ffffff 100%);
+    linear-gradient(180deg, var(--surface) 0%, var(--surface) 46%, var(--surface) 100%);
 }
 
 .ol-landing-page::before {
@@ -11737,14 +11722,14 @@ a:focus-visible {
   background-image: linear-gradient(color-mix(in srgb, var(--primary-soft) 8%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--primary-soft) 7%, transparent) 1px, transparent 1px);
   background-size: 56px 56px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent 72%);
+  mask-image: linear-gradient(180deg, color-mix(in srgb, var(--text) 62%, transparent), transparent 72%);
 }
 
 .ol-landing-nav {
   grid-template-columns: auto minmax(0, 1fr) auto;
   min-height: 72px;
   background: color-mix(in srgb, var(--surface) 74%, transparent);
-  box-shadow: 0 12px 34px rgba(20, 31, 50, 0.05);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--surface-dark) 5%, transparent);
 }
 
 .ol-landing-brand .ol-brand-logo {
@@ -11794,7 +11779,7 @@ a:focus-visible {
 
 .ol-eyebrow {
   min-height: 28px;
-  border-color: rgba(52, 105, 199, 0.2);
+  border-color: color-mix(in srgb, var(--primary) 20%, transparent);
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   color: var(--primary-strong);
@@ -11836,12 +11821,11 @@ a:focus-visible {
   position: relative;
   overflow: hidden;
   padding: clamp(18px, 2.8vw, 34px);
-  border: 1px solid rgba(154, 177, 211, 0.28);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
   border-radius: 34px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 98%, transparent) 0%, color-mix(in srgb, var(--primary) 98%, transparent) 100%),
     var(--surface-dark);
-  box-shadow:
-    0 34px 90px rgba(24, 40, 66, 0.32),
+  box-shadow: 0 34px 90px color-mix(in srgb, var(--primary) 32%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transform: rotateX(5deg);
 }
@@ -11863,7 +11847,7 @@ a:focus-visible {
   align-items: center;
   gap: 14px;
   margin-bottom: 18px;
-  color: rgba(239, 244, 251, 0.68);
+  color: color-mix(in srgb, var(--text-soft) 68%, transparent);
   font-size: 13px;
   font-weight: 850;
 }
@@ -11894,7 +11878,7 @@ a:focus-visible {
   gap: 12px;
   min-height: 178px;
   padding: clamp(18px, 2vw, 24px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 10%, transparent);
   border-radius: 24px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 10.5%, transparent), color-mix(in srgb, var(--surface) 5.5%, transparent)),
     color-mix(in srgb, var(--surface) 4%, transparent);
@@ -11909,8 +11893,8 @@ a:focus-visible {
 .ol-command-primary-card:focus-visible,
 .ol-command-side-card:hover,
 .ol-command-side-card:focus-visible {
-  border-color: rgba(141, 184, 255, 0.56);
-  box-shadow: 0 22px 58px rgba(0, 0, 0, 0.18);
+  border-color: color-mix(in srgb, var(--primary) 56%, transparent);
+  box-shadow: 0 22px 58px color-mix(in srgb, var(--surface-dark) 18%, transparent);
   outline: none;
   transform: translateY(-3px);
 }
@@ -11930,7 +11914,7 @@ a:focus-visible {
 .ol-command-primary-card span,
 .ol-command-side-card span,
 .ol-command-side-card em {
-  color: rgba(237, 244, 252, 0.68);
+  color: color-mix(in srgb, var(--text-soft) 68%, transparent);
   font-size: 13px;
   font-style: normal;
   font-weight: 850;
@@ -11957,7 +11941,7 @@ a:focus-visible {
   display: block;
   min-height: 28px;
   border-radius: 999px 999px 9px 9px;
-  background: linear-gradient(180deg, #86ddc1, #58b99b);
+  background: linear-gradient(180deg, var(--success), var(--success));
   animation: orbit-command-bars 4.8s ease-in-out infinite;
 }
 
@@ -11974,7 +11958,7 @@ a:focus-visible {
 
 .ol-command-wave i:nth-child(3) {
   height: 52%;
-  background: linear-gradient(180deg, #e6bc5e, #d49731);
+  background: linear-gradient(180deg, var(--warning), var(--warning));
   animation-delay: -2.4s;
 }
 
@@ -12016,10 +12000,10 @@ a:focus-visible {
   align-items: center;
   min-height: 30px;
   padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 9%, transparent);
-  color: rgba(250, 252, 255, 0.88);
+  color: color-mix(in srgb, var(--text-soft) 88%, transparent);
   font-size: 12px;
   font-weight: 850;
 }
@@ -12061,10 +12045,10 @@ a:focus-visible {
 .ol-landing-trust-section,
 .ol-landing-pricing,
 .ol-landing-final {
-  border: 1px solid rgba(198, 214, 239, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface) 82%, transparent)),
     color-mix(in srgb, var(--surface) 82%, transparent);
-  box-shadow: 0 20px 56px rgba(22, 36, 60, 0.08);
+  box-shadow: 0 20px 56px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-landing-beta-banner {
@@ -12117,7 +12101,7 @@ a:focus-visible {
   content: "";
   position: absolute;
   inset: 22px;
-  border: 1px solid rgba(204, 218, 240, 0.56);
+  border: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
   border-radius: 24px;
   pointer-events: none;
 }
@@ -12136,8 +12120,7 @@ a:focus-visible {
   overflow: hidden;
   align-content: start;
   border-radius: 26px;
-  box-shadow:
-    0 26px 70px rgba(27, 43, 72, 0.14),
+  box-shadow: 0 26px 70px color-mix(in srgb, var(--primary) 14%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
   pointer-events: auto;
   transform: translateY(18px) scale(0.985);
@@ -12192,9 +12175,8 @@ a:focus-visible {
   border-radius: 18px;
   animation: none;
   text-align: left;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 10px 24px rgba(30, 45, 72, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 10px 24px color-mix(in srgb, var(--primary) 5%, transparent);
 }
 
 .ol-template-tabs a span {
@@ -12218,12 +12200,11 @@ a:focus-visible {
   min-width: 0;
   min-height: 62px;
   padding: 11px 14px;
-  border: 1px solid rgba(190, 204, 225, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 18px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface) 86%, transparent));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 10px 24px rgba(30, 45, 72, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 10px 24px color-mix(in srgb, var(--primary) 5%, transparent);
   color: var(--text-muted);
   font: inherit;
   font-size: 16px;
@@ -12249,22 +12230,20 @@ a:focus-visible {
 
 .ol-template-tab:hover,
 .ol-template-tab:focus-visible {
-  border-color: rgba(90, 135, 225, 0.58);
+  border-color: color-mix(in srgb, var(--primary) 58%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface-muted) 92%, transparent));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 18px 34px rgba(38, 72, 132, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 18px 34px color-mix(in srgb, var(--primary) 10%, transparent);
   color: var(--primary-strong);
   outline: none;
   transform: translateY(-1px);
 }
 
 .ol-template-tab[aria-pressed="true"] {
-  border-color: rgba(61, 115, 230, 0.66);
+  border-color: color-mix(in srgb, var(--primary) 66%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 98%, transparent), color-mix(in srgb, var(--surface-muted) 96%, transparent));
-  box-shadow:
-    inset 4px 0 0 rgba(61, 115, 230, 0.88),
-    0 20px 42px rgba(51, 100, 197, 0.14);
+  box-shadow: inset 4px 0 0 color-mix(in srgb, var(--primary) 88%, transparent),
+    0 20px 42px color-mix(in srgb, var(--primary) 14%, transparent);
   color: var(--primary-strong);
 }
 
@@ -12294,9 +12273,8 @@ a:focus-visible {
   border-radius: 14px;
   width: fit-content;
   margin: 24px auto 0;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 16px 34px rgba(31, 53, 91, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 16px 34px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-landing-story-grid {
@@ -12324,7 +12302,7 @@ a:focus-visible {
   align-items: center;
   min-height: 30px;
   padding: 0 10px;
-  border: 1px solid rgba(204, 216, 234, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
   color: var(--text-muted);
@@ -12366,7 +12344,7 @@ a:focus-visible {
   justify-items: start;
   min-height: 96px;
   padding: 18px;
-  border: 1px solid rgba(204, 216, 234, 0.7);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 20px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 90%, transparent), color-mix(in srgb, var(--surface) 78%, transparent));
   color: var(--text);
@@ -12379,8 +12357,8 @@ a:focus-visible {
   height: 12px;
   margin-bottom: 8px;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--primary), #6dd4ad);
-  box-shadow: 0 0 0 6px rgba(61, 115, 230, 0.08);
+  background: linear-gradient(135deg, var(--primary), var(--success));
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-landing-pricing,
@@ -12432,7 +12410,7 @@ a:focus-visible {
   content: "";
   position: absolute;
   inset: 18px;
-  border: 1px solid rgba(204, 218, 240, 0.5);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   border-radius: 24px;
   pointer-events: none;
 }
@@ -12854,21 +12832,20 @@ a:focus-visible {
 
 /* Premium landing template gallery: fixed document stage, separate controls, no content leakage. */
 .ol-landing-template-section .ol-template-stage {
-  border-color: rgba(185, 202, 229, 0.94);
+  border-color: color-mix(in srgb, var(--primary) 94%, transparent);
   border-radius: 32px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 86%, transparent) 0 25%, transparent 25% 50%, color-mix(in srgb, var(--surface-muted) 56%, transparent) 50% 75%, transparent 75%),
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface) 90%, transparent));
   background-size:
     34px 34px,
     auto;
-  box-shadow:
-    0 28px 80px rgba(19, 31, 50, 0.11),
+  box-shadow: 0 28px 80px color-mix(in srgb, var(--primary) 11%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 
 .ol-landing-template-section .ol-template-stage::before {
   inset: 20px;
-  border-color: rgba(207, 220, 240, 0.56);
+  border-color: color-mix(in srgb, var(--border) 56%, transparent);
 }
 
 .ol-template-gallery-shell {
@@ -12883,12 +12860,11 @@ a:focus-visible {
 .ol-template-gallery-preview-card,
 .ol-template-gallery-aside {
   min-width: 0;
-  border: 1px solid rgba(201, 216, 237, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 26px;
   background: color-mix(in srgb, var(--surface) 84%, transparent);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 18px 44px rgba(22, 34, 54, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 18px 44px color-mix(in srgb, var(--primary) 7%, transparent);
 }
 
 .ol-template-gallery-preview-card {
@@ -12926,7 +12902,7 @@ a:focus-visible {
   justify-content: center;
   min-height: 34px;
   padding: 0 14px;
-  border: 1px solid rgba(178, 195, 221, 0.92);
+  border: 1px solid color-mix(in srgb, var(--primary) 92%, transparent);
   border-radius: 999px;
   background: var(--surface);
   color: var(--text-muted);
@@ -12937,13 +12913,13 @@ a:focus-visible {
 }
 
 .ol-template-plan-badge--pro {
-  border-color: rgba(112, 68, 189, 0.28);
+  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
   background: var(--primary-surface);
   color: var(--primary-strong);
 }
 
 .ol-template-plan-badge--free {
-  border-color: rgba(37, 95, 194, 0.24);
+  border-color: color-mix(in srgb, var(--primary) 24%, transparent);
   background: var(--surface-muted);
   color: var(--primary);
 }
@@ -12974,12 +12950,11 @@ a:focus-visible {
   min-height: 0;
   overflow: hidden;
   padding: clamp(20px, 2.35vw, 34px);
-  border: 1px solid color-mix(in srgb, var(--template-accent) 34%, rgba(174, 190, 214, 0.84));
+  border: 1px solid color-mix(in srgb, var(--template-accent) 34%, color-mix(in srgb, var(--border) 84%, transparent));
   border-radius: 24px;
   background: linear-gradient(180deg, var(--template-soft) 0 12px, transparent 12px),
-    #ffffff;
-  box-shadow:
-    0 22px 58px rgba(22, 34, 54, 0.13),
+    var(--surface);
+  box-shadow: 0 22px 58px color-mix(in srgb, var(--primary) 13%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
@@ -13058,7 +13033,7 @@ a:focus-visible {
   align-items: center;
   min-height: 30px;
   padding: 0 11px;
-  border: 1px solid rgba(190, 204, 225, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 84%, transparent);
   color: var(--text-muted);
@@ -13125,11 +13100,11 @@ a:focus-visible {
   align-items: center;
   margin-top: clamp(36px, 6vw, 78px);
   padding: clamp(22px, 3vw, 34px);
-  border: 1px solid rgba(197, 213, 236, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 30px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-muted) 82%, transparent)),
     radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 38%);
-  box-shadow: 0 22px 70px rgba(20, 34, 56, 0.1);
+  box-shadow: 0 22px 70px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .ol-landing-footer > div {
@@ -13165,7 +13140,7 @@ a:focus-visible {
   align-items: center;
   min-height: 38px;
   padding: 0 13px;
-  border: 1px solid rgba(190, 206, 229, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
   color: var(--text-muted);
@@ -13179,7 +13154,7 @@ a:focus-visible {
   padding: clamp(18px, 2.6vw, 34px) 0 clamp(48px, 8vw, 96px);
   background: radial-gradient(circle at 9% 0%, color-mix(in srgb, var(--primary-soft) 16%, transparent), transparent 34%),
     radial-gradient(circle at 92% 12%, color-mix(in srgb, var(--success) 13%, transparent), transparent 30%),
-    linear-gradient(180deg, #f6f9fd 0%, #eef4fb 48%, #f8fbff 100%);
+    linear-gradient(180deg, var(--surface-muted) 0%, var(--surface-muted) 48%, var(--surface) 100%);
   color: var(--text);
 }
 
@@ -13189,10 +13164,10 @@ a:focus-visible {
   align-items: center;
   justify-content: space-between;
   padding: 16px clamp(16px, 2.4vw, 26px);
-  border: 1px solid rgba(197, 213, 236, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 28px;
   background: color-mix(in srgb, var(--surface) 78%, transparent);
-  box-shadow: 0 18px 56px rgba(20, 34, 56, 0.08);
+  box-shadow: 0 18px 56px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-public-nav .ol-brand-logo {
@@ -13205,11 +13180,11 @@ a:focus-visible {
   gap: 18px;
   margin-top: clamp(34px, 6vw, 78px);
   padding: clamp(28px, 5vw, 64px);
-  border: 1px solid rgba(198, 214, 237, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 36px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-muted) 84%, transparent)),
     repeating-linear-gradient(90deg, color-mix(in srgb, var(--primary) 6%, transparent) 0 1px, transparent 1px 92px);
-  box-shadow: 0 28px 88px rgba(20, 34, 56, 0.1);
+  box-shadow: 0 28px 88px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .ol-public-hero h1 {
@@ -13241,7 +13216,7 @@ a:focus-visible {
   min-height: 34px;
   align-items: center;
   padding: 0 12px;
-  border: 1px solid rgba(188, 205, 228, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 999px;
   background: var(--surface);
   color: var(--text-muted);
@@ -13256,10 +13231,10 @@ a:focus-visible {
   gap: 18px;
   margin-top: 22px;
   padding: clamp(20px, 3vw, 34px);
-  border: 1px solid rgba(199, 215, 237, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 32px;
   background: color-mix(in srgb, var(--surface) 86%, transparent);
-  box-shadow: 0 20px 70px rgba(20, 34, 56, 0.08);
+  box-shadow: 0 20px 70px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-public-section {
@@ -13267,7 +13242,7 @@ a:focus-visible {
   grid-template-columns: minmax(170px, 0.32fr) minmax(0, 1fr);
   gap: clamp(16px, 3vw, 34px);
   padding: clamp(18px, 2.4vw, 28px);
-  border: 1px solid rgba(210, 222, 240, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 24px;
   background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
@@ -13354,13 +13329,13 @@ a:focus-visible {
 
 .ol-landing-template-section .ol-template-tab:hover,
 .ol-landing-template-section .ol-template-tab:focus-visible {
-  border-color: color-mix(in srgb, var(--template-tab-accent) 45%, rgba(190, 204, 225, 0.92));
+  border-color: color-mix(in srgb, var(--template-tab-accent) 45%, color-mix(in srgb, var(--border) 92%, transparent));
   color: var(--template-tab-accent);
 }
 
 .ol-landing-template-section .ol-template-tab[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--template-tab-accent) 58%, rgba(190, 204, 225, 0.92));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--template-tab-accent) 9%, #ffffff), color-mix(in srgb, var(--surface) 94%, transparent));
+  border-color: color-mix(in srgb, var(--template-tab-accent) 58%, color-mix(in srgb, var(--border) 92%, transparent));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--template-tab-accent) 9%, var(--surface)), color-mix(in srgb, var(--surface) 94%, transparent));
   box-shadow:
     inset 4px 0 0 var(--template-tab-accent),
     0 18px 36px color-mix(in srgb, var(--template-tab-accent) 14%, transparent);
@@ -13478,7 +13453,7 @@ a:focus-visible {
 }
 
 .ol-landing-session-gate-card {
-  box-shadow: 0 28px 70px rgba(18, 33, 62, 0.16);
+  box-shadow: 0 28px 70px color-mix(in srgb, var(--primary) 16%, transparent);
 }
 
 /* Landing section rhythm: one gutter and one vertical cadence across all major blocks. */
@@ -13539,12 +13514,11 @@ a:focus-visible {
   min-height: 360px;
   overflow: hidden;
   padding: clamp(26px, 3vw, 42px);
-  border: 1px solid rgba(190, 205, 229, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 32px;
   background: radial-gradient(circle at 86% 8%, color-mix(in srgb, var(--primary-soft) 13%, transparent), transparent 34%),
     linear-gradient(135deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface) 90%, transparent));
-  box-shadow:
-    0 24px 60px rgba(22, 36, 60, 0.09),
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--primary) 9%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
@@ -13609,7 +13583,7 @@ a:focus-visible {
   align-content: space-between;
   min-height: 230px;
   padding: 22px;
-  border: 1px solid rgba(194, 208, 231, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 24px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 86%, transparent), color-mix(in srgb, var(--surface-muted) 72%, transparent)),
     color-mix(in srgb, var(--surface) 72%, transparent);
@@ -13619,7 +13593,7 @@ a:focus-visible {
 .ol-story-card-panel span {
   width: fit-content;
   padding: 8px 12px;
-  border: 1px solid rgba(190, 204, 225, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 999px;
   background: var(--surface);
   color: var(--primary);
@@ -13656,7 +13630,7 @@ a:focus-visible {
   align-items: center;
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid rgba(194, 208, 231, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 78%, transparent);
   color: var(--text-muted);
@@ -13805,11 +13779,11 @@ a:focus-visible {
   flex: 0 0 auto;
   width: 42px;
   height: 42px;
-  border: 1px solid rgba(174, 194, 222, 0.78);
+  border: 1px solid color-mix(in srgb, var(--primary) 78%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 94%, transparent);
   color: var(--text);
-  box-shadow: 0 14px 28px rgba(20, 32, 51, 0.08);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--primary) 8%, transparent);
   cursor: pointer;
 }
 
@@ -14108,7 +14082,7 @@ a:focus-visible {
     margin: 0;
     padding: 16px 18px;
     border: none;
-    border-bottom: 1px solid rgba(191, 205, 225, 0.56);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
     border-radius: 0;
     background: transparent;
   }
@@ -14155,15 +14129,15 @@ a:focus-visible {
 
 /* Enterprise ledger landing visual system: product-native motion, no decorative orbs. */
 .ol-landing-page {
-  --ledger-line: rgba(116, 136, 170, 0.12);
-  --ledger-line-soft: rgba(116, 136, 170, 0.07);
+  --ledger-line: color-mix(in srgb, var(--primary) 12%, transparent);
+  --ledger-line-soft: color-mix(in srgb, var(--primary) 7%, transparent);
   --ledger-ink: var(--text);
   --ledger-muted: var(--text-soft);
   position: relative;
   isolation: isolate;
   overflow-x: clip;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface) 96%, transparent) 42%, color-mix(in srgb, var(--surface) 98%, transparent) 100%),
-    #ffffff;
+    var(--surface);
   color: var(--ledger-ink);
 }
 
@@ -14176,7 +14150,7 @@ a:focus-visible {
   background-image: linear-gradient(var(--ledger-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--ledger-line-soft) 1px, transparent 1px);
   background-size: 64px 42px, 64px 42px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.56), rgba(0, 0, 0, 0.18) 56%, transparent 92%);
+  mask-image: linear-gradient(180deg, color-mix(in srgb, var(--text) 56%, transparent), color-mix(in srgb, var(--text) 18%, transparent) 56%, transparent 92%);
 }
 
 .ol-landing-page::after {
@@ -14186,7 +14160,7 @@ a:focus-visible {
   z-index: -2;
   pointer-events: none;
   background: linear-gradient(90deg, color-mix(in srgb, var(--surface) 94%, transparent), transparent 12%, transparent 88%, color-mix(in srgb, var(--surface) 94%, transparent)),
-    linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--surface) 82%, transparent) 78%, #ffffff 100%);
+    linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--surface) 82%, transparent) 78%, var(--surface) 100%);
 }
 
 .ol-enterprise-ledger-bg {
@@ -14202,7 +14176,7 @@ a:focus-visible {
   display: grid;
   gap: 10px;
   width: min(780px, 54vw);
-  color: rgba(42, 58, 87, 0.48);
+  color: color-mix(in srgb, var(--primary) 48%, transparent);
   font-size: 12px;
   font-weight: 850;
   letter-spacing: 0.01em;
@@ -14230,10 +14204,10 @@ a:focus-visible {
   gap: 12px;
   min-height: 42px;
   padding: 0 14px;
-  border: 1px solid rgba(169, 187, 214, 0.28);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 58%, transparent);
-  box-shadow: 0 12px 26px rgba(27, 43, 72, 0.04);
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--primary) 4%, transparent);
   backdrop-filter: blur(3px);
 }
 
@@ -14255,7 +14229,7 @@ a:focus-visible {
 
 .ol-ledger-bg-sheet small {
   justify-self: end;
-  color: rgba(34, 122, 91, 0.62);
+  color: color-mix(in srgb, var(--success) 62%, transparent);
 }
 
 .ol-landing-hero-glow {
@@ -14277,11 +14251,11 @@ a:focus-visible {
   width: min(calc(100% - clamp(32px, 6vw, 96px)), 940px);
   margin: 0 auto clamp(22px, 3vw, 36px);
   padding: 10px;
-  border: 1px solid rgba(186, 202, 226, 0.68);
+  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
   border-radius: 999px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 90%, transparent), color-mix(in srgb, var(--surface) 78%, transparent)),
     color-mix(in srgb, var(--surface) 78%, transparent);
-  box-shadow: 0 18px 46px rgba(30, 48, 78, 0.07);
+  box-shadow: 0 18px 46px color-mix(in srgb, var(--primary) 7%, transparent);
 }
 
 .ol-landing-hero-ledger span {
@@ -14312,7 +14286,7 @@ a:focus-visible {
   width: 10px;
   border-radius: 999px;
   background: var(--success);
-  box-shadow: 0 0 18px rgba(46, 139, 99, 0.42);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--success) 42%, transparent);
   animation: ol-ledger-pulse 2.8s ease-in-out infinite;
 }
 
@@ -14336,7 +14310,7 @@ a:focus-visible {
 .ol-command-side-card {
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 90%, transparent)),
     repeating-linear-gradient(0deg, transparent 0 34px, color-mix(in srgb, var(--primary-soft) 8%, transparent) 34px 35px);
-  border-color: rgba(190, 205, 229, 0.34);
+  border-color: color-mix(in srgb, var(--border) 34%, transparent);
   color: var(--text);
 }
 
@@ -14353,7 +14327,7 @@ a:focus-visible {
 
 .ol-command-pill-row span,
 .ol-command-side-card b {
-  border-color: rgba(193, 207, 229, 0.76);
+  border-color: color-mix(in srgb, var(--border) 76%, transparent);
   background: color-mix(in srgb, var(--surface) 74%, transparent);
   color: var(--text-muted);
 }
@@ -14378,7 +14352,7 @@ a:focus-visible {
 .ol-landing-final {
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface) 90%, transparent)),
     repeating-linear-gradient(0deg, transparent 0 38px, color-mix(in srgb, var(--primary-soft) 5.5%, transparent) 38px 39px);
-  box-shadow: 0 22px 58px rgba(23, 38, 64, 0.075);
+  box-shadow: 0 22px 58px color-mix(in srgb, var(--primary) 7.5%, transparent);
 }
 
 .ol-landing-page .ol-landing-story-section .ol-landing-story-card {
@@ -14563,7 +14537,7 @@ a:focus-visible {
 .ol-command-main-panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(190, 205, 229, 0.5);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 95%, transparent), color-mix(in srgb, var(--surface-muted) 88%, transparent)),
     repeating-linear-gradient(0deg, transparent 0 34px, color-mix(in srgb, var(--primary-soft) 8%, transparent) 34px 35px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
@@ -14585,7 +14559,7 @@ a:focus-visible {
   position: absolute;
   inset: 0 auto 0 0;
   width: 4px;
-  background: linear-gradient(180deg, #2f8b63, var(--primary));
+  background: linear-gradient(180deg, var(--success), var(--primary));
   opacity: 0.84;
 }
 
@@ -14643,7 +14617,7 @@ a:focus-visible {
   align-items: center;
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid rgba(47, 139, 99, 0.22);
+  border: 1px solid color-mix(in srgb, var(--success) 22%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
   color: var(--success);
@@ -14674,10 +14648,10 @@ a:focus-visible {
   gap: 18px;
   width: min(360px, calc(100% - 40px));
   padding: 16px;
-  border: 1px solid rgba(47, 139, 99, 0.22);
+  border: 1px solid color-mix(in srgb, var(--success) 22%, transparent);
   border-radius: 22px;
   background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
-  box-shadow: 0 20px 42px rgba(32, 75, 61, 0.14);
+  box-shadow: 0 20px 42px color-mix(in srgb, var(--success) 14%, transparent);
 }
 
 .ol-command-live-card > div {
@@ -14697,18 +14671,18 @@ a:focus-visible {
   width: 48px;
   height: 48px;
   flex: 0 0 auto;
-  border: 2px solid rgba(36, 116, 81, 0.36);
+  border: 2px solid color-mix(in srgb, var(--success) 36%, transparent);
   border-radius: 50%;
   background: var(--surface-muted);
   color: var(--success);
   font-size: 25px;
-  box-shadow: 0 0 0 8px rgba(47, 139, 99, 0.08);
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--success) 8%, transparent);
   animation: ol-ledger-stamp 4.8s ease-in-out infinite;
 }
 
 .ol-command-dashboard .ol-command-side-card {
   min-height: 132px;
-  border-color: rgba(190, 205, 229, 0.5);
+  border-color: color-mix(in srgb, var(--border) 50%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 88%, transparent)),
     repeating-linear-gradient(0deg, transparent 0 34px, color-mix(in srgb, var(--primary-soft) 8%, transparent) 34px 35px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
@@ -14838,10 +14812,10 @@ a:focus-visible {
   width: min(calc(100% - 36px), 1280px);
   margin: clamp(18px, 3vw, 34px) auto 0;
   overflow: hidden;
-  border: 1px solid rgba(190, 205, 229, 0.76);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 26px;
   background: color-mix(in srgb, var(--primary-soft) 58%, transparent);
-  box-shadow: 0 22px 58px rgba(23, 38, 64, 0.08);
+  box-shadow: 0 22px 58px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .ol-proof-beta,
@@ -14870,7 +14844,7 @@ a:focus-visible {
 }
 
 .ol-proof-beta span {
-  color: rgba(231, 240, 250, 0.72);
+  color: color-mix(in srgb, var(--text-soft) 72%, transparent);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -14918,11 +14892,11 @@ a:focus-visible {
   gap: 12px;
   min-height: 236px;
   padding: 18px;
-  border: 1px solid rgba(198, 214, 239, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 24px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 97%, transparent), color-mix(in srgb, var(--surface) 90%, transparent)),
     repeating-linear-gradient(0deg, transparent 0 38px, color-mix(in srgb, var(--primary-soft) 5.5%, transparent) 38px 39px);
-  box-shadow: 0 18px 44px rgba(22, 36, 60, 0.065);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--primary) 6.5%, transparent);
 }
 
 .ol-product-flow-step::before {
@@ -14932,10 +14906,10 @@ a:focus-visible {
   left: 18px;
   width: 18px;
   height: 18px;
-  border: 4px solid rgba(232, 241, 252, 0.96);
+  border: 4px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   border-radius: 50%;
   background: var(--success);
-  box-shadow: 0 0 0 1px rgba(47, 139, 99, 0.24), 0 10px 22px rgba(47, 139, 99, 0.16);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 24%, transparent), 0 10px 22px color-mix(in srgb, var(--success) 16%, transparent);
 }
 
 .ol-product-flow-step span {
@@ -15024,12 +14998,11 @@ a:focus-visible {
   isolation: isolate;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid rgba(190, 205, 229, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 34px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface) 92%, transparent)),
     repeating-linear-gradient(0deg, transparent 0 42px, color-mix(in srgb, var(--primary-soft) 5.5%, transparent) 42px 43px);
-  box-shadow:
-    0 28px 74px rgba(20, 34, 57, 0.09),
+  box-shadow: 0 28px 74px color-mix(in srgb, var(--primary) 9%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 
@@ -15085,7 +15058,7 @@ a:focus-visible {
   justify-content: center;
   min-height: 34px;
   padding: 0 13px;
-  border: 1px solid rgba(47, 139, 99, 0.25);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
   color: var(--success);
@@ -15096,7 +15069,7 @@ a:focus-visible {
 }
 
 .ol-live-status-pill--neutral {
-  border-color: rgba(67, 121, 232, 0.25);
+  border-color: color-mix(in srgb, var(--primary) 25%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
   color: var(--primary-strong);
 }
@@ -15107,11 +15080,11 @@ a:focus-visible {
   align-items: center;
   gap: clamp(16px, 2vw, 24px);
   padding: clamp(18px, 2.4vw, 28px);
-  border: 1px solid rgba(47, 139, 99, 0.24);
+  border: 1px solid color-mix(in srgb, var(--success) 24%, transparent);
   border-radius: 28px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 98%, transparent), color-mix(in srgb, var(--surface) 92%, transparent)),
     repeating-linear-gradient(0deg, transparent 0 36px, color-mix(in srgb, var(--success) 6%, transparent) 36px 37px);
-  box-shadow: 0 22px 48px rgba(35, 103, 72, 0.12);
+  box-shadow: 0 22px 48px color-mix(in srgb, var(--success) 12%, transparent);
 }
 
 .ol-live-payment-check {
@@ -15119,15 +15092,14 @@ a:focus-visible {
   place-items: center;
   width: clamp(72px, 8vw, 104px);
   height: clamp(72px, 8vw, 104px);
-  border: 3px solid rgba(36, 116, 81, 0.34);
+  border: 3px solid color-mix(in srgb, var(--success) 34%, transparent);
   border-radius: 50%;
   background: var(--surface-muted);
   color: var(--success);
   font-size: clamp(38px, 5vw, 58px);
   font-weight: 950;
-  box-shadow:
-    0 0 0 10px rgba(47, 139, 99, 0.08),
-    0 18px 38px rgba(31, 116, 77, 0.14);
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--success) 8%, transparent),
+    0 18px 38px color-mix(in srgb, var(--success) 14%, transparent);
   animation: ol-ledger-stamp 5s ease-in-out infinite;
 }
 
@@ -15176,7 +15148,7 @@ a:focus-visible {
   gap: 12px;
   min-height: 58px;
   padding: 0 14px;
-  border: 1px solid rgba(196, 211, 234, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
@@ -15212,10 +15184,10 @@ a:focus-visible {
   min-width: 0;
   min-height: 154px;
   padding: 18px;
-  border: 1px solid rgba(196, 211, 234, 0.82);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 22px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 90%, transparent));
-  box-shadow: 0 14px 30px rgba(25, 39, 64, 0.055);
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--primary) 5.5%, transparent);
   text-decoration: none;
   transition:
     border-color 160ms ease,
@@ -15225,8 +15197,8 @@ a:focus-visible {
 
 .ol-daily-control-action:hover,
 .ol-daily-control-action:focus-visible {
-  border-color: rgba(67, 121, 232, 0.42);
-  box-shadow: 0 18px 36px rgba(39, 85, 166, 0.1);
+  border-color: color-mix(in srgb, var(--primary) 42%, transparent);
+  box-shadow: 0 18px 36px color-mix(in srgb, var(--primary) 10%, transparent);
   outline: none;
   transform: translateY(-1px);
 }
@@ -15266,7 +15238,7 @@ a:focus-visible {
   min-width: 0;
   min-height: 70px;
   padding: 12px;
-  border: 1px solid rgba(196, 211, 234, 0.78);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 76%, transparent);
 }
@@ -15350,12 +15322,11 @@ a:focus-visible {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border: 1px solid rgba(190, 205, 229, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 34px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface) 92%, transparent)),
     repeating-linear-gradient(0deg, transparent 0 42px, color-mix(in srgb, var(--primary-soft) 5.2%, transparent) 42px 43px);
-  box-shadow:
-    0 28px 74px rgba(20, 34, 57, 0.09),
+  box-shadow: 0 28px 74px color-mix(in srgb, var(--primary) 9%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 
@@ -15424,12 +15395,11 @@ a:focus-visible {
   display: grid;
   gap: 16px;
   padding: clamp(18px, 2.4vw, 28px);
-  border: 1px solid rgba(192, 208, 232, 0.86);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 28px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 98%, transparent), color-mix(in srgb, var(--primary) 98%, transparent)),
     repeating-linear-gradient(0deg, color-mix(in srgb, var(--surface) 5.5%, transparent) 0 1px, transparent 1px 40px);
-  box-shadow:
-    0 24px 58px rgba(18, 32, 54, 0.18),
+  box-shadow: 0 24px 58px color-mix(in srgb, var(--primary) 18%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
@@ -15439,7 +15409,7 @@ a:focus-visible {
   gap: 8px 16px;
   align-items: start;
   padding: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent);
   border-radius: 22px;
   background: color-mix(in srgb, var(--surface) 6%, transparent);
 }
@@ -15447,7 +15417,7 @@ a:focus-visible {
 .ol-office-rebuild-topline span,
 .ol-office-rebuild-topline em,
 .ol-office-company-stack em {
-  color: rgba(230, 239, 250, 0.72);
+  color: color-mix(in srgb, var(--text-soft) 72%, transparent);
   font-style: normal;
   font-weight: 780;
 }
@@ -15472,7 +15442,7 @@ a:focus-visible {
   justify-self: end;
   min-height: 32px;
   padding: 7px 11px 0;
-  border: 1px solid rgba(109, 212, 173, 0.28);
+  border: 1px solid color-mix(in srgb, var(--success) 28%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--success) 18%, transparent);
   color: var(--success);
@@ -15492,7 +15462,7 @@ a:focus-visible {
   align-items: center;
   min-height: 58px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 5.5%, transparent);
 }
@@ -15525,7 +15495,7 @@ a:focus-visible {
   min-height: 142px;
   align-content: start;
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 6%, transparent);
 }
@@ -15538,7 +15508,7 @@ a:focus-visible {
 
 .ol-office-capability-grid p {
   margin: 0;
-  color: rgba(231, 240, 250, 0.74);
+  color: color-mix(in srgb, var(--text-soft) 74%, transparent);
   font-size: 13px;
   font-weight: 720;
   line-height: 1.38;
@@ -15569,10 +15539,10 @@ a:focus-visible {
   min-width: 0;
   min-height: 154px;
   padding: 20px;
-  border: 1px solid rgba(196, 211, 234, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 22px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-muted) 90%, transparent));
-  box-shadow: 0 16px 34px rgba(22, 36, 60, 0.055);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--primary) 5.5%, transparent);
 }
 
 .ol-trust-control-grid article > span {
@@ -15580,12 +15550,11 @@ a:focus-visible {
   width: 16px;
   height: 16px;
   margin-top: 3px;
-  border: 4px solid rgba(235, 242, 253, 0.96);
+  border: 4px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   border-radius: 50%;
   background: var(--success);
-  box-shadow:
-    0 0 0 1px rgba(47, 139, 99, 0.24),
-    0 10px 22px rgba(47, 139, 99, 0.14);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 24%, transparent),
+    0 10px 22px color-mix(in srgb, var(--success) 14%, transparent);
 }
 
 .ol-trust-control-grid article div {
@@ -15740,7 +15709,7 @@ body::before {
   background: linear-gradient(90deg, color-mix(in srgb, var(--surface-muted) 28%, transparent) 1px, transparent 1px),
     linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 30%, transparent) 1px, transparent 1px);
   background-size: 56px 56px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.34), transparent 48%);
+  mask-image: linear-gradient(180deg, color-mix(in srgb, var(--text) 34%, transparent), transparent 48%);
 }
 
 .ol-app-shell {
@@ -15752,8 +15721,8 @@ body::before {
   gap: 20px;
   padding: 24px 16px 18px;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
-  border-right: 1px solid rgba(218, 226, 237, 0.9);
-  box-shadow: 18px 0 60px rgba(15, 23, 42, 0.035);
+  border-right: 1px solid color-mix(in srgb, var(--border-subtle) 90%, transparent);
+  box-shadow: 18px 0 60px color-mix(in srgb, var(--surface-dark) 3.5%, transparent);
 }
 
 .ol-sidebar-brand {
@@ -15761,8 +15730,8 @@ body::before {
   padding: 12px;
   border-radius: 14px;
   background: var(--surface);
-  border-color: rgba(226, 232, 240, 0.96);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.045);
+  border-color: color-mix(in srgb, var(--border-subtle) 96%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--surface-dark) 4.5%, transparent);
 }
 
 .ol-sidebar-badge {
@@ -15771,7 +15740,7 @@ body::before {
   border-radius: 8px;
   background: var(--surface-muted);
   color: var(--text-muted);
-  border-color: rgba(218, 226, 237, 0.96);
+  border-color: color-mix(in srgb, var(--border-subtle) 96%, transparent);
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -15806,7 +15775,7 @@ body::before {
 .ol-nav-link.is-active {
   color: var(--text);
   background: var(--surface-muted);
-  border-color: rgba(185, 207, 242, 0.9);
+  border-color: color-mix(in srgb, var(--primary) 90%, transparent);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8);
 }
 
@@ -15820,7 +15789,7 @@ body::before {
 .ol-workspace-guide {
   border-radius: 12px;
   background: var(--surface-muted);
-  border-color: rgba(218, 226, 237, 0.9);
+  border-color: color-mix(in srgb, var(--border-subtle) 90%, transparent);
   box-shadow: none;
 }
 
@@ -15831,8 +15800,8 @@ body::before {
 .ol-topbar {
   padding: 0 clamp(22px, 3vw, 42px);
   background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
-  border-bottom: 1px solid rgba(218, 226, 237, 0.88);
-  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.035);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 88%, transparent);
+  box-shadow: 0 14px 40px color-mix(in srgb, var(--surface-dark) 3.5%, transparent);
 }
 
 .ol-topbar-title {
@@ -15866,7 +15835,7 @@ body::before {
 .ol-settings-card,
 .ol-platform-admin-control-panel {
   border-radius: 14px;
-  border-color: rgba(218, 226, 237, 0.92);
+  border-color: color-mix(in srgb, var(--border-subtle) 92%, transparent);
   box-shadow: var(--shadow);
 }
 
@@ -15907,12 +15876,12 @@ body::before {
 }
 
 .ol-button:hover {
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--surface-dark) 12%, transparent);
 }
 
 .ol-button-secondary {
   background: var(--surface);
-  border-color: rgba(218, 226, 237, 0.96);
+  border-color: color-mix(in srgb, var(--border-subtle) 96%, transparent);
 }
 
 .ol-button-ghost {
@@ -15925,7 +15894,7 @@ body::before {
 .ol-select,
 .ol-textarea {
   border-radius: 8px;
-  border-color: rgba(209, 219, 233, 0.96);
+  border-color: color-mix(in srgb, var(--border) 96%, transparent);
   background-color: var(--surface);
   box-shadow: none;
 }
@@ -15937,7 +15906,7 @@ body::before {
 
 .ol-account-chip {
   background: var(--surface);
-  border-color: rgba(218, 226, 237, 0.96);
+  border-color: color-mix(in srgb, var(--border-subtle) 96%, transparent);
   color: var(--text-muted);
 }
 
@@ -15950,7 +15919,7 @@ body::before {
   --ledger-ink: var(--text);
   --ledger-muted: var(--text-soft);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 96%, transparent) 48%, color-mix(in srgb, var(--surface) 98%, transparent) 100%),
-    #ffffff;
+    var(--surface);
 }
 
 .ol-enterprise-ledger-bg {
@@ -15994,7 +15963,7 @@ body::before {
   width: 100%;
   margin-bottom: 0;
   border-radius: 16px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--surface-dark) 4%, transparent);
 }
 
 .ol-landing-page .ol-landing-hero-copy {
@@ -16063,10 +16032,10 @@ body::before {
 .ol-os-tile {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid rgba(218, 226, 237, 0.96);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 96%, transparent);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--surface-dark) 4%, transparent);
   padding: clamp(14px, 1.5vw, 18px);
 }
 
@@ -16200,7 +16169,7 @@ body::before {
 
 .ol-os-radar-list span.is-active {
   background: var(--surface-muted);
-  box-shadow: inset 0 0 0 1px rgba(190, 207, 239, 0.78);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 78%, transparent);
 }
 
 .ol-os-radar-list b,
@@ -16264,7 +16233,7 @@ body::before {
 
 .ol-os-collect-head {
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(218, 226, 237, 0.96);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
 }
 
 .ol-os-collect-list {
@@ -16277,7 +16246,7 @@ body::before {
   align-items: center;
   gap: 12px;
   min-height: 48px;
-  border-bottom: 1px solid rgba(230, 236, 245, 0.88);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 88%, transparent);
 }
 
 .ol-os-collect-list span:last-child {
@@ -16316,7 +16285,7 @@ body::before {
 
 .ol-os-collect-list i {
   padding: 4px 8px;
-  border: 1px solid rgba(218, 226, 237, 0.96);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   border-radius: 999px;
   color: var(--text-soft);
   font-size: 10px;
@@ -16379,7 +16348,7 @@ body::before {
   gap: 8px 12px;
   margin-top: 12px;
   padding: 12px 14px;
-  border: 1px solid rgba(218, 226, 237, 0.96);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   border-radius: 12px;
   background: var(--surface);
 }
@@ -16510,7 +16479,7 @@ body::before {
 /* Full revamp landing page and workspace operating-system shell. */
 .ol-landing-page--revamp {
   min-height: 100vh;
-  background: linear-gradient(180deg, #fbfcfe 0%, #f7f9fc 48%, #ffffff 100%);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-muted) 48%, var(--surface) 100%);
 }
 
 .ol-landing-page--revamp::before,
@@ -16551,7 +16520,7 @@ body::before {
   gap: 9px;
   min-height: 30px;
   padding: 0 12px;
-  border: 1px solid rgba(209, 219, 233, 0.92);
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
   border-radius: 999px;
   background: var(--surface-muted);
   color: var(--primary);
@@ -16634,7 +16603,7 @@ body::before {
 }
 
 .ol-revamp-workflow {
-  border-block: 1px solid rgba(218, 226, 237, 0.96);
+  border-block: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   background: color-mix(in srgb, var(--surface-muted) 76%, transparent);
 }
 
@@ -16712,7 +16681,7 @@ body::before {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
-  border: 1px solid rgba(218, 226, 237, 0.96);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface-muted) 96%, transparent);
 }
@@ -16762,7 +16731,7 @@ body::before {
 }
 
 .ol-revamp-beta-cta span {
-  color: rgba(255, 255, 255, 0.78);
+  color: color-mix(in srgb, var(--text-soft) 78%, transparent);
   font-size: 11px;
   font-weight: 860;
   letter-spacing: 0.1em;
@@ -16780,7 +16749,7 @@ body::before {
 .ol-revamp-beta-cta p {
   max-width: 58ch;
   margin: 0;
-  color: rgba(255, 255, 255, 0.72);
+  color: color-mix(in srgb, var(--text-soft) 72%, transparent);
   line-height: 1.62;
 }
 
@@ -16790,7 +16759,7 @@ body::before {
 
 .ol-revamp-footer {
   margin-top: clamp(72px, 8vw, 112px);
-  border-top: 1px solid rgba(218, 226, 237, 0.96);
+  border-top: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   background: var(--surface);
 }
 
@@ -16836,7 +16805,7 @@ body::before {
   justify-content: space-between;
   gap: 18px;
   padding-block: 20px;
-  border-top: 1px solid rgba(218, 226, 237, 0.96);
+  border-top: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   color: var(--text-soft);
   font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
@@ -16856,10 +16825,10 @@ body::before {
 .ol-workspace-os-tile {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid rgba(218, 226, 237, 0.96);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 96%, transparent);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--surface-dark) 4%, transparent);
 }
 
 .ol-workspace-os-copy {
@@ -16895,7 +16864,7 @@ body::before {
   min-height: 34px;
   align-items: center;
   padding: 0 11px;
-  border: 1px solid rgba(218, 226, 237, 0.96);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   border-radius: 8px;
   background: var(--surface-muted);
   color: var(--text);
@@ -17038,7 +17007,7 @@ body::before {
 
 .ol-workspace-os-radar-list span.is-active {
   background: var(--surface-muted);
-  box-shadow: inset 0 0 0 1px rgba(190, 207, 239, 0.78);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 78%, transparent);
 }
 
 .ol-workspace-os-radar-list b,
@@ -17103,7 +17072,7 @@ body::before {
 
 .ol-workspace-os-collect-head {
   padding-bottom: 13px;
-  border-bottom: 1px solid rgba(218, 226, 237, 0.96);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
 }
 
 .ol-workspace-os-collect-head button {
@@ -17125,7 +17094,7 @@ body::before {
   align-items: center;
   gap: 12px;
   min-height: 56px;
-  border-bottom: 1px solid rgba(230, 236, 245, 0.88);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 88%, transparent);
 }
 
 .ol-workspace-os-collect-list span:last-child {
@@ -17164,7 +17133,7 @@ body::before {
 
 .ol-workspace-os-collect-list i {
   padding: 4px 8px;
-  border: 1px solid rgba(218, 226, 237, 0.96);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   border-radius: 999px;
   color: var(--text-soft);
   font-size: 10px;
@@ -17229,7 +17198,7 @@ body::before {
   gap: 8px 12px;
   margin-top: 18px;
   padding: 14px 16px;
-  border: 1px solid rgba(218, 226, 237, 0.96);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 96%, transparent);
   border-radius: 12px;
   background: var(--surface);
 }
@@ -17252,7 +17221,7 @@ body::before {
 
 .ol-action-card {
   border-radius: 14px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--surface-dark) 4%, transparent);
 }
 
 .ol-action-icon {
