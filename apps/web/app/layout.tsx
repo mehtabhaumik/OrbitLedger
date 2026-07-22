@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono, Space_Grotesk } from 'next/font/google';
 import type { ReactNode } from 'react';
+// Tokens first: globals.css is written against the semantic names this file
+// defines, and any rule there is expected to be able to override a token
+// deliberately during the reskin migration.
+import './tokens.css';
 import './globals.css';
 
 import { WebAppProviders } from '@/providers/web-app-providers';
