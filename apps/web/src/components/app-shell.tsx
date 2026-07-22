@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import { CommandPalette } from '@/components/command-palette';
 import { isWebPlatformAdminAllowed } from '@/lib/platform-admin-access';
 import { isWebOfficeOperationsAllowed } from '@/lib/office-admin-operations';
 import { getWorkspaceDisplayName } from '@/lib/workspace-profile-view';
@@ -227,6 +228,27 @@ export function AppShell({
             </div>
           </div>
           <div className="ol-topbar-actions">
+            <button
+              type="button"
+              className="ol-topbar-search"
+              onClick={() => {
+                // Dispatch the same shortcut the palette listens for, so there is
+                // a single open path.
+                window.dispatchEvent(
+                  new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, metaKey: true, bubbles: true })
+                );
+              }}
+              aria-label="Search or jump to a page"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path
+                  d="M9 3a6 6 0 1 0 3.7 10.7l3.3 3.3 1.4-1.4-3.3-3.3A6 6 0 0 0 9 3Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"
+                  fill="currentColor"
+                />
+              </svg>
+              <span className="ol-topbar-search-text">Search or jump to…</span>
+              <kbd className="ol-topbar-search-kbd">⌘K</kbd>
+            </button>
             {workspaces.length > 0 ? (
               <select
                 onChange={(event) => selectWorkspace(event.target.value)}
@@ -287,6 +309,7 @@ export function AppShell({
           {children}
         </main>
       </div>
+      <CommandPalette />
       {isMobileNavOpen ? (
         <div className="ol-mobile-nav-layer" id="workspace-mobile-nav" role="dialog" aria-modal="true" aria-label="Navigation menu">
           <button
