@@ -1484,7 +1484,7 @@ a:focus-visible {
 }
 
 .ol-settings-payment-guard strong {
-  color: #18231f;
+  color: var(--text);
   font-size: 13px;
 }
 
@@ -6014,7 +6014,7 @@ a:focus-visible {
 .ol-template-showcase-lines strong,
 .ol-template-showcase-table-row b,
 .ol-template-showcase-paper footer strong {
-  color: #101827;
+  color: var(--text);
   font-weight: 950;
 }
 
@@ -6106,7 +6106,7 @@ a:focus-visible {
 
 .ol-template-showcase-table-row {
   border-top: 1px solid rgba(210, 221, 238, 0.72);
-  color: #172033;
+  color: var(--text);
   font-size: 12px;
   font-weight: 850;
 }
@@ -6424,7 +6424,7 @@ a:focus-visible {
   }
 
   .ol-template-preview-page::before {
-    color: #172033;
+    color: var(--text);
     content: "Sample preview only. Printing is disabled.";
     display: grid;
     font-size: 22px;
@@ -8143,7 +8143,7 @@ a:focus-visible {
 
 .ol-lock-title {
   font-size: 22px;
-  color: #0f172a;
+  color: var(--text);
   line-height: 1.2;
 }
 
@@ -8267,7 +8267,7 @@ a:focus-visible {
     radial-gradient(circle at 86% 16%, rgba(74, 190, 157, 0.12) 0, transparent 34%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 251, 255, 0.88));
   box-shadow: 0 24px 64px rgba(22, 36, 60, 0.1);
-  color: #0f172a;
+  color: var(--text);
 }
 
 .ol-auth-showcase--compact .ol-chip {
@@ -8277,7 +8277,7 @@ a:focus-visible {
 }
 
 .ol-auth-showcase--compact .ol-onboarding-headline {
-  color: #0f172a;
+  color: var(--text);
   font-size: clamp(30px, 4vw, 44px);
   line-height: 0.96;
   letter-spacing: -0.02em;
@@ -8329,7 +8329,7 @@ a:focus-visible {
 }
 
 .ol-auth-preview-top strong {
-  color: #111827;
+  color: var(--text);
   font-size: clamp(34px, 4.6vw, 52px);
   line-height: 0.95;
 }
@@ -8403,7 +8403,7 @@ a:focus-visible {
 }
 
 .ol-auth-preview-list strong {
-  color: #111827;
+  color: var(--text);
   font-size: 17px;
   line-height: 1.1;
 }
@@ -9482,7 +9482,7 @@ a:focus-visible {
 
 .ol-beta-market-banner strong {
   display: block;
-  color: #163a31;
+  color: var(--text);
 }
 
 .ol-beta-market-banner p {
@@ -9572,7 +9572,7 @@ a:focus-visible {
   background:
     radial-gradient(circle at 0% 0%, rgba(63, 119, 235, 0.13) 0, transparent 38%),
     linear-gradient(180deg, rgba(247, 250, 255, 0.98) 0%, rgba(255, 255, 255, 0.94) 100%);
-  color: #1d2a3d;
+  color: var(--text);
 }
 
 .ol-beta-policy-card__head {
@@ -9584,7 +9584,7 @@ a:focus-visible {
 
 .ol-beta-policy-card strong {
   display: block;
-  color: #0f172a;
+  color: var(--text);
   font-size: 15px;
 }
 
@@ -9608,7 +9608,7 @@ a:focus-visible {
   border: 1px solid rgba(199, 213, 234, 0.84);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.76);
-  color: #253349;
+  color: var(--text);
   font-size: 13px;
   font-weight: 760;
   line-height: 1.35;
@@ -9835,7 +9835,7 @@ a:focus-visible {
   border-radius: 16px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 253, 0.96));
-  color: #0f1726;
+  color: var(--text);
   box-shadow: 0 14px 30px rgba(35, 57, 92, 0.1);
 }
 
@@ -9907,7 +9907,7 @@ a:focus-visible {
   border: 1px solid rgba(174, 194, 222, 0.78);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.86);
-  color: #0f1726;
+  color: var(--text);
 }
 
 .ol-landing-mobile-close span {
@@ -9943,7 +9943,7 @@ a:focus-visible {
   border: 1px solid rgba(199, 213, 233, 0.74);
   border-radius: 16px;
   background: #ffffff;
-  color: #172033;
+  color: var(--text);
   font-size: 15px;
   font-weight: 900;
 }
@@ -10010,7 +10010,7 @@ a:focus-visible {
 .ol-landing-hero h1 {
   max-width: 980px;
   margin: 0;
-  color: #101724;
+  color: var(--text);
   font-size: clamp(44px, 8vw, 96px);
   line-height: 0.94;
   letter-spacing: 0;
@@ -10044,7 +10044,7 @@ a:focus-visible {
   background:
     radial-gradient(circle at 18% 0%, rgba(82, 135, 255, 0.28) 0, rgba(82, 135, 255, 0) 34%),
     radial-gradient(circle at 78% 12%, rgba(118, 208, 180, 0.2) 0, rgba(118, 208, 180, 0) 32%),
-    #111a29;
+    var(--surface-dark);
   box-shadow: 0 28px 80px rgba(21, 31, 48, 0.24);
   overflow: hidden;
 }
@@ -10085,7 +10085,7 @@ a:focus-visible {
 
 .ol-command-toolbar span.is-active {
   background: #ffffff;
-  color: #111a29;
+  color: var(--text);
 }
 
 .ol-command-grid {
@@ -10249,7 +10249,7 @@ a:focus-visible {
   width: 42px;
   height: 42px;
   border-radius: 999px;
-  background: #111a29;
+  background: var(--surface-dark);
 }
 
 .ol-command-card--invoice b {
@@ -10306,7 +10306,7 @@ a:focus-visible {
 }
 
 .ol-landing-beta-banner strong {
-  color: #111827;
+  color: var(--text);
   font-size: 18px;
 }
 
@@ -10328,7 +10328,7 @@ a:focus-visible {
 .ol-landing-pricing h2,
 .ol-landing-final h2 {
   margin: 0;
-  color: #111827;
+  color: var(--text);
   font-size: clamp(32px, 4.2vw, 58px);
   line-height: 1;
   letter-spacing: 0;
@@ -10370,7 +10370,7 @@ a:focus-visible {
 }
 
 .ol-landing-action-card strong {
-  color: #121a28;
+  color: var(--text);
   font-size: 28px;
   line-height: 1;
 }
@@ -10442,7 +10442,7 @@ a:focus-visible {
 }
 
 .ol-template-preview--letterhead {
-  --template-accent: #252f42;
+  --template-accent: var(--text);
   --template-soft: #eef2f7;
 }
 
@@ -10554,7 +10554,7 @@ a:focus-visible {
 }
 
 .ol-template-customer-band strong {
-  color: #101827;
+  color: var(--text);
   font-size: clamp(18px, 2.2vw, 26px);
 }
 
@@ -10601,7 +10601,7 @@ a:focus-visible {
 .ol-template-tax-row b,
 .ol-template-tax-row em {
   min-width: 0;
-  color: #172033;
+  color: var(--text);
   font-size: 13px;
   font-style: normal;
   font-weight: 850;
@@ -10630,7 +10630,7 @@ a:focus-visible {
 
 .ol-template-basic-list span,
 .ol-template-basic-list strong {
-  color: #172033;
+  color: var(--text);
   font-weight: 900;
 }
 
@@ -10657,7 +10657,7 @@ a:focus-visible {
 
 .ol-template-service-layout p strong,
 .ol-template-service-layout aside strong {
-  color: #172033;
+  color: var(--text);
   font-weight: 950;
 }
 
@@ -10921,7 +10921,7 @@ a:focus-visible {
   border: 1px solid rgba(190, 204, 225, 0.9);
   border-radius: 18px;
   background: #ffffff;
-  color: #111827;
+  color: var(--text);
   font-size: 22px;
   font-weight: 900;
   text-align: center;
@@ -10961,7 +10961,7 @@ a:focus-visible {
 .ol-landing-final {
   margin-bottom: clamp(30px, 5vw, 70px);
   padding: clamp(42px, 6vw, 72px) clamp(22px, 4vw, 36px);
-  background: #121b2a;
+  background: var(--surface-dark);
 }
 
 .ol-landing-final h2 {
@@ -11861,7 +11861,7 @@ a:focus-visible {
 
 .ol-landing-hero h1 {
   max-width: 1050px;
-  color: #0d1422;
+  color: var(--text);
   font-size: clamp(48px, 8.4vw, 108px);
   line-height: 0.9;
   text-wrap: balance;
@@ -11897,7 +11897,7 @@ a:focus-visible {
   border-radius: 34px;
   background:
     linear-gradient(135deg, rgba(18, 28, 46, 0.98) 0%, rgba(17, 39, 48, 0.98) 100%),
-    #111a29;
+    var(--surface-dark);
   box-shadow:
     0 34px 90px rgba(24, 40, 66, 0.32),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -12139,7 +12139,7 @@ a:focus-visible {
 .ol-landing-pricing h2,
 .ol-landing-final h2,
 .ol-landing-office-section h2 {
-  color: #101827;
+  color: var(--text);
   letter-spacing: -0.02em;
   text-wrap: balance;
 }
@@ -12437,7 +12437,7 @@ a:focus-visible {
   border-radius: 20px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(250, 253, 255, 0.78));
-  color: #172033;
+  color: var(--text);
   font-size: 15px;
   box-shadow: none;
 }
@@ -12460,7 +12460,7 @@ a:focus-visible {
   background:
     radial-gradient(circle at 20% 0%, rgba(81, 139, 255, 0.28), transparent 34%),
     radial-gradient(circle at 84% 12%, rgba(92, 218, 179, 0.18), transparent 30%),
-    #111a29;
+    var(--surface-dark);
   color: #f7faff;
 }
 
@@ -12469,7 +12469,7 @@ a:focus-visible {
 }
 
 .ol-landing-final .ol-button-secondary {
-  color: #121b2a;
+  color: var(--text);
 }
 
 .ol-landing-section,
@@ -12744,7 +12744,7 @@ a:focus-visible {
 
 /* Focused auth layout overrides */
 .ol-auth-showcase.ol-auth-showcase--compact .ol-onboarding-headline {
-  color: #0f172a;
+  color: var(--text);
 }
 
 @media (min-width: 980px) {
@@ -12983,7 +12983,7 @@ a:focus-visible {
 }
 
 .ol-template-gallery-toolbar strong {
-  color: #111927;
+  color: var(--text);
   font-size: clamp(22px, 2.2vw, 32px);
   line-height: 1.05;
   overflow-wrap: anywhere;
@@ -13106,7 +13106,7 @@ a:focus-visible {
 
 .ol-template-gallery-copy h3 {
   margin: 0;
-  color: #111927;
+  color: var(--text);
   font-size: clamp(26px, 2.7vw, 38px);
   line-height: 1.02;
 }
@@ -13169,7 +13169,7 @@ a:focus-visible {
 }
 
 .ol-template-tab[data-tone="letterhead"] {
-  --template-tab-accent: #252f42;
+  --template-tab-accent: var(--text);
 }
 
 .ol-template-tab[data-tone="payment"] {
@@ -13254,7 +13254,7 @@ a:focus-visible {
     radial-gradient(circle at 9% 0%, rgba(50, 122, 240, 0.16), transparent 34%),
     radial-gradient(circle at 92% 12%, rgba(27, 181, 178, 0.13), transparent 30%),
     linear-gradient(180deg, #f6f9fd 0%, #eef4fb 48%, #f8fbff 100%);
-  color: #111927;
+  color: var(--text);
 }
 
 .ol-public-nav {
@@ -13290,7 +13290,7 @@ a:focus-visible {
 .ol-public-hero h1 {
   max-width: 880px;
   margin: 0;
-  color: #111927;
+  color: var(--text);
   font-size: clamp(42px, 7vw, 84px);
   line-height: 0.94;
   letter-spacing: -0.065em;
@@ -13349,7 +13349,7 @@ a:focus-visible {
 
 .ol-public-section h2 {
   margin: 0;
-  color: #152238;
+  color: var(--text);
   font-size: clamp(20px, 2.2vw, 30px);
   line-height: 1.05;
 }
@@ -13416,7 +13416,7 @@ a:focus-visible {
 }
 
 .ol-landing-template-section .ol-template-tab strong {
-  color: #182235;
+  color: var(--text);
   font-size: 15px;
   font-weight: 950;
 }
@@ -13671,7 +13671,7 @@ a:focus-visible {
 .ol-landing-page .ol-landing-story-card h3 {
   max-width: 640px;
   margin: 0;
-  color: #101827;
+  color: var(--text);
   font-size: clamp(34px, 3.25vw, 56px);
   line-height: 0.96;
   letter-spacing: -0.025em;
@@ -13712,7 +13712,7 @@ a:focus-visible {
 }
 
 .ol-story-card-panel strong {
-  color: #101827;
+  color: var(--text);
   font-size: clamp(22px, 2.1vw, 34px);
   line-height: 1.02;
   letter-spacing: -0.015em;
@@ -14242,7 +14242,7 @@ a:focus-visible {
 .ol-landing-page {
   --ledger-line: rgba(116, 136, 170, 0.12);
   --ledger-line-soft: rgba(116, 136, 170, 0.07);
-  --ledger-ink: #0e1726;
+  --ledger-ink: var(--text);
   --ledger-muted: #607087;
   position: relative;
   isolation: isolate;
@@ -14410,7 +14410,7 @@ a:focus-visible {
     linear-gradient(180deg, rgba(16, 27, 44, 0.94), rgba(17, 38, 47, 0.96)),
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 42px),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 88px),
-    #111a29;
+    var(--surface-dark);
 }
 
 .ol-command-frame::before {
@@ -14429,7 +14429,7 @@ a:focus-visible {
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.9)),
     repeating-linear-gradient(0deg, transparent 0 34px, rgba(121, 143, 180, 0.08) 34px 35px);
   border-color: rgba(190, 205, 229, 0.34);
-  color: #111a29;
+  color: var(--text);
 }
 
 .ol-command-primary-card span,
@@ -14440,7 +14440,7 @@ a:focus-visible {
 
 .ol-command-primary-card strong,
 .ol-command-side-card strong {
-  color: #101827;
+  color: var(--text);
 }
 
 .ol-command-pill-row span,
@@ -14451,7 +14451,7 @@ a:focus-visible {
 }
 
 .ol-command-side-card--queue b {
-  color: #22324d;
+  color: var(--text);
 }
 
 .ol-command-side-card--invoice b {
@@ -14505,7 +14505,7 @@ a:focus-visible {
     linear-gradient(135deg, rgba(15, 24, 40, 0.98), rgba(17, 38, 47, 0.98)),
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 42px),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 88px),
-    #101827;
+    var(--surface-dark);
 }
 
 @keyframes ol-ledger-drift-primary {
@@ -14666,7 +14666,7 @@ a:focus-visible {
     linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(245, 249, 255, 0.88)),
     repeating-linear-gradient(0deg, transparent 0 34px, rgba(121, 143, 180, 0.08) 34px 35px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
-  color: #101827;
+  color: var(--text);
 }
 
 .ol-command-rail-item {
@@ -14699,7 +14699,7 @@ a:focus-visible {
 }
 
 .ol-command-rail-item strong {
-  color: #101827;
+  color: var(--text);
   font-size: 16px;
   line-height: 1.14;
 }
@@ -14731,7 +14731,7 @@ a:focus-visible {
 }
 
 .ol-command-main-top strong {
-  color: #0d1422;
+  color: var(--text);
   font-size: clamp(38px, 5vw, 66px);
   line-height: 0.95;
   letter-spacing: -0.03em;
@@ -14980,7 +14980,7 @@ a:focus-visible {
 
 .ol-proof-beta strong,
 .ol-proof-item strong {
-  color: #101827;
+  color: var(--text);
   font-size: 16px;
   line-height: 1.1;
 }
@@ -15052,7 +15052,7 @@ a:focus-visible {
 
 .ol-product-flow-step h3 {
   margin: 34px 0 0;
-  color: #101827;
+  color: var(--text);
   font-size: clamp(20px, 2vw, 26px);
   line-height: 1.05;
   letter-spacing: -0.01em;
@@ -15178,7 +15178,7 @@ a:focus-visible {
 
 .ol-live-card-head h3 {
   margin: 0;
-  color: #101827;
+  color: var(--text);
   font-size: clamp(32px, 4vw, 58px);
   line-height: 0.95;
   letter-spacing: -0.025em;
@@ -15291,7 +15291,7 @@ a:focus-visible {
 
 .ol-live-event-row strong {
   min-width: 0;
-  color: #111927;
+  color: var(--text);
   font-size: 15px;
   font-weight: 950;
   overflow: hidden;
@@ -15349,7 +15349,7 @@ a:focus-visible {
 }
 
 .ol-daily-control-action strong {
-  color: #101827;
+  color: var(--text);
   font-size: clamp(24px, 2.3vw, 34px);
   line-height: 1;
 }
@@ -15389,7 +15389,7 @@ a:focus-visible {
 }
 
 .ol-daily-control-checks b {
-  color: #101827;
+  color: var(--text);
   font-size: 13px;
   font-weight: 950;
 }
@@ -15510,7 +15510,7 @@ a:focus-visible {
 .ol-office-rebuild-copy h2,
 .ol-trust-rebuild-head h2 {
   margin: 0;
-  color: #101827;
+  color: var(--text);
   font-size: clamp(38px, 5vw, 72px);
   line-height: 0.94;
   letter-spacing: -0.035em;
@@ -15709,7 +15709,7 @@ a:focus-visible {
 
 .ol-trust-control-grid h3 {
   margin: 0;
-  color: #101827;
+  color: var(--text);
   font-size: clamp(19px, 1.65vw, 24px);
   line-height: 1.05;
 }
@@ -15915,12 +15915,12 @@ body::before {
 
 .ol-nav-link:hover {
   transform: none;
-  color: #172033;
+  color: var(--text);
   background: #f5f7fb;
 }
 
 .ol-nav-link.is-active {
-  color: #172033;
+  color: var(--text);
   background: #eef4ff;
   border-color: rgba(185, 207, 242, 0.9);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8);
@@ -15952,7 +15952,7 @@ body::before {
 }
 
 .ol-topbar-title {
-  color: #141d2f;
+  color: var(--text);
   font-size: clamp(24px, 2.4vw, 34px);
   font-weight: 820;
   letter-spacing: 0;
@@ -15996,7 +15996,7 @@ body::before {
 }
 
 .ol-panel-title {
-  color: #172033;
+  color: var(--text);
   font-weight: 820;
   letter-spacing: 0;
 }
@@ -16018,7 +16018,7 @@ body::before {
 }
 
 .ol-button {
-  background: #172033;
+  background: var(--surface-dark);
   color: #ffffff;
 }
 
@@ -16063,7 +16063,7 @@ body::before {
 }
 
 .ol-landing-page {
-  --ledger-ink: #172033;
+  --ledger-ink: var(--text);
   --ledger-muted: #687587;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 48%, rgba(255, 255, 255, 0.98) 100%),
@@ -16152,7 +16152,7 @@ body::before {
 }
 
 .ol-landing-hero-stats strong {
-  color: #172033;
+  color: var(--text);
   font-size: 24px;
   line-height: 1;
 }
@@ -16251,7 +16251,7 @@ body::before {
 }
 
 .ol-os-total strong {
-  color: #172033;
+  color: var(--text);
   font-size: clamp(32px, 3.8vw, 48px);
   line-height: 0.95;
   letter-spacing: -0.02em;
@@ -16312,7 +16312,7 @@ body::before {
   gap: 4px 8px;
   padding: 9px 10px;
   border-radius: 10px;
-  color: #172033;
+  color: var(--text);
 }
 
 .ol-os-radar-list span.is-active {
@@ -16351,7 +16351,7 @@ body::before {
 .ol-os-check-list span {
   position: relative;
   padding-left: 24px;
-  color: #172033;
+  color: var(--text);
   font-size: 12px;
   font-weight: 760;
 }
@@ -16417,7 +16417,7 @@ body::before {
   display: grid;
   gap: 3px;
   min-width: 0;
-  color: #172033;
+  color: var(--text);
   font-size: 12px;
   font-weight: 820;
 }
@@ -16442,7 +16442,7 @@ body::before {
 }
 
 .ol-os-collect-list em {
-  color: #172033;
+  color: var(--text);
   font-size: 12px;
   font-style: normal;
   font-weight: 860;
@@ -16482,7 +16482,7 @@ body::before {
 }
 
 .ol-os-stage-row span.is-active {
-  color: #172033;
+  color: var(--text);
 }
 
 .ol-os-stage-row span.is-active::before {
@@ -16509,7 +16509,7 @@ body::before {
 }
 
 .ol-os-balance-note strong {
-  color: #172033;
+  color: var(--text);
   font-size: 15px;
 }
 
@@ -16697,7 +16697,7 @@ body::before {
 .ol-revamp-hero h1 {
   max-width: 11ch;
   margin: 0;
-  color: #172033;
+  color: var(--text);
   font-size: clamp(48px, 5.4vw, 72px);
   font-weight: 760;
   line-height: 1.02;
@@ -16737,7 +16737,7 @@ body::before {
 }
 
 .ol-revamp-stats strong {
-  color: #172033;
+  color: var(--text);
   font-size: 24px;
   line-height: 1;
 }
@@ -16770,7 +16770,7 @@ body::before {
   flex: 0 0 auto;
   align-items: center;
   gap: 12px;
-  color: #172033;
+  color: var(--text);
 }
 
 .ol-revamp-workflow b {
@@ -16810,7 +16810,7 @@ body::before {
 .ol-revamp-section-head h2 {
   max-width: 20ch;
   margin: 0;
-  color: #172033;
+  color: var(--text);
   font-size: clamp(32px, 4vw, 48px);
   font-weight: 760;
   line-height: 1.08;
@@ -16843,7 +16843,7 @@ body::before {
 
 .ol-revamp-feature-grid h3 {
   margin: 0;
-  color: #172033;
+  color: var(--text);
   font-size: 20px;
   line-height: 1.2;
 }
@@ -16864,7 +16864,7 @@ body::before {
   overflow: hidden;
   padding: clamp(44px, 5vw, 68px);
   border-radius: 22px;
-  background: #172033;
+  background: var(--surface-dark);
   color: #ffffff;
   text-align: center;
 }
@@ -16939,7 +16939,7 @@ body::before {
 }
 
 .ol-revamp-footer-main nav strong {
-  color: #172033;
+  color: var(--text);
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -16992,7 +16992,7 @@ body::before {
 .ol-workspace-os-copy h1 {
   max-width: 12ch;
   margin: 0;
-  color: #172033;
+  color: var(--text);
   font-size: clamp(36px, 4.4vw, 60px);
   font-weight: 760;
   line-height: 1.02;
@@ -17017,7 +17017,7 @@ body::before {
   border: 1px solid rgba(218, 226, 237, 0.96);
   border-radius: 8px;
   background: #f7f9fc;
-  color: #172033;
+  color: var(--text);
   font-size: 13px;
   line-height: 1.2;
   overflow-wrap: anywhere;
@@ -17089,7 +17089,7 @@ body::before {
 
 .ol-workspace-os-total {
   margin-top: 16px;
-  color: #172033;
+  color: var(--text);
   font-size: clamp(30px, 3.4vw, 48px);
   font-weight: 760;
   line-height: 1;
@@ -17152,7 +17152,7 @@ body::before {
   gap: 4px 8px;
   padding: 9px 10px;
   border-radius: 10px;
-  color: #172033;
+  color: var(--text);
 }
 
 .ol-workspace-os-radar-list span.is-active {
@@ -17192,7 +17192,7 @@ body::before {
   position: relative;
   min-height: 18px;
   padding-left: 24px;
-  color: #172033;
+  color: var(--text);
   font-size: 12px;
   font-weight: 760;
   line-height: 1.35;
@@ -17267,7 +17267,7 @@ body::before {
   display: grid;
   gap: 3px;
   min-width: 0;
-  color: #172033;
+  color: var(--text);
   font-size: 12px;
   font-weight: 820;
 }
@@ -17293,7 +17293,7 @@ body::before {
 }
 
 .ol-workspace-os-collect-list em {
-  color: #172033;
+  color: var(--text);
   font-size: 12px;
   font-style: normal;
   font-weight: 860;
@@ -17334,7 +17334,7 @@ body::before {
 }
 
 .ol-workspace-os-stage-row span.is-active {
-  color: #172033;
+  color: var(--text);
 }
 
 .ol-workspace-os-stage-row span.is-active::before {
@@ -17361,7 +17361,7 @@ body::before {
 }
 
 .ol-workspace-os-balance-note strong {
-  color: #172033;
+  color: var(--text);
   font-size: 18px;
 }
 
