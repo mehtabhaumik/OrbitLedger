@@ -1,4 +1,7 @@
+export type WebThemePreference = 'system' | 'light' | 'dark';
+
 export type WebDeviceSettings = {
+  theme: WebThemePreference;
   maskBalances: boolean;
   largerText: boolean;
   reducedMotion: boolean;
@@ -6,17 +9,23 @@ export type WebDeviceSettings = {
 };
 
 type StoredWebDeviceSettings = {
+  theme?: string | null;
   mask_balances?: boolean | null;
   larger_text?: boolean | null;
   reduced_motion?: boolean | null;
   updated_at?: string | null;
 };
 
+function normalizeThemePreference(value: unknown): WebThemePreference {
+  return value === 'light' || value === 'dark' ? value : 'system';
+}
+
 type DeviceSettingsStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 export const WEB_DEVICE_SETTINGS_STORAGE_KEY = 'orbit-ledger:web-device-settings:v1';
 
 export const DEFAULT_WEB_DEVICE_SETTINGS: WebDeviceSettings = {
+  theme: 'system',
   maskBalances: false,
   largerText: false,
   reducedMotion: false,
@@ -26,6 +35,7 @@ export const DEFAULT_WEB_DEVICE_SETTINGS: WebDeviceSettings = {
 export function normalizeWebDeviceSettings(input: Partial<WebDeviceSettings | StoredWebDeviceSettings>): WebDeviceSettings {
   const raw = input as Partial<WebDeviceSettings & StoredWebDeviceSettings>;
   return {
+    theme: normalizeThemePreference(raw.theme),
     maskBalances: Boolean(raw.maskBalances ?? raw.mask_balances),
     largerText: Boolean(raw.largerText ?? raw.larger_text),
     reducedMotion: Boolean(raw.reducedMotion ?? raw.reduced_motion),
@@ -64,6 +74,7 @@ export function writeWebDeviceSettings(settings: WebDeviceSettings, storage = ge
     storage.setItem(
       WEB_DEVICE_SETTINGS_STORAGE_KEY,
       JSON.stringify({
+        theme: normalized.theme,
         mask_balances: normalized.maskBalances,
         larger_text: normalized.largerText,
         reduced_motion: normalized.reducedMotion,

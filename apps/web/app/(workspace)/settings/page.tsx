@@ -109,6 +109,7 @@ import {
 } from '@/lib/workspaces';
 import { useAuth } from '@/providers/auth-provider';
 import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
+import type { WebThemePreference } from '@/lib/device-settings';
 import { useWebDeviceSettings } from '@/providers/device-settings-provider';
 import { useWebSubscription } from '@/providers/subscription-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -2738,6 +2739,22 @@ export default function SettingsPage() {
               </button>
             )}
           </div>
+        </div>
+
+        <div className="ol-form-band-grid">
+          <label className="ol-field">
+            <span className="ol-field-label">Appearance</span>
+            <select
+              className="ol-select"
+              value={deviceSettings.theme}
+              onChange={(event) => updateDeviceSetting('theme', event.target.value as WebThemePreference)}
+            >
+              <option value="system">Match device</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+            <span className="ol-field-help">Sets light or dark on this browser. Match device follows your system setting.</span>
+          </label>
         </div>
 
         <div className="ol-settings-device-grid">

@@ -69,4 +69,13 @@ function applyDeviceSettings(settings: WebDeviceSettings) {
   document.documentElement.classList.toggle('ol-device-mask-balances', settings.maskBalances);
   document.documentElement.classList.toggle('ol-device-larger-text', settings.largerText);
   document.documentElement.classList.toggle('ol-device-reduced-motion', settings.reducedMotion);
+
+  // 'system' leaves the attribute off so the prefers-color-scheme media query in
+  // tokens.css decides; an explicit choice stamps data-theme, which wins over
+  // the media query in both directions.
+  if (settings.theme === 'system') {
+    document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', settings.theme);
+  }
 }

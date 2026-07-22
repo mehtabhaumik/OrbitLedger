@@ -139,6 +139,19 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
+      <head>
+        {/*
+          Stamp data-theme before first paint so a dark-mode user never flashes
+          a white screen while React hydrates. Reads the same stored preference
+          the device-settings provider owns; 'system' is left to the CSS media
+          query. Kept tiny and dependency-free because it blocks the first paint.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem('orbit-ledger:web-device-settings:v1');if(!s)return;var t=JSON.parse(s).theme;if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body>
         <WebAppProviders>{children}</WebAppProviders>
       </body>

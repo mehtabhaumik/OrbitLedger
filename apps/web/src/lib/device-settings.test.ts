@@ -33,6 +33,13 @@ describe('web device settings', () => {
     });
   });
 
+  it('normalizes the theme preference and defaults unknown values to system', () => {
+    expect(normalizeWebDeviceSettings({ theme: 'dark' }).theme).toBe('dark');
+    expect(normalizeWebDeviceSettings({ theme: 'light' }).theme).toBe('light');
+    expect(normalizeWebDeviceSettings({ theme: 'neon' }).theme).toBe('system');
+    expect(normalizeWebDeviceSettings({}).theme).toBe('system');
+  });
+
   it('falls back safely when local storage is empty or malformed', () => {
     expect(readWebDeviceSettings(memoryStorage())).toEqual(DEFAULT_WEB_DEVICE_SETTINGS);
     expect(readWebDeviceSettings(memoryStorage({ [WEB_DEVICE_SETTINGS_STORAGE_KEY]: 'not-json' }))).toEqual(
@@ -44,6 +51,7 @@ describe('web device settings', () => {
     const storage = memoryStorage();
     const saved = writeWebDeviceSettings(
       {
+        theme: 'dark',
         maskBalances: true,
         largerText: false,
         reducedMotion: true,
@@ -55,6 +63,7 @@ describe('web device settings', () => {
     expect(saved.updatedAt).toBeTruthy();
     expect(hasStoredWebDeviceSettings(storage)).toBe(true);
     expect(readWebDeviceSettings(storage)).toMatchObject({
+      theme: 'dark',
       maskBalances: true,
       largerText: false,
       reducedMotion: true,
