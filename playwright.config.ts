@@ -80,5 +80,25 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } },
       dependencies: ['setup'],
     },
+    // Dark-theme coverage. The app defaults to theme:'system', so colorScheme
+    // 'dark' renders the dark tokens via the prefers-color-scheme media query
+    // with no data-theme stamping. Separate projects keep their own baseline
+    // folders, so dark mode is protected against silent regressions the same
+    // way light mode is.
+    {
+      name: 'desktop-dark',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, colorScheme: 'dark' },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'tablet-dark',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 834, height: 1112 }, colorScheme: 'dark' },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'mobile-dark',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, colorScheme: 'dark' },
+      dependencies: ['setup'],
+    },
   ],
 });

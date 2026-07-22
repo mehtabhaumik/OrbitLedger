@@ -919,7 +919,7 @@ a:focus-visible {
 
 .ol-user-context-banner p {
   margin: 6px 0 0;
-  color: #4f638b;
+  color: var(--tax);
   line-height: 1.45;
 }
 
@@ -1114,7 +1114,7 @@ a:focus-visible {
 }
 
 .ol-icon-button--danger {
-  color: #a3344d;
+  color: var(--danger);
   border-color: rgba(218, 154, 168, 0.86);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 92%, transparent) 100%);
 }
@@ -5647,8 +5647,8 @@ a:focus-visible {
   content: "";
   width: 8px;
   height: 8px;
-  border-right: 2px solid #7f8fa8;
-  border-bottom: 2px solid #7f8fa8;
+  border-right: 2px solid var(--border);
+  border-bottom: 2px solid var(--border);
   transform: rotate(45deg);
   transition: transform 160ms ease;
 }
@@ -6901,7 +6901,7 @@ a:focus-visible {
   border: 1px solid rgba(236, 202, 142, 0.82);
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface-muted) 76%, transparent);
-  color: #6d5012;
+  color: var(--warning);
   font-size: 12.5px;
   font-weight: 800;
   line-height: 1.4;
@@ -6996,7 +6996,7 @@ a:focus-visible {
   border-radius: 999px;
   padding: 2px 6px;
   background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
-  color: #a83d52;
+  color: var(--danger);
   font-size: 9.5px;
   font-weight: 820;
   letter-spacing: 0.03em;
@@ -7087,7 +7087,7 @@ a:focus-visible {
   border: 1px solid rgba(214, 96, 112, 0.28);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
-  color: #a83d52;
+  color: var(--danger);
   font-size: 11px;
   font-weight: 760;
   line-height: 1.35;
@@ -7111,7 +7111,7 @@ a:focus-visible {
   padding: 12px 14px;
   border: 1px solid rgba(185, 204, 231, 0.92);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 94%, transparent) 100%);
-  color: #2c4466;
+  color: var(--tax);
   font-weight: 650;
   font-size: 13px;
   line-height: 1.45;
@@ -7132,25 +7132,25 @@ a:focus-visible {
 .ol-message--danger {
   border-color: rgba(223, 150, 161, 0.86);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 95%, transparent) 100%);
-  color: #a43850;
+  color: var(--danger);
 }
 
 .ol-message[data-tone="danger"] {
   border-color: rgba(223, 150, 161, 0.86);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 96%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 95%, transparent) 100%);
-  color: #a43850;
+  color: var(--danger);
 }
 
 .ol-message--warning {
   border-color: rgba(236, 202, 142, 0.86);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--warning-surface) 95%, transparent) 100%);
-  color: #8a6214;
+  color: var(--warning);
 }
 
 .ol-message[data-tone="warning"] {
   border-color: rgba(236, 202, 142, 0.86);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent) 0%, color-mix(in srgb, var(--warning-surface) 95%, transparent) 100%);
-  color: #8a6214;
+  color: var(--warning);
 }
 
 .ol-message--success {
@@ -7264,7 +7264,7 @@ a:focus-visible {
 }
 
 .ol-toast[data-tone="danger"] .ol-toast-dot {
-  background: #c5455d;
+  background: var(--danger);
 }
 
 .ol-toast-close {
@@ -7537,8 +7537,8 @@ a:focus-visible {
   top: 30px;
   width: 38px;
   height: 20px;
-  border-left: 7px solid #1d7c51;
-  border-bottom: 7px solid #1d7c51;
+  border-left: 7px solid var(--border);
+  border-bottom: 7px solid var(--border);
   border-radius: 3px;
   transform: rotate(-45deg);
 }
@@ -7551,7 +7551,7 @@ a:focus-visible {
 
 .ol-paid-confirmation-eyebrow {
   margin: 0;
-  color: #257654;
+  color: var(--success);
   font-size: 12px;
   font-weight: 950;
   letter-spacing: 0.12em;
@@ -7567,7 +7567,7 @@ a:focus-visible {
 }
 
 .ol-paid-confirmation-amount {
-  color: #1f7b51;
+  color: var(--success);
   font-size: clamp(34px, 7vw, 52px);
   font-weight: 950;
   letter-spacing: 0;
@@ -8238,7 +8238,7 @@ a:focus-visible {
 .ol-auth-showcase--compact .ol-chip {
   border-color: rgba(181, 201, 232, 0.78);
   background: color-mix(in srgb, var(--surface) 76%, transparent);
-  color: #275f50;
+  color: var(--success);
 }
 
 .ol-auth-showcase--compact .ol-onboarding-headline {
@@ -8383,9 +8383,9 @@ a:focus-visible {
   align-items: center;
   min-height: 38px;
   padding: 0 14px;
-  border: 2px solid #24845e;
+  border: 2px solid var(--border);
   border-radius: 12px;
-  color: #24845e;
+  color: var(--success);
   font-size: 15px;
   font-weight: 950;
   letter-spacing: 0.15em;
@@ -8754,7 +8754,7 @@ a:focus-visible {
 }
 
 .ol-showcase-card[data-tone="success"] .ol-showcase-card-kicker {
-  color: #70cca7;
+  color: var(--success);
 }
 
 .ol-brand-header {
@@ -8827,7 +8827,7 @@ a:focus-visible {
 
 .ol-auth-showcase .ol-showcase-card[data-tone="tax"] .ol-showcase-card-kicker,
 .ol-onboarding-showcase .ol-showcase-card[data-tone="tax"] .ol-showcase-card-kicker {
-  color: #e4dcff;
+  color: var(--premium);
 }
 
 .ol-auth-showcase .ol-showcase-card[data-tone="success"] .ol-showcase-card-kicker,
@@ -8931,7 +8931,7 @@ a:focus-visible {
 
 .ol-onboarding-step.is-complete {
   background: color-mix(in srgb, var(--surface-muted) 96%, transparent);
-  color: #237b64;
+  color: var(--success);
   border-color: rgba(181, 220, 207, 0.92);
 }
 
@@ -9493,7 +9493,7 @@ a:focus-visible {
 }
 
 .ol-market-offer-price strong {
-  color: #167456;
+  color: var(--success);
   font-size: clamp(24px, 3vw, 32px);
   line-height: 1;
 }
@@ -9507,7 +9507,7 @@ a:focus-visible {
   border: 1px solid rgba(177, 226, 209, 0.88);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
-  color: #167456;
+  color: var(--success);
   font-size: 13px;
   font-weight: 900;
 }
@@ -9679,7 +9679,7 @@ a:focus-visible {
 }
 
 .ol-button-danger-subtle {
-  color: #a3344d;
+  color: var(--danger);
   border-color: rgba(218, 154, 168, 0.86);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent) 0%, color-mix(in srgb, var(--surface-muted) 92%, transparent) 100%);
 }
@@ -10117,7 +10117,7 @@ a:focus-visible {
   display: block;
   min-height: 24px;
   border-radius: 999px 999px 6px 6px;
-  background: #76d0b4;
+  background: var(--success);
 }
 
 .ol-command-line-chart i:nth-child(1) {
@@ -10131,7 +10131,7 @@ a:focus-visible {
 
 .ol-command-line-chart i:nth-child(3) {
   height: 48%;
-  background: #d9a84f;
+  background: var(--warning);
 }
 
 .ol-command-line-chart i:nth-child(4) {
@@ -10205,9 +10205,9 @@ a:focus-visible {
 .ol-command-card--invoice b {
   width: fit-content;
   padding: 8px 14px;
-  border: 2px solid #4caf8e;
+  border: 2px solid var(--border);
   border-radius: 12px;
-  color: #86dfbd;
+  color: var(--success);
   font-size: 16px;
   letter-spacing: 0.18em;
   transform: rotate(-2deg);
@@ -12036,8 +12036,8 @@ a:focus-visible {
 
 .ol-command-side-card--invoice b {
   width: fit-content;
-  border: 2px solid #68d0a5;
-  color: #88e4bf;
+  border: 2px solid var(--border);
+  color: var(--success);
   font-size: 14px;
   letter-spacing: 0.18em;
   transform: rotate(-2deg);
@@ -14311,7 +14311,7 @@ a:focus-visible {
   left: 0;
   width: 10px;
   border-radius: 999px;
-  background: #2e8b63;
+  background: var(--success);
   box-shadow: 0 0 18px rgba(46, 139, 99, 0.42);
   animation: ol-ledger-pulse 2.8s ease-in-out infinite;
 }
@@ -14364,7 +14364,7 @@ a:focus-visible {
 
 .ol-command-side-card--invoice b {
   background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
-  color: #247451;
+  color: var(--success);
   animation: ol-ledger-stamp 4.8s ease-in-out infinite;
 }
 
@@ -14646,7 +14646,7 @@ a:focus-visible {
   border: 1px solid rgba(47, 139, 99, 0.22);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
-  color: #247451;
+  color: var(--success);
   font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
@@ -14686,7 +14686,7 @@ a:focus-visible {
 }
 
 .ol-command-live-card strong {
-  color: #15724b;
+  color: var(--success);
   font-size: 28px;
   line-height: 1;
 }
@@ -14700,7 +14700,7 @@ a:focus-visible {
   border: 2px solid rgba(36, 116, 81, 0.36);
   border-radius: 50%;
   background: var(--surface-muted);
-  color: #247451;
+  color: var(--success);
   font-size: 25px;
   box-shadow: 0 0 0 8px rgba(47, 139, 99, 0.08);
   animation: ol-ledger-stamp 4.8s ease-in-out infinite;
@@ -14934,7 +14934,7 @@ a:focus-visible {
   height: 18px;
   border: 4px solid rgba(232, 241, 252, 0.96);
   border-radius: 50%;
-  background: #2f8b63;
+  background: var(--success);
   box-shadow: 0 0 0 1px rgba(47, 139, 99, 0.24), 0 10px 22px rgba(47, 139, 99, 0.16);
 }
 
@@ -15088,7 +15088,7 @@ a:focus-visible {
   border: 1px solid rgba(47, 139, 99, 0.25);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
-  color: #21724e;
+  color: var(--success);
   font-size: 12px;
   font-weight: 950;
   letter-spacing: 0.08em;
@@ -15122,7 +15122,7 @@ a:focus-visible {
   border: 3px solid rgba(36, 116, 81, 0.34);
   border-radius: 50%;
   background: var(--surface-muted);
-  color: #247451;
+  color: var(--success);
   font-size: clamp(38px, 5vw, 58px);
   font-weight: 950;
   box-shadow:
@@ -15154,7 +15154,7 @@ a:focus-visible {
 }
 
 .ol-live-payment-moment strong {
-  color: #15724b;
+  color: var(--success);
   font-size: clamp(42px, 5.4vw, 72px);
   line-height: 0.92;
   letter-spacing: -0.03em;
@@ -15475,7 +15475,7 @@ a:focus-visible {
   border: 1px solid rgba(109, 212, 173, 0.28);
   border-radius: 999px;
   background: color-mix(in srgb, var(--success) 18%, transparent);
-  color: #bdf2dd;
+  color: var(--success);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -15582,7 +15582,7 @@ a:focus-visible {
   margin-top: 3px;
   border: 4px solid rgba(235, 242, 253, 0.96);
   border-radius: 50%;
-  background: #2f8b63;
+  background: var(--success);
   box-shadow:
     0 0 0 1px rgba(47, 139, 99, 0.24),
     0 10px 22px rgba(47, 139, 99, 0.14);
@@ -16098,7 +16098,7 @@ body::before {
 
 .ol-os-tile-label em,
 .ol-os-collect-head em {
-  color: #2e8b63;
+  color: var(--success);
   font-style: normal;
   letter-spacing: 0;
   text-transform: none;
@@ -16158,7 +16158,7 @@ body::before {
 
 .ol-os-bars span:nth-child(2) {
   width: 72px;
-  background: #f3b742;
+  background: var(--warning);
 }
 
 .ol-os-bars span:nth-child(3) {
@@ -16246,7 +16246,7 @@ body::before {
   top: 1px;
   width: 15px;
   height: 15px;
-  border: 1px solid #cfd9e7;
+  border: 1px solid var(--border);
   border-radius: 5px;
   background: var(--surface);
 }
@@ -16354,7 +16354,7 @@ body::before {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #cfd9e7;
+  background: var(--surface-muted);
 }
 
 .ol-os-stage-row span:not(:last-child)::after {
@@ -16945,7 +16945,7 @@ body::before {
 }
 
 .ol-workspace-os-tile-head em {
-  color: #2e8b63;
+  color: var(--success);
   font-style: normal;
   letter-spacing: 0;
   text-transform: none;
@@ -16996,7 +16996,7 @@ body::before {
 }
 
 .ol-workspace-os-bars span:nth-child(2) {
-  background: #f3b742;
+  background: var(--warning);
 }
 
 .ol-workspace-os-bars span:nth-child(3) {
@@ -17086,7 +17086,7 @@ body::before {
   top: 1px;
   width: 15px;
   height: 15px;
-  border: 1px solid #cfd9e7;
+  border: 1px solid var(--border);
   border-radius: 5px;
   background: var(--surface);
 }
@@ -17204,7 +17204,7 @@ body::before {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #cfd9e7;
+  background: var(--surface-muted);
 }
 
 .ol-workspace-os-stage-row span:not(:last-child)::after {
