@@ -6,6 +6,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { BulkActionBar } from '@/components/bulk-action-bar';
+import { bulkMarkInvoicesPaid, isEligibleForBulkPaid } from '@/lib/bulk-invoice-actions';
+import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
 import {
   getInvoiceDocumentStateLabel,
   getInvoicePaymentStatusLabel,
@@ -46,6 +48,8 @@ export default function InvoicesPage() {
   const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
   const officeAccess = useOfficeAccess();
+  const { confirm } = useConfirmDialog();
+  const [isBulkWorking, setIsBulkWorking] = useState(false);
   const router = useRouter();
   const [invoices, setInvoices] = useState<WorkspaceInvoice[]>([]);
   const [recurringRules, setRecurringRules] = useState<WorkspaceRecurringInvoiceRule[]>([]);
@@ -210,6 +214,57 @@ export default function InvoicesPage() {
       }
       return next;
     });
+  }
+
+  const eligibleForPaid = useMemo(
+    () => selectedInvoices.filter((invoice) => isEligibleForBulkPaid(invoice.paymentStatus, invoice.documentState)),
+    [selectedInvoices]
+  );
+
+  async function bulkMarkPaid() {
+    if (!activeWorkspace || isBulkWorking) {
+      return;
+    }
+    if (!officeAccess.can('record_payments')) {
+      showToast(officeAccess.getLockedMessage('record_payments'), 'info');
+      return;
+    }
+    if (eligibleForPaid.length === 0) {
+      showToast('None of the selected invoices can be marked paid (already paid or cancelled).', 'info');
+      return;
+    }
+
+    const skippedCount = selectedInvoiceIds.size - eligibleForPaid.length;
+    const confirmed = await confirm({
+      title: `Mark ${eligibleForPaid.length} invoice${eligibleForPaid.length === 1 ? '' : 's'} as paid?`,
+      message: 'Each invoice will be updated to Paid and a new saved version is recorded, exactly as if you had done it on the invoice screen.',
+      detail: skippedCount > 0 ? `${skippedCount} selected invoice${skippedCount === 1 ? '' : 's'} will be skipped (already paid or cancelled).` : undefined,
+      confirmLabel: 'Mark paid',
+      tone: 'default',
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    setIsBulkWorking(true);
+    try {
+      const result = await bulkMarkInvoicesPaid(
+        activeWorkspace.workspaceId,
+        eligibleForPaid.map((invoice) => invoice.id)
+      );
+      if (result.succeeded.length) {
+        showToast(`${result.succeeded.length} invoice${result.succeeded.length === 1 ? '' : 's'} marked paid.`, 'success');
+      }
+      if (result.failed.length) {
+        showToast(`${result.failed.length} invoice${result.failed.length === 1 ? '' : 's'} could not be updated.`, 'danger');
+      }
+      setSelectedInvoiceIds(new Set());
+      await refreshInvoiceWorkspace();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Bulk update failed.', 'danger');
+    } finally {
+      setIsBulkWorking(false);
+    }
   }
 
   function exportInvoices() {
@@ -514,8 +569,17 @@ export default function InvoicesPage() {
           <button
             type="button"
             className="ol-bulkbar-btn ol-bulkbar-btn--primary"
+            onClick={() => void bulkMarkPaid()}
+            disabled={isBulkWorking || eligibleForPaid.length === 0}
+            title={eligibleForPaid.length === 0 ? 'Selected invoices are already paid or cancelled' : undefined}
+          >
+            {isBulkWorking ? 'Working…' : `Mark paid${eligibleForPaid.length && eligibleForPaid.length !== selectedInvoiceIds.size ? ` (${eligibleForPaid.length})` : ''}`}
+          </button>
+          <button
+            type="button"
+            className="ol-bulkbar-btn"
             onClick={exportInvoices}
-            disabled={!officeAccess.can('export_documents')}
+            disabled={isBulkWorking || !officeAccess.can('export_documents')}
           >
             Export selected
           </button>
