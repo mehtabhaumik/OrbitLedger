@@ -20,6 +20,7 @@ import {
 } from '@orbit-ledger/core';
 
 import { AppShell } from '@/components/app-shell';
+import { BulkActionBar } from '@/components/bulk-action-bar';
 import { parseAmount, validatePositiveAmount } from '@/lib/form-validation';
 import {
   createWorkspaceTransaction,
@@ -935,6 +936,16 @@ export default function TransactionsPage() {
             No transactions match this view.
           </div>
         ) : null}
+        <BulkActionBar count={selectedTransactionIds.size} noun="transaction" onClear={() => setSelectedTransactionIds(new Set())}>
+          <button
+            type="button"
+            className="ol-bulkbar-btn ol-bulkbar-btn--primary"
+            onClick={exportTransactions}
+            disabled={!officeAccess.can('export_reports')}
+          >
+            Export selected
+          </button>
+        </BulkActionBar>
       </section>
     </AppShell>
   );

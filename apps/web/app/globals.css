@@ -17803,3 +17803,112 @@ body::before {
     animation: none;
   }
 }
+
+/* =============================================================================
+   Bulk action bar (.ol-bulkbar) - floats up when list rows are selected
+   ========================================================================== */
+
+.ol-bulkbar {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: fit-content;
+  max-width: 100%;
+  margin: var(--space-4) auto 0;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5);
+  background: var(--surface-inverse);
+  color: var(--text-inverse);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-strong);
+  animation: ol-bulkbar-in var(--duration-normal) var(--ease-spring);
+}
+
+.ol-bulkbar-count {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.ol-bulkbar-count strong {
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+.ol-bulkbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Compact pill buttons for the bar, styled for the dark inverse surface. */
+.ol-bulkbar-actions .ol-bulkbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--text-inverse) 24%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--text-inverse) 8%, transparent);
+  color: var(--text-inverse);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.ol-bulkbar-actions .ol-bulkbar-btn:hover {
+  background: color-mix(in srgb, var(--text-inverse) 16%, transparent);
+}
+
+.ol-bulkbar-actions .ol-bulkbar-btn--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--text-on-primary);
+}
+
+.ol-bulkbar-actions .ol-bulkbar-btn--primary:hover {
+  background: var(--primary-strong);
+}
+
+.ol-bulkbar-actions .ol-bulkbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ol-bulkbar-clear {
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-inverse) 70%, transparent);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.ol-bulkbar-clear:hover {
+  color: var(--text-inverse);
+  text-decoration: underline;
+}
+
+@keyframes ol-bulkbar-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ol-bulkbar {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .ol-bulkbar {
+    width: 100%;
+    border-radius: var(--radius-lg);
+    flex-wrap: wrap;
+  }
+}

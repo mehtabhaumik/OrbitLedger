@@ -4,6 +4,8 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+
+import { BulkActionBar } from '@/components/bulk-action-bar';
 import {
   getInvoiceDocumentStateLabel,
   getInvoicePaymentStatusLabel,
@@ -508,6 +510,16 @@ export default function InvoicesPage() {
             No invoices match this view.
           </div>
         ) : null}
+        <BulkActionBar count={selectedInvoiceIds.size} noun="invoice" onClear={() => setSelectedInvoiceIds(new Set())}>
+          <button
+            type="button"
+            className="ol-bulkbar-btn ol-bulkbar-btn--primary"
+            onClick={exportInvoices}
+            disabled={!officeAccess.can('export_documents')}
+          >
+            Export selected
+          </button>
+        </BulkActionBar>
       </section>
 
       <section className="ol-panel-glass">

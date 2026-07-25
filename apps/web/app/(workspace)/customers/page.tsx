@@ -7,6 +7,7 @@ import type { Route } from 'next';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AppShell } from '@/components/app-shell';
+import { BulkActionBar } from '@/components/bulk-action-bar';
 import { downloadCustomerProfilePdf } from '@/lib/customer-export';
 import {
   normalizePhoneForCountry,
@@ -696,6 +697,16 @@ export default function CustomersPage() {
             No customers match this view.
           </div>
         ) : null}
+        <BulkActionBar count={selectedCustomerIds.size} noun="customer" onClear={() => setSelectedCustomerIds(new Set())}>
+          <button
+            type="button"
+            className="ol-bulkbar-btn ol-bulkbar-btn--primary"
+            onClick={exportCustomers}
+            disabled={!officeAccess.can('export_documents')}
+          >
+            Export selected
+          </button>
+        </BulkActionBar>
       </section>
     </AppShell>
   );
