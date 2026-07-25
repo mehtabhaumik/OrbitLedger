@@ -8,6 +8,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AppShell } from '@/components/app-shell';
 import { BulkActionBar } from '@/components/bulk-action-bar';
+import { bulkLogCustomerReminders, isEligibleForReminder } from '@/lib/bulk-customer-actions';
+import { useConfirmDialog } from '@/providers/confirm-dialog-provider';
 import { downloadCustomerProfilePdf } from '@/lib/customer-export';
 import {
   normalizePhoneForCountry,
@@ -48,6 +50,8 @@ export default function CustomersPage() {
   const { activeWorkspace } = useWorkspace();
   const { status: subscription } = useWebSubscription();
   const { showToast } = useToast();
+  const { confirm } = useConfirmDialog();
+  const [isBulkWorking, setIsBulkWorking] = useState(false);
   const officeAccess = useOfficeAccess();
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [customers, setCustomers] = useState<WorkspaceCustomer[]>([]);
@@ -352,6 +356,57 @@ export default function CustomersPage() {
       showToast('Reminder copied.', 'success');
     } catch {
       showToast('Reminder could not be copied.', 'danger');
+    }
+  }
+
+  const remindableCustomers = useMemo(
+    () => selectedCustomers.filter((customer) => isEligibleForReminder(customer.balance)),
+    [selectedCustomers]
+  );
+
+  async function bulkLogReminders() {
+    if (!activeWorkspace || isBulkWorking) {
+      return;
+    }
+    if (!officeAccess.can('manage_customers')) {
+      showToast(officeAccess.getLockedMessage('manage_customers'), 'info');
+      return;
+    }
+    if (remindableCustomers.length === 0) {
+      showToast('None of the selected customers have an outstanding balance to remind.', 'info');
+      return;
+    }
+
+    const skipped = selectedCustomerIds.size - remindableCustomers.length;
+    const confirmed = await confirm({
+      title: `Log a reminder for ${remindableCustomers.length} customer${remindableCustomers.length === 1 ? '' : 's'}?`,
+      message: 'This records a payment-reminder entry for each selected customer who owes a balance. It does not send anything - you still share the message yourself.',
+      detail: skipped > 0 ? `${skipped} selected customer${skipped === 1 ? '' : 's'} with no balance will be skipped.` : undefined,
+      confirmLabel: 'Log reminders',
+      tone: 'default',
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    setIsBulkWorking(true);
+    try {
+      const result = await bulkLogCustomerReminders(
+        activeWorkspace.workspaceId,
+        remindableCustomers.map((customer) => ({ id: customer.id, name: customer.name, balance: customer.balance })),
+        { tone: 'polite', currency: activeWorkspace.currency ?? 'INR' }
+      );
+      if (result.logged.length) {
+        showToast(`Reminder logged for ${result.logged.length} customer${result.logged.length === 1 ? '' : 's'}.`, 'success');
+      }
+      if (result.failed.length) {
+        showToast(`${result.failed.length} reminder${result.failed.length === 1 ? '' : 's'} could not be logged.`, 'danger');
+      }
+      setSelectedCustomerIds(new Set());
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Bulk reminder failed.', 'danger');
+    } finally {
+      setIsBulkWorking(false);
     }
   }
 
@@ -701,8 +756,17 @@ export default function CustomersPage() {
           <button
             type="button"
             className="ol-bulkbar-btn ol-bulkbar-btn--primary"
+            onClick={() => void bulkLogReminders()}
+            disabled={isBulkWorking || remindableCustomers.length === 0}
+            title={remindableCustomers.length === 0 ? 'Selected customers have no outstanding balance' : undefined}
+          >
+            {isBulkWorking ? 'Working…' : `Log reminder${remindableCustomers.length && remindableCustomers.length !== selectedCustomerIds.size ? ` (${remindableCustomers.length})` : ''}`}
+          </button>
+          <button
+            type="button"
+            className="ol-bulkbar-btn"
             onClick={exportCustomers}
-            disabled={!officeAccess.can('export_documents')}
+            disabled={isBulkWorking || !officeAccess.can('export_documents')}
           >
             Export selected
           </button>
