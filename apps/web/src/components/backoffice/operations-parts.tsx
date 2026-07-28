@@ -8,6 +8,8 @@
  * is unchanged - this is a pure code move.
  */
 
+import type { Route } from 'next';
+
 import { getSupportSlaState } from '@orbit-ledger/core';
 import type {
   OfficeSupportCaseAction,
@@ -53,6 +55,23 @@ const SUPPORT_QUEUE_LABELS: Record<string, string> = {
 };
 
 export { SUPPORT_QUEUE_LABELS };
+
+/**
+ * Maps an overview metric to the section that acts on it, so an operator can
+ * jump from "5 open support" straight to the support inbox instead of finding
+ * the sidebar item. Falls back to the support inbox for support-* metrics and
+ * access requests for the Office metrics.
+ */
+export function operationsMetricHref(metricId: string): Route {
+  if (metricId === 'support-diagnostics') {
+    return '/backoffice/operations/diagnostics-consent' as Route;
+  }
+  if (metricId.startsWith('support-')) {
+    return '/backoffice/operations/support-inbox' as Route;
+  }
+  // Office snapshot metrics: requests | needs_review | approved | granted
+  return '/backoffice/operations/access-requests' as Route;
+}
 
 export function chipClassForTone(tone: 'success' | 'warning' | 'premium' | 'default') {
   if (tone === 'success') {

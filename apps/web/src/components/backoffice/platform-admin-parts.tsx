@@ -8,6 +8,9 @@
  * readable on their own. Behaviour is unchanged - this is a pure code move.
  */
 
+import type { Route } from 'next';
+import Link from 'next/link';
+
 import { getPlatformAdminRoleDefinition } from '@orbit-ledger/core';
 
 import {
@@ -32,15 +35,35 @@ export function MetricCard({
   label,
   value,
   tone = 'default',
+  href,
 }: {
   label: string;
   value: number;
   tone?: 'default' | 'success' | 'warning' | 'danger' | 'premium';
+  /** When set, the card becomes a link to the section that acts on it. */
+  href?: Route;
 }) {
-  return (
-    <article className="ol-platform-admin-metric" data-tone={tone}>
+  // data-active drives the prioritised styling: a non-zero card gets its tone
+  // rail and full-strength value; a zero card recedes so real numbers stand out.
+  const active = value > 0 ? 'true' : undefined;
+  const content = (
+    <>
       <span>{label}</span>
       <strong>{value.toLocaleString('en-IN')}</strong>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link className="ol-platform-admin-metric ol-platform-admin-metric--link" data-tone={tone} data-active={active} href={href}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <article className="ol-platform-admin-metric" data-tone={tone} data-active={active}>
+      {content}
     </article>
   );
 }

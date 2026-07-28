@@ -17912,3 +17912,161 @@ body::before {
     flex-wrap: wrap;
   }
 }
+
+/* =============================================================================
+   Back-office overview: compact, prioritised, clickable metric strip.
+   Scoped to .ol-metric-grid--ops so the shared metric card used across the
+   workspace is untouched. Cards with a value stand out; all-clear zeros recede.
+   ========================================================================== */
+
+.ol-metric-grid--ops {
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: var(--space-3);
+}
+
+.ol-metric-grid--ops .ol-metric-card {
+  min-height: 0;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.ol-metric-grid--ops .ol-metric-label {
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.ol-metric-grid--ops .ol-metric-value {
+  font-size: var(--text-2xl);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Helper text only shows on cards that need attention - the all-clear zeros
+   stay to a single scannable number, cutting the overview's height sharply. */
+.ol-metric-grid--ops .ol-metric-helper {
+  display: none;
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+
+.ol-metric-grid--ops .ol-metric-card[data-active='true'] .ol-metric-helper {
+  display: block;
+}
+
+/* An active (non-zero) card carries a tone-coloured left rail and full-strength
+   ink; a cleared card recedes to muted so the eye lands on real work. */
+.ol-metric-grid--ops .ol-metric-card {
+  border-left: 3px solid var(--border);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.ol-metric-grid--ops .ol-metric-card:not([data-active]) .ol-metric-value {
+  color: var(--text-soft);
+}
+
+.ol-metric-grid--ops .ol-metric-card[data-tone='warning'][data-active] { border-left-color: var(--warning); }
+.ol-metric-grid--ops .ol-metric-card[data-tone='premium'][data-active] { border-left-color: var(--premium); }
+.ol-metric-grid--ops .ol-metric-card[data-tone='success'][data-active] { border-left-color: var(--success); }
+
+.ol-metric-card--link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ol-metric-grid--ops .ol-metric-card--link:hover {
+  border-color: var(--primary-border);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.ol-metric-grid--ops .ol-metric-card--link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ol-metric-grid--ops .ol-metric-card--link:hover {
+    transform: none;
+  }
+}
+
+/* =============================================================================
+   Platform-admin overview: compact + prioritised + clickable metric cards.
+   Scoped to .ol-platform-admin-metric (already back-office-only), so nothing
+   shared is touched. Same language as the operations strip.
+   ========================================================================== */
+
+.ol-platform-admin-metrics {
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: var(--space-3);
+}
+
+.ol-platform-admin-metric {
+  min-height: 0;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  border-left: 3px solid var(--border);
+}
+
+.ol-platform-admin-metric > span {
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.ol-platform-admin-metric > strong {
+  font-size: var(--text-2xl);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cleared (zero) cards recede; active cards get their tone rail. */
+.ol-platform-admin-metric:not([data-active]) > strong {
+  color: var(--text-soft);
+}
+
+.ol-platform-admin-metric[data-tone='premium'][data-active] { border-left-color: var(--premium); }
+.ol-platform-admin-metric[data-tone='warning'][data-active] { border-left-color: var(--warning); }
+.ol-platform-admin-metric[data-tone='success'][data-active] { border-left-color: var(--success); }
+.ol-platform-admin-metric[data-tone='danger'][data-active] { border-left-color: var(--danger); }
+
+.ol-platform-admin-metric--link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.ol-platform-admin-metric--link:hover {
+  border-color: var(--primary-border);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.ol-platform-admin-metric--link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ol-platform-admin-metric--link:hover {
+    transform: none;
+  }
+}

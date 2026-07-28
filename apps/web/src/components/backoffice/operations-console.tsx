@@ -1,5 +1,7 @@
 'use client';
 
+import type { Route } from 'next';
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -82,6 +84,7 @@ import {
   supportTicketSlaLabel,
   supportTicketSlaState,
   supportTicketStatusLabel,
+  operationsMetricHref,
   SUPPORT_QUEUE_LABELS,
   type SupportShellRow,
 } from './operations-parts';
@@ -1314,20 +1317,32 @@ export default function OperationsConsole({ section }: { section: OperationsCons
           </section>
 
           {showOverview ? (
-            <div className="ol-metric-grid">
+            <div className="ol-metric-grid ol-metric-grid--ops">
               {supportShellSummary.map((metric) => (
-                <article className="ol-metric-card" data-tone={metric.tone} key={metric.id}>
+                <Link
+                  className="ol-metric-card ol-metric-card--link"
+                  data-tone={metric.tone}
+                  data-active={metric.value > 0 ? 'true' : undefined}
+                  href={operationsMetricHref(metric.id)}
+                  key={metric.id}
+                >
                   <div className="ol-metric-label">{metric.label}</div>
                   <div className="ol-metric-value">{metric.value}</div>
                   <div className="ol-metric-helper">{metric.helper}</div>
-                </article>
+                </Link>
               ))}
               {(snapshot?.metrics ?? []).map((metric) => (
-                <article className="ol-metric-card" data-tone={metric.tone} key={metric.id}>
+                <Link
+                  className="ol-metric-card ol-metric-card--link"
+                  data-tone={metric.tone}
+                  data-active={metric.value > 0 ? 'true' : undefined}
+                  href={operationsMetricHref(metric.id)}
+                  key={metric.id}
+                >
                   <div className="ol-metric-label">{metric.label}</div>
                   <div className="ol-metric-value">{metric.value}</div>
                   <div className="ol-metric-helper">{metric.helper}</div>
-                </article>
+                </Link>
               ))}
             </div>
           ) : null}

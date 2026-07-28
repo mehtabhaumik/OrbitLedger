@@ -1,5 +1,6 @@
 'use client';
 
+import type { Route } from 'next';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { FormEvent } from 'react';
@@ -1180,19 +1181,19 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
               </div>
 
               <section className="ol-platform-admin-metrics" aria-label="Platform user metrics">
-                <MetricCard label="Registered users" value={snapshot?.metrics.userCount ?? 0} />
-                <MetricCard label="Google users" value={snapshot?.metrics.googleUserCount ?? 0} />
-                <MetricCard label="Email/password users" value={snapshot?.metrics.passwordUserCount ?? 0} />
-                <MetricCard label="Users with workspace" value={snapshot?.metrics.usersWithWorkspaceCount ?? 0} />
-                <MetricCard label="Workspace owners" value={snapshot?.metrics.workspaceOwnerCount ?? 0} />
-                <MetricCard label="Office members" value={snapshot?.metrics.officeMemberCount ?? 0} />
-                <MetricCard label="Total admin users" value={snapshot?.metrics.platformAdminCount ?? 0} tone="premium" />
-                <MetricCard label="Active admin users" value={snapshot?.metrics.activePlatformAdminCount ?? 0} tone="premium" />
-                <MetricCard label="QA users" value={snapshot?.metrics.qaUserCount ?? 0} tone="warning" />
-                <MetricCard label="Subscribed users" value={snapshot?.metrics.subscribedUserCount ?? 0} tone="success" />
-                <MetricCard label="Verified emails" value={snapshot?.metrics.verifiedEmailCount ?? 0} />
-                <MetricCard label="No workspace" value={snapshot?.metrics.usersWithoutWorkspaceCount ?? 0} tone="warning" />
-                <MetricCard label="Disabled users" value={snapshot?.metrics.disabledCount ?? 0} tone="danger" />
+                <MetricCard label="Registered users" value={snapshot?.metrics.userCount ?? 0} href={'/backoffice/platform/users' as Route} />
+                <MetricCard label="Google users" value={snapshot?.metrics.googleUserCount ?? 0} href={'/backoffice/platform/users' as Route} />
+                <MetricCard label="Email/password users" value={snapshot?.metrics.passwordUserCount ?? 0} href={'/backoffice/platform/users' as Route} />
+                <MetricCard label="Users with workspace" value={snapshot?.metrics.usersWithWorkspaceCount ?? 0} href={'/backoffice/platform/users' as Route} />
+                <MetricCard label="Workspace owners" value={snapshot?.metrics.workspaceOwnerCount ?? 0} href={'/backoffice/platform/users' as Route} />
+                <MetricCard label="Office members" value={snapshot?.metrics.officeMemberCount ?? 0} href={'/backoffice/platform/users' as Route} />
+                <MetricCard label="Total admin users" value={snapshot?.metrics.platformAdminCount ?? 0} tone="premium" href={'/backoffice/platform/admins' as Route} />
+                <MetricCard label="Active admin users" value={snapshot?.metrics.activePlatformAdminCount ?? 0} tone="premium" href={'/backoffice/platform/admins' as Route} />
+                <MetricCard label="QA users" value={snapshot?.metrics.qaUserCount ?? 0} tone="warning" href={'/backoffice/platform/users' as Route} />
+                <MetricCard label="Subscribed users" value={snapshot?.metrics.subscribedUserCount ?? 0} tone="success" href={'/backoffice/platform/users' as Route} />
+                <MetricCard label="Verified emails" value={snapshot?.metrics.verifiedEmailCount ?? 0} href={'/backoffice/platform/users' as Route} />
+                <MetricCard label="No workspace" value={snapshot?.metrics.usersWithoutWorkspaceCount ?? 0} tone="warning" href={'/backoffice/platform/users' as Route} />
+                <MetricCard label="Disabled users" value={snapshot?.metrics.disabledCount ?? 0} tone="danger" href={'/backoffice/platform/users' as Route} />
               </section>
 
               <div className="ol-platform-admin-dashboard-grid">
