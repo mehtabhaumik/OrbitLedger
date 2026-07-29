@@ -2854,8 +2854,8 @@ export default function OperationsConsole({ section }: { section: OperationsCons
 
           {showOverview ? (
           <div className="ol-support-secondary-grid">
-            <section className="ol-panel">
-              <div className="ol-panel-header">
+            <details className="ol-panel ol-collapsible-panel">
+              <summary className="ol-panel-header ol-collapsible-summary">
                 <div>
                   <div className="ol-panel-title">Production readiness</div>
                   <p className="ol-panel-copy">
@@ -2863,7 +2863,7 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                   </p>
                 </div>
                 <span className="ol-chip ol-chip--warning">Review before launch</span>
-              </div>
+              </summary>
               <div className="ol-review-grid">
                 {OFFICE_PRODUCTION_READINESS_CHECKLIST.map((item) => (
                   <div className="ol-review-item" key={item.id}>
@@ -2872,10 +2872,10 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                   </div>
                 ))}
               </div>
-            </section>
+            </details>
 
-            <section className="ol-panel">
-              <div className="ol-panel-header">
+            <details className="ol-panel ol-collapsible-panel">
+              <summary className="ol-panel-header ol-collapsible-summary">
                 <div>
                   <div className="ol-panel-title">Office launch freeze</div>
                   <p className="ol-panel-copy">
@@ -2883,7 +2883,7 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                   </p>
                 </div>
                 <span className="ol-chip ol-chip--success">Freeze active</span>
-              </div>
+              </summary>
               <div className="ol-list">
                 {OFFICE_FINAL_LAUNCH_FREEZE_ITEMS.map((item, index) => (
                   <div className="ol-list-item" key={item}>
@@ -2896,7 +2896,7 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                   </div>
                 ))}
               </div>
-            </section>
+            </details>
           </div>
           ) : null}
         </>

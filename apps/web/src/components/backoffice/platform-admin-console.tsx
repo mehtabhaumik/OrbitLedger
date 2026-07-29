@@ -1169,12 +1169,8 @@ export default function PlatformAdminConsole({ section }: { section: PlatformAdm
           <div className="ol-platform-admin-workspace">
             {showOverview ? (
             <section className="ol-platform-admin-overview">
-              <div className="ol-platform-admin-section-head">
-                <div>
-                  <p className="ol-chip">Overview</p>
-                  <h2>Platform operations</h2>
-                  <p>Users, admins, offers, access signals, and audit readiness in one review surface.</p>
-                </div>
+              <div className="ol-platform-admin-section-head ol-platform-admin-section-head--compact">
+                <h2 className="ol-platform-admin-section-title">Overview</h2>
                 <span className="ol-platform-admin-status-pill" data-tone={highSeverityAuditCount ? 'danger' : 'success'}>
                   {highSeverityAuditCount ? `${highSeverityAuditCount} high-risk audit item(s)` : 'No high-risk audit items loaded'}
                 </span>

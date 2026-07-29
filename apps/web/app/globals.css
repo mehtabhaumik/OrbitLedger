@@ -18070,3 +18070,80 @@ body::before {
     transform: none;
   }
 }
+
+/* Compact section head: the page header already states the console title, so
+   the overview section only needs a short label and its status pill - no
+   repeated title/description block. */
+.ol-platform-admin-section-head--compact {
+  align-items: center;
+}
+
+.ol-platform-admin-section-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+/* =============================================================================
+   Collapsible panel (native <details>). Used for launch-reference sections on
+   the operations overview so they default closed and stop making it an
+   "endless page", while staying one click away.
+   ========================================================================== */
+
+.ol-collapsible-panel {
+  padding-bottom: 0;
+  transition: padding-bottom var(--duration-fast) var(--ease-out);
+}
+
+.ol-collapsible-panel[open] {
+  padding-bottom: var(--space-5);
+}
+
+.ol-collapsible-summary {
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  gap: var(--space-3);
+  padding-right: var(--space-6);
+  position: relative;
+  border-radius: var(--radius-md);
+  outline: none;
+}
+
+/* Remove the native marker; draw our own chevron on the right. */
+.ol-collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ol-collapsible-summary::after {
+  content: '';
+  position: absolute;
+  right: var(--space-1);
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--text-soft);
+  border-bottom: 2px solid var(--text-soft);
+  transform: translateY(-70%) rotate(45deg);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.ol-collapsible-panel[open] .ol-collapsible-summary::after {
+  transform: translateY(-30%) rotate(-135deg);
+}
+
+.ol-collapsible-summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.ol-collapsible-summary:hover .ol-panel-title {
+  color: var(--primary-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ol-collapsible-summary::after,
+  .ol-collapsible-panel {
+    transition: none;
+  }
+}
