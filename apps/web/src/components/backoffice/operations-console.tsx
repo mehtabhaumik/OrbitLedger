@@ -1522,8 +1522,10 @@ export default function OperationsConsole({ section }: { section: OperationsCons
               ) : null}
 
               {showFullSupportSidebar ? (
-                <div className="ol-support-rail-section">
-                  <div className="ol-support-rail-label">Workstream signals</div>
+                <details className="ol-support-rail-section ol-collapsible-panel ol-collapsible-panel--inline">
+                  <summary className="ol-collapsible-summary ol-collapsible-summary--inline">
+                    <span className="ol-support-rail-label">Workstream signals</span>
+                  </summary>
                   <div className="ol-support-queue-summary">
                     {supportRailHighlights.map((item) => (
                       <div className="ol-support-queue-card" key={item.id}>
@@ -1535,7 +1537,7 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                       </div>
                     ))}
                   </div>
-                </div>
+                </details>
               ) : null}
 
               {showFullSupportSidebar || showCompactDiagnosticsSignals ? (
@@ -1570,7 +1572,13 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                     </article>
                   </div>
 
-                  <div className="ol-support-notification-panel">
+                  <details className="ol-support-notification-panel ol-collapsible-panel ol-collapsible-panel--inline">
+                    <summary className="ol-collapsible-summary ol-collapsible-summary--inline">
+                      <span className="ol-support-notification-title">Alert &amp; notification settings</span>
+                      <span className={`ol-chip ${notificationPreference?.muteAll ? 'ol-chip--warning' : 'ol-chip--success'}`}>
+                        {notificationPreference?.muteAll ? 'Muted' : 'Alerts active'}
+                      </span>
+                    </summary>
                     <label className="ol-checkbox-row">
                       <input
                         checked={notificationPreference?.muteAll === true}
@@ -1712,7 +1720,7 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                         Browser {notificationPreference?.browserPermissionState ?? 'unknown'}
                       </span>
                     </div>
-                  </div>
+                  </details>
                 </div>
               ) : null}
             </aside>

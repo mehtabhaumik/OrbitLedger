@@ -70,6 +70,7 @@ export const backofficeRoutes: VisualRoute[] = [
   { name: 'backoffice', path: '/backoffice/' },
   { name: 'backoffice-platform', path: '/backoffice/platform/' },
   { name: 'backoffice-operations', path: '/backoffice/operations/' },
+  { name: 'backoffice-operations-support-inbox', path: '/backoffice/operations/support-inbox/' },
 ];
 
 /**

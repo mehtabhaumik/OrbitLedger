@@ -18147,3 +18147,39 @@ body::before {
     transition: none;
   }
 }
+
+/* Inline collapsible (used for the support-inbox notification settings, which
+   are configuration set once, not per-ticket work). Compact summary; the panel
+   only opens its gap when expanded so a closed panel is a single tidy row. */
+.ol-collapsible-panel--inline {
+  gap: 0;
+}
+
+.ol-collapsible-panel--inline[open] {
+  gap: var(--space-3);
+}
+
+.ol-collapsible-summary--inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-6) var(--space-1) 0;
+}
+
+/* In the narrow support rail the title takes the flexible space and wraps; the
+   status chip keeps its intrinsic size so it never clips into the chevron. */
+.ol-collapsible-summary--inline .ol-support-notification-title {
+  min-width: 0;
+}
+
+.ol-collapsible-summary--inline .ol-chip {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.ol-support-notification-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
