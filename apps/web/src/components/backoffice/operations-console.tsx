@@ -1493,7 +1493,7 @@ export default function OperationsConsole({ section }: { section: OperationsCons
               {showFullSupportSidebar || showCompactBuckets ? (
                 <div className="ol-support-rail-section">
                   <div className="ol-support-rail-label">Case buckets</div>
-                  <div className="ol-support-nav-list">
+                  <div className="ol-support-nav-list ol-support-nav-list--compact">
                     {SUPPORT_FILTER_OPTIONS.map((option) => {
                       const count = countSupportCases(snapshot?.supportCases ?? [], (supportCase) =>
                         option.value === 'all'
@@ -1507,12 +1507,10 @@ export default function OperationsConsole({ section }: { section: OperationsCons
                           className={`ol-support-nav-button ${supportCaseFilter === option.value ? 'ol-support-nav-button--active' : ''}`}
                           key={option.value}
                           onClick={() => setSupportCaseFilter(option.value)}
+                          title={option.helper}
                           type="button"
                         >
-                          <span className="ol-support-nav-copy">
-                            <strong>{option.label}</strong>
-                            <span>{option.helper}</span>
-                          </span>
+                          <span className="ol-support-nav-label">{option.label}</span>
                           <span className="ol-support-nav-count">{count}</span>
                         </button>
                       );

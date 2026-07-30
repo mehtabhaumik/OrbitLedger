@@ -1890,6 +1890,32 @@ a:focus-visible {
   line-height: 1.3;
 }
 
+/* Compact case buckets: single-line label + count, standing in for the tall
+   card stack. The per-bucket helper text moves to the button's title tooltip,
+   so no guidance is lost while the rail reclaims ~400px of height. */
+.ol-support-nav-list--compact {
+  gap: var(--space-2);
+}
+
+.ol-support-nav-list--compact .ol-support-nav-button {
+  padding: 10px 12px;
+  border-radius: 12px;
+  gap: 10px;
+}
+
+.ol-support-nav-label {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.ol-support-nav-list--compact .ol-support-nav-count {
+  min-width: 28px;
+  min-height: 28px;
+  font-size: 13px;
+}
+
 .ol-support-nav-copy span,
 .ol-support-case-row p,
 .ol-support-library-card p,
