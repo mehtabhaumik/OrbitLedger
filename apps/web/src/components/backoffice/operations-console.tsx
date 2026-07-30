@@ -1424,7 +1424,7 @@ export default function OperationsConsole({ section }: { section: OperationsCons
               </div>
 
               <div className="ol-support-rail-block">
-                <div className="ol-support-queue-card">
+                <div className="ol-support-role-note">
                   <strong>{supportRoleLabel(currentAdmin)}</strong>
                   <span>{supportRoleScopeSummary(currentAdmin)}</span>
                   <span>{supportAllowedQueueSummary(currentAdmin, supportQueues)}</span>
