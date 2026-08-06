@@ -2182,13 +2182,57 @@ a:focus-visible {
 }
 
 @media (min-width: 1280px) {
+  /* Three-pane console. The panes deliberately share one row height (no
+     align-items:start) so a short ticket list reads as a designed layout
+     rather than small cards floating over empty page background.
+     The rail is what made that impossible before: it ran far taller than its
+     neighbours and dragged the row with it, leaving a large void to the right.
+     Capping it to the viewport and giving it its own scroll bounds the row to
+     one screen - the standard inbox behaviour, and it keeps the filters in
+     place while the list and detail panes scroll. */
   .ol-support-center-shell {
     grid-template-columns: minmax(260px, 290px) minmax(320px, 0.86fr) minmax(360px, 1.14fr);
-    align-items: start;
+  }
+
+  .ol-support-center-sidebar {
+    position: sticky;
+    top: var(--space-4);
+    max-height: calc(100vh - var(--space-8));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* Reserve the gutter and draw a persistent thumb: without it Chrome's
+       overlay scrollbar stays hidden until you scroll, so a rail clipped
+       mid-card just reads as broken rather than scrollable. */
+    scrollbar-gutter: stable;
+  }
+
+  .ol-support-center-sidebar::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .ol-support-center-sidebar::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-soft) 38%, transparent);
+  }
+
+  .ol-support-center-sidebar::-webkit-scrollbar-track {
+    background: transparent;
   }
 
   .ol-support-center-detailpane {
     grid-column: auto;
+  }
+
+  /* Placeholder copy sits in the optical centre of a pane it does not fill. */
+  .ol-support-center-listpane,
+  .ol-support-center-detailpane {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ol-support-center-listpane > .ol-support-empty-state,
+  .ol-support-center-detailpane > .ol-support-empty-state {
+    margin-block: auto;
   }
 }
 

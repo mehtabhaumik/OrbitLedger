@@ -71,6 +71,11 @@ export const backofficeRoutes: VisualRoute[] = [
   { name: 'backoffice-platform', path: '/backoffice/platform/' },
   { name: 'backoffice-operations', path: '/backoffice/operations/' },
   { name: 'backoffice-operations-support-inbox', path: '/backoffice/operations/support-inbox/' },
+  { name: 'backoffice-operations-assignments', path: '/backoffice/operations/assignments/' },
+  { name: 'backoffice-operations-access-requests', path: '/backoffice/operations/access-requests/' },
+  { name: 'backoffice-operations-diagnostics-consent', path: '/backoffice/operations/diagnostics-consent/' },
+  { name: 'backoffice-operations-exports-reports', path: '/backoffice/operations/exports-reports/' },
+  { name: 'backoffice-operations-audit', path: '/backoffice/operations/audit/' },
 ];
 
 /**
