@@ -52,6 +52,14 @@ let workspaceId = process.env.ORBIT_LEDGER_QA_WORKSPACE_ID?.trim() || '';
 // visual suite freezes the browser clock to the same instant.
 const SEED_EPOCH = '2026-07-15T10:00:00.000Z';
 const now = useEmulators ? new Date(process.env.ORBIT_LEDGER_SEED_NOW || SEED_EPOCH) : new Date();
+
+// Fixed under emulators for the same reason as the epoch above. The workspace
+// id otherwise derives from the owner's auth uid, which the emulator generates
+// afresh whenever its (in-memory) auth state is rebuilt. Values rendered from
+// the workspace id then change on every re-seed - the invoice-number preview on
+// settings reads "Q1K/26/0001" one day and "Q1P/26/0001" the next - which
+// failed the visual baselines for reasons that had nothing to do with the app.
+const SEED_WORKSPACE_ID = 'qa_web_smoke_workspace_emulator';
 const nowIso = now.toISOString();
 const today = nowIso.slice(0, 10);
 const billingMonth = today.slice(0, 7);
@@ -75,7 +83,9 @@ const ids = {
 
 async function main() {
   const owner = await getOrCreateUser(ownerEmail, ownerPassword);
-  workspaceId = workspaceId || `qa_web_smoke_workspace_${owner.localId.slice(0, 12).toLowerCase()}`;
+  workspaceId =
+    workspaceId ||
+    (useEmulators ? SEED_WORKSPACE_ID : `qa_web_smoke_workspace_${owner.localId.slice(0, 12).toLowerCase()}`);
   ids.officeMemberOwner = owner.localId;
   const viewer = viewerEmail && viewerPassword ? await getOrCreateUser(viewerEmail, viewerPassword) : null;
   if (viewer) {
